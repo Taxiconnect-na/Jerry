@@ -1,0 +1,559 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore">
+      <UniqueIdentifier>{FD9F05F3-ECF5-8A49-1AF1-26DEE5472FE9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src">
+      <UniqueIdentifier>{8CDEE807-BC53-E450-C8B8-4DEBB66742D4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras">
+      <UniqueIdentifier>{CB107398-7EDD-805D-4D52-12CA4829440F}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras\common">
+      <UniqueIdentifier>{2F5FD094-EF52-77F7-7AA8-4327A01BF747}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore">
+      <UniqueIdentifier>{FD9F05F3-ECF5-8A49-1AF1-26DEE5472FE9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src">
+      <UniqueIdentifier>{8CDEE807-BC53-E450-C8B8-4DEBB66742D4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras">
+      <UniqueIdentifier>{CB107398-7EDD-805D-4D52-12CA4829440F}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras\common">
+      <UniqueIdentifier>{2F5FD094-EF52-77F7-7AA8-4327A01BF747}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore">
+      <UniqueIdentifier>{FD9F05F3-ECF5-8A49-1AF1-26DEE5472FE9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src">
+      <UniqueIdentifier>{8CDEE807-BC53-E450-C8B8-4DEBB66742D4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras">
+      <UniqueIdentifier>{CB107398-7EDD-805D-4D52-12CA4829440F}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras\common">
+      <UniqueIdentifier>{2F5FD094-EF52-77F7-7AA8-4327A01BF747}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore">
+      <UniqueIdentifier>{FD9F05F3-ECF5-8A49-1AF1-26DEE5472FE9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src">
+      <UniqueIdentifier>{8CDEE807-BC53-E450-C8B8-4DEBB66742D4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras">
+      <UniqueIdentifier>{CB107398-7EDD-805D-4D52-12CA4829440F}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras\common">
+      <UniqueIdentifier>{2F5FD094-EF52-77F7-7AA8-4327A01BF747}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras\common\util">
+      <UniqueIdentifier>{F977CC92-61A1-407C-2835-A38A3BBED548}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore">
+      <UniqueIdentifier>{FD9F05F3-ECF5-8A49-1AF1-26DEE5472FE9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src">
+      <UniqueIdentifier>{8CDEE807-BC53-E450-C8B8-4DEBB66742D4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras">
+      <UniqueIdentifier>{CB107398-7EDD-805D-4D52-12CA4829440F}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras\common">
+      <UniqueIdentifier>{2F5FD094-EF52-77F7-7AA8-4327A01BF747}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras\common\util">
+      <UniqueIdentifier>{F977CC92-61A1-407C-2835-A38A3BBED548}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore">
+      <UniqueIdentifier>{FD9F05F3-ECF5-8A49-1AF1-26DEE5472FE9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src">
+      <UniqueIdentifier>{8CDEE807-BC53-E450-C8B8-4DEBB66742D4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras">
+      <UniqueIdentifier>{CB107398-7EDD-805D-4D52-12CA4829440F}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras\common">
+      <UniqueIdentifier>{2F5FD094-EF52-77F7-7AA8-4327A01BF747}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras\common\port">
+      <UniqueIdentifier>{56285779-61EB-16AC-749B-C9867D0449BF}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras\common\port\windows">
+      <UniqueIdentifier>{C1450D01-C033-76F3-3763-6DE88AF48A77}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore">
+      <UniqueIdentifier>{FD9F05F3-ECF5-8A49-1AF1-26DEE5472FE9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src">
+      <UniqueIdentifier>{8CDEE807-BC53-E450-C8B8-4DEBB66742D4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras">
+      <UniqueIdentifier>{CB107398-7EDD-805D-4D52-12CA4829440F}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras\common">
+      <UniqueIdentifier>{2F5FD094-EF52-77F7-7AA8-4327A01BF747}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras\common\port">
+      <UniqueIdentifier>{56285779-61EB-16AC-749B-C9867D0449BF}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras\common\port\windows">
+      <UniqueIdentifier>{C1450D01-C033-76F3-3763-6DE88AF48A77}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore">
+      <UniqueIdentifier>{FD9F05F3-ECF5-8A49-1AF1-26DEE5472FE9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src">
+      <UniqueIdentifier>{8CDEE807-BC53-E450-C8B8-4DEBB66742D4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras">
+      <UniqueIdentifier>{CB107398-7EDD-805D-4D52-12CA4829440F}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras\common">
+      <UniqueIdentifier>{2F5FD094-EF52-77F7-7AA8-4327A01BF747}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras\common\port">
+      <UniqueIdentifier>{56285779-61EB-16AC-749B-C9867D0449BF}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore">
+      <UniqueIdentifier>{FD9F05F3-ECF5-8A49-1AF1-26DEE5472FE9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src">
+      <UniqueIdentifier>{8CDEE807-BC53-E450-C8B8-4DEBB66742D4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras">
+      <UniqueIdentifier>{CB107398-7EDD-805D-4D52-12CA4829440F}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras\common">
+      <UniqueIdentifier>{2F5FD094-EF52-77F7-7AA8-4327A01BF747}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras\common\port">
+      <UniqueIdentifier>{56285779-61EB-16AC-749B-C9867D0449BF}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore">
+      <UniqueIdentifier>{FD9F05F3-ECF5-8A49-1AF1-26DEE5472FE9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src">
+      <UniqueIdentifier>{8CDEE807-BC53-E450-C8B8-4DEBB66742D4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras">
+      <UniqueIdentifier>{CB107398-7EDD-805D-4D52-12CA4829440F}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras\common">
+      <UniqueIdentifier>{2F5FD094-EF52-77F7-7AA8-4327A01BF747}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore">
+      <UniqueIdentifier>{FD9F05F3-ECF5-8A49-1AF1-26DEE5472FE9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src">
+      <UniqueIdentifier>{8CDEE807-BC53-E450-C8B8-4DEBB66742D4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras">
+      <UniqueIdentifier>{CB107398-7EDD-805D-4D52-12CA4829440F}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras\common">
+      <UniqueIdentifier>{2F5FD094-EF52-77F7-7AA8-4327A01BF747}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore">
+      <UniqueIdentifier>{FD9F05F3-ECF5-8A49-1AF1-26DEE5472FE9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src">
+      <UniqueIdentifier>{8CDEE807-BC53-E450-C8B8-4DEBB66742D4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras">
+      <UniqueIdentifier>{CB107398-7EDD-805D-4D52-12CA4829440F}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras\common">
+      <UniqueIdentifier>{2F5FD094-EF52-77F7-7AA8-4327A01BF747}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras\common\util">
+      <UniqueIdentifier>{F977CC92-61A1-407C-2835-A38A3BBED548}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore">
+      <UniqueIdentifier>{FD9F05F3-ECF5-8A49-1AF1-26DEE5472FE9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src">
+      <UniqueIdentifier>{8CDEE807-BC53-E450-C8B8-4DEBB66742D4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras">
+      <UniqueIdentifier>{CB107398-7EDD-805D-4D52-12CA4829440F}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras\common">
+      <UniqueIdentifier>{2F5FD094-EF52-77F7-7AA8-4327A01BF747}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras\common\util">
+      <UniqueIdentifier>{F977CC92-61A1-407C-2835-A38A3BBED548}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="$(IntDir)">
+      <UniqueIdentifier>{2385D4EB-CAEB-D33E-59EB-C687F571392E}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="$(IntDir)\monitoring">
+      <UniqueIdentifier>{493723B9-77DE-6886-A8FD-1B7ECAF048D4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="$(IntDir)\monitoring\agent">
+      <UniqueIdentifier>{8474C169-9C01-C09B-BA71-B21D816D6E84}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore">
+      <UniqueIdentifier>{FD9F05F3-ECF5-8A49-1AF1-26DEE5472FE9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src">
+      <UniqueIdentifier>{8CDEE807-BC53-E450-C8B8-4DEBB66742D4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras">
+      <UniqueIdentifier>{CB107398-7EDD-805D-4D52-12CA4829440F}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras\monitoring">
+      <UniqueIdentifier>{493723B9-77DE-6886-A8FD-1B7ECAF048D4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras\monitoring\agent">
+      <UniqueIdentifier>{8474C169-9C01-C09B-BA71-B21D816D6E84}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras\monitoring\agent\threads">
+      <UniqueIdentifier>{B3F9119D-B305-894A-B6E6-51DD418EEA56}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore">
+      <UniqueIdentifier>{FD9F05F3-ECF5-8A49-1AF1-26DEE5472FE9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src">
+      <UniqueIdentifier>{8CDEE807-BC53-E450-C8B8-4DEBB66742D4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras">
+      <UniqueIdentifier>{CB107398-7EDD-805D-4D52-12CA4829440F}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras\monitoring">
+      <UniqueIdentifier>{493723B9-77DE-6886-A8FD-1B7ECAF048D4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras\monitoring\agent">
+      <UniqueIdentifier>{8474C169-9C01-C09B-BA71-B21D816D6E84}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras\monitoring\agent\threads">
+      <UniqueIdentifier>{B3F9119D-B305-894A-B6E6-51DD418EEA56}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore">
+      <UniqueIdentifier>{FD9F05F3-ECF5-8A49-1AF1-26DEE5472FE9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src">
+      <UniqueIdentifier>{8CDEE807-BC53-E450-C8B8-4DEBB66742D4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras">
+      <UniqueIdentifier>{CB107398-7EDD-805D-4D52-12CA4829440F}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras\monitoring">
+      <UniqueIdentifier>{493723B9-77DE-6886-A8FD-1B7ECAF048D4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras\monitoring\agent">
+      <UniqueIdentifier>{8474C169-9C01-C09B-BA71-B21D816D6E84}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore">
+      <UniqueIdentifier>{FD9F05F3-ECF5-8A49-1AF1-26DEE5472FE9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src">
+      <UniqueIdentifier>{8CDEE807-BC53-E450-C8B8-4DEBB66742D4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras">
+      <UniqueIdentifier>{CB107398-7EDD-805D-4D52-12CA4829440F}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras\monitoring">
+      <UniqueIdentifier>{493723B9-77DE-6886-A8FD-1B7ECAF048D4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras\monitoring\connector">
+      <UniqueIdentifier>{C06FF406-9BA8-53BF-AB7E-58F462F29B84}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore">
+      <UniqueIdentifier>{FD9F05F3-ECF5-8A49-1AF1-26DEE5472FE9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src">
+      <UniqueIdentifier>{8CDEE807-BC53-E450-C8B8-4DEBB66742D4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras">
+      <UniqueIdentifier>{CB107398-7EDD-805D-4D52-12CA4829440F}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras\monitoring">
+      <UniqueIdentifier>{493723B9-77DE-6886-A8FD-1B7ECAF048D4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras\monitoring\agent">
+      <UniqueIdentifier>{8474C169-9C01-C09B-BA71-B21D816D6E84}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore">
+      <UniqueIdentifier>{FD9F05F3-ECF5-8A49-1AF1-26DEE5472FE9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src">
+      <UniqueIdentifier>{8CDEE807-BC53-E450-C8B8-4DEBB66742D4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras">
+      <UniqueIdentifier>{CB107398-7EDD-805D-4D52-12CA4829440F}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras\monitoring">
+      <UniqueIdentifier>{493723B9-77DE-6886-A8FD-1B7ECAF048D4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras\monitoring\agent">
+      <UniqueIdentifier>{8474C169-9C01-C09B-BA71-B21D816D6E84}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore">
+      <UniqueIdentifier>{FD9F05F3-ECF5-8A49-1AF1-26DEE5472FE9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src">
+      <UniqueIdentifier>{8CDEE807-BC53-E450-C8B8-4DEBB66742D4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras">
+      <UniqueIdentifier>{CB107398-7EDD-805D-4D52-12CA4829440F}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras\monitoring">
+      <UniqueIdentifier>{493723B9-77DE-6886-A8FD-1B7ECAF048D4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore">
+      <UniqueIdentifier>{FD9F05F3-ECF5-8A49-1AF1-26DEE5472FE9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src">
+      <UniqueIdentifier>{8CDEE807-BC53-E450-C8B8-4DEBB66742D4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras">
+      <UniqueIdentifier>{CB107398-7EDD-805D-4D52-12CA4829440F}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras\monitoring">
+      <UniqueIdentifier>{493723B9-77DE-6886-A8FD-1B7ECAF048D4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras\monitoring\connector">
+      <UniqueIdentifier>{C06FF406-9BA8-53BF-AB7E-58F462F29B84}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras\monitoring\connector\configuration">
+      <UniqueIdentifier>{877221DB-D8E0-9DDF-9CBB-16108A8146C0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore">
+      <UniqueIdentifier>{FD9F05F3-ECF5-8A49-1AF1-26DEE5472FE9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore">
+      <UniqueIdentifier>{FD9F05F3-ECF5-8A49-1AF1-26DEE5472FE9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src">
+      <UniqueIdentifier>{8CDEE807-BC53-E450-C8B8-4DEBB66742D4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras">
+      <UniqueIdentifier>{CB107398-7EDD-805D-4D52-12CA4829440F}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras\monitoring">
+      <UniqueIdentifier>{493723B9-77DE-6886-A8FD-1B7ECAF048D4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras\monitoring\agent">
+      <UniqueIdentifier>{8474C169-9C01-C09B-BA71-B21D816D6E84}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\..\omr-agentcore\src\ibmras\monitoring\agent\_excluded_files">
+      <UniqueIdentifier>{158E591E-B6EA-0C85-8F5A-18EAFA09B4CE}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\omr-agentcore\src\ibmras\common\Logger.cpp">
+      <Filter>..\..\omr-agentcore\src\ibmras\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\omr-agentcore\src\ibmras\common\LogManager.cpp">
+      <Filter>..\..\omr-agentcore\src\ibmras\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\omr-agentcore\src\ibmras\common\MemoryManager.cpp">
+      <Filter>..\..\omr-agentcore\src\ibmras\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\omr-agentcore\src\ibmras\common\util\FileUtils.cpp">
+      <Filter>..\..\omr-agentcore\src\ibmras\common\util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\omr-agentcore\src\ibmras\common\util\LibraryUtils.cpp">
+      <Filter>..\..\omr-agentcore\src\ibmras\common\util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\omr-agentcore\src\ibmras\common\port\windows\Thread.cpp">
+      <Filter>..\..\omr-agentcore\src\ibmras\common\port\windows</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\omr-agentcore\src\ibmras\common\port\windows\Process.cpp">
+      <Filter>..\..\omr-agentcore\src\ibmras\common\port\windows</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\omr-agentcore\src\ibmras\common\port\Lock.cpp">
+      <Filter>..\..\omr-agentcore\src\ibmras\common\port</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\omr-agentcore\src\ibmras\common\port\ThreadData.cpp">
+      <Filter>..\..\omr-agentcore\src\ibmras\common\port</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\omr-agentcore\src\ibmras\common\Properties.cpp">
+      <Filter>..\..\omr-agentcore\src\ibmras\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\omr-agentcore\src\ibmras\common\PropertiesFile.cpp">
+      <Filter>..\..\omr-agentcore\src\ibmras\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\omr-agentcore\src\ibmras\common\util\strUtils.cpp">
+      <Filter>..\..\omr-agentcore\src\ibmras\common\util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\omr-agentcore\src\ibmras\common\util\sysUtils.cpp">
+      <Filter>..\..\omr-agentcore\src\ibmras\common\util</Filter>
+    </ClCompile>
+    <ClCompile Include="$(IntDir)\monitoring\agent\Agent.cpp">
+      <Filter>$(IntDir)\monitoring\agent</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\omr-agentcore\src\ibmras\monitoring\agent\threads\ThreadPool.cpp">
+      <Filter>..\..\omr-agentcore\src\ibmras\monitoring\agent\threads</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\omr-agentcore\src\ibmras\monitoring\agent\threads\WorkerThread.cpp">
+      <Filter>..\..\omr-agentcore\src\ibmras\monitoring\agent\threads</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\omr-agentcore\src\ibmras\monitoring\agent\SystemReceiver.cpp">
+      <Filter>..\..\omr-agentcore\src\ibmras\monitoring\agent</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\omr-agentcore\src\ibmras\monitoring\connector\ConnectorManager.cpp">
+      <Filter>..\..\omr-agentcore\src\ibmras\monitoring\connector</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\omr-agentcore\src\ibmras\monitoring\agent\Bucket.cpp">
+      <Filter>..\..\omr-agentcore\src\ibmras\monitoring\agent</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\omr-agentcore\src\ibmras\monitoring\agent\BucketList.cpp">
+      <Filter>..\..\omr-agentcore\src\ibmras\monitoring\agent</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\omr-agentcore\src\ibmras\monitoring\Plugin.cpp">
+      <Filter>..\..\omr-agentcore\src\ibmras\monitoring</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\omr-agentcore\src\ibmras\monitoring\connector\configuration\ConfigurationConnector.cpp">
+      <Filter>..\..\omr-agentcore\src\ibmras\monitoring\connector\configuration</Filter>
+    </ClCompile>
+    <None Include="..\..\omr-agentcore\binding.gyp">
+      <Filter>..\..\omr-agentcore</Filter>
+    </None>
+    <ClCompile Include="..\..\omr-agentcore\src\ibmras\monitoring\agent\Agent.cpp">
+      <Filter>..\..\omr-agentcore\src\ibmras\monitoring\agent\_excluded_files</Filter>
+    </ClCompile>
+  </ItemGroup>
+</Project>

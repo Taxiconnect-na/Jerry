@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="src">
+      <UniqueIdentifier>{8CDEE807-BC53-E450-C8B8-4DEBB66742D4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\ibmras">
+      <UniqueIdentifier>{CB107398-7EDD-805D-4D52-12CA4829440F}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\ibmras\monitoring">
+      <UniqueIdentifier>{493723B9-77DE-6886-A8FD-1B7ECAF048D4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\ibmras\monitoring\connector">
+      <UniqueIdentifier>{C06FF406-9BA8-53BF-AB7E-58F462F29B84}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\ibmras\monitoring\connector\headless">
+      <UniqueIdentifier>{CD2FF720-A213-5C1D-B945-980C4A248C30}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\omr-agentcore\src\ibmras\monitoring\connector\headless\HLConnector.cpp">
+      <Filter>src\ibmras\monitoring\connector\headless</Filter>
+    </ClCompile>
+    <None Include="..\..\omr-agentcore\binding.gyp"/>
+  </ItemGroup>
+</Project>

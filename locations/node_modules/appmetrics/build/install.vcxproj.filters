@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="$(OutDir)">
+      <UniqueIdentifier>{ECA95933-7FA6-5798-4EC4-C0CAC6DD34DE}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="$(OutDir)">
+      <UniqueIdentifier>{ECA95933-7FA6-5798-4EC4-C0CAC6DD34DE}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\omr-agentcore">
+      <UniqueIdentifier>{FD9F05F3-ECF5-8A49-1AF1-26DEE5472FE9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="$(OutDir)">
+      <UniqueIdentifier>{ECA95933-7FA6-5798-4EC4-C0CAC6DD34DE}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="$(OutDir)">
+      <UniqueIdentifier>{ECA95933-7FA6-5798-4EC4-C0CAC6DD34DE}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="$(OutDir)">
+      <UniqueIdentifier>{ECA95933-7FA6-5798-4EC4-C0CAC6DD34DE}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="$(OutDir)">
+      <UniqueIdentifier>{ECA95933-7FA6-5798-4EC4-C0CAC6DD34DE}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="$(OutDir)">
+      <UniqueIdentifier>{ECA95933-7FA6-5798-4EC4-C0CAC6DD34DE}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\omr-agentcore">
+      <UniqueIdentifier>{FD9F05F3-ECF5-8A49-1AF1-26DEE5472FE9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\omr-agentcore\plugins">
+      <UniqueIdentifier>{9DE023B3-F1C0-CF0D-AF52-3287B388D922}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\omr-agentcore">
+      <UniqueIdentifier>{FD9F05F3-ECF5-8A49-1AF1-26DEE5472FE9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\omr-agentcore\plugins">
+      <UniqueIdentifier>{9DE023B3-F1C0-CF0D-AF52-3287B388D922}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\omr-agentcore">
+      <UniqueIdentifier>{FD9F05F3-ECF5-8A49-1AF1-26DEE5472FE9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\omr-agentcore\plugins">
+      <UniqueIdentifier>{9DE023B3-F1C0-CF0D-AF52-3287B388D922}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\omr-agentcore">
+      <UniqueIdentifier>{FD9F05F3-ECF5-8A49-1AF1-26DEE5472FE9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\omr-agentcore\plugins">
+      <UniqueIdentifier>{9DE023B3-F1C0-CF0D-AF52-3287B388D922}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\omr-agentcore">
+      <UniqueIdentifier>{FD9F05F3-ECF5-8A49-1AF1-26DEE5472FE9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\omr-agentcore\plugins">
+      <UniqueIdentifier>{9DE023B3-F1C0-CF0D-AF52-3287B388D922}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..">
+      <UniqueIdentifier>{739DB09A-CC57-A953-A6CF-F64FA08E4FA7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\omr-agentcore">
+      <UniqueIdentifier>{FD9F05F3-ECF5-8A49-1AF1-26DEE5472FE9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="..\omr-agentcore\plugins">
+      <UniqueIdentifier>{9DE023B3-F1C0-CF0D-AF52-3287B388D922}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\binding.gyp">
+      <Filter>..</Filter>
+    </None>
+    <None Include="$(OutDir)\appmetrics.node">
+      <Filter>$(OutDir)</Filter>
+    </None>
+    <None Include="$(OutDir)\heapdump.node">
+      <Filter>$(OutDir)</Filter>
+    </None>
+    <None Include="..\omr-agentcore\agentcore.dll">
+      <Filter>..\omr-agentcore</Filter>
+    </None>
+    <None Include="$(OutDir)\nodeenvplugin.dll">
+      <Filter>$(OutDir)</Filter>
+    </None>
+    <None Include="$(OutDir)\nodeheapplugin.dll">
+      <Filter>$(OutDir)</Filter>
+    </None>
+    <None Include="$(OutDir)\nodegcplugin.dll">
+      <Filter>$(OutDir)</Filter>
+    </None>
+    <None Include="$(OutDir)\nodeprofplugin.dll">
+      <Filter>$(OutDir)</Filter>
+    </None>
+    <None Include="$(OutDir)\nodeloopplugin.dll">
+      <Filter>$(OutDir)</Filter>
+    </None>
+    <None Include="..\omr-agentcore\plugins\hcmqtt.dll">
+      <Filter>..\omr-agentcore\plugins</Filter>
+    </None>
+    <None Include="..\omr-agentcore\plugins\cpuplugin.dll">
+      <Filter>..\omr-agentcore\plugins</Filter>
+    </None>
+    <None Include="..\omr-agentcore\plugins\envplugin.dll">
+      <Filter>..\omr-agentcore\plugins</Filter>
+    </None>
+    <None Include="..\omr-agentcore\plugins\memoryplugin.dll">
+      <Filter>..\omr-agentcore\plugins</Filter>
+    </None>
+    <None Include="..\omr-agentcore\plugins\hcapiplugin.dll">
+      <Filter>..\omr-agentcore\plugins</Filter>
+    </None>
+    <None Include="..\omr-agentcore\plugins\headlessplugin.dll">
+      <Filter>..\omr-agentcore\plugins</Filter>
+    </None>
+  </ItemGroup>
+</Project>
