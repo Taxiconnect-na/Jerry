@@ -9,6 +9,7 @@ const mysql = require("mysql");
 const requestAPI = require("request");
 //....
 var fastFilter = require("fast-filter");
+const { promisify, inspect } = require("util");
 var chaineDateUTC = null;
 var dateObject = null;
 const moment = require("moment");
@@ -56,7 +57,7 @@ function getRouteInfos(coordsInfos, resolve) {
     passengerPosition.latitude +
     "," +
     passengerPosition.longitude +
-    "&heading_penalty=0&avoid=residential&avoid=ferry&ch.disable=true&locale=en&details=street_name&details=time&optimize=true&points_encoded=false&details=max_speed&snap_prevention=ferry&profile=car&pass_through=true&instructions=false";
+    "&heading_penalty=0&avoid=residential&avoid=ferry&ch.disable=true&locale=en&details=street_name&details=time&optimize=true&points_encoded=false&details=max_speed&snap_prevention=ferry&profile=car&pass_through=true&instructions=true";
   requestAPI(url, function (error, response, body) {
     //console.log(error, response, body);
     if (body != undefined) {
@@ -74,6 +75,11 @@ function getRouteInfos(coordsInfos, resolve) {
             }
             //...
             var rawPoints = body.paths[0].points.coordinates;
+            if (body.paths[0].instructions[0].heading !== undefined) {
+              console.log("Heading --> ", body.paths[0].instructions[0].heading);
+            } else {
+              console.log("same heading...");
+            }
             var pointsTravel = rawPoints;
             //=====================================================================
             resolve({
@@ -112,13 +118,13 @@ dbPool.getConnection(function (err, connection) {
 
     //Ride tracking for customers to see real-time drivers positions
     socket.on("trackdriverroute", function (coordsData) {
-      console.log(coordsData);
+      //console.log(coordsData);
       if (coordsData !== undefined && coordsData != null && coordsData.driver.latitude !== undefined && coordsData.passenger.latitude !== undefined) {
         let request0 = new Promise((resolve) => {
           getRouteInfos(coordsData, resolve);
         }).then(
           (result) => {
-            console.log(result);
+            //console.log(result);
             socket.emit("trackdriverroute-response", result);
           },
           (error) => {
@@ -133,13 +139,13 @@ dbPool.getConnection(function (err, connection) {
 
     //Get itinary informations for ride - passengers
     socket.on("getIteinerayDestinationInfos", function (coordsData) {
-      console.log(coordsData);
+      //console.log(coordsData);
       if (coordsData !== undefined && coordsData != null && coordsData.driver.latitude !== undefined && coordsData.passenger.latitude !== undefined) {
         let request0 = new Promise((resolve) => {
           getRouteInfos(coordsData, resolve);
         }).then(
           (result) => {
-            console.log(result);
+            //console.log(result);
             socket.emit("getIteinerayDestinationInfos-response", result);
           },
           (error) => {
