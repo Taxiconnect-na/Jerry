@@ -43,21 +43,21 @@ function logObject(obj) {
   console.log(inspect(obj, { maxArrayLength: null, depth: null, showHidden: true, colors: true }));
 }
 
-function getRouteInfos(coordsInfos, resolve) {
-  let driverPosition = coordsInfos.driver;
+function getRouteInfosDestination(coordsInfos, resolve) {
+  let destinationPosition = coordsInfos.destination;
   let passengerPosition = coordsInfos.passenger;
 
   let url =
     URL_ROUTE_SERVICES +
     "point=" +
-    driverPosition.latitude +
+    destinationPosition.latitude +
     "," +
-    driverPosition.longitude +
+    destinationPosition.longitude +
     "&point=" +
     passengerPosition.latitude +
     "," +
     passengerPosition.longitude +
-    "&heading_penalty=0&avoid=residential&avoid=ferry&ch.disable=true&locale=en&details=street_name&details=time&optimize=true&points_encoded=false&details=max_speed&snap_prevention=ferry&profile=car&pass_through=true&instructions=true";
+    "&heading_penalty=0&avoid=residential&avoid=ferry&ch.disable=true&locale=en&details=street_name&details=time&optimize=true&points_encoded=false&details=max_speed&snap_prevention=ferry&profile=car&pass_through=true&instructions=false";
   requestAPI(url, function (error, response, body) {
     //console.log(error, response, body);
     if (body != undefined) {
@@ -75,20 +75,114 @@ function getRouteInfos(coordsInfos, resolve) {
             }
             //...
             var rawPoints = body.paths[0].points.coordinates;
-            if (body.paths[0].instructions[0].heading !== undefined) {
-              console.log("Heading --> ", body.paths[0].instructions[0].heading);
-            } else {
-              console.log("same heading...");
-            }
             var pointsTravel = rawPoints;
             //=====================================================================
             resolve({
               routePoints: pointsTravel,
-              //driverNextPoint: pointsTravel[pointsTravel.length - 1],
               driverNextPoint: pointsTravel[0],
               eta: eta,
               distance: distance,
             });
+          } else {
+            resolve(false);
+          }
+        } catch (error) {
+          resolve(false);
+        }
+      } else {
+        resolve(false);
+      }
+    } else {
+      resolve(false);
+    }
+  });
+}
+
+function getRouteInfos(coordsInfos, resolve) {
+  let driverPosition = coordsInfos.driver;
+  let passengerPosition = coordsInfos.passenger;
+  let destinationPosition = false;
+  if (coordsInfos.destination !== undefined) {
+    destinationPosition = coordsInfos.destination;
+  }
+
+  let url =
+    URL_ROUTE_SERVICES +
+    "point=" +
+    driverPosition.latitude +
+    "," +
+    driverPosition.longitude +
+    "&point=" +
+    passengerPosition.latitude +
+    "," +
+    passengerPosition.longitude +
+    "&heading_penalty=0&avoid=residential&avoid=ferry&ch.disable=true&locale=en&details=street_name&details=time&optimize=true&points_encoded=false&details=max_speed&snap_prevention=ferry&profile=car&pass_through=true&instructions=false";
+  requestAPI(url, function (error, response, body) {
+    //console.log(error, response, body);
+    if (body != undefined) {
+      if (body.length > 20) {
+        try {
+          body = JSON.parse(body);
+          if (body.paths[0].distance != undefined) {
+            var distance = body.paths[0].distance;
+            var eta = body.paths[0].time / 400; //Min
+            //Reshape ETA format
+            if (eta >= 60) {
+              eta = Math.round(eta / 60) + " min away";
+            } else {
+              eta = Math.round(eta) + " sec away";
+            }
+            //...
+            var rawPoints = body.paths[0].points.coordinates;
+            var pointsTravel = rawPoints;
+            //=====================================================================
+            //Get destination's route infos
+            if (destinationPosition !== false) {
+              let request0 = new Promise((res) => {
+                let bundleData = {
+                  passenger: passengerPosition,
+                  destination: destinationPosition,
+                };
+                getRouteInfosDestination(bundleData, res);
+              }).then(
+                (result) => {
+                  if (result !== false && result !== undefined && result != null) {
+                    resolve({
+                      routePoints: pointsTravel,
+                      destinationData: result,
+                      driverNextPoint: pointsTravel[0],
+                      eta: eta,
+                      distance: distance,
+                    });
+                  } else {
+                    resolve({
+                      routePoints: pointsTravel,
+                      destinationData: null,
+                      driverNextPoint: pointsTravel[0],
+                      eta: eta,
+                      distance: distance,
+                    });
+                  }
+                },
+                (error) => {
+                  resolve({
+                    routePoints: pointsTravel,
+                    destinationData: null,
+                    driverNextPoint: pointsTravel[0],
+                    eta: eta,
+                    distance: distance,
+                  });
+                }
+              );
+            } else {
+              resolve({
+                routePoints: pointsTravel,
+                destinationData: "routeTracking",
+                driverNextPoint: pointsTravel[0],
+                eta: eta,
+                distance: distance,
+              });
+            }
           } else {
             resolve(false);
           }
@@ -118,13 +212,13 @@ dbPool.getConnection(function (err, connection) {
 
     //Ride tracking for customers to see real-time drivers positions
     socket.on("trackdriverroute", function (coordsData) {
-      //console.log(coordsData);
+      console.log(coordsData);
       if (coordsData !== undefined && coordsData != null && coordsData.driver.latitude !== undefined && coordsData.passenger.latitude !== undefined) {
         let request0 = new Promise((resolve) => {
           getRouteInfos(coordsData, resolve);
         }).then(
           (result) => {
-            //console.log(result);
+            console.log(result);
             socket.emit("trackdriverroute-response", result);
           },
           (error) => {
@@ -139,7 +233,7 @@ dbPool.getConnection(function (err, connection) {
 
     //Get itinary informations for ride - passengers
     socket.on("getIteinerayDestinationInfos", function (coordsData) {
-      //console.log(coordsData);
+      console.log(coordsData);
       if (coordsData !== undefined && coordsData != null && coordsData.driver.latitude !== undefined && coordsData.passenger.latitude !== undefined) {
         let request0 = new Promise((resolve) => {
           getRouteInfos(coordsData, resolve);
