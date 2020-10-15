@@ -13,6 +13,7 @@ const { promisify, inspect } = require("util");
 var chaineDateUTC = null;
 var dateObject = null;
 const moment = require("moment");
+const e = require("express");
 
 const URL_SEARCH_SERVICES = "http://www.taxiconnectna.com:7007/";
 const URL_ROUTE_SERVICES = "http://www.taxiconnectna.com:7008/route?";
@@ -43,6 +44,10 @@ function logObject(obj) {
   console.log(inspect(obj, { maxArrayLength: null, depth: null, showHidden: true, colors: true }));
 }
 
+function logToSimulator(socket, data) {
+  socket.emit("updateTripLog", { logText: data });
+}
+
 function getRouteInfosDestination(coordsInfos, resolve) {
   let destinationPosition = coordsInfos.destination;
   let passengerPosition = coordsInfos.passenger;
@@ -50,13 +55,13 @@ function getRouteInfosDestination(coordsInfos, resolve) {
   let url =
     URL_ROUTE_SERVICES +
     "point=" +
-    destinationPosition.latitude +
-    "," +
-    destinationPosition.longitude +
-    "&point=" +
     passengerPosition.latitude +
     "," +
     passengerPosition.longitude +
+    "&point=" +
+    destinationPosition.latitude +
+    "," +
+    destinationPosition.longitude +
     "&heading_penalty=0&avoid=residential&avoid=ferry&ch.disable=true&locale=en&details=street_name&details=time&optimize=true&points_encoded=false&details=max_speed&snap_prevention=ferry&profile=car&pass_through=true&instructions=false";
   requestAPI(url, function (error, response, body) {
     //console.log(error, response, body);
@@ -80,6 +85,7 @@ function getRouteInfosDestination(coordsInfos, resolve) {
             resolve({
               routePoints: pointsTravel,
               driverNextPoint: pointsTravel[0],
+              destinationPoint: [destinationPosition.longitude, destinationPosition.latitude],
               eta: eta,
               distance: distance,
             });
@@ -99,14 +105,19 @@ function getRouteInfosDestination(coordsInfos, resolve) {
 }
 
 function getRouteInfos(coordsInfos, resolve) {
+  /**
+   * Get the route details for all the case scenarios
+   * Scenarios: Route to pickup, route to destination
+   * routeInfos is present to distinuish between pickup route requests, destinations route request or other scenarios
+   */
   let driverPosition = coordsInfos.driver;
-  let passengerPosition = coordsInfos.passenger;
+  let passengerPosition = coordsInfos.passenger; //CAREFULL COULD BE THE PASSENGER'S PICKUP LOCATION OF DESTINATION (ref. to the app code)
   let destinationPosition = false;
   if (coordsInfos.destination !== undefined) {
     destinationPosition = coordsInfos.destination;
   }
 
-  let url =
+  url =
     URL_ROUTE_SERVICES +
     "point=" +
     driverPosition.latitude +
@@ -117,6 +128,7 @@ function getRouteInfos(coordsInfos, resolve) {
     "," +
     passengerPosition.longitude +
     "&heading_penalty=0&avoid=residential&avoid=ferry&ch.disable=true&locale=en&details=street_name&details=time&optimize=true&points_encoded=false&details=max_speed&snap_prevention=ferry&profile=car&pass_through=true&instructions=false";
+
   requestAPI(url, function (error, response, body) {
     //console.log(error, response, body);
     if (body != undefined) {
@@ -201,7 +213,9 @@ function getRouteInfos(coordsInfos, resolve) {
 dbPool.getConnection(function (err, connection) {
   //Cached restore OR initialized
   const bodyParser = require("body-parser");
-
+  app.get("/", function (req, res) {
+    res.sendFile(__dirname + "/tripSimulator.html");
+  });
   // support parsing of application/json type post data
   app.use(bodyParser.json());
   //support parsing of application/x-www-form-urlencoded post data
@@ -213,16 +227,19 @@ dbPool.getConnection(function (err, connection) {
     //Ride tracking for customers to see real-time drivers positions
     socket.on("trackdriverroute", function (coordsData) {
       console.log(coordsData);
+      logToSimulator(socket, coordsData);
       if (coordsData !== undefined && coordsData != null && coordsData.driver.latitude !== undefined && coordsData.passenger.latitude !== undefined) {
         let request0 = new Promise((resolve) => {
           getRouteInfos(coordsData, resolve);
         }).then(
           (result) => {
             console.log(result);
+            logToSimulator(socket, result);
             socket.emit("trackdriverroute-response", result);
           },
           (error) => {
             console.log(error);
+            logToSimulator(socket, error);
             socket.emit("trackdriverroute-response", { response: false });
           }
         );
