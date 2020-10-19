@@ -27,6 +27,7 @@ const TOKEN_PAYMENT_CP = "9F416C11-127B-4DE2-AC7F-D5710E4C5E0A";
 const REDIRECT_URL_AFTER_PROCESSES = "https://taxiconnectna.com";
 const COMPANY_DPO_REF = "49FKEOA"; //Company;s ref on DPO
 const DPO_CREATETOKEN_SERVICE_TYPE = "3854"; //Purchase type
+const DPO_PAYMENT_ENDPOINT = "https://secure1.sandbox.directpay.online/API/v6/";
 
 const clientMongo = new MongoClient(URL_MONGODB, { useUnifiedTopology: true });
 
@@ -240,7 +241,7 @@ function createPaymentTransaction(xmlBody, user_fp, collectionRidersData_repr_to
   if (user_fp !== undefined && user_fp !== null) {
     requestAPI.post(
       {
-        url: "https://secure1.sandbox.directpay.online/API/v6/",
+        url: DPO_PAYMENT_ENDPOINT,
         method: "POST",
         headers: {
           "Content-Type": "application/xml",
@@ -285,7 +286,7 @@ function executePaymentTransaction(xmlBody, user_fp, collectionRidersData_repr_t
   if (user_fp !== undefined && user_fp !== null) {
     requestAPI.post(
       {
-        url: "https://secure1.sandbox.directpay.online/API/v6/",
+        url: DPO_PAYMENT_ENDPOINT,
         method: "POST",
         headers: {
           "Content-Type": "application/xml",

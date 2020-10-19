@@ -303,7 +303,7 @@ function updateRiderLocationsLog(collectionRidersLocation_log, locationData, res
  * user_fingerprint: fingerprint of the user requesting the information
  * user_nature: rider or driver
  * Responsible for finding out if there is any trip in progress linked to the user fingerprint
- * and dispatch accordingly the information to the correct driver and driver
+ * and dispatch accordingly the information to the correct driver and rider
  * @var isArrivedToDestination
  * @true when the passenger confirms his/her drop off
  * @var isRideCompleted_driverSide
@@ -495,7 +495,7 @@ dbPool.getConnection(function (err, connection) {
             (result) => {
               console.log(result);
               //Update the rider
-              socket.emit('trackdriverroute-response', result)
+              socket.emit("trackdriverroute-response", result);
             },
             (error) => {
               console.log(error);
