@@ -10,6 +10,7 @@ var server = http.createServer(app);
 const io = require("socket.io").listen(server);
 const mysql = require("mysql");
 const requestAPI = require("request");
+const crypto = require("crypto");
 //....
 var fastFilter = require("fast-filter");
 const { promisify, inspect, isRegExp } = require("util");
@@ -35,11 +36,32 @@ function resolveDate() {
   date = moment(date.getTime()).utcOffset(2);
 
   dateObject = date;
+  //Reformat date in the formate YYYY/MM/DD HH:MM
+  //month
   if (date.month() < 9) {
-    dateObjectImute = date.year() + "/0" + (date.month() + 1) + "/" + date.date() + " " + date.hour() + ":" + date.minute(); //Keep in object form.
+    dateObjectImute = date.year() + "/0" + (date.month() + 1); //Keep in object form.
   } else {
-    dateObjectImute = date.year() + "/" + (date.month() + 1) + "/" + date.date() + " " + date.hour() + ":" + date.minute(); //Keep in object form.
+    dateObjectImute = date.year() + "/" + (date.month() + 1); //Keep in object form.
   }
+  //...date
+  if (date.date() < 10) {
+    dateObjectImute += "/0" + date.date(); //Keep in object form.
+  } else {
+    dateObjectImute += "/" + date.date(); //Keep in object form.
+  }
+  //...hour
+  if (date.hour() < 10) {
+    dateObjectImute += " 0" + date.hour(); //Keep in object form.
+  } else {
+    dateObjectImute += " " + date.hour(); //Keep in object form.
+  }
+  //...minute
+  if (date.minute() < 10) {
+    dateObjectImute += ":0" + date.minute(); //Keep in object form.
+  } else {
+    dateObjectImute += ":" + date.minute(); //Keep in object form.
+  }
+
   date = date.year() + "-" + (date.month() + 1) + "-" + date.date() + " " + date.hour() + ":" + date.minute() + ":" + date.second();
   chaineDateUTC = date;
 }
@@ -271,6 +293,7 @@ function executePaymentTransaction(xmlBody, user_fp, collectionRidersData_repr_t
         body: xmlBody,
       },
       function (error, response, body) {
+        console.log(body, response.statusCode);
         //Save the general log, status code and error
         new Promise((reslv) => {
           saveLogForTopups(user_fp, body, error, response.statusCode, collectionRidersData_repr_topups, reslv);
@@ -350,8 +373,103 @@ function saveLogForTopupsSuccess(user_fp, amount, transactionToken, transactionR
  * @func updateRecordStrongholdVouchers()
  * Very important: responsible for updating the mySQL database stronghold.
  */
-function updateRecordStrongholdVouchers(user_fp, amount, transactionToken, transactionRef, connection, resolve) {
+function updateRecordStrongholdVouchers(user_fp, amount, transactionToken, transactionRef, dbMysqlConnection, resolve) {
   resolveDate();
+  if (user_fp !== undefined && user_fp !== null) {
+    //Update central vouchers and credit rides recharges in mysql
+    new Promise((reslv) => {}).then(
+      (result) => {
+        console.log(result);
+      },
+      (error) => {
+        console.log(error);
+        resolve(false);
+      }
+    );
+  } else {
+    resolve(false);
+  }
+}
+
+/**
+ * @func updateMySQLStronghold()
+ * Update voucher part of the main stronghold, based on the predefined schema in place.
+ */
+function updateMySQLStronghold(user_fp, amount, transactionToken, transactionRef, dbMysqlConnection, resolve) {
+  //Get unique fingerprint
+  new Promise((reslv) => {
+    generateUniqueFingerprint(user_fp + "" + transactionToken + "" + transactionRef + "" + chaineDateUTC, reslv);
+  }).then(
+    (result) => {
+      let fingerprint = result;
+      //Update central vouchers
+      let queryUpdate_centralVouchers =
+        "INSERT INTO central_vouchers(voucher_number, unique_fingerprint, value, date_generated) VALUES(" +
+        mysql.escape(fingerprint) +
+        "," +
+        mysql.escape(fingerprint) +
+        "," +
+        mysql.escape(amount) +
+        "," +
+        mysql.escape(chaineDateUTC) +
+        ")";
+      dbMysqlConnection.query(queryUpdate_centralVouchers, function () {
+        //Update credit rides recharges
+        let queryUpdate_ridesRecharges =
+          "INSERT INTO credit_rides_recharges(user_id, voucher_used, date_recharged) VALUES(" +
+          mysql.escape(user_fp) +
+          "," +
+          mysql.escape(fingerprint) +
+          "," +
+          mysql.escape(chaineDateUTC) +
+          ")";
+        dbMysqlConnection.query(queryUpdate_ridesRecharges, function () {
+          //Done
+          resolve(true);
+        });
+      });
+    },
+    (error) => {
+      //Use the transaction token + transactionRef as fingerprint
+      let fingerprint = transactionToken + "" + transactionRef;
+      //Update central vouchers
+      let queryUpdate_centralVouchers =
+        "INSERT INTO central_vouchers(voucher_number, unique_fingerprint, value, date_generated) VALUES(" +
+        mysql.escape(fingerprint) +
+        "," +
+        mysql.escape(fingerprint) +
+        "," +
+        mysql.escape(amount) +
+        "," +
+        mysql.escape(chaineDateUTC) +
+        ")";
+      dbMysqlConnection.query(queryUpdate_centralVouchers, function () {
+        //Update credit rides recharges
+        let queryUpdate_ridesRecharges =
+          "INSERT INTO credit_rides_recharges(user_id, voucher_used, date_recharged) VALUES(" +
+          mysql.escape(user_fp) +
+          "," +
+          mysql.escape(fingerprint) +
+          "," +
+          mysql.escape(chaineDateUTC) +
+          ")";
+        dbMysqlConnection.query(queryUpdate_ridesRecharges, function () {
+          //Done
+          resolve(true);
+        });
+      });
+    }
+  );
+}
+
+/**
+ * @func generateUniqueFingerprint()
+ * Generate unique fingerprint for any string size.
+ */
+function generateUniqueFingerprint(str, resolve) {
+  str = str.trim();
+  let fingerprint = crypto.createHmac("sha256", "TAXICONNECTBASICKEYFINGERPRINTS").update(str).digest("hex");
+  resolve(fingerprint);
 }
 
 /**
@@ -447,75 +565,158 @@ dbPool.getConnection(function (err, connection) {
                   }).then(
                     (result) => {
                       console.log(result);
-                      result = JSON.parse(result);
-                      if (result.API3G.Result === "000" || result.API3G.Result == "000") {
-                        console.log("Executing payment");
-                        let transactionToken = result.API3G.TransToken;
-                        let transRef = result.API3G.TransRef;
-                        dataBundle.number = dataBundle.number.replace(" ", "").replace(" ", "").replace(" ", "");
-                        dataBundle.expiry = dataBundle.expiry.replace("/", "");
-                        //DEBUG CARD-------------------------------------------------------------------------------
-                        dataBundle.number = "5436886269848367";
-                        dataBundle.expiry = "1222";
-                        dataBundle.cvv = "123";
-                        //....-------------------------------------------------------------------------------------
+                      if (result !== false) {
+                        try {
+                          result = JSON.parse(result);
+                          if (result.API3G.Result === "000" || result.API3G.Result == "000") {
+                            console.log("Executing payment");
+                            let transactionToken = result.API3G.TransToken;
+                            let transRef = result.API3G.TransRef;
+                            dataBundle.number = dataBundle.number.replace(" ", "").replace(" ", "").replace(" ", "");
+                            dataBundle.expiry = dataBundle.expiry.replace("/", "");
+                            //DEBUG CARD-------------------------------------------------------------------------------
+                            dataBundle.number = "5436886269848367";
+                            dataBundle.expiry = "1222";
+                            dataBundle.cvv = "123";
+                            //....-------------------------------------------------------------------------------------
 
-                        //...
-                        //MAKE PAYMENT
-                        let xmlMakePayment =
-                          `
+                            //...
+                            //MAKE PAYMENT
+                            let xmlMakePayment =
+                              `
                         <?xml version="1.0" encoding="utf-8"?>
                         <API3G>
                           <CompanyToken>` +
-                          TOKEN_PAYMENT_CP +
-                          `</CompanyToken>
+                              TOKEN_PAYMENT_CP +
+                              `</CompanyToken>
                           <Request>chargeTokenCreditCard</Request>
                           <TransactionToken>` +
-                          transactionToken +
-                          `</TransactionToken>
+                              transactionToken +
+                              `</TransactionToken>
                           <CreditCardNumber>` +
-                          dataBundle.number +
-                          `</CreditCardNumber>
+                              dataBundle.number +
+                              `</CreditCardNumber>
                           <CreditCardExpiry>` +
-                          dataBundle.expiry +
-                          `</CreditCardExpiry>
+                              dataBundle.expiry +
+                              `</CreditCardExpiry>
                           <CreditCardCVV>` +
-                          dataBundle.cvv +
-                          `</CreditCardCVV>
+                              dataBundle.cvv +
+                              `</CreditCardCVV>
                           <CardHolderName>` +
-                          dataBundle.name +
-                          `</CardHolderName>
+                              dataBundle.name +
+                              `</CardHolderName>
                           <ChargeType></ChargeType>
                         </API3G>
                         `;
-                        console.log(xmlMakePayment);
-                        //Execute payment
-                        new Promise((resolve) => {
-                          executePaymentTransaction(xmlMakePayment, dataBundle.user_fp, collectionRidersData_repr_topups, resolve);
-                        }).then(
-                          (result) => {
-                            console.log(result);
+                            console.log(xmlMakePayment);
+                            //Execute payment
                             new Promise((resolve) => {
-                              deductXML_responses(result, "chargeTokenCreditCard", resolve);
+                              executePaymentTransaction(xmlMakePayment, dataBundle.user_fp, collectionRidersData_repr_topups, resolve);
                             }).then(
                               (result) => {
                                 console.log(result);
-                                if (result.API3G.Result === "000" || result.API3G.Result == "000") {
-                                  //SUCCESS
-                                  //Update mongo rider profile
-                                }
+                                new Promise((resolve) => {
+                                  deductXML_responses(result, "chargeTokenCreditCard", resolve);
+                                }).then(
+                                  (result) => {
+                                    if (result !== false) {
+                                      try {
+                                        result = JSON.parse(result);
+                                        console.log(result);
+                                        if (result.API3G.Result === "000" || result.API3G.Result == "000") {
+                                          //SUCCESS
+                                          //Update topup success mongo log
+                                          new Promise((resolve) => {
+                                            saveLogForTopupsSuccess(
+                                              dataBundle.user_fp,
+                                              dataBundle.amount,
+                                              transactionToken,
+                                              transRef,
+                                              collectionRidersData_repr,
+                                              resolve
+                                            );
+                                          }).then(
+                                            (result) => {
+                                              console.log(result);
+                                            },
+                                            (error) => {
+                                              console.log(error);
+                                            }
+                                          );
+
+                                          //Update mysql stronghold
+                                          new Promise((resolve) => {
+                                            updateMySQLStronghold(
+                                              dataBundle.user_fp,
+                                              dataBundle.amount,
+                                              transactionToken,
+                                              transRef,
+                                              connection,
+                                              resolve
+                                            );
+                                          }).then(
+                                            (result) => {
+                                              console.log(result);
+                                              if (result !== false) {
+                                                //Update mongo rider profile
+                                                new Promise((resolve) => {
+                                                  saveLogForTopupsSuccess(
+                                                    dataBundle.user_fp,
+                                                    dataBundle.amount,
+                                                    transactionToken,
+                                                    transRef,
+                                                    collectionRidersData_repr,
+                                                    resolve
+                                                  );
+                                                }).then(
+                                                  (result) => {
+                                                    console.log(result);
+                                                    //DONE - SUCCESSFULLY PAID
+                                                    dispatchMessageDone_process(true, false, socket);
+                                                  },
+                                                  (error) => {
+                                                    console.log(error);
+                                                    dispatchMessageDone_process(false, "payment_error", socket);
+                                                  }
+                                                );
+                                              } //Error
+                                              else {
+                                                dispatchMessageDone_process(false, "payment_error", socket);
+                                              }
+                                            },
+                                            (error) => {
+                                              console.log(error);
+                                              dispatchMessageDone_process(false, "payment_error", socket);
+                                            }
+                                          );
+                                        }
+                                      } catch (error) {
+                                        dispatchMessageDone_process(false, "payment_error", socket);
+                                      }
+                                    } //Error
+                                    else {
+                                      dispatchMessageDone_process(false, "payment_error", socket);
+                                    }
+                                  },
+                                  (error) => {
+                                    console.log(error);
+                                    dispatchMessageDone_process(false, "payment_error", socket);
+                                  }
+                                );
                               },
                               (error) => {
                                 console.log(error);
+                                dispatchMessageDone_process(false, "payment_error", socket);
                               }
                             );
-                          },
-                          (error) => {
-                            console.log(error);
-                            dispatchMessageDone_process(false, "payment_error", socket);
+                          } //Error transaction could not be create
+                          else {
+                            dispatchMessageDone_process(false, "transaction_error", socket);
                           }
-                        );
-                      } //Error transaction could not be create
+                        } catch (error) {
+                          dispatchMessageDone_process(false, "transaction_error", socket);
+                        }
+                      } //Error
                       else {
                         dispatchMessageDone_process(false, "transaction_error", socket);
                       }
