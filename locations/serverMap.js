@@ -141,7 +141,7 @@ function getRouteInfosDestination(coordsInfos, resolve) {
 function getRouteInfos(coordsInfos, resolve) {
   let driverPosition = coordsInfos.driver === undefined ? coordsInfos.passenger_origin : coordsInfos.driver; //CAREFUL COULD BE THE PASSENGER'S ORIGIN POINT, especially useful when a request is still pending.
   let passengerPosition = coordsInfos.passenger === undefined ? coordsInfos.passenger_destination : coordsInfos.passenger; //CAREFUL COULD BE THE PASSENGER'S PICKUP LOCATION OF DESTINATION (ref. to the app code).
-  let destinationPosition = coordsInfos.passenger_destination === undefined ? false : coordsInfos.destination; //Deactive when a request is still in progress as the destination information is already contained in @var passenger_destination.
+  let destinationPosition = coordsInfos.destination === undefined ? false : coordsInfos.destination; //Deactive when a request is still in progress as the destination information is already contained in @var passenger_destination.
   /*if (coordsInfos.destination !== undefined) {
     destinationPosition = coordsInfos.destination;
   }*/
@@ -341,6 +341,7 @@ function tripChecker_Dispatcher(collectionRidersData_repr, user_fingerprint, use
       if (result.length > 0) {
         //There is a ride
         let rideHistory = result[0].rides_history;
+        let riderCoords = result[0].coordinates;
         if (rideHistory.isAccepted) {
           //Ride pending
           //3 Scenarios:
@@ -360,6 +361,14 @@ function tripChecker_Dispatcher(collectionRidersData_repr, user_fingerprint, use
                     (resp0) => {
                       if (resp0 !== null) {
                         try {
+                          //Compute next route update ---------------------------------------------------
+                          let request0 = new Promise((reslv) => {
+                            computeAndCacheRouteDestination(resp, rideHistory, riderCoords, reslv);
+                          }).then(
+                            () => {},
+                            () => {}
+                          );
+                          //............Return cached
                           let tripData = JSON.parse(resp0);
                           //Found a precomputed record
                           console.log("Trip data cached found!");
@@ -372,7 +381,7 @@ function tripChecker_Dispatcher(collectionRidersData_repr, user_fingerprint, use
                       else {
                         //Compute next route update ---------------------------------------------------
                         let request0 = new Promise((reslv) => {
-                          computeAndCacheRouteDestination(resp, rideHistory, reslv);
+                          computeAndCacheRouteDestination(resp, rideHistory, riderCoords, reslv);
                         }).then(
                           () => {
                             //Get route infos from cache.
@@ -396,7 +405,7 @@ function tripChecker_Dispatcher(collectionRidersData_repr, user_fingerprint, use
                       console.log(err0);
                       //Compute next route update ---------------------------------------------------
                       let request1 = new Promise((reslv) => {
-                        computeAndCacheRouteDestination(resp, rideHistory, reslv);
+                        computeAndCacheRouteDestination(resp, rideHistory, riderCoords, reslv);
                       }).then(
                         () => {
                           //Get route infos from cache.
@@ -495,19 +504,24 @@ function tripChecker_Dispatcher(collectionRidersData_repr, user_fingerprint, use
  * Responsible for finding all the trip information for a sepcific ride and cache it for later and efficient use.
  * Promisify!
  */
-function computeAndCacheRouteDestination(driverInfos, rideHistory, resolve) {
+function computeAndCacheRouteDestination(driverInfos, rideHistory, riderCoords = false, resolve) {
   //Compute next route update ---------------------------------------------------
-  driverInfos = JSON.parse(driverInfos);
+  let resp = JSON.parse(driverInfos);
   let bundle = {
     driver: {
       latitude: resp.latitude,
       longitude: resp.longitude,
     },
     passenger: {
+      latitude: riderCoords.latitude,
+      longitude: riderCoords.longitude,
+    },
+    destination: {
       latitude: rideHistory.rider_destination.destination1.point.latitude,
       longitude: rideHistory.rider_destination.destination1.point.longitude,
     },
   };
+  console.log("Updateing location caache");
 
   let request0 = new Promise((reslv) => {
     getRouteInfos(bundle, reslv);
@@ -516,6 +530,7 @@ function computeAndCacheRouteDestination(driverInfos, rideHistory, resolve) {
       //Add request status variable - inRouteToPickup
       result["request_status"] = "inRouteToPickup";
       //Cache computed result
+      //console.log(result.destinationData);
       client.set(rideHistory.request_fp, JSON.stringify(result));
       //--------
       resolve(true);
@@ -543,7 +558,6 @@ function updateRiderLocationInfosCache(req, resolve) {
       if (resp !== null) {
         //Has already a cache entry
         try {
-          console.log("updating existing cache...");
           let prevCache = JSON.parse(resp);
           //Update the previous cache
           prevCache.latitude = req.latitude;
