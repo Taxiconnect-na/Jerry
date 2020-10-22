@@ -43,8 +43,8 @@ resolveDate();
 //--------------DRIVER'S DEBUG DATA-------------------------------------------------------------------
 const driverCacheData = {
   user_fingerprint: "23c9d088e03653169b9c18193a0b8dd329ea1e43eb0626ef9f16b5b979694a429710561a3cb3ddae",
-  latitude: -22.514987,
-  longitude: 17.060507,
+  latitude: -22.5704962,
+  longitude: 17.0809509,
   date_logged: chaineDateUTC,
 };
 //Cache
@@ -190,7 +190,8 @@ function getRouteInfos(coordsInfos, resolve) {
                     resolve({
                       routePoints: pointsTravel,
                       destinationData: result,
-                      driverNextPoint: pointsTravel[0],
+                      //driverNextPoint: pointsTravel[0],
+                      driverNextPoint: pointsTravel[pointsTravel.length - 1],
                       eta: eta,
                       distance: distance,
                     });
@@ -219,6 +220,7 @@ function getRouteInfos(coordsInfos, resolve) {
                 routePoints: pointsTravel,
                 destinationData: coordsInfos.passenger_destination === undefined ? "routeTracking" : "requestToDestinationTracking_pending", //Check whether the request is still pending (requestToDest...) or is accepted and is in progress (routeTracking)
                 driverNextPoint: pointsTravel[0],
+                destinationPoint: [passengerPosition.longitude, passengerPosition.latitude],
                 eta: eta,
                 distance: distance,
               });
@@ -336,21 +338,45 @@ function tripChecker_Dispatcher(collectionRidersData_repr, user_fingerprint, use
             respUser = JSON.parse(respUser);
             if (respUser.rides_history !== undefined && respUser.rides_history.request_fp !== undefined) {
               //Found cached infos
-              //1. Pre compute and cache next record for later use
+              //Launch a precomputation for the next details and cache them of course
               let request0 = new Promise((reslv) => {
-                getMongoRecordTrip_cacheLater(collectionRidersData_repr, user_fingerprint, user_nature, reslv);
+                getUserRideCachedData_andComputeRoute(collectionRidersData_repr, user_fingerprint, user_nature, respUser, reslv);
               }).then(
-                (reslt) => {
-                  console.log("precomputed for later use done.");
+                (result) => {
+                  console.log(result);
                 },
                 (error) => {
                   console.log(error);
                 }
               );
-              //........Return cached data
-              console.log("found cached user trip infos");
-              //Compute route via compute skeleton
-              computeRouteDetails_skeleton([respUser], resolve);
+              //Return the cached data if any
+              redisGet(respUser.rides_history.request_fp).then(
+                (cachedTripData) => {
+                  if (cachedTripData !== null) {
+                    //FOUND CACHED TRIP DATA
+                    try {
+                      cachedTripData = JSON.parse(cachedTripData);
+                      console.log(cachedTripData);
+                      //DOne
+                      resolve(cachedTripData);
+                    } catch (error) {
+                      console.log(error);
+                      //Error precompute from mongo
+                      console.log("Compute route infos from mongo");
+                      getMongoRecordTrip_cacheLater(collectionRidersData_repr, user_fingerprint, user_nature, resolve);
+                    }
+                  } //No cached trip data - precompute from mongo
+                  else {
+                    console.log("Compute route infos from mongo");
+                    getMongoRecordTrip_cacheLater(collectionRidersData_repr, user_fingerprint, user_nature, resolve);
+                  }
+                },
+                (errorGet) => {
+                  console.log("No cached trip found");
+                  console.log("Compute route infos from mongo");
+                  getMongoRecordTrip_cacheLater(collectionRidersData_repr, user_fingerprint, user_nature, resolve);
+                }
+              );
             } //No cached trip infos - get from mongo and cache it at the end
             else {
               console.log("Compute route infos from mongo");
@@ -378,6 +404,31 @@ function tripChecker_Dispatcher(collectionRidersData_repr, user_fingerprint, use
   else {
     resolve(false);
   }
+}
+
+/**
+ * @func getRideCachedData_andComputeRoute()
+ * Responsible for check if there are any cached requests for a rider, or get from mongo and launch the computation of the trip details
+ * and cache them.
+ */
+
+function getUserRideCachedData_andComputeRoute(collectionRidersData_repr, user_fingerprint, user_nature, respUser, resolve) {
+  //Check if there are any cached user data
+  //1. Pre compute and cache next record for later use
+  let request0 = new Promise((reslv) => {
+    getMongoRecordTrip_cacheLater(collectionRidersData_repr, user_fingerprint, user_nature, reslv);
+  }).then(
+    (reslt) => {
+      console.log("precomputed for later use done.");
+    },
+    (error) => {
+      console.log(error);
+    }
+  );
+  //........Return cached data
+  console.log("found cached user trip infos");
+  //Compute route via compute skeleton
+  computeRouteDetails_skeleton([respUser], resolve);
 }
 
 /**
@@ -410,7 +461,7 @@ function computeRouteDetails_skeleton(result, resolve) {
     console.log("[Runninf] COMPUTE SKELETON CALLED.");
     //There is a ride
     let rideHistory = result[0].rides_history;
-    let riderCoords = result[0].coordinates;
+    let riderCoords = result[0].rides_history.rider_pickupLocation.point;
     if (rideHistory.isAccepted) {
       //Ride pending
       //3 Scenarios:
@@ -688,7 +739,6 @@ function computeAndCacheRouteDestination(driverInfos, rideHistory, riderCoords =
       },
     };
   }
-  console.log("Updateing location caache");
 
   let request0 = new Promise((reslv) => {
     getRouteInfos(bundle, reslv);
@@ -697,7 +747,25 @@ function computeAndCacheRouteDestination(driverInfos, rideHistory, riderCoords =
       //Add request status variable - inRouteToPickup, inRouteToDestination
       result["request_status"] = request_status;
       //Cache computed result
-      client.set(rideHistory.request_fp, JSON.stringify(result), redis.print);
+      //Check if the cached trip data is different than the updat
+      redisGet(rideHistory.request_fp).then(
+        (cachedTripData) => {
+          if (cachedTripData !== null) {
+            if (cachedTripData != JSON.stringify(result)) {
+              client.set(rideHistory.request_fp, JSON.stringify(result), redis.print);
+            }
+          } //Update cache anyways
+          else {
+            console.log("Update cache");
+            client.set(rideHistory.request_fp, JSON.stringify(result), redis.print);
+          }
+        },
+        (errorGet) => {
+          console.log("Update cache");
+          client.set(rideHistory.request_fp, JSON.stringify(result), redis.print);
+        }
+      );
+
       //Update driver old trip cached ride history
       redisGet(resp.user_fingerprint).then(
         (res) => {
@@ -706,6 +774,7 @@ function computeAndCacheRouteDestination(driverInfos, rideHistory, riderCoords =
               let prevDriverCache = JSON.parse(res);
               prevDriverCache.rides_history = rideHistory;
               if (res !== JSON.stringify(prevDriverCache)) {
+                console.log("Different data");
                 client.set(resp.user_fingerprint, JSON.stringify(prevDriverCache), redis.print);
               }
               //Update rider old trip cached ride history
@@ -896,6 +965,7 @@ dbPool.getConnection(function (err, connection) {
               timeTaken = doneTime.getTime() - timeTaken;
               console.log("[" + chaineDateUTC + "] Compute and dispatch time (trip) ------>  " + timeTaken + " ms");
               //Update the rider
+              //console.log(result);
               socket.emit("trackdriverroute-response", result);
             },
             (error) => {
