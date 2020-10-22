@@ -190,8 +190,12 @@ function getRouteInfos(coordsInfos, resolve) {
                     resolve({
                       routePoints: pointsTravel,
                       destinationData: result,
-                      //driverNextPoint: pointsTravel[0],
-                      driverNextPoint: pointsTravel[pointsTravel.length - 1],
+                      driverNextPoint: pointsTravel[0],
+                      pickupPoint:
+                        coordsInfos.passenger_origin === undefined
+                          ? [passengerPosition.longitude, passengerPosition.latitude]
+                          : [driverPosition.longitude, driverPosition.latitude],
+                      //driverNextPoint: pointsTravel[pointsTravel.length - 1],
                       eta: eta,
                       distance: distance,
                     });
@@ -199,6 +203,10 @@ function getRouteInfos(coordsInfos, resolve) {
                     resolve({
                       routePoints: pointsTravel,
                       destinationData: null,
+                      pickupPoint:
+                        coordsInfos.passenger_origin === undefined
+                          ? [passengerPosition.longitude, passengerPosition.latitude]
+                          : [driverPosition.longitude, driverPosition.latitude],
                       driverNextPoint: pointsTravel[0],
                       eta: eta,
                       distance: distance,
@@ -209,6 +217,10 @@ function getRouteInfos(coordsInfos, resolve) {
                   resolve({
                     routePoints: pointsTravel,
                     destinationData: null,
+                    pickupPoint:
+                      coordsInfos.passenger_origin === undefined
+                        ? [passengerPosition.longitude, passengerPosition.latitude]
+                        : [driverPosition.longitude, driverPosition.latitude],
                     driverNextPoint: pointsTravel[0],
                     eta: eta,
                     distance: distance,
@@ -220,6 +232,10 @@ function getRouteInfos(coordsInfos, resolve) {
                 routePoints: pointsTravel,
                 destinationData: coordsInfos.passenger_destination === undefined ? "routeTracking" : "requestToDestinationTracking_pending", //Check whether the request is still pending (requestToDest...) or is accepted and is in progress (routeTracking)
                 driverNextPoint: pointsTravel[0],
+                pickupPoint:
+                  coordsInfos.passenger_origin === undefined
+                    ? [passengerPosition.longitude, passengerPosition.latitude]
+                    : [driverPosition.longitude, driverPosition.latitude],
                 destinationPoint: [passengerPosition.longitude, passengerPosition.latitude],
                 eta: eta,
                 distance: distance,
@@ -339,7 +355,7 @@ function tripChecker_Dispatcher(collectionRidersData_repr, user_fingerprint, use
             if (respUser.rides_history !== undefined && respUser.rides_history.request_fp !== undefined) {
               //Found cached infos
               //Launch a precomputation for the next details and cache them of course
-              let request0 = new Promise((reslv) => {
+              /*let request0 = new Promise((reslv) => {
                 getUserRideCachedData_andComputeRoute(collectionRidersData_repr, user_fingerprint, user_nature, respUser, reslv);
               }).then(
                 (result) => {
@@ -348,7 +364,8 @@ function tripChecker_Dispatcher(collectionRidersData_repr, user_fingerprint, use
                 (error) => {
                   console.log(error);
                 }
-              );
+              );*/
+              getMongoRecordTrip_cacheLater(collectionRidersData_repr, user_fingerprint, user_nature, resolve);
               //Return the cached data if any
               redisGet(respUser.rides_history.request_fp).then(
                 (cachedTripData) => {
@@ -356,9 +373,11 @@ function tripChecker_Dispatcher(collectionRidersData_repr, user_fingerprint, use
                     //FOUND CACHED TRIP DATA
                     try {
                       cachedTripData = JSON.parse(cachedTripData);
-                      console.log(cachedTripData);
                       //DOne
-                      resolve(cachedTripData);
+                      //Isolate pending requests
+                      if (respUser.rides_history.isAccepted !== true) {
+                        resolve(cachedTripData);
+                      }
                     } catch (error) {
                       console.log(error);
                       //Error precompute from mongo
@@ -965,7 +984,7 @@ dbPool.getConnection(function (err, connection) {
               timeTaken = doneTime.getTime() - timeTaken;
               console.log("[" + chaineDateUTC + "] Compute and dispatch time (trip) ------>  " + timeTaken + " ms");
               //Update the rider
-              //console.log(result);
+              console.log(result);
               socket.emit("trackdriverroute-response", result);
             },
             (error) => {
