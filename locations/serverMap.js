@@ -357,7 +357,7 @@ function tripChecker_Dispatcher(collectionRidersData_repr, user_fingerprint, use
         resolve(false);
       } //Found a user record
       else {
-        //userDataRepr[0].rides_history = "no_rides";
+        userDataRepr[0].rides_history = "no_rides"; //DEBUG FOR NO RIDES SIMULATION
         if (userDataRepr[0].rides_history != "no_rides" && userDataRepr[0].rides_history !== undefined) {
           //Check if there are any requests cached
           redisGet(user_fingerprint).then(
