@@ -13,6 +13,7 @@ const requestAPI = require("request");
 //....
 var fastFilter = require("fast-filter");
 const { promisify, inspect } = require("util");
+const urlParser = require("url");
 const redis = require("redis");
 const client = redis.createClient();
 const redisGet = promisify(client.get).bind(client);
@@ -909,174 +910,167 @@ function updateRiderLocationInfosCache(req, resolve) {
 dbPool.getConnection(function (err, connection) {
   clientMongo.connect(function (err) {
     //if (err) throw err;
-    console.log("Connected to Mongodb");
+    console.log("[+] MAP services active.");
     const dbMongo = clientMongo.db(DB_NAME_MONGODB);
     const collectionRidersData_repr = dbMongo.collection("riders_data_representation"); //Hold the latest location update from the rider
     const collectionRidersLocation_log = dbMongo.collection("riders_data_location_log"); //Hold all the location updated from the rider
     //-------------
     const bodyParser = require("body-parser");
-    app.get("/", function (req, res) {
-      res.sendFile(__dirname + "/tripSimulator.html");
-    });
-    app.use(express.static(path.join(__dirname, "assets")));
-    // support parsing of application/json type post data
-    app.use(bodyParser.json());
-    //support parsing of application/x-www-form-urlencoded post data
-    app.use(bodyParser.urlencoded({ extended: true }));
+    app
+      .get("/", function (req, res) {
+        res.send("Map services up");
+      })
+      .use(bodyParser.json())
+      .use(bodyParser.urlencoded({ extended: true }));
 
-    io.sockets.on("connection", function (socket) {
-      console.log("client connected");
+    //Ride tracking for customers to see real-time drivers positions
+    /*socket.on("trackdriverroute", function (coordsData) {
+      console.log(coordsData);
+      logToSimulator(socket, coordsData);
+      if (coordsData !== undefined && coordsData != null && coordsData.driver.latitude !== undefined && coordsData.passenger.latitude !== undefined) {
+        let request0 = new Promise((resolve) => {
+          getRouteInfos(coordsData, resolve);
+        }).then(
+          (result) => {
+            console.log(result);
+            logToSimulator(socket, result);
+            socket.emit("trackdriverroute-response", result);
+          },
+          (error) => {
+            console.log(error);
+            logToSimulator(socket, error);
+            socket.emit("trackdriverroute-response", { response: false });
+          }
+        );
+      } else {
+        socket.emit("trackdriverroute-response", { response: false });
+      }
+    });*/
 
-      //Ride tracking for customers to see real-time drivers positions
-      socket.on("trackdriverroute", function (coordsData) {
-        console.log(coordsData);
-        logToSimulator(socket, coordsData);
-        if (
-          coordsData !== undefined &&
-          coordsData != null &&
-          coordsData.driver.latitude !== undefined &&
-          coordsData.passenger.latitude !== undefined
-        ) {
-          let request0 = new Promise((resolve) => {
-            getRouteInfos(coordsData, resolve);
-          }).then(
-            (result) => {
+    //Get itinary informations for ride - passengers
+    /*socket.on("getIteinerayDestinationInfos", function (coordsData) {
+      console.log(coordsData);
+      if (coordsData !== undefined && coordsData != null && coordsData.driver.latitude !== undefined && coordsData.passenger.latitude !== undefined) {
+        let request0 = new Promise((resolve) => {
+          getRouteInfos(coordsData, resolve);
+        }).then(
+          (result) => {
+            //console.log(result);
+            socket.emit("getIteinerayDestinationInfos-response", result);
+          },
+          (error) => {
+            console.log(error);
+            socket.emit("getIteinerayDestinationInfos-response", { response: false });
+          }
+        );
+      } else {
+        socket.emit("getIteinerayDestinationInfos-response", { response: false });
+      }
+    });*/
+
+    /**
+     * PASSENGER LOCATION UPDATE MANAGER
+     * Responsible for updating in the databse and other caches new passenger's locations received.
+     * Update CACHE -> MONGODB (-> TRIP CHECKER DISPATCHER)
+     */
+    app.get("/updatePassengerLocation", function (req, res) {
+      let params = urlParser.parse(req.url, true);
+      console.log(params.query);
+      req = params.query;
+
+      if (
+        req !== undefined &&
+        req.latitude !== undefined &&
+        req.latitude !== null &&
+        req.longitude !== undefined &&
+        req.longitude !== null &&
+        req.user_fingerprint !== null &&
+        req.user_fingerprint !== undefined
+      ) {
+        let timeTaken = new Date();
+        timeTaken = timeTaken.getTime();
+        //Check for any existing ride
+        let request0 = new Promise((res) => {
+          console.log("fetching data");
+          tripChecker_Dispatcher(collectionRidersData_repr, req.user_fingerprint, "rider", res);
+        }).then(
+          (result) => {
+            let doneTime = new Date();
+            timeTaken = doneTime.getTime() - timeTaken;
+            console.log("[" + chaineDateUTC + "] Compute and dispatch time (trip) ------>  " + timeTaken + " ms");
+            //Update the rider
+            if (result !== false) {
               console.log(result);
-              logToSimulator(socket, result);
-              socket.emit("trackdriverroute-response", result);
-            },
-            (error) => {
-              console.log(error);
-              logToSimulator(socket, error);
-              socket.emit("trackdriverroute-response", { response: false });
-            }
-          );
-        } else {
-          socket.emit("trackdriverroute-response", { response: false });
-        }
-      });
-
-      //Get itinary informations for ride - passengers
-      socket.on("getIteinerayDestinationInfos", function (coordsData) {
-        console.log(coordsData);
-        if (
-          coordsData !== undefined &&
-          coordsData != null &&
-          coordsData.driver.latitude !== undefined &&
-          coordsData.passenger.latitude !== undefined
-        ) {
-          let request0 = new Promise((resolve) => {
-            getRouteInfos(coordsData, resolve);
-          }).then(
-            (result) => {
-              //console.log(result);
-              socket.emit("getIteinerayDestinationInfos-response", result);
-            },
-            (error) => {
-              console.log(error);
-              socket.emit("getIteinerayDestinationInfos-response", { response: false });
-            }
-          );
-        } else {
-          socket.emit("getIteinerayDestinationInfos-response", { response: false });
-        }
-      });
-
-      /**
-       * PASSENGER LOCATION UPDATE MANAGER
-       * Responsible for updating in the databse and other caches new passenger's locations received.
-       * Update CACHE -> MONGODB (-> TRIP CHECKER DISPATCHER)
-       */
-      socket.on("update-passenger-location", function (req) {
-        if (
-          req !== undefined &&
-          req.latitude !== undefined &&
-          req.latitude !== null &&
-          req.longitude !== undefined &&
-          req.longitude !== null &&
-          req.user_fingerprint !== null &&
-          req.user_fingerprint !== undefined
-        ) {
-          let timeTaken = new Date();
-          timeTaken = timeTaken.getTime();
-          //Check for any existing ride
-          let request0 = new Promise((res) => {
-            console.log("fetching data");
-            tripChecker_Dispatcher(collectionRidersData_repr, req.user_fingerprint, "rider", res);
-          }).then(
-            (result) => {
-              let doneTime = new Date();
-              timeTaken = doneTime.getTime() - timeTaken;
-              console.log("[" + chaineDateUTC + "] Compute and dispatch time (trip) ------>  " + timeTaken + " ms");
-              //Update the rider
-              if (result !== false) {
-                console.log(result);
-                if (result != "no_rides") {
-                  socket.emit("trackdriverroute-response", result);
-                } //No rides
-                else {
-                  socket.emit("trackdriverroute-response", { request_status: result });
-                }
+              if (result != "no_rides") {
+                res.send(result);
+                //socket.emit("trackdriverroute-response", result);
+              } //No rides
+              else {
+                res.send({ request_status: result });
+                //socket.emit("trackdriverroute-response", { request_status: result });
               }
-            },
-            (error) => {
-              console.log(error);
             }
-          );
-
-          //Update cache for this user's location
-          let request1 = new Promise((resolve) => {
-            updateRiderLocationInfosCache(req, resolve);
-          }).then(
-            () => {},
-            () => {}
-          );
-
-          //Update rider's location - promise always
-          let request2 = new Promise((resolve) => {
-            updateRidersRealtimeLocationData(collectionRidersData_repr, collectionRidersLocation_log, req, resolve);
-          }).then(
-            () => {
-              //console.log("Location updated [rider]");
-            },
-            () => {}
-          );
-        }
-      });
-
-      /**
-       * SIMULATION
-       * Responsible for managing different map or any services simulation scenarios from the simulation tool.
-       * Scenarios:
-       * 1. MAP
-       * -Pickup simulation
-       * -Drop off sumlation
-       */
-      //Origin coords - driver
-      //const blon = 17.099327;
-      //const blat = -22.579195;
-      const blon = 17.060507;
-      const blat = -22.514987;
-      //Destination coords
-      const destinationLat = -22.577673;
-      const destinationLon = 17.086427;
-
-      //1. Pickup simulation
-      socket.on("startPickupSim", function (req) {
-        logToSimulator(socket, "Pickup simulation successfully started.");
-        let bundle = {
-          driver: { latitude: blat, longitude: blon },
-          passenger: {
-            latitude: this.state.latitude,
-            longitude: this.state.longitude,
           },
-          destination: {
-            latitude: destinationLat,
-            longitude: destinationLon,
+          (error) => {
+            res.send({ response: error });
+            console.log(error);
+          }
+        );
+
+        //Update cache for this user's location
+        let request1 = new Promise((resolve) => {
+          updateRiderLocationInfosCache(req, resolve);
+        }).then(
+          () => {
+            console.log("updated cache");
           },
-        };
-      });
+          () => {}
+        );
+
+        //Update rider's location - promise always
+        let request2 = new Promise((resolve) => {
+          updateRidersRealtimeLocationData(collectionRidersData_repr, collectionRidersLocation_log, req, resolve);
+        }).then(
+          () => {
+            console.log("Location updated [rider]");
+          },
+          () => {}
+        );
+      }
     });
+
+    /**
+     * SIMULATION
+     * Responsible for managing different map or any services simulation scenarios from the simulation tool.
+     * Scenarios:
+     * 1. MAP
+     * -Pickup simulation
+     * -Drop off sumlation
+     */
+    //Origin coords - driver
+    //const blon = 17.099327;
+    //const blat = -22.579195;
+    const blon = 17.060507;
+    const blat = -22.514987;
+    //Destination coords
+    const destinationLat = -22.577673;
+    const destinationLon = 17.086427;
+
+    //1. Pickup simulation
+    /*socket.on("startPickupSim", function (req) {
+      logToSimulator(socket, "Pickup simulation successfully started.");
+      let bundle = {
+        driver: { latitude: blat, longitude: blon },
+        passenger: {
+          latitude: this.state.latitude,
+          longitude: this.state.longitude,
+        },
+        destination: {
+          latitude: destinationLat,
+          longitude: destinationLon,
+        },
+      };
+    });*/
   });
 });
 
