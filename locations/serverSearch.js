@@ -6,7 +6,6 @@ const MongoClient = require("mongodb").MongoClient;
 
 var app = express();
 var server = http.createServer(app);
-const io = require("socket.io").listen(server);
 const mysql = require("mysql");
 const requestAPI = require("request");
 //---center
@@ -16,6 +15,7 @@ const client = redis.createClient();
 const redisGet = promisify(client.get).bind(client);
 //....
 var fastFilter = require("fast-filter");
+const urlParser = require("url");
 var chaineDateUTC = null;
 var dateObject = null;
 const moment = require("moment");
@@ -226,15 +226,18 @@ function newLoaction_search_engine(queryOR, bbox, res, timestamp, collectionMong
                             //let cachedString = JSON.stringify(respPrevRedisCache);
                             let cachedString = JSON.stringify(respPrevRedisCache.map(JSON.parse));
                             //logObject(newSearchRecords);
-                            if(newSearchRecords.length>0) {
-                            	collectionMongoDb.insertMany(newSearchRecords, function(err, res) {
-                            		console.log(res);
-                            	});
+                            if (newSearchRecords.length > 0) {
+                              collectionMongoDb.insertMany(newSearchRecords, function (err, res) {
+                                console.log(res);
+                              });
                             }
                             //Update redis local cache
                             client.set("search_locations", cachedString, redis.print);
                             //Update mongodb - cache
-                            res({ search_timestamp: timestamp, result: { search_timestamp: timestamp, result: removeResults_duplicates(result).slice(0, 5) } });
+                            res({
+                              search_timestamp: timestamp,
+                              result: { search_timestamp: timestamp, result: removeResults_duplicates(result).slice(0, 5) },
+                            });
                           },
                           (err) => {
                             res({ search_timestamp: timestamp, result: removeResults_duplicates(result).slice(0, 5) });
@@ -274,18 +277,18 @@ function newLoaction_search_engine(queryOR, bbox, res, timestamp, collectionMong
 }
 
 function removeResults_duplicates(arrayResults, resolve) {
-	//console.log(arrayResults);
-	let arrayResultsClean = [];
-	let arrayIds = [];
-	arrayResults.map((location) => {
-		let tmpId = location.location_name +' '+ location.city + ' ' + location.street + ' ' + location.country;
-		if(!arrayIds.includes(tmpId))	//New location
-		{
-			arrayIds.push(tmpId);
-			arrayResultsClean.push(location);
-		}
-	});
-	return arrayResultsClean;
+  //console.log(arrayResults);
+  let arrayResultsClean = [];
+  let arrayIds = [];
+  arrayResults.map((location) => {
+    let tmpId = location.location_name + " " + location.city + " " + location.street + " " + location.country;
+    if (!arrayIds.includes(tmpId)) {
+      //New location
+      arrayIds.push(tmpId);
+      arrayResultsClean.push(location);
+    }
+  });
+  return arrayResultsClean;
 }
 
 function getLocationList_five(queryOR, bbox, res, timestamp, collectionMongoDb) {
@@ -313,7 +316,10 @@ function getLocationList_five(queryOR, bbox, res, timestamp, collectionMongoDb) 
           //Exists
           console.log("Cached data fetch");
           //logObject(removeResults_duplicates(cachedLocations));
-          res({ search_timestamp: timestamp, result: { search_timestamp: timestamp, result: removeResults_duplicates(cachedLocations).slice(0, 5) } });
+          res({
+            search_timestamp: timestamp,
+            result: { search_timestamp: timestamp, result: removeResults_duplicates(cachedLocations).slice(0, 5) },
+          });
         } //No results launch new search
         else {
           console.log("Launch new search");
@@ -357,65 +363,62 @@ dbPool.getConnection(function (err, connection) {
     //Cached restore OR initialized
     const bodyParser = require("body-parser");
 
-    // support parsing of application/json type post data
     app.use(bodyParser.json());
-    //support parsing of application/x-www-form-urlencoded post data
     app.use(bodyParser.urlencoded({ extended: true }));
 
-    io.sockets.on("connection", function (socket) {
-      console.log("client connected");
-      client.on("error", function (error) {
-        console.error(error);
-      });
+    //1. SEARCH API
+    app.get("/getSearchedLocations", function (request, res) {
+      resolveDate();
+      //..
+      let params = urlParser.parse(request.url, true);
+      request = params.query;
+      console.log(request);
+      let request0 = null;
+      //Update search timestamp
+      //search_timestamp = dateObject.unix();
+      let search_timestamp = request.query.length;
+      //1. Get the bbox
+      request0 = new Promise((res, rej) => {
+        getCityBbox(request.city, res);
+      }).then(
+        (result) => {
+          let bbox = result;
+          //Get the location
+          let request1 = new Promise((res, rej) => {
+            let tmpTimestamp = search_timestamp;
+            getLocationList_five(request.query, bbox, res, tmpTimestamp, collectionMongoDb);
+          }).then(
+            (result) => {
+              if (parseInt(search_timestamp) != parseInt(result.search_timestamp)) {
+                //Inconsistent - do not update
+                //console.log('Inconsistent');
+                res.send(false);
+              } //Consistent - update
+              else {
+                //console.log('Consistent');
+                //logObject(result);
+                //socket.emit("getLocations-response", result);
+                res.send(result);
 
-      //1. SEARCH API
-      socket.on("getLocations", function (request) {
-        resolveDate();
-        //..
-        console.log(request);
-        let request0 = null;
-        //Update search timestamp
-        //socket.search_timestamp = dateObject.unix();
-        socket.search_timestamp = request.query.length;
-        //1. Get the bbox
-        request0 = new Promise((res, rej) => {
-          getCityBbox(request.city, res);
-        }).then(
-          (result) => {
-            let bbox = result;
-            //Get the location
-            let request1 = new Promise((res, rej) => {
-              let tmpTimestamp = socket.search_timestamp;
-              getLocationList_five(request.query, bbox, res, tmpTimestamp, collectionMongoDb);
-            }).then(
-              (result) => {
-                if (parseInt(socket.search_timestamp) != parseInt(result.search_timestamp)) {
-                  //Inconsistent - do not update
-                  //console.log('Inconsistent');
-                } //Consistent - update
-                else {
-                  //console.log('Consistent');
-                  //logObject(result);
-                  socket.emit("getLocations-response", result);
-
-                  redisGet("search_locations").then((val) => {
-                    //val
-                    //logObject(JSON.parse(val).map(JSON.parse));
-                  });
-                }
-              },
-              (error) => {
-                console.log(error);
-                socket.emit("getLocations-response", false);
+                redisGet("search_locations").then((val) => {
+                  //val
+                  //logObject(JSON.parse(val).map(JSON.parse));
+                });
               }
-            );
-          },
-          (error) => {
-            console.log(error);
-            socket.emit("getLocations-response", false);
-          }
-        );
-      });
+            },
+            (error) => {
+              console.log(error);
+              //socket.emit("getLocations-response", false);
+              res.send(false);
+            }
+          );
+        },
+        (error) => {
+          console.log(error);
+          //socket.emit("getLocations-response", false);
+          res.send(false);
+        }
+      );
     });
   });
 });
