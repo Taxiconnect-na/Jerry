@@ -91,7 +91,7 @@ io.sockets.on("connection", function (socket) {
   });
 
   /**
-   * SEARC SERVICE, port 7005
+   * SEARCH SERVICE, port 7005
    * Route: getSearchedLocations
    * Event: getSearchedLocations
    * Seached locations autocomplete.
