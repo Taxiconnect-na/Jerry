@@ -30,7 +30,8 @@ resolveDate();
 //Crucial urls
 const localURL = "http://localhost";
 //EVENT GATEWAY PORT
-const port = 9000;
+//const port = 9000;
+const port = 9097;
 
 app
   .get("/", function (req, res) {
@@ -91,14 +92,14 @@ io.sockets.on("connection", function (socket) {
   });
 
   /**
-   * SEARCH SERVICE, port 7005
+   * SEARCH SERVICE, port 9091
    * Route: getSearchedLocations
    * Event: getSearchedLocations
    * Seached locations autocomplete.
    */
   socket.on("getLocations", function (req) {
     console.log(req);
-    let servicePort = 7005;
+    let servicePort = 9091;
     if (
       req.user_fp !== undefined &&
       req.user_fp !== null &&

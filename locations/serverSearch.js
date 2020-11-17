@@ -74,7 +74,8 @@ function resolveDate() {
 }
 resolveDate();
 
-const port = 7005;
+//const port = 7005;
+const port = 9091;
 
 //Database connection
 const dbPool = mysql.createPool({
