@@ -2,6 +2,8 @@ var dash = require("appmetrics-dash");
 var express = require("express");
 const http = require("http");
 const fs = require("fs");
+const geolocationUtlis = require("geolocation-utils");
+const taxiRanksDb = JSON.parse(fs.readFileSync("taxiRanks_points.txt", "utf8"));
 const path = require("path");
 const MongoClient = require("mongodb").MongoClient;
 
@@ -904,6 +906,155 @@ function updateRiderLocationInfosCache(req, resolve) {
 }
 
 /**
+ * @func reverseGeocodeUserLocation
+ * @param resolve
+ * @param req: user coordinates, and fingerprint
+ * Responsible for finding out the current user (passenger, driver, etc) location details
+ * //REDIS propertiy
+ * //user_fingerprint -> currentLocationInfos: {...}
+ */
+function reverseGeocodeUserLocation(resolve, req) {
+  //Check if redis has some informations already
+  redisGet(req.user_fingerprint).then(
+    (resp) => {
+      if (resp !== null) {
+        //Do a fresh request to update the cache
+        //Make a new reseach
+        new Promise((res) => {
+          console.log("Fresh geocpding launched");
+          reverseGeocoderExec(res, req, JSON.parse(resp));
+        }).then(
+          (result) => {},
+          (error) => {}
+        );
+
+        //Has already a cache entry
+        //Check if an old current location is present
+        resp = JSON.parse(resp);
+        if (resp.currentLocationInfos !== undefined) {
+          //Present
+          //Send
+          resolve(resp.currentLocationInfos);
+        } //No previously cached current location
+        else {
+          //Make a new reseach
+          new Promise((res) => {
+            reverseGeocoderExec(res, req);
+          }).then(
+            (result) => {
+              //Updating cache and replying to the main thread
+              let currentLocationEntry = { currentLocationInfos: result };
+              client.set(req.user_fingerprint.trim(), JSON.stringify(currentLocationEntry));
+              resolve(result);
+            },
+            (error) => {
+              resolve(false);
+            }
+          );
+        }
+      } //No cache entry, create a new one
+      else {
+        //Make a new reseach
+        new Promise((res) => {
+          reverseGeocoderExec(res, req);
+        }).then(
+          (result) => {
+            //Updating cache and replying to the main thread
+            let currentLocationEntry = { currentLocationInfos: result };
+            client.set(req.user_fingerprint.trim(), JSON.stringify(currentLocationEntry));
+            resolve(result);
+          },
+          (error) => {
+            resolve(false);
+          }
+        );
+      }
+    },
+    (error) => {
+      resolve(false);
+    }
+  );
+}
+/**
+ * @func reverseGeocoderExec
+ * @param updateCache: to known whether to update the cache or not if yes, will have the value of the hold cache.
+ * Responsible for executing the geocoding new fresh requests
+ */
+function reverseGeocoderExec(resolve, req, updateCache = false) {
+  let url = URL_SEARCH_SERVICES + "reverse?lon=" + req.longitude + "&lat=" + req.latitude;
+  requestAPI(url, function (error, response, body) {
+    //body = JSON.parse(body);
+    try {
+      body = JSON.parse(body);
+      if (body != undefined) {
+        if (body.features[0].properties != undefined) {
+          if (body.features[0].properties.street != undefined) {
+            if (updateCache !== false) {
+              //Update cache
+              updateCache.currentLocationInfos = body.features[0].properties;
+              client.set(req.user_fingerprint.trim(), JSON.stringify(updateCache));
+            }
+            //...
+            resolve(body.features[0].properties);
+          } else if (body.features[0].properties.name != undefined) {
+            body.features[0].properties.street = body.features[0].properties.name;
+            if (updateCache !== false) {
+              //Update cache
+              updateCache.currentLocationInfos = body.features[0].properties;
+              client.set(req.user_fingerprint.trim(), JSON.stringify(updateCache));
+            }
+            //...
+            resolve(body.features[0].properties);
+          } else {
+            resolve(false);
+          }
+        } else {
+          resolve(false);
+        }
+      } else {
+        resolve(false);
+      }
+    } catch (error) {
+      resolve(false);
+    }
+  });
+}
+
+/**
+ * @func findoutPickupLocationNature
+ * @param point: location point
+ * Responsible for check if the pickup location is a Taxi rank or private location (only these 2 for now)
+ * Radius in meters - default: 2meters
+ * Possible types
+ * Airport
+ * TaxiRank     //private location
+ * PrivateLocation  //Private location
+ */
+function findoutPickupLocationNature(resolve, point) {
+  let radius = 2; //meters
+  let locationIdentity = { locationType: "PrivateLocation" }; //Default private location
+  taxiRanksDb.map((location) => {
+    let centerLat = parseFloat(location.central_coord.split(",")[0]);
+    let centerLng = parseFloat(location.central_coord.split(",")[1]);
+    //...
+    const center = { lat: parseFloat(centerLat), lon: parseFloat(centerLng) };
+    let checkPosition = geolocationUtlis.insideCircle({ lat: parseFloat(point.latitude), lon: parseFloat(point.longitude) }, center, radius);
+    if (checkPosition) {
+      locationIdentity = location;
+      //Can be changed here to include more places detections
+      location = { locationType: "TaxiRank" }; //Set to taxi rank only
+      //...
+      resolve(location);
+    } //Private location
+    else {
+      locationIdentity = { locationType: "PrivateLocation" };
+    }
+  });
+  //...
+  resolve(locationIdentity);
+}
+
+/**
  * MAIN
  */
 
@@ -1036,6 +1187,77 @@ dbPool.getConnection(function (err, connection) {
           },
           () => {}
         );
+      }
+    });
+
+    /**
+     * REVERSE GEOCODER
+     * To get the exact approx. location of the user or driver.
+     * //REDIS propertiy
+     * //user_fingerprint -> currentLocationInfos: {...}
+     */
+    app.get("/getUserLocationInfos", function (req, res) {
+      let params = urlParser.parse(req.url, true);
+      console.log(params.query);
+      let request = params.query;
+
+      if (
+        request.latitude != undefined &&
+        request.latitude != null &&
+        request.longitude != undefined &&
+        request.longitude != null &&
+        request.user_fingerprint !== null &&
+        request.user_fingerprint !== undefined
+      ) {
+        //Hand responses
+        new Promise((resolve) => {
+          reverseGeocodeUserLocation(resolve, request);
+        }).then(
+          (result) => {
+            res.send(result);
+          },
+          (error) => {
+            res.send(false);
+          }
+        );
+      }
+    });
+
+    /**
+     * PLACES IDENTIFIER
+     * Route name: identifyPickupLocation
+     * Responsible for finding out the nature of places (ge. Private locations, taxi ranks or other specific plcaes of interest)
+     * This one will only focus on Pvate locations AND taxi ranks.
+     * //False means : not a taxirank -> private location AND another object means taxirank
+     */
+    app.get("/identifyPickupLocation", function (req, res) {
+      let params = urlParser.parse(req.url, true);
+      console.log(params.query);
+      req = params.query;
+      //...
+      if (
+        req.latitude !== undefined &&
+        req.latitude !== null &&
+        req.longitude !== undefined &&
+        req.longitude !== null &&
+        req.user_fingerprint !== undefined &&
+        req.user_fingerprint !== null
+      ) {
+        console.log("Identify pickup location request launch...");
+        new Promise((res) => {
+          findoutPickupLocationNature(res, req);
+        }).then(
+          (result) => {
+            res.send(result);
+          },
+          (error) => {
+            //Default to private location on error
+            res.send({ locationType: "PrivateLocation" });
+          }
+        );
+      } //Default to private location - invalid params
+      else {
+        res.send({ locationType: "PrivateLocation" });
       }
     });
 

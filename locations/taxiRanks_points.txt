@@ -1,0 +1,422 @@
+[
+   {
+      "rank_full_name":"Aus Blick T601",
+      "rank_number":"T601",
+      "central_coord":"-22.6051174,17.1066949"
+   },
+   {
+      "rank_full_name":"Avis T631",
+      "rank_number":"T631",
+      "central_coord":"-22.5771796,17.1165437"
+   },
+   {
+      "rank_full_name":"Avis T632 PG",
+      "rank_number":"T632",
+      "central_coord":"-22.5795801,17.1130562"
+   },
+   {
+      "rank_full_name":"Avis T633",
+      "rank_number":"T633",
+      "central_coord":"-22.5767638,17.1127772"
+   },
+   {
+      "rank_full_name":"Ausspannplatz T721 Nedbank",
+      "rank_number":"T721",
+      "central_coord":"-22.577231,17.0825098"
+   },
+   {
+      "rank_full_name":"Ausspannplatz T728 Pupkewitz catering",
+      "rank_number":"T728",
+      "central_coord":"-22.5760385,17.0829125"
+   },
+   {
+      "rank_full_name":"Ausspannplatz T717 Universal",
+      "rank_number":"T717",
+      "central_coord":"0,-0.002194"
+   },
+   {
+      "rank_full_name":"Cimbebasia New T521",
+      "rank_number":"T521",
+      "central_coord":"-22.6286491,17.0768758"
+   },
+   {
+      "rank_full_name":"Cimbebasia New T526",
+      "rank_number":"T526",
+      "central_coord":"-22.6353331,17.0741309"
+   },
+   {
+      "rank_full_name":"Cimbebasia New T525",
+      "rank_number":"T525",
+      "central_coord":"-22.628235,17.0785096"
+   },
+   {
+      "rank_full_name":"Cimbebasia Old T523",
+      "rank_number":"T523",
+      "central_coord":"-22.6353253,17.0792593"
+   },
+   {
+      "rank_full_name":"Cimbebasia Old T524",
+      "rank_number":"T524",
+      "central_coord":"-22.6353659,17.0792556"
+   },
+   {
+      "rank_full_name":"Cimbebasia Old T522",
+      "rank_number":"T522",
+      "central_coord":"-22.6301382,17.080411"
+   },
+   {
+      "rank_full_name":"Cimbebasia Old T525",
+      "rank_number":"T525",
+      "central_coord":"-22.6270764,17.0785552"
+   },
+   {
+      "rank_full_name":"Dorado Park EXT. 1 T470",
+      "rank_number":"T470",
+      "central_coord":"-22.5670785,17.05989"
+   },
+   {
+      "rank_full_name":"Dorado Park EXT. 1 T455",
+      "rank_number":"T455",
+      "central_coord":"-22.5670782,17.053297"
+   },
+   {
+      "rank_full_name":"Dorado Park EXT. 1 T494 Hendrik Witbooi Dr",
+      "rank_number":"T494",
+      "central_coord":"-22.5685541,17.055842"
+   },
+   {
+      "rank_full_name":"Dorado Park EXT. 1 T491 Hendrik Witbooi Dr",
+      "rank_number":"T491",
+      "central_coord":"-22.5674395,17.0559305"
+   },
+   {
+      "rank_full_name":"Dorado Park EXT. 1 T734 hendrik witbooi Dr",
+      "rank_number":"T734",
+      "central_coord":"-22.567438,17.0558259"
+   },
+   {
+      "rank_full_name":"Dorado Valley T474 Shoprite",
+      "rank_number":"T474",
+      "central_coord":"-22.554965,17.0618162"
+   },
+   {
+      "rank_full_name":"Eros T643 Mediclinic",
+      "rank_number":"T643",
+      "central_coord":"-22.5421575,17.0889495"
+   },
+   {
+      "rank_full_name":"Eros T642 Multichoice",
+      "rank_number":"T642",
+      "central_coord":"-22.551129,17.0894852"
+   },
+   {
+      "rank_full_name":"Freedomland T67",
+      "rank_number":"T67",
+      "central_coord":"-22.5104662,17.047632"
+   },
+   {
+      "rank_full_name":"Hakahana T114",
+      "rank_number":"T114",
+      "central_coord":"-22.5059159,17.0294198"
+   },
+   {
+      "rank_full_name":"Katutura Hosp T1 Katutura Hosp",
+      "rank_number":"T1",
+      "central_coord":"-22.5339001,17.0607876"
+   },
+   {
+      "rank_full_name":"Katutura Hosp T23",
+      "rank_number":"T23",
+      "central_coord":"-22.5331999,17.0608708"
+   },
+   {
+      "rank_full_name":"Khomasdal 29 T306 Spar",
+      "rank_number":"T306",
+      "central_coord":"-22.5422844,17.0472673"
+   },
+   {
+      "rank_full_name":"Khomasdal 11 T350",
+      "rank_number":"T350",
+      "central_coord":"0,-0.002194"
+   },
+   {
+      "rank_full_name":"Khomasdal Fredels T325",
+      "rank_number":"T325",
+      "central_coord":"-22.5432728,17.0613357"
+   },
+   {
+      "rank_full_name":"Khomasdal Funky town T331",
+      "rank_number":"T331",
+      "central_coord":"-22.5536869,17.0525469"
+   },
+   {
+      "rank_full_name":"Khomasdal parkfoods T312",
+      "rank_number":"T312",
+      "central_coord":"-22.5564129,17.0494704"
+   },
+   {
+      "rank_full_name":"Khomasdal parkfoods T313",
+      "rank_number":"T313",
+      "central_coord":"-22.5583657,17.050853"
+   },
+   {
+      "rank_full_name":"Khomasdal Begonia T322",
+      "rank_number":"T322",
+      "central_coord":"-22.5374286,17.0577738"
+   },
+   {
+      "rank_full_name":"Khomasdal Begonia T344",
+      "rank_number":"T344",
+      "central_coord":"-22.5441281,17.0560113"
+   },
+   {
+      "rank_full_name":"Khomasdal Begonia T346",
+      "rank_number":"T346",
+      "central_coord":"-22.5449273,17.0558158"
+   },
+   {
+      "rank_full_name":"Khomasdal Eldorado T309 VTC",
+      "rank_number":"T309",
+      "central_coord":"-22.5517362,17.0454276"
+   },
+   {
+      "rank_full_name":"Khomasdal Eldorado T307",
+      "rank_number":"T307",
+      "central_coord":"-22.5496036,17.048325"
+   },
+   {
+      "rank_full_name":"Kleine Kuppe T572",
+      "rank_number":"T572",
+      "central_coord":"-22.6261792,17.0915914"
+   },
+   {
+      "rank_full_name":"Kleine Kuppe T575",
+      "rank_number":"T575",
+      "central_coord":"-22.6171894,17.100842"
+   },
+   {
+      "rank_full_name":"Kleine Kuppe T577 Windhoek Gymnasium",
+      "rank_number":"T577",
+      "central_coord":"-22.6178141,17.1077414"
+   },
+   {
+      "rank_full_name":"Klein Windhoek T614 Puma SS",
+      "rank_number":"T614",
+      "central_coord":"-22.5619913,17.0982348"
+   },
+   {
+      "rank_full_name":"Ludwigsdorf T615",
+      "rank_number":"T615",
+      "central_coord":"-22.5651642,17.1013918"
+   },
+   {
+      "rank_full_name":"Luxury Hill T12",
+      "rank_number":"T12",
+      "central_coord":"-22.52355,17.0403019"
+   },
+   {
+      "rank_full_name":"Okuryangava T62",
+      "rank_number":"T62",
+      "central_coord":"-22.5050415,17.0506985"
+   },
+   {
+      "rank_full_name":"Okuryangava T63",
+      "rank_number":"T63",
+      "central_coord":"-22.5064726,17.0501369"
+   },
+   {
+      "rank_full_name":"One Nation T77",
+      "rank_number":"T77",
+      "central_coord":"-22.491279,17.0504893"
+   },
+   {
+      "rank_full_name":"One Nation T76",
+      "rank_number":"T76",
+      "central_coord":"-22.4913183,17.0506157"
+   },
+   {
+      "rank_full_name":"Olympia T551 (Olympia swimming pool)",
+      "rank_number":"T551",
+      "central_coord":"-22.6094555,17.0930616"
+   },
+   {
+      "rank_full_name":"Olympia T553 Delta HS",
+      "rank_number":"T553",
+      "central_coord":"-22.5990969,17.0938627"
+   },
+   {
+      "rank_full_name":"Olympia T554 Olympia WB",
+      "rank_number":"T554",
+      "central_coord":"-22.6041641,17.0961586"
+   },
+   {
+      "rank_full_name":"OlympiaT557",
+      "rank_number":"T557",
+      "central_coord":"-22.606103,17.0994543"
+   },
+   {
+      "rank_full_name":"Pioneers Park T475 Concordia College",
+      "rank_number":"T475",
+      "central_coord":"-22.5802259,17.0507394"
+   },
+   {
+      "rank_full_name":"Prosperita T511",
+      "rank_number":"T511",
+      "central_coord":"-22.623367,17.0843927"
+   },
+   {
+      "rank_full_name":"Rocky Crest T400",
+      "rank_number":"T400",
+      "central_coord":"-22.575441,17.0476095"
+   },
+   {
+      "rank_full_name":"Shandubala T22",
+      "rank_number":"T22",
+      "central_coord":"-22.5152187,17.0618578"
+   },
+   {
+      "rank_full_name":"Shandubala T24",
+      "rank_number":"T24",
+      "central_coord":"-22.5164362,17.0594204"
+   },
+   {
+      "rank_full_name":"Shandubala T31",
+      "rank_number":"T31",
+      "central_coord":"-22.5215375,17.065624"
+   },
+   {
+      "rank_full_name":"Wanaheda T253",
+      "rank_number":"T253",
+      "central_coord":"-22.514975,17.0295171"
+   },
+   {
+      "rank_full_name":"Wanaheda T257",
+      "rank_number":"T257",
+      "central_coord":"-22.5215062,17.0289488"
+   },
+   {
+      "rank_full_name":"Wanaheda T288",
+      "rank_number":"T288",
+      "central_coord":"-22.519788,17.0313976"
+   },
+   {
+      "rank_full_name":"Wanaheda T256",
+      "rank_number":"T256",
+      "central_coord":"-22.5190264,17.031399"
+   },
+   {
+      "rank_full_name":"Wanaheda T263",
+      "rank_number":"T263",
+      "central_coord":"-22.5241409,17.0362695"
+   },
+   {
+      "rank_full_name":"Windhoek Central/Town T706 palm tree park",
+      "rank_number":"T706",
+      "central_coord":"-22.560642,17.0793472"
+   },
+   {
+      "rank_full_name":"Windhoek Central/Town T703 OK foods",
+      "rank_number":"T703",
+      "central_coord":"-22.5578659,17.0814047"
+   },
+   {
+      "rank_full_name":"Windhoek Central/Town T723 PG Glass",
+      "rank_number":"T723",
+      "central_coord":"-22.5711157,17.0809344"
+   },
+   {
+      "rank_full_name":"Windhoek Central/Town T708 Independence Ave",
+      "rank_number":"T708",
+      "central_coord":"-22.5619328,17.0818634"
+   },
+   {
+      "rank_full_name":"Windhoek Central/Town T705 Robert Mugabe Ave",
+      "rank_number":"T705",
+      "central_coord":"-22.5592918,17.0836518"
+   },
+   {
+      "rank_full_name":"Windhoek Central/Town T702 Government Park",
+      "rank_number":"T702",
+      "central_coord":"-22.5545492,17.0818614"
+   },
+   {
+      "rank_full_name":"Windhoek Central/Town T729 COTA",
+      "rank_number":"T729",
+      "central_coord":"-22.5682473,17.0808546"
+   },
+   {
+      "rank_full_name":"Windhoek Central/Town T707 Shoprite",
+      "rank_number":"T707",
+      "central_coord":"-22.5627375,17.0809528"
+   },
+   {
+      "rank_full_name":"Windhoek Central/Town T709 Ellerines",
+      "rank_number":"T709",
+      "central_coord":"-22.5651888,17.0822178"
+   },
+   {
+      "rank_full_name":"Windhoek Central/Town T720 Ethopian Airlines",
+      "rank_number":"T720",
+      "central_coord":"-22.5723593,17.082891"
+   },
+   {
+      "rank_full_name":"Windhoek North T656 Post Office 1",
+      "rank_number":"T656",
+      "central_coord":"-22.5514677,17.0719426"
+   },
+   {
+      "rank_full_name":"Windhoek North T696 Post Office 2",
+      "rank_number":"T696",
+      "central_coord":"-22.5516516,17.0718789"
+   },
+   {
+      "rank_full_name":"Windhoek North T693 Central Hosp",
+      "rank_number":"T693",
+      "central_coord":"-22.5560561,17.071377"
+   },
+   {
+      "rank_full_name":"Windhoek North T697 Central Hosp",
+      "rank_number":"T697",
+      "central_coord":"-22.5570563,17.070292"
+   },
+   {
+      "rank_full_name":"Windhoek North T686 Van Ryne",
+      "rank_number":"T686",
+      "central_coord":"-22.5548115,17.0755481"
+   },
+   {
+      "rank_full_name":"Windhoek West T696",
+      "rank_number":"T696",
+      "central_coord":"-22.5516516,17.0718789"
+   },
+   {
+      "rank_full_name":"Windhoek West T690",
+      "rank_number":"T690",
+      "central_coord":"-22.5600556,17.0666385"
+   },
+   {
+      "rank_full_name":"Windhoek West T471 Jan Mohr SS",
+      "rank_number":"T471",
+      "central_coord":"-22.5703005,17.0627996"
+   },
+   {
+      "rank_full_name":"Windhoek West T690",
+      "rank_number":"T690",
+      "central_coord":"-22.5600556,17.0666385"
+   },
+   {
+      "rank_full_name":"Tauben Glen T492",
+      "rank_number":"T492",
+      "central_coord":"-22.5738178,17.0523997"
+   },
+   {
+      "rank_full_name":"Tauben Glen T489",
+      "rank_number":"T489",
+      "central_coord":"-22.579322,17.057234"
+   },
+   {
+      "rank_full_name":"Wernhill 2 Taxi rank",
+      "rank_number":"VNH789",
+      "central_coord":"-22.568600,17.081470"
+   }
+]

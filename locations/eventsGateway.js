@@ -92,6 +92,97 @@ io.sockets.on("connection", function (socket) {
   });
 
   /**
+   * MAP SERVICE
+   * Get user location (reverse geocoding)
+   */
+  socket.on("geocode-this-point", function (req) {
+    let servicePort = 9090;
+
+    if (
+      req.latitude !== undefined &&
+      req.latitude !== null &&
+      req.longitude !== undefined &&
+      req.longitude !== null &&
+      req.user_fingerprint !== null &&
+      req.user_fingerprint !== undefined
+    ) {
+      let url =
+        localURL +
+        ":" +
+        servicePort +
+        "/getUserLocationInfos?latitude=" +
+        req.latitude +
+        "&longitude=" +
+        req.longitude +
+        "&user_fingerprint=" +
+        req.user_fingerprint;
+      requestAPI(url, function (error, response, body) {
+        console.log(body);
+        if (error === null) {
+          try {
+            body = JSON.parse(body);
+            socket.emit("geocode-this-point-response", body);
+          } catch (error) {
+            socket.emit("geocode-this-point-response", false);
+          }
+        } else {
+          socket.emit("geocode-this-point-response", false);
+        }
+      });
+    } //Invalid params
+    else {
+      socket.emit("geocode-this-point-response", false);
+    }
+  });
+
+  /**
+   * MAP SERVICE
+   * route name: identifyPickupLocation
+   * params: latitude, longitude, user_fingerprint
+   * Identify pickup location (taxi rank or private location)
+   */
+  socket.on("getPickupLocationNature", function (req) {
+    console.log("identify location...");
+    let servicePort = 9090;
+
+    if (
+      req.latitude !== undefined &&
+      req.latitude !== null &&
+      req.longitude !== undefined &&
+      req.longitude !== null &&
+      req.user_fingerprint !== null &&
+      req.user_fingerprint !== undefined
+    ) {
+      let url =
+        localURL +
+        ":" +
+        servicePort +
+        "/identifyPickupLocation?latitude=" +
+        req.latitude +
+        "&longitude=" +
+        req.longitude +
+        "&user_fingerprint=" +
+        req.user_fingerprint;
+      requestAPI(url, function (error, response, body) {
+        console.log(body);
+        if (error === null) {
+          try {
+            body = JSON.parse(body);
+            socket.emit("getPickupLocationNature-response", body);
+          } catch (error) {
+            socket.emit("getPickupLocationNature-response", false);
+          }
+        } else {
+          socket.emit("getPickupLocationNature-response", false);
+        }
+      });
+    } //Invalid params
+    else {
+      socket.emit("getPickupLocationNature-response", false);
+    }
+  });
+
+  /**
    * SEARCH SERVICE, port 9091
    * Route: getSearchedLocations
    * Event: getSearchedLocations
