@@ -985,6 +985,7 @@ function reverseGeocoderExec(resolve, req, updateCache = false) {
   requestAPI(url, function (error, response, body) {
     //body = JSON.parse(body);
     try {
+      console.log(body);
       body = JSON.parse(body);
       if (body != undefined) {
         if (body.features[0].properties != undefined) {
@@ -1023,6 +1024,7 @@ function reverseGeocoderExec(resolve, req, updateCache = false) {
 /**
  * @func findoutPickupLocationNature
  * @param point: location point
+ * @param user_fingerprint: fingerprint of the user. (INCLUDED IN POINT)
  * Responsible for check if the pickup location is a Taxi rank or private location (only these 2 for now)
  * Radius in meters - default: 2meters
  * Possible types
@@ -1050,8 +1052,39 @@ function findoutPickupLocationNature(resolve, point) {
       locationIdentity = { locationType: "PrivateLocation" };
     }
   });
-  //...
-  resolve(locationIdentity);
+  //Check for airport if Private location
+  if (locationIdentity.locationType !== "TaxiRank") {
+    //Check if it's an airport -reverse geocode and deduct from the name of the place
+    new Promise((res) => {
+      reverseGeocodeUserLocation(res, point);
+    }).then(
+      (result) => {
+        if (result !== false) {
+          if (result.name !== undefined) {
+            if (/airport/i.test(result.name)) {
+              //Airport detected
+              locationIdentity = { locationType: "Airport", name: result.name };
+              resolve(locationIdentity);
+            }
+          } else {
+            locationIdentity = { locationType: "PrivateLocation" };
+            resolve(locationIdentity);
+          }
+        } else {
+          locationIdentity = { locationType: "PrivateLocation" };
+          resolve(locationIdentity);
+        }
+      },
+      (error) => {
+        locationIdentity = { locationType: "PrivateLocation" };
+        resolve(locationIdentity);
+      }
+    );
+  } //Taxirank
+  else {
+    //...
+    resolve(locationIdentity);
+  }
 }
 
 /**

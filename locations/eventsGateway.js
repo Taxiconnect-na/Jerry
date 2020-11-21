@@ -221,4 +221,4 @@ io.sockets.on("connection", function (socket) {
 });
 
 server.listen(port);
-dash.monitor({ server: server });
+//dash.monitor({ server: server });
