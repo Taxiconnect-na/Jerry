@@ -155,7 +155,6 @@ function autocompleteInputData(resolve, inputData, collectionSavedSuburbResults)
   let pickupInfos = inputData.pickup_location_infos;
   let destinationInfos = inputData.destination_location_infos;
   //[PICKUP LOCATION] Complete pickup location suburb infos
-  console.log(pickupInfos.coordinates);
   //Check Redis for previous record
   redisGet("savedSuburbResults").then(
     (resp) => {
@@ -183,6 +182,7 @@ function autocompleteInputData(resolve, inputData, collectionSavedSuburbResults)
           inputData.pickup_location_infos.suburb = focusedRecord.suburb; //Update main object
           inputData.pickup_location_infos.state = focusedRecord.state;
           pickupInfos = inputData.pickup_location_infos.state; //Update shortcut var
+          console.log(focusedRecord);
           //...Done auto complete destination locations
           console.log(pickupInfos);
           new Promise((res) => {
@@ -214,7 +214,7 @@ function autocompleteInputData(resolve, inputData, collectionSavedSuburbResults)
                 pickupInfos = result; //Update shortcut var
                 inputData.pickup_location_infos = result; //Update main object
                 //...Done auto complete destination locations
-                console.log(result);
+                //console.log(result);
                 new Promise((res) => {
                   manageAutoCompleteDestinationLocations(res, destinationInfos, inputData.user_fingerprint, collectionSavedSuburbResults);
                 }).then(
@@ -253,7 +253,7 @@ function autocompleteInputData(resolve, inputData, collectionSavedSuburbResults)
               pickupInfos = result; //Update shortcut var
               inputData.pickup_location_infos = result; //Update main object
               //...Done auto complete destination locations
-              console.log(result);
+              //console.log(result);
               new Promise((res) => {
                 manageAutoCompleteDestinationLocations(res, destinationInfos, inputData.user_fingerprint, collectionSavedSuburbResults);
               }).then(
@@ -329,6 +329,8 @@ function autocompleteInputData(resolve, inputData, collectionSavedSuburbResults)
  * @param user_fingerprint: fingerprint of the user responsible for the request
  * Depend on @func doMongoSearchForAutocompletedSuburbs
  * Responsible for autocompleting input data for ALL the destination locations and return the complete array.
+ * REDIS
+ * key: destinationLocationsAutoCompletedNature: [{location_name, street_name, suburb, city, locationType}]
  */
 function manageAutoCompleteDestinationLocations(resolve, destinationLocations, user_fingerprint, collectionSavedSuburbResults) {
   console.log("AUTO COMPLETE DESTINATION DATA");
@@ -340,7 +342,7 @@ function manageAutoCompleteDestinationLocations(resolve, destinationLocations, u
   Promise.all(promiseParent).then(
     (result) => {
       if (result !== false) {
-        //console.log(result);
+        ////console.log(result);
         //Update the input data
         destinationLocations.map((prevLocation, index) => {
           result.map((completeLocation) => {
@@ -357,49 +359,198 @@ function manageAutoCompleteDestinationLocations(resolve, destinationLocations, u
         });
         //Autocomplete the location types : taxi rank, airports or private locations
         let promiseParent2 = destinationLocations.map((destination) => {
-          return new Promise((res) => {
-            let url =
-              MAP_SERVICE_HOST +
-              ":" +
-              MAP_SERVICE_PORT +
-              "/identifyPickupLocation?latitude=" +
-              destination.coordinates.latitude +
-              "&longitude=" +
-              destination.coordinates.longitude +
-              "&user_fingerprint=" +
-              user_fingerprint;
-            requestAPI(url, function (error, response, body) {
-              console.log(body);
-              if (error === null) {
-                try {
-                  body = JSON.parse(body);
-                  body.passenger_number_id = destination.passenger_number_id;
-                  res(body);
-                } catch (error) {
-                  //Defaults to privateLocation
-                  body = {};
-                  body.locationType = "PrivateLocation";
-                  body.passenger_number_id = destination.passenger_number_id;
-                  res(body);
+          //Check if a cached data is present
+          redisGet("destinationLocationsAutoCompletedNature").then((reslt) => {
+            if (reslt !== null) {
+              console.log(reslt);
+              //Has a record
+              //CHeck if contains the focused record
+              try {
+                reslt = JSON.parse(reslt);
+                let wasFocusedLocationCached = false;
+                reslt.map((locationCached) => {
+                  if (
+                    locationCached.location_name === destination.location_name &&
+                    locationCached.street_name === destination.street_name &&
+                    locationCached.suburb === destination.suburb &&
+                    locationCached.city === destination.city
+                  ) {
+                    //Found update destination
+                    destination.locationType = locationCached.locationType;
+                    wasFocusedLocationCached = true;
+                  }
+                });
+                //...
+                if (wasFocusedLocationCached === false) {
+                  //Not found - do a new search
+                  return new Promise((res) => {
+                    let url =
+                      MAP_SERVICE_HOST +
+                      ":" +
+                      MAP_SERVICE_PORT +
+                      "/identifyPickupLocation?latitude=" +
+                      destination.coordinates.latitude +
+                      "&longitude=" +
+                      destination.coordinates.longitude +
+                      "&user_fingerprint=" +
+                      user_fingerprint;
+                    requestAPI(url, function (error, response, body) {
+                      console.log(body);
+                      if (error === null) {
+                        try {
+                          body = JSON.parse(body);
+                          body.passenger_number_id = destination.passenger_number_id;
+                          res(body);
+                        } catch (error) {
+                          //Defaults to privateLocation
+                          body = {};
+                          body.locationType = "PrivateLocation";
+                          body.passenger_number_id = destination.passenger_number_id;
+                          res(body);
+                        }
+                      } else {
+                        //Defaults to privateLocation
+                        body = {};
+                        body.locationType = "PrivateLocation";
+                        body.passenger_number_id = destination.passenger_number_id;
+                        res(body);
+                      }
+                    });
+                  });
                 }
-              } else {
-                //Defaults to privateLocation
-                body = {};
-                body.locationType = "PrivateLocation";
-                body.passenger_number_id = destination.passenger_number_id;
-                res(body);
+              } catch (error) {
+                return new Promise((res) => {
+                  let url =
+                    MAP_SERVICE_HOST +
+                    ":" +
+                    MAP_SERVICE_PORT +
+                    "/identifyPickupLocation?latitude=" +
+                    destination.coordinates.latitude +
+                    "&longitude=" +
+                    destination.coordinates.longitude +
+                    "&user_fingerprint=" +
+                    user_fingerprint;
+                  requestAPI(url, function (error, response, body) {
+                    console.log(body);
+                    if (error === null) {
+                      try {
+                        body = JSON.parse(body);
+                        body.passenger_number_id = destination.passenger_number_id;
+                        res(body);
+                      } catch (error) {
+                        //Defaults to privateLocation
+                        body = {};
+                        body.locationType = "PrivateLocation";
+                        body.passenger_number_id = destination.passenger_number_id;
+                        res(body);
+                      }
+                    } else {
+                      //Defaults to privateLocation
+                      body = {};
+                      body.locationType = "PrivateLocation";
+                      body.passenger_number_id = destination.passenger_number_id;
+                      res(body);
+                    }
+                  });
+                });
               }
-            });
+            } //No records - make a fresh search
+            else {
+              return new Promise((res) => {
+                let url =
+                  MAP_SERVICE_HOST +
+                  ":" +
+                  MAP_SERVICE_PORT +
+                  "/identifyPickupLocation?latitude=" +
+                  destination.coordinates.latitude +
+                  "&longitude=" +
+                  destination.coordinates.longitude +
+                  "&user_fingerprint=" +
+                  user_fingerprint;
+                requestAPI(url, function (error, response, body) {
+                  console.log(body);
+                  if (error === null) {
+                    try {
+                      body = JSON.parse(body);
+                      body.passenger_number_id = destination.passenger_number_id;
+                      res(body);
+                    } catch (error) {
+                      //Defaults to privateLocation
+                      body = {};
+                      body.locationType = "PrivateLocation";
+                      body.passenger_number_id = destination.passenger_number_id;
+                      res(body);
+                    }
+                  } else {
+                    //Defaults to privateLocation
+                    body = {};
+                    body.locationType = "PrivateLocation";
+                    body.passenger_number_id = destination.passenger_number_id;
+                    res(body);
+                  }
+                });
+              });
+            }
           });
         });
         //..
         Promise.all(promiseParent2).then(
           (result) => {
-            console.log(result);
             result.map((location) => {
-              if (location.passenger_number_id !== undefined) {
+              if (location !== undefined && location.passenger_number_id !== undefined) {
                 //Linked to a user
                 destinationLocations[location.passenger_number_id - 1].dropoff_type = location.locationType;
+                //Cache the location
+                new Promise((res) => {
+                  //Check if redis already have key record
+                  redisGet("destinationLocationsAutoCompletedNature").then(
+                    (reslt) => {
+                      if (reslt !== null) {
+                        //Has record - just update
+                        try {
+                          reslt = JSON.parse(reslt);
+                          reslt.push({
+                            location_name: destinationLocations.location_name,
+                            street_name: destinationLocations.street_name,
+                            suburb: destinationLocations.suburb,
+                            city: destinationLocations.city,
+                            locationType: location.locationType,
+                          });
+                          client.set("destinationLocationsAutoCompletedNature", JSON.stringify(reslt));
+                          res(true);
+                        } catch (error) {
+                          let recordTmp = {
+                            location_name: destinationLocations.location_name,
+                            street_name: destinationLocations.street_name,
+                            suburb: destinationLocations.suburb,
+                            city: destinationLocations.city,
+                            locationType: location.locationType,
+                          };
+                          client.set("destinationLocationsAutoCompletedNature", JSON.stringify(recordTmp));
+                          res(true);
+                        }
+                      } //No record - create one - [{location_name, street_name, suburb, city, locationType}]
+                      else {
+                        let recordTmp = {
+                          location_name: destinationLocations.location_name,
+                          street_name: destinationLocations.street_name,
+                          suburb: destinationLocations.suburb,
+                          city: destinationLocations.city,
+                          locationType: location.locationType,
+                        };
+                        client.set("destinationLocationsAutoCompletedNature", JSON.stringify(recordTmp));
+                        res(true);
+                      }
+                    },
+                    (error) => {
+                      console.log(error);
+                      res(false);
+                    }
+                  );
+                }).then(
+                  () => {},
+                  () => {}
+                );
               }
             });
             //DONE
@@ -590,7 +741,7 @@ dbPool.getConnection(function (err, connection) {
         country: "Namibia",
         pickup_location_infos: {
           pickup_type: "PrivateLocation",
-          coordinates: { latitude: -22.56962, longitude: 17.08335 },
+          coordinates: { latitude: -22.522247, longitude: 17.058754 },
           location_name: "Maerua mall",
           street_name: "Andromeda Street",
           suburb: false,
@@ -601,7 +752,7 @@ dbPool.getConnection(function (err, connection) {
           {
             passenger_number_id: 1,
             dropoff_type: false,
-            coordinates: { latitude: -22.593295, longitude: 17.066033 },
+            coordinates: { latitude: -22.522247, longitude: 17.058754 },
             location_name: "Location 1",
             street_name: "Street 1",
             suburb: false,
@@ -656,7 +807,7 @@ dbPool.getConnection(function (err, connection) {
         }).then(
           (result) => {
             if (result !== false) {
-              console.log(result);
+              //console.log(result);
               let completeInput = result;
               console.log("Done autocompleting");
               res.send(completeInput);
