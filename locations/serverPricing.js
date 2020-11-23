@@ -847,7 +847,7 @@ function computeInDepthPricesMap(resolve, completedInputData, globalPricesMap, g
         //Check if the pickup if an Airport
         //In case of an Airport, apply vehicle default airport price and mar as unavailable those not supporting
         //airport rides as pickup
-        if (/Airport/i.test(pickup_type)) {
+        if (/Airport/i.test(pickup_type) && /Eros Airport/i.test(completedInputData.pickup_location_infos.location_name) === false) {
           isGoingToAirport = true;
           //From Airport - mark vehicles that can't do airports as unavailable.
           if (vehicle.airport_rides == false) {
@@ -891,7 +891,7 @@ function computeInDepthPricesMap(resolve, completedInputData, globalPricesMap, g
             let tmpPickupPickup = pickup_suburb;
             let tmpDestinationSuburb = destination.suburb;
             //To Airport - mark vehicles that can't do airports as unavailable.
-            if (/Airport/i.test(destination.dropoff_type)) {
+            if (/Airport/i.test(destination.dropoff_type) && /Eros Airport/i.test(destination.location_name) === false) {
               isGoingToAirport = true;
               //From Airport - mark vehicles that can't do airports as unavailable.
               if (vehicle.airport_rides == false) {
