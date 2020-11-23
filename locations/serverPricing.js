@@ -182,9 +182,7 @@ function autocompleteInputData(resolve, inputData, collectionSavedSuburbResults)
           inputData.pickup_location_infos.suburb = focusedRecord.suburb; //Update main object
           inputData.pickup_location_infos.state = focusedRecord.state;
           pickupInfos = inputData.pickup_location_infos.state; //Update shortcut var
-          console.log(focusedRecord);
           //...Done auto complete destination locations
-          console.log(pickupInfos);
           new Promise((res) => {
             manageAutoCompleteDestinationLocations(res, destinationInfos, inputData.user_fingerprint, collectionSavedSuburbResults);
           }).then(
@@ -211,8 +209,9 @@ function autocompleteInputData(resolve, inputData, collectionSavedSuburbResults)
           }).then(
             (result) => {
               if (result !== false) {
-                pickupInfos = result; //Update shortcut var
-                inputData.pickup_location_infos = result; //Update main object
+                inputData.pickup_location_infos.suburb = result.suburb; //Update main object
+                inputData.pickup_location_infos.state = result.state;
+                pickupInfos = inputData.pickup_location_infos; //Update shortcut var
                 //...Done auto complete destination locations
                 //console.log(result);
                 new Promise((res) => {
@@ -250,8 +249,9 @@ function autocompleteInputData(resolve, inputData, collectionSavedSuburbResults)
         }).then(
           (result) => {
             if (result !== false) {
-              pickupInfos = result; //Update shortcut var
-              inputData.pickup_location_infos = result; //Update main object
+              inputData.pickup_location_infos.suburb = result.suburb; //Update main object
+              inputData.pickup_location_infos.state = result.state;
+              pickupInfos = inputData.pickup_location_infos; //Update shortcut var
               //...Done auto complete destination locations
               //console.log(result);
               new Promise((res) => {
@@ -289,8 +289,9 @@ function autocompleteInputData(resolve, inputData, collectionSavedSuburbResults)
       }).then(
         (result) => {
           if (result !== false) {
-            pickupInfos = result; //Update shortcut var
-            inputData.pickup_location_infos = result; //Update main object
+            inputData.pickup_location_infos.suburb = result.suburb; //Update main object
+            inputData.pickup_location_infos.state = result.state;
+            pickupInfos = inputData.pickup_location_infos; //Update shortcut var
             //...Done auto complete destination locations
             new Promise((res) => {
               manageAutoCompleteDestinationLocations(res, destinationInfos, inputData.user_fingerprint, collectionSavedSuburbResults);
@@ -362,7 +363,6 @@ function manageAutoCompleteDestinationLocations(resolve, destinationLocations, u
           //Check if a cached data is present
           redisGet("destinationLocationsAutoCompletedNature").then((reslt) => {
             if (reslt !== null) {
-              console.log(reslt);
               //Has a record
               //CHeck if contains the focused record
               try {
@@ -695,6 +695,169 @@ function doMongoSearchForAutocompletedSuburbs(resolve, locationInfos, collection
   });
 }
 
+/**
+ * @func estimateFullVehiclesCatPrices
+ * @param resolve
+ * @param completedInputData: input data that passed the integrity test and that was autocompleted ONLY!
+ * @param collectionVehiclesInfos: collection of all the vehicle categories with their details (not explicit vehicles from mysql)
+ * @param collectionNamibiaPricesLocationsMapWindhoek: collection of all the prices reference for the city of Windhoek exclusively.
+ * Responsible for determining the prices for each vehicle category based on the availability (should be available),
+ * the country, city and the type of ride (RIDE or DELIVERY).
+ * Actual cars from mysql MUST be linked the the corresponding vehicle category from mongo in order to receive targeted requests.
+ */
+function estimateFullVehiclesCatPrices(resolve, completedInputData, collectionVehiclesInfos, collectionPricesLocationsMap) {
+  console.log(completedInputData.destination_location_infos[0].dropoff_type);
+  //DEBUG
+  completedInputData.destination_location_infos[0].dropoff_type = "PrivateLocation";
+  completedInputData.destination_location_infos[1].dropoff_type = "PrivateLocation";
+  completedInputData.destination_location_infos[2].dropoff_type = "PrivateLocation";
+  completedInputData.destination_location_infos[3].dropoff_type = "PrivateLocation";
+  //DEBUG
+  //Check for the input data
+  if (
+    completedInputData.pickup_location_infos.suburb !== undefined &&
+    completedInputData.pickup_location_infos.suburb !== false &&
+    completedInputData.destination_location_infos[0].dropoff_type !== undefined &&
+    completedInputData.destination_location_infos[0].dropoff_type !== false &&
+    completedInputData.destination_location_infos[0].suburb !== undefined &&
+    completedInputData.destination_location_infos[0].suburb !== false &&
+    completedInputData.destination_location_infos[0].state !== undefined &&
+    completedInputData.destination_location_infos[0].state !== false
+  ) {
+    //Check
+    //Get the list of all the vehicles corresponding to the ride type (RIDE or DELIVERY), country, city and availability (AVAILABLE)
+    let filterQuery = {
+      ride_type: completedInputData.ride_mode,
+      country: completedInputData.country,
+      city: completedInputData.pickup_location_infos.city,
+      availability: "available",
+    };
+    collectionVehiclesInfos.find(filterQuery).toArray(function (err, result) {
+      //console.log(result);
+      if (result.length > 0) {
+        //Found something
+        let genericRidesInfos = result;
+        //Get all the city's price map (cirteria: city, country and pickup)
+        new Promise((res) => {
+          filterQuery = {
+            country: completedInputData.country,
+            city: completedInputData.pickup_location_infos.city,
+            pickup_suburb: completedInputData.pickup_location_infos.suburb.toUpperCase().trim(),
+          };
+          collectionPricesLocationsMap.find(filterQuery).toArray(function (err, result) {
+            if (result.length > 0) {
+              //Found corresponding prices maps
+              res(result);
+            } //No prices map found - Set default prices NAD 12 - non realistic and fixed prices
+            else {
+              res([
+                { pickup_suburb: false, fare: 12 },
+                { pickup_suburb: false, fare: 12 },
+                { pickup_suburb: false, fare: 12 },
+                { pickup_suburb: false, fare: 12 },
+              ]);
+            }
+          });
+        }).then(
+          (reslt) => {
+            let globalPricesMap = reslt;
+            //call computeInDepthPricesMap
+            new Promise((res) => {
+              computeInDepthPricesMap(res, completedInputData, globalPricesMap, genericRidesInfos);
+            }).then(
+              (reslt) => {
+                //DONE
+                console.log("Done in depth");
+                console.log(reslt);
+              },
+              (error) => {
+                console.log(error);
+                resolve(false);
+              }
+            );
+          },
+          (error) => {
+            console.log(error);
+            resolve(false);
+          }
+        );
+      } //No rides at all
+      else {
+        resolve({ response: "no_available_rides" });
+      }
+    });
+  } //Invalid data
+  else {
+    console.log("Invalid data");
+    resolve(false);
+  }
+}
+
+/**
+ * @func computeInDepthPricesMap
+ * @param resolve
+ * @param completedInputData: completed operations input data
+ * @param globalPricesMap: suburbs based prices reference
+ * @param genericRidesInfos: generic vehicles categories
+ * Responsible for performing all the operations of header prices, multipliers (time and passengers) and outputing the final price map
+ */
+function computeInDepthPricesMap(resolve, completedInputData, globalPricesMap, genericRidesInfos) {
+  console.log("compute in depth called");
+  //ESTABLISH IMPORTANT PRICING VARIABLES
+  let connectType = completedInputData.connect_type;
+  let pickup_suburb = completedInputData.pickup_location_infos.suburb;
+  let pickup_hour = (completedInputData.pickup_time / 1000) * 60 * 60;
+  let pickup_minutes = pickup_hour * 60;
+  let pickup_type = completedInputData.pickup_location_infos.pickup_type; //PrivateLocation, TaxiRank or Airport.
+  let passengers_number = completedInputData.passengers_number; //Number of passengers for this ride.
+  //Compute header price and set timeDayMultiplier (multiplier x1 or x2 based on the time 00-4:59(x1) or 5:00-23:59(x2))
+  //and passengersMultiplier (based on the number of passenger == just No of passengers)
+  let headerPrice = 0;
+  let timeDayMultiplier = 1;
+  let passengersMultiplier = passengers_number;
+  new Promise((res) => {
+    if (pickup_hour >= 0 && pickup_hour <= 4) {
+      //X2 multiplier 0AM-4AM
+      timeDayMultiplier = 2;
+    }
+    //...
+    if (/PrivateLocation/i.test(pickup_type)) {
+      //+NAD5
+      headerPrice += 5;
+      res(true);
+    } else if (/TaxiRank/i.test(pickup_type)) {
+      //+NAD2
+      headerPrice += 2;
+      res(true);
+    } else {
+      res(true);
+    }
+  }).then(
+    (reslt) => {
+      console.log("Pricing variables summary");
+      console.log(headerPrice, timeDayMultiplier, passengersMultiplier);
+      //Find all the suburb based prices - applies very well to Windhoek
+      genericRidesInfos.map((vehicle, index) => {
+        //Check if the pickup if an Airport
+        //In case of an Airport, apply vehicle default airport price and mar as unavailable those not supporting
+        //airport rides
+        if(/Airport/i.test(pickup_type))  //From Airport
+        {
+          //Check the connect type, connectMe (only consider when in Economy), connectUs
+        }
+        else  //Nor airport (private location or taxi rank)
+        {
+
+        }
+      });
+    },
+    (error) => {
+      console.log(error);
+      resolve(false);
+    }
+  );
+}
+
 //Database connection
 const dbPool = mysql.createPool({
   connectionLimit: 1000000000,
@@ -716,7 +879,7 @@ dbPool.getConnection(function (err, connection) {
     console.log("[+] Pricing service active");
     const dbMongo = clientMongo.db(DB_NAME_MONGODB);
     const collectionVehiclesInfos = dbMongo.collection("vehicles_collection_infos"); //Collection containing the list of all the vehicles types and all their corresponding infos
-    const collectionNamibiaPricesLocationsMapWindhoek = dbMongo.collection("namibia_prices_to_locations_map_windoek"); //Collection containing all the prices and locations in a format specific to Namibia (Windhoek)
+    const collectionPricesLocationsMap = dbMongo.collection("global_prices_to_locations_map"); //Collection containing all the prices and locations in a format
     const collectionSavedSuburbResults = dbMongo.collection("autocompleted_location_suburbs"); //Collection of all the location matching will all their corresponding suburbs and other fetched infos
     //-------------
     const bodyParser = require("body-parser");
@@ -734,8 +897,9 @@ dbPool.getConnection(function (err, connection) {
       //Test data
       let tmp = {
         user_fingerprint: "7c57cb6c9471fd33fd265d5441f253eced2a6307c0207dea57c987035b496e6e8dfa7105b86915da",
-        connect_type: "ConnectMe",
-        passengers_number: 1,
+        connect_type: "ConnectUS",
+        ride_mode: "RIDE", //Or DELIVERY
+        passengers_number: 4,
         request_type: "immediate",
         pickup_time: 1605984208,
         country: "Namibia",
@@ -807,9 +971,21 @@ dbPool.getConnection(function (err, connection) {
         }).then(
           (result) => {
             if (result !== false) {
-              //console.log(result);
               let completeInput = result;
               console.log("Done autocompleting");
+              //Generate prices metadata for all the relevant vehicles categories
+              console.log("Computing prices metadata of relevant car categories");
+              new Promise((res) => {
+                estimateFullVehiclesCatPrices(res, completeInput, collectionVehiclesInfos, collectionPricesLocationsMap);
+              }).then(
+                (result) => {
+                  console.log(result);
+                },
+                (error) => {
+                  console.log(error);
+                }
+              );
+              //...
               res.send(completeInput);
             } //Error - Failed input augmentation
             else {
