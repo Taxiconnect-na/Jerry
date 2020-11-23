@@ -706,11 +706,11 @@ function doMongoSearchForAutocompletedSuburbs(resolve, locationInfos, collection
  * Actual cars from mysql MUST be linked the the corresponding vehicle category from mongo in order to receive targeted requests.
  */
 function estimateFullVehiclesCatPrices(resolve, completedInputData, collectionVehiclesInfos, collectionPricesLocationsMap) {
-  console.log(completedInputData.destination_location_infos[0].dropoff_type);
   //DEBUG
+  //completedInputData.pickup_location_infos.pickup_type = "Airport";
   completedInputData.destination_location_infos[0].dropoff_type = "PrivateLocation";
-  completedInputData.destination_location_infos[1].dropoff_type = "PrivateLocation";
-  completedInputData.destination_location_infos[2].dropoff_type = "PrivateLocation";
+  completedInputData.destination_location_infos[1].dropoff_type = "Airport";
+  completedInputData.destination_location_infos[2].dropoff_type = "Airport";
   completedInputData.destination_location_infos[3].dropoff_type = "PrivateLocation";
   //DEBUG
   //Check for the input data
@@ -767,8 +767,12 @@ function estimateFullVehiclesCatPrices(resolve, completedInputData, collectionVe
             }).then(
               (reslt) => {
                 //DONE
-                console.log("Done in depth");
-                console.log(reslt);
+                if (reslt !== false) {
+                  resolve(reslt);
+                } //Error
+                else {
+                  resolve(false);
+                }
               },
               (error) => {
                 console.log(error);
@@ -838,18 +842,183 @@ function computeInDepthPricesMap(resolve, completedInputData, globalPricesMap, g
       console.log(headerPrice, timeDayMultiplier, passengersMultiplier);
       //Find all the suburb based prices - applies very well to Windhoek
       genericRidesInfos.map((vehicle, index) => {
+        let basePrice = 0; //Will contain the base price after going through all the destinations
+        let isGoingToAirport = false; //To know whether or not the ride is heading to or from an airport.
         //Check if the pickup if an Airport
         //In case of an Airport, apply vehicle default airport price and mar as unavailable those not supporting
-        //airport rides
-        if(/Airport/i.test(pickup_type))  //From Airport
-        {
-          //Check the connect type, connectMe (only consider when in Economy), connectUs
+        //airport rides as pickup
+        if (/Airport/i.test(pickup_type)) {
+          isGoingToAirport = true;
+          //From Airport - mark vehicles that can't do airports as unavailable.
+          if (vehicle.airport_rides == false) {
+            //Can't do airport ride
+            genericRidesInfos[index].availability = "unavailable";
+          } //Can do airport rides - compute fare estimate - assign airport fare to base fare
+          else {
+            basePrice = vehicle.airport_rate;
+          }
+        } //Not airport (private location or taxi rank)
+        else {
+          //Check if connectMe or US
+          //If connectMe, apply connect me rules, for comfort and luxury apply default price + header price
+          if (/ConnectMe/i.test(connectType)) {
+            //ConnectMe
+            if (/Comfort/i.test(vehicle.category) || /Luxury/i.test(vehicle.category)) {
+              //Comfort or luxury
+              //Set to 0
+              basePrice = 0;
+            } //Economy
+            else {
+              //Apply passengers multiplier to fixed NAD45
+              basePrice = 45 + 2.5 * (passengersMultiplier - 1);
+            }
+          } //ConnectUs
+          else {
+            //Just apply the time multiplier
+            //Based on the regional suburb price map - assign base price to 0
+            if (/Comfort/i.test(vehicle.category) || /Luxury/i.test(vehicle.category)) {
+              //Comfort or luxury
+              //SET to 0
+              basePrice = 0;
+            } //Economy
+            else {
+              //Set to 0
+              basePrice = 0;
+            }
+          }
+          //...
+          completedInputData.destination_location_infos.map((destination) => {
+            let tmpPickupPickup = pickup_suburb;
+            let tmpDestinationSuburb = destination.suburb;
+            //To Airport - mark vehicles that can't do airports as unavailable.
+            if (/Airport/i.test(destination.dropoff_type)) {
+              isGoingToAirport = true;
+              //From Airport - mark vehicles that can't do airports as unavailable.
+              if (vehicle.airport_rides == false) {
+                //Can't do airport ride
+                genericRidesInfos[index].availability = "unavailable";
+              } //Can do airport rides - compute fare estimate - assign airport fare to base fare
+              else {
+                //Check for connectMe or US
+                // remove count for one user and add base airport rate
+                if (/ConnectMe/i.test(connectType)) {
+                  if (/Comfort/i.test(vehicle.category) || /Luxury/i.test(vehicle.category)) {
+                    //Comfort or luxury
+                    //Do nothing
+                  } //Economy
+                  else {
+                    //Apply passengers multiplier to fixed NAD45
+                    basePrice -= 2.5 * (passengersMultiplier - 1);
+                  }
+                } //For connectUs remove base price for 1 user considered if not 0
+                else {
+                  //Check corresponsing suburb fare
+                  if (tmpPickupPickup === tmpDestinationSuburb) {
+                    //Same suburb -> fare = base ride price
+                    if (basePrice > 0) {
+                      basePrice -= vehicle.base_fare;
+                    }
+                  } //Different suburb - find price and remove
+                  else {
+                    let lockPorgress = false; //Reponsible for avoiding repetitive removeal in case of FALSE suburb
+                    globalPricesMap.map((suburbToSuburbInfo) => {
+                      if (suburbToSuburbInfo.pickup_suburb === false && lockPorgress === false) {
+                        //Remove once
+                        if (basePrice > 0) {
+                          basePrice -= suburbToSuburbInfo.fare;
+                          lockPorgress = true;
+                        }
+                      } else if (
+                        suburbToSuburbInfo.pickup_suburb === tmpPickupPickup &&
+                        suburbToSuburbInfo.destination_suburb === tmpDestinationSuburb
+                      ) {
+                        basePrice -= suburbToSuburbInfo.fare;
+                      }
+                    });
+                  }
+                }
+                //APPLY AIRPORT RATE if not applied before
+                if (basePrice < vehicle.airport_rate) {
+                  //Price controller
+                  basePrice += vehicle.airport_rate;
+                }
+              }
+            } //Private location or taxi ranks - only for Economy and COnnectUS since for Luxury and comfort (connectMe) the price is already computed
+            else {
+              if (/ConnectUS/i.test(connectType)) {
+                if (/Economy/i.test(vehicle.category)) {
+                  //Added up all the suburb related infos based on connect me of connectUS
+                  let lockPorgress = false; //Reponsible for avoiding repetitive removeal in case of FALSE suburb
+                  //Add base ride fare if the user is found to be going to the same suburb
+                  if (tmpPickupPickup === tmpDestinationSuburb) {
+                    console.log(vehicle.base_fare);
+                    //Same suburb -> fare = base ride price
+                    basePrice += vehicle.base_fare;
+                  }
+                  globalPricesMap.map((suburbToSuburbInfo) => {
+                    if (suburbToSuburbInfo.pickup_suburb === false && lockPorgress === false) {
+                      //Add once
+                      if (basePrice > 0) {
+                        basePrice += suburbToSuburbInfo.fare;
+                        lockPorgress = true;
+                      }
+                    } else if (
+                      suburbToSuburbInfo.pickup_suburb.toUpperCase().trim() === tmpPickupPickup.toUpperCase().trim() &&
+                      suburbToSuburbInfo.destination_suburb.toUpperCase().trim() === tmpDestinationSuburb.toUpperCase().trim()
+                    ) {
+                      lockPorgress = false;
+                      //If the car type is economy electric, add its base price
+                      if (/electricEconomy/i.test(vehicle.car_type)) {
+                        console.log(vehicle.base_fare);
+                        basePrice += vehicle.base_fare;
+                      } //Normal taxis
+                      else {
+                        console.log(suburbToSuburbInfo.fare);
+                        basePrice += suburbToSuburbInfo.fare;
+                      }
+                    }
+                  });
+                } else if (/Comfort/i.test(vehicle.category) || /Luxury/i.test(vehicle.category)) {
+                  //Add base fare for one person
+                  basePrice += vehicle.base_fare;
+                }
+              } //ConnectMe - for comfort and luxury only
+              else {
+                if (/Comfort/i.test(vehicle.category) || /Luxury/i.test(vehicle.category)) {
+                  //Add base fare for one person
+                  basePrice += vehicle.base_fare;
+                }
+              }
+            }
+          });
         }
-        else  //Nor airport (private location or taxi rank)
-        {
-
+        //Add header price and time multiplier ONLY for the Economy category and not airport rides
+        if (/Economy/i.test(vehicle.category) && isGoingToAirport === false) {
+          basePrice *= timeDayMultiplier;
+          basePrice += headerPrice; //Add header price LAST
         }
+        //DONE update base price...
+        //console.log("ESTIMATED BASE PRICE (car type:", vehicle.car_type, ") --> ", basePrice);
+        //Update the rides infos data
+        genericRidesInfos[index].base_fare = basePrice;
+        //Only get relevant information form the metadata
+        let { category, ride_type, country, city, base_fare, car_type, app_label, media, availability } = genericRidesInfos[index];
+        genericRidesInfos[index] = {
+          id: index,
+          category: category,
+          ride_type: ride_type,
+          country: country,
+          city: city,
+          base_fare: base_fare,
+          car_type: car_type,
+          app_label: app_label,
+          media: media,
+          availability: availability,
+        };
       });
+      //Done respond
+      console.log("DONE computing prices");
+      resolve(genericRidesInfos);
     },
     (error) => {
       console.log(error);
@@ -899,7 +1068,7 @@ dbPool.getConnection(function (err, connection) {
         user_fingerprint: "7c57cb6c9471fd33fd265d5441f253eced2a6307c0207dea57c987035b496e6e8dfa7105b86915da",
         connect_type: "ConnectUS",
         ride_mode: "RIDE", //Or DELIVERY
-        passengers_number: 4,
+        passengers_number: 3,
         request_type: "immediate",
         pickup_time: 1605984208,
         country: "Namibia",
@@ -979,14 +1148,16 @@ dbPool.getConnection(function (err, connection) {
                 estimateFullVehiclesCatPrices(res, completeInput, collectionVehiclesInfos, collectionPricesLocationsMap);
               }).then(
                 (result) => {
+                  console.log("DOne computing fares");
                   console.log(result);
+                  res.send(result);
                 },
                 (error) => {
                   console.log(error);
+                  res.send({ response: "Failed perform the operations" });
                 }
               );
               //...
-              res.send(completeInput);
             } //Error - Failed input augmentation
             else {
               res.send({ response: "Failed input augmentation" });
