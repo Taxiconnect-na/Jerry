@@ -927,7 +927,6 @@ function computeInDepthPricesMap(resolve, completedInputData, globalPricesMap, g
                       () => {}
                     );
                     //Estimate a realistic price for now - EXTREMELY URGENT
-                    console.log("ESTIMATE A REALISTIC PRICE FOR NOW, sample price -->", vehicle.base_fare);
                     //Assign ride base price
                     basePrice += vehicle.base_fare;
                   }
@@ -1295,173 +1294,78 @@ dbPool.getConnection(function (err, connection) {
 
     app.post("/getOverallPricingAndAvailabilityDetails", function (req, res) {
       resolveDate();
-      //Test data
-      let tmp = {
-        user_fingerprint: "7c57cb6c9471fd33fd265d5441f253eced2a6307c0207dea57c987035b496e6e8dfa7105b86915da",
-        connect_type: "ConnectUS",
-        ride_mode: "RIDE", //Or DELIVERY
-        passengers_number: 3,
-        request_type: "immediate",
-        pickup_time: 1605984208,
-        country: "Namibia",
-        pickup_location_infos: {
-          pickup_type: "PrivateLocation",
-          coordinates: { latitude: -22.522247, longitude: 17.058754 },
-          location_name: "Maerua mall",
-          street_name: "Andromeda Street",
-          suburb: false,
-          state: false,
-          city: "Windhoek",
-        },
-        destination_location_infos: [
-          {
-            passenger_number_id: 1,
-            dropoff_type: false,
-            coordinates: { latitude: -22.522247, longitude: 17.058754 },
-            location_name: "Location 1",
-            street_name: "Street 1",
-            suburb: false,
-            state: false,
-            city: "Windhoek",
-          },
-          {
-            passenger_number_id: 2,
-            dropoff_type: false,
-            coordinates: { latitude: -22.576061, longitude: 17.044417 },
-            location_name: "Location 2",
-            street_name: "Street 2",
-            suburb: false,
-            state: false,
-            city: "Windhoek",
-          },
-          {
-            passenger_number_id: 3,
-            dropoff_type: false,
-            coordinates: { latitude: -22.578514, longitude: 17.099917 },
-            location_name: "Location 3",
-            street_name: "Street 3",
-            suburb: false,
-            state: false,
-            city: "Windhoek",
-          },
-          {
-            passenger_number_id: 4,
-            dropoff_type: false,
-            coordinates: { latitude: -22.589826, longitude: 17.083445 },
-            location_name: "Location 4",
-            street_name: "Street 4",
-            suburb: false,
-            state: false,
-            city: "Windhoek",
-          },
-        ],
-      };
 
-      let tmp2 = {
-        user_fingerprint: "7c57cb6c9471fd33fd265d5441f253eced2a6307c0207dea57c987035b496e6e8dfa7105b86915da",
-        carTypeSelected: "normalTaxiEconomy",
-        connectType: "ConnectUs",
-        country: "Namibia",
-        isAllGoingToSameDestination: true,
-        naturePickup: "PrivateLocation",
-        passengersNo: 4,
-        rideType: "RIDE",
-        timeScheduled: "now",
-        pickupData: {
-          coordinates: [-22.522247, 17.058754],
-          location_name: "Maerua mall",
-          street_name: "Andromeda Street",
-          city: "Windhoek",
-        },
-        destinationData: {
-          passenger1Destination: {
-            _id: "5f7de0f1622d1b3e401f9836",
-            averageGeo: -11.1096514,
-            city: "Windhoek",
-            coordinates: [-22.613083449999998, 17.058163390586557],
-            country: "Namibia",
-            location_id: 359595673,
-            location_name: "Health Sciences / UNAM Press (M Block)",
-            query: "M",
-            state: "Khomas",
-            street: "Mandume Ndemufayo Avenue",
-          },
-          passenger2Destination: false,
-          passenger3Destination: false,
-          passenger4Destination: false,
-        },
-      };
-
-      req = tmp2;
-
-      /*let params = urlParser.parse(req.url, true);
-      req = params.query;
-      console.log(req);*/
-      //Parse input to the correct format
-      //Parse input date to the good format
-      new Promise((res) => {
-        parsePricingInputData(res, req);
-      }).then(
-        (reslt) => {
-          if (reslt !== false) {
-            let parsedData = reslt; //Clean parsed data
-            if (checkInputIntegrity(parsedData)) {
-              //Check inetgrity
-              console.log("Passenged the integrity test.");
-              //Valid input
-              //Autocomplete the input data
-              new Promise((res) => {
-                autocompleteInputData(res, parsedData, collectionSavedSuburbResults);
-              }).then(
-                (result) => {
-                  if (result !== false) {
-                    let completeInput = result;
-                    console.log("Done autocompleting");
-                    //Generate prices metadata for all the relevant vehicles categories
-                    console.log("Computing prices metadata of relevant car categories");
-                    new Promise((res) => {
-                      estimateFullVehiclesCatPrices(
-                        res,
-                        completeInput,
-                        collectionVehiclesInfos,
-                        collectionPricesLocationsMap,
-                        collectionNotFoundSubursPricesMap
+      try {
+        let inputDataInitial = req.body;
+        //Parse input to the correct format
+        //Parse input date to the good format
+        new Promise((res) => {
+          parsePricingInputData(res, inputDataInitial);
+        }).then(
+          (reslt) => {
+            if (reslt !== false) {
+              let parsedData = reslt; //Clean parsed data
+              if (checkInputIntegrity(parsedData)) {
+                //Check inetgrity
+                console.log("Passenged the integrity test.");
+                //Valid input
+                //Autocomplete the input data
+                new Promise((res) => {
+                  autocompleteInputData(res, parsedData, collectionSavedSuburbResults);
+                }).then(
+                  (result) => {
+                    if (result !== false) {
+                      let completeInput = result;
+                      console.log("Done autocompleting");
+                      //Generate prices metadata for all the relevant vehicles categories
+                      console.log("Computing prices metadata of relevant car categories");
+                      new Promise((res) => {
+                        estimateFullVehiclesCatPrices(
+                          res,
+                          completeInput,
+                          collectionVehiclesInfos,
+                          collectionPricesLocationsMap,
+                          collectionNotFoundSubursPricesMap
+                        );
+                      }).then(
+                        (result) => {
+                          console.log("DOne computing fares");
+                          res.send(result);
+                        },
+                        (error) => {
+                          console.log(error);
+                          res.send({ response: "Failed perform the operations" });
+                        }
                       );
-                    }).then(
-                      (result) => {
-                        console.log("DOne computing fares");
-                        res.send(result);
-                      },
-                      (error) => {
-                        console.log(error);
-                        res.send({ response: "Failed perform the operations" });
-                      }
-                    );
-                    //...
-                  } //Error - Failed input augmentation
-                  else {
+                      //...
+                    } //Error - Failed input augmentation
+                    else {
+                      res.send({ response: "Failed input augmentation" });
+                    }
+                  },
+                  (error) => {
+                    //Error - Failed input augmentation
+                    console.log(error);
                     res.send({ response: "Failed input augmentation" });
                   }
-                },
-                (error) => {
-                  //Error - Failed input augmentation
-                  console.log(error);
-                  res.send({ response: "Failed input augmentation" });
-                }
-              );
-            } //Invalid input data
+                );
+              } //Invalid input data
+              else {
+                res.send({ response: "Failed integrity" });
+              }
+            } //Faild parsing
             else {
-              res.send({ response: "Failed integrity" });
+              res.send({ response: "Failed parsing." });
             }
-          } //Faild parsing
-          else {
+          },
+          (error) => {
             res.send({ response: "Failed parsing." });
           }
-        },
-        (error) => {
-          res.send({ response: "Failed parsing." });
-        }
-      );
+        );
+      } catch (error) {
+        console.log(error);
+        res.send({ response: "Failed parsing." });
+      }
     });
   });
 });

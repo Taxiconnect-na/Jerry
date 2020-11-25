@@ -2148,3 +2148,65 @@
        }
     }
  }
+
+
+ let tmp = {
+   user_fingerprint: "7c57cb6c9471fd33fd265d5441f253eced2a6307c0207dea57c987035b496e6e8dfa7105b86915da",
+   connect_type: "ConnectUS",
+   ride_mode: "RIDE", //Or DELIVERY
+   passengers_number: 3,
+   request_type: "immediate",
+   pickup_time: 1605984208,
+   country: "Namibia",
+   pickup_location_infos: {
+     pickup_type: "PrivateLocation",
+     coordinates: { latitude: -22.522247, longitude: 17.058754 },
+     location_name: "Maerua mall",
+     street_name: "Andromeda Street",
+     suburb: false,
+     state: false,
+     city: "Windhoek",
+   },
+   destination_location_infos: [
+     {
+       passenger_number_id: 1,
+       dropoff_type: false,
+       coordinates: { latitude: -22.522247, longitude: 17.058754 },
+       location_name: "Location 1",
+       street_name: "Street 1",
+       suburb: false,
+       state: false,
+       city: "Windhoek",
+     },
+     {
+       passenger_number_id: 2,
+       dropoff_type: false,
+       coordinates: { latitude: -22.576061, longitude: 17.044417 },
+       location_name: "Location 2",
+       street_name: "Street 2",
+       suburb: false,
+       state: false,
+       city: "Windhoek",
+     },
+     {
+       passenger_number_id: 3,
+       dropoff_type: false,
+       coordinates: { latitude: -22.578514, longitude: 17.099917 },
+       location_name: "Location 3",
+       street_name: "Street 3",
+       suburb: false,
+       state: false,
+       city: "Windhoek",
+     },
+     {
+       passenger_number_id: 4,
+       dropoff_type: false,
+       coordinates: { latitude: -22.589826, longitude: 17.083445 },
+       location_name: "Location 4",
+       street_name: "Street 4",
+       suburb: false,
+       state: false,
+       city: "Windhoek",
+     },
+   ],
+ };

@@ -227,69 +227,44 @@ io.sockets.on("connection", function (socket) {
    */
   //socket.emit("getPricingForRideorDelivery");
   socket.on("getPricingForRideorDelivery", function (req) {
-    let inputData = {
-      user_fingerprint: "7c57cb6c9471fd33fd265d5441f253eced2a6307c0207dea57c987035b496e6e8dfa7105b86915da",
-      carTypeSelected: "normalTaxiEconomy",
-      connectType: "ConnectUs",
-      country: "Namibia",
-      isAllGoingToSameDestination: true,
-      naturePickup: "PrivateLocation",
-      passengersNo: 4,
-      rideType: "RIDE",
-      timeScheduled: "now",
-      pickupData: {
-        coordinates: [-22.522247, 17.058754],
-        location_name: "Maerua mall",
-        street_name: "Andromeda Street",
-        city: "Windhoek",
-      },
-      destinationData: {
-        passenger1Destination: {
-          _id: "5f7de0f1622d1b3e401f9836",
-          averageGeo: -11.1096514,
-          city: "Windhoek",
-          coordinates: [-22.613083449999998, 17.058163390586557],
-          country: "Namibia",
-          location_id: 359595673,
-          location_name: "Health Sciences / UNAM Press (M Block)",
-          query: "M",
-          state: "Khomas",
-          street: "Mandume Ndemufayo Avenue",
-        },
-        passenger2Destination: false,
-        passenger3Destination: false,
-        passenger4Destination: false,
-      },
-    };
-
     console.log(req);
     let servicePort = 8989;
-    /*if (
-      req.user_fp !== undefined &&
-      req.user_fp !== null &&
-      req.query !== undefined &&
-      req.query !== null &&
-      req.city !== undefined &&
-      req.city !== null
+    if (
+      req.user_fingerprint !== undefined &&
+      req.user_fingerprint !== null &&
+      req.pickupData !== undefined &&
+      req.pickupData !== null &&
+      req.naturePickup !== undefined &&
+      req.naturePickup !== null &&
+      req.destinationData !== undefined &&
+      req.destinationData !== null &&
+      req.destinationData.passenger1Destination !== undefined &&
+      req.destinationData.passenger1Destination !== null
     ) {
-      let url = localURL + ":" + servicePort + "/getSearchedLocations?user_fp=" + req.user_fp + "&query=" + req.query + "&city=" + req.city;
+      let url = localURL + ":" + servicePort + "/getOverallPricingAndAvailabilityDetails";
 
-      requestAPI(url, function (error, response, body) {
+      requestAPI.post({ url, form: req }, function (error, response, body) {
         console.log(body);
         if (error === null) {
           try {
             body = JSON.parse(body);
-            socket.emit("getLocations-response", body);
+            if (body.response !== undefined) {
+              //Error
+              socket.emit("getPricingForRideorDelivery-response", body);
+            } //SUCCESS
+            else {
+              socket.emit("getPricingForRideorDelivery-response", body);
+            }
           } catch (error) {
-            socket.emit("getLocations-response", false);
+            socket.emit("getPricingForRideorDelivery-response", false);
           }
         } else {
-          socket.emit("getLocations-response", false);
+          socket.emit("getPricingForRideorDelivery-response", false);
         }
       });
     } else {
-      socket.emit("getLocations-response", false);
-    }*/
+      socket.emit("getPricingForRideorDelivery-response", false);
+    }
   });
 });
 
