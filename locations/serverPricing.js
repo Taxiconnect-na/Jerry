@@ -602,12 +602,19 @@ function doMongoSearchForAutocompletedSuburbs(resolve, locationInfos, collection
  * @param resolve
  * @param completedInputData: input data that passed the integrity test and that was autocompleted ONLY!
  * @param collectionVehiclesInfos: collection of all the vehicle categories with their details (not explicit vehicles from mysql)
- * @param collectionNamibiaPricesLocationsMapWindhoek: collection of all the prices reference for the city of Windhoek exclusively.
+ * @param collectionNamibiaPricesLocationsMapWindhoek: collection of all the prices reference.
+ * @param collectionNotFoundSubursPricesMap: collection of all not found suburbs prices map in the global maps
  * Responsible for determining the prices for each vehicle category based on the availability (should be available),
  * the country, city and the type of ride (RIDE or DELIVERY).
  * Actual cars from mysql MUST be linked the the corresponding vehicle category from mongo in order to receive targeted requests.
  */
-function estimateFullVehiclesCatPrices(resolve, completedInputData, collectionVehiclesInfos, collectionPricesLocationsMap) {
+function estimateFullVehiclesCatPrices(
+  resolve,
+  completedInputData,
+  collectionVehiclesInfos,
+  collectionPricesLocationsMap,
+  collectionNotFoundSubursPricesMap
+) {
   //DEBUG
   //completedInputData.pickup_location_infos.pickup_type = "Airport";
   //completedInputData.destination_location_infos[0].dropoff_type = "PrivateLocation";
@@ -665,7 +672,7 @@ function estimateFullVehiclesCatPrices(resolve, completedInputData, collectionVe
             let globalPricesMap = reslt;
             //call computeInDepthPricesMap
             new Promise((res) => {
-              computeInDepthPricesMap(res, completedInputData, globalPricesMap, genericRidesInfos);
+              computeInDepthPricesMap(res, completedInputData, globalPricesMap, genericRidesInfos, collectionNotFoundSubursPricesMap);
             }).then(
               (reslt) => {
                 //DONE
@@ -705,9 +712,11 @@ function estimateFullVehiclesCatPrices(resolve, completedInputData, collectionVe
  * @param completedInputData: completed operations input data
  * @param globalPricesMap: suburbs based prices reference
  * @param genericRidesInfos: generic vehicles categories
+ * @param collectionNotFoundSubursPricesMap: collection of all not found suburbs from the global prices map.
  * Responsible for performing all the operations of header prices, multipliers (time and passengers) and outputing the final price map
  */
-function computeInDepthPricesMap(resolve, completedInputData, globalPricesMap, genericRidesInfos) {
+function computeInDepthPricesMap(resolve, completedInputData, globalPricesMap, genericRidesInfos, collectionNotFoundSubursPricesMap) {
+  resolveDate();
   console.log("compute in depth called");
   //ESTABLISH IMPORTANT PRICING VARIABLES
   let connectType = completedInputData.connect_type;
@@ -716,6 +725,7 @@ function computeInDepthPricesMap(resolve, completedInputData, globalPricesMap, g
   let pickup_minutes = pickup_hour * 60;
   let pickup_type = completedInputData.pickup_location_infos.pickup_type; //PrivateLocation, TaxiRank or Airport.
   let passengers_number = completedInputData.passengers_number; //Number of passengers for this ride.
+  let request_country = completedInputData.country;
   //Compute header price and set timeDayMultiplier (multiplier x1 or x2 based on the time 00-4:59(x1) or 5:00-23:59(x2))
   //and passengersMultiplier (based on the number of passenger == just No of passengers)
   let headerPrice = 0;
@@ -853,10 +863,11 @@ function computeInDepthPricesMap(resolve, completedInputData, globalPricesMap, g
                   let lockPorgress = false; //Reponsible for avoiding repetitive removeal in case of FALSE suburb
                   //Add base ride fare if the user is found to be going to the same suburb
                   if (tmpPickupPickup === tmpDestinationSuburb) {
-                    console.log(vehicle.base_fare);
                     //Same suburb -> fare = base ride price
                     basePrice += vehicle.base_fare;
                   }
+                  let didFindRegisteredSuburbs = false; //To know whether or not has found registered suburs or else did not find matching suburbs.
+                  //...
                   globalPricesMap.map((suburbToSuburbInfo) => {
                     if (suburbToSuburbInfo.pickup_suburb === false && lockPorgress === false) {
                       //Add once
@@ -869,6 +880,7 @@ function computeInDepthPricesMap(resolve, completedInputData, globalPricesMap, g
                       suburbToSuburbInfo.destination_suburb.toUpperCase().trim() === tmpDestinationSuburb.toUpperCase().trim()
                     ) {
                       lockPorgress = false;
+                      didFindRegisteredSuburbs = true; //Found registered suburbs.
                       //If the car type is economy electric, add its base price
                       if (/electricEconomy/i.test(vehicle.car_type)) {
                         console.log(vehicle.base_fare);
@@ -880,6 +892,45 @@ function computeInDepthPricesMap(resolve, completedInputData, globalPricesMap, g
                       }
                     }
                   });
+                  //...
+                  if (didFindRegisteredSuburbs === false) {
+                    //Did not find suburbs with mathing suburbs included
+                    //Register in mongo
+                    new Promise((resX) => {
+                      //Schema
+                      //{point1_suburb:XXXX, point2_suburb:XXXX, city:XXX, country:XXX, date:XXX}
+                      let queryNoMatch = {
+                        point1_suburb: tmpPickupPickup,
+                        point2_suburb: tmpDestinationSuburb,
+                        city: destination.city,
+                        country: request_country,
+                        date: chaineDateUTC,
+                      };
+                      let checkQuery = {
+                        point1_suburb: tmpPickupPickup,
+                        point2_suburb: tmpDestinationSuburb,
+                        city: destination.city,
+                        country: request_country,
+                      };
+                      //Check to avoid duplicates
+                      collectionNotFoundSubursPricesMap.find(checkQuery).toArray(function (err, resultX) {
+                        if (resultX.length <= 0) {
+                          //New record
+                          collectionNotFoundSubursPricesMap.insertOne(queryNoMatch, function (err, res) {
+                            console.log("New record added");
+                            resX(true);
+                          });
+                        }
+                      });
+                    }).then(
+                      () => {},
+                      () => {}
+                    );
+                    //Estimate a realistic price for now - EXTREMELY URGENT
+                    console.log("ESTIMATE A REALISTIC PRICE FOR NOW, sample price -->", vehicle.base_fare);
+                    //Assign ride base price
+                    basePrice += vehicle.base_fare;
+                  }
                 } else if (/Comfort/i.test(vehicle.category) || /Luxury/i.test(vehicle.category)) {
                   //Add base fare for one person
                   basePrice += vehicle.base_fare;
@@ -1230,6 +1281,7 @@ dbPool.getConnection(function (err, connection) {
     const collectionVehiclesInfos = dbMongo.collection("vehicles_collection_infos"); //Collection containing the list of all the vehicles types and all their corresponding infos
     const collectionPricesLocationsMap = dbMongo.collection("global_prices_to_locations_map"); //Collection containing all the prices and locations in a format
     const collectionSavedSuburbResults = dbMongo.collection("autocompleted_location_suburbs"); //Collection of all the location matching will all their corresponding suburbs and other fetched infos
+    const collectionNotFoundSubursPricesMap = dbMongo.collection("not_found_suburbs_prices_map"); //Colleciton of all suburbs prices that where not found in the global prices map.
     //-------------
     const bodyParser = require("body-parser");
     app
@@ -1357,8 +1409,6 @@ dbPool.getConnection(function (err, connection) {
               //Check inetgrity
               console.log("Passenged the integrity test.");
               //Valid input
-
-              console.log(parsedData);
               //Autocomplete the input data
               new Promise((res) => {
                 autocompleteInputData(res, parsedData, collectionSavedSuburbResults);
@@ -1366,16 +1416,20 @@ dbPool.getConnection(function (err, connection) {
                 (result) => {
                   if (result !== false) {
                     let completeInput = result;
-                    console.log(completeInput);
                     console.log("Done autocompleting");
                     //Generate prices metadata for all the relevant vehicles categories
                     console.log("Computing prices metadata of relevant car categories");
                     new Promise((res) => {
-                      estimateFullVehiclesCatPrices(res, completeInput, collectionVehiclesInfos, collectionPricesLocationsMap);
+                      estimateFullVehiclesCatPrices(
+                        res,
+                        completeInput,
+                        collectionVehiclesInfos,
+                        collectionPricesLocationsMap,
+                        collectionNotFoundSubursPricesMap
+                      );
                     }).then(
                       (result) => {
                         console.log("DOne computing fares");
-                        console.log(result);
                         res.send(result);
                       },
                       (error) => {
