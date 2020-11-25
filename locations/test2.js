@@ -2210,3 +2210,7 @@
      },
    ],
  };
+
+
+
+ {"city": "Windhoek", "country": "Namibia", "name": "Hotel Pension Steiner", "osm_id": 344524470, "osm_key": "tourism", "osm_type": "N", "osm_value": "guest_house", "postcode": "BUSINESS IT SOLUTIONS CC - WINDHOEK - NAMIBIA", "state": "Khomas", "street": "Wecke St"}

@@ -337,13 +337,17 @@ function manageAutoCompleteDestinationLocations(resolve, destinationLocations, u
   console.log("AUTO COMPLETE DESTINATION DATA");
   let promiseParent = destinationLocations.map((destination) => {
     return new Promise((res) => {
+      // Swap latitude and longitude (cause they were reversed)- MAJOR FIX!
+      let tmp = destination.coordinates.latitude;
+      destination.coordinates.latitude = destination.coordinates.longitude;
+      destination.coordinates.longitude = tmp;
       doMongoSearchForAutocompletedSuburbs(res, destination, collectionSavedSuburbResults);
     });
   });
   Promise.all(promiseParent).then(
     (result) => {
       if (result !== false) {
-        ////console.log(result);
+        console.log(result);
         //Update the input data
         destinationLocations.map((prevLocation, index) => {
           result.map((completeLocation) => {
@@ -494,6 +498,7 @@ function doMongoSearchForAutocompletedSuburbs(resolve, locationInfos, collection
       resolve(result[0]);
     } //Do a fresh search
     else {
+      console.log("PERFORM FRESH GEOCODINGR -->", locationInfos.coordinates.latitude, ",", locationInfos.coordinates.longitude);
       let url =
         URL_NOMINATIM_SERVICES +
         "/reverse?format=json&lat=" +
@@ -623,6 +628,7 @@ function estimateFullVehiclesCatPrices(
   //completedInputData.destination_location_infos[3].dropoff_type = "PrivateLocation";
   //DEBUG
   //Check for the input data
+  //console.log(completedInputData);
   if (
     completedInputData.pickup_location_infos.suburb !== undefined &&
     completedInputData.pickup_location_infos.suburb !== false &&
@@ -659,6 +665,38 @@ function estimateFullVehiclesCatPrices(
               res(result);
             } //No prices map found - Set default prices NAD 12 - non realistic and fixed prices
             else {
+              //Did not find suburbs with mathing suburbs included
+              //Register in mongo
+              new Promise((resX) => {
+                //Schema
+                //{point1_suburb:XXXX, point2_suburb:XXXX, city:XXX, country:XXX, date:XXX}
+                let queryNoMatch = {
+                  point1_suburb: completedInputData.pickup_location_infos.suburb,
+                  point2_suburb: "ANY",
+                  city: completedInputData.pickup_location_infos.city,
+                  country: completedInputData.country,
+                  date: chaineDateUTC,
+                };
+                let checkQuery = {
+                  point1_suburb: completedInputData.pickup_location_infos.suburb,
+                  point2_suburb: "ANY",
+                  city: completedInputData.pickup_location_infos.city,
+                  country: completedInputData.country,
+                };
+                //Check to avoid duplicates
+                collectionNotFoundSubursPricesMap.find(checkQuery).toArray(function (err, resultX) {
+                  if (resultX.length <= 0) {
+                    //New record
+                    collectionNotFoundSubursPricesMap.insertOne(queryNoMatch, function (err, res) {
+                      console.log("New record added");
+                      resX(true);
+                    });
+                  }
+                });
+              }).then(
+                () => {},
+                () => {}
+              );
               res([
                 { pickup_suburb: false, fare: 12 },
                 { pickup_suburb: false, fare: 12 },
@@ -872,10 +910,14 @@ function computeInDepthPricesMap(resolve, completedInputData, globalPricesMap, g
                     if (suburbToSuburbInfo.pickup_suburb === false && lockPorgress === false) {
                       //Add once
                       if (basePrice > 0) {
-                        basePrice += suburbToSuburbInfo.fare;
+                        //Add basic vehicle price instead of false suburb fare
+                        //basePrice += suburbToSuburbInfo.fare;
+                        basePrice += vehicle.base_fare;
                         lockPorgress = true;
+                        didFindRegisteredSuburbs = true; //Found false suburbs-consider as registered.
                       }
                     } else if (
+                      suburbToSuburbInfo.pickup_suburb !== false &&
                       suburbToSuburbInfo.pickup_suburb.toUpperCase().trim() === tmpPickupPickup.toUpperCase().trim() &&
                       suburbToSuburbInfo.destination_suburb.toUpperCase().trim() === tmpDestinationSuburb.toUpperCase().trim()
                     ) {
@@ -1249,6 +1291,7 @@ function parsePricingInputData(resolve, inputData) {
         }
       );
     } catch (error) {
+      console.log(error);
       resolve(false);
     }
   } //Invalid data
@@ -1308,6 +1351,7 @@ dbPool.getConnection(function (err, connection) {
               if (checkInputIntegrity(parsedData)) {
                 //Check inetgrity
                 console.log("Passenged the integrity test.");
+                console.log(parsedData);
                 //Valid input
                 //Autocomplete the input data
                 new Promise((res) => {
