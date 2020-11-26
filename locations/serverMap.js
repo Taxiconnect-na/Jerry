@@ -1093,6 +1093,189 @@ function findoutPickupLocationNature(resolve, point) {
 }
 
 /**
+ * @func findDestinationPathPreview
+ * @param resolve
+ * @param pointData: origin and destination of the user selected from the app.
+ * Responsible for getting the polyline and eta to destination based on the selected destination location.
+ * REDIS
+ * key: pathToDestinationPreview
+ * value: [{...}, {...}]
+ */
+function findDestinationPathPreview(resolve, pointData) {
+  if (pointData.origin !== undefined && pointData.destination !== undefined) {
+    //Check from redis first
+    redisGet("pathToDestinationPreview").then(
+      (resp) => {
+        if (resp !== null) {
+          //Found something cached
+          try {
+            //Check for needed record
+            let neededRecord = false; //Will contain the needed record if exists or else false
+            resp = JSON.parse(resp);
+            resp.map((pathInfo) => {
+              if (
+                pathInfo.origin !== undefined &&
+                pathInfo.origin.latitude === pointData.origin.latitude &&
+                pathInfo.origin.longitude === pointData.origin.longitude &&
+                pathInfo.destination.latitude === pointData.destination.latitude &&
+                pathInfo.destination.longitude === pointData.destination.longitude
+              ) {
+                neededRecord = pathInfo;
+              }
+            });
+            //...
+            if (neededRecord !== false) {
+              //Make a light request to update the eta
+              new Promise((res) => {
+                findRouteSnapshotExec(res, pointData);
+              }).then(
+                () => {},
+                () => {}
+              );
+              //Found record - respond to the user
+              resolve(neededRecord);
+            } //Not record found - do fresh search
+            else {
+              new Promise((res) => {
+                findRouteSnapshotExec(res, pointData);
+              }).then(
+                (result) => {
+                  resolve(result);
+                },
+                (error) => {
+                  resolve(false);
+                }
+              );
+            }
+          } catch (error) {
+            //Error - do a fresh search
+            new Promise((res) => {
+              findRouteSnapshotExec(res, pointData);
+            }).then(
+              (result) => {
+                resolve(result);
+              },
+              (error) => {
+                resolve(false);
+              }
+            );
+          }
+        } //Nothing- do a fresh search
+        else {
+          new Promise((res) => {
+            findRouteSnapshotExec(res, pointData);
+          }).then(
+            (result) => {
+              resolve(result);
+            },
+            (error) => {
+              resolve(false);
+            }
+          );
+        }
+      },
+      (error) => {
+        //Error - do a fresh search
+        new Promise((res) => {
+          findRouteSnapshotExec(res, pointData);
+        }).then(
+          (result) => {
+            resolve(result);
+          },
+          (error) => {
+            resolve(false);
+          }
+        );
+      }
+    );
+  }
+  //Invalid data
+  else {
+    resolve(false);
+  }
+}
+/**
+ * @func findRouteSnapshotExec
+ * @param resolve
+ * @param pointData: containing
+ * Responsible to manage the requests of getting the polylines from the ROUTING engine
+ * of TaxiConnect.
+ */
+function findRouteSnapshotExec(resolve, pointData) {
+  let org_latitude = pointData.origin.latitude;
+  let org_longitude = pointData.origin.longitude;
+  let dest_latitude = pointData.destination.latitude;
+  let dest_longitude = pointData.destination.longitude;
+  //...
+  new Promise((res) => {
+    getRouteInfosDestination(
+      {
+        passenger: {
+          latitude: org_latitude,
+          longitude: org_longitude,
+        },
+        destination: {
+          latitude: dest_latitude,
+          longitude: dest_longitude,
+        },
+      },
+      res
+    );
+  }).then(
+    (result) => {
+      result.origin = {
+        latitude: org_latitude,
+        longitude: org_longitude,
+      };
+      result.destination = {
+        latitude: dest_latitude,
+        longitude: dest_longitude,
+      };
+      //Save in cache
+      new Promise((res) => {
+        //Check if there was a previous redis record
+        redisGet("pathToDestinationPreview").then(
+          (resp) => {
+            if (resp !== null) {
+              //Contains something
+              try {
+                //Add new record to the array
+                resp = JSON.parse(resp);
+                resp.push(result);
+                client.set("pathToDestinationPreview", JSON.stringify(resp));
+                res(true);
+              } catch (error) {
+                //Create a fresh one
+                client.set("pathToDestinationPreview", JSON.stringify([result]));
+                res(false);
+              }
+            } //No records -create a fresh one
+            else {
+              client.set("pathToDestinationPreview", JSON.stringify([result]));
+              res(true);
+            }
+          },
+          (error) => {
+            //create fresh record
+            client.set("pathToDestinationPreview", JSON.stringify([result]));
+            res(false);
+          }
+        );
+      }).then(
+        () => {},
+        () => {}
+      );
+      //Respond already
+      resolve(result);
+    },
+    (error) => {
+      console.log(error);
+      resolve(false);
+    }
+  );
+}
+
+/**
  * MAIN
  */
 
@@ -1297,6 +1480,43 @@ dbPool.getConnection(function (err, connection) {
       } //Default to private location - invalid params
       else {
         res.send({ locationType: "PrivateLocation" });
+      }
+    });
+
+    /**
+     * ROUTE TO DESTINATION previewer
+     * Responsible for showing to the user the preview of the first destination after selecting on the app the destination.
+     */
+    app.get("/getRouteToDestinationSnapshot", function (req, res) {
+      let params = urlParser.parse(req.url, true);
+      req = params.query;
+      //...
+      if (req.user_fingerprint !== undefined && req.org_latitude !== undefined && req.org_longitude !== undefined) {
+        new Promise((res) => {
+          let tmp = {
+            origin: {
+              latitude: req.org_latitude,
+              longitude: req.org_longitude,
+            },
+            destination: {
+              latitude: req.dest_latitude,
+              longitude: req.dest_longitude,
+            },
+          };
+          findDestinationPathPreview(res, tmp);
+        }).then(
+          (result) => {
+            console.log(result);
+            res.send(result);
+          },
+          (error) => {
+            console.log(error);
+            res.send(false);
+          }
+        );
+      } //error
+      else {
+        res.send(false);
       }
     });
 
