@@ -1506,7 +1506,7 @@ dbPool.getConnection(function (err, connection) {
           findDestinationPathPreview(res, tmp);
         }).then(
           (result) => {
-            console.log(result);
+            console.log("response", result);
             res.send(result);
           },
           (error) => {

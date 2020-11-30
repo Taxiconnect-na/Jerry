@@ -183,6 +183,64 @@ io.sockets.on("connection", function (socket) {
   });
 
   /**
+   * MAP SERVICE
+   * route name: getRouteToDestinationSnapshot
+   * event: getRoute_to_destinationSnapshot
+   * params: origin latitude, origin longitude, destination latitude, destination longitude.
+   * Responsible for getting the preview of the route to destination after the user enters his/her
+   * destination in the app.
+   */
+  socket.on("getRoute_to_destinationSnapshot", function (req) {
+    console.log("Finding route snapshot");
+    console.log(req);
+    let servicePort = 9090;
+
+    if (
+      req.org_latitude !== undefined &&
+      req.org_latitude !== null &&
+      req.org_longitude !== undefined &&
+      req.org_longitude !== null &&
+      req.dest_latitude !== undefined &&
+      req.dest_latitude !== null &&
+      req.dest_longitude !== undefined &&
+      req.dest_longitude !== null &&
+      req.user_fingerprint !== null &&
+      req.user_fingerprint !== undefined
+    ) {
+      let url =
+        localURL +
+        ":" +
+        servicePort +
+        "/getRouteToDestinationSnapshot?org_latitude=" +
+        req.org_latitude +
+        "&org_longitude=" +
+        req.org_longitude +
+        "&dest_latitude=" +
+        req.dest_latitude +
+        "&dest_longitude=" +
+        req.dest_longitude +
+        "&user_fingerprint=" +
+        req.user_fingerprint;
+      requestAPI(url, function (error, response, body) {
+        console.log(body);
+        if (error === null) {
+          try {
+            body = JSON.parse(body);
+            socket.emit("getRoute_to_destinationSnapshot-response", body);
+          } catch (error) {
+            socket.emit("getRoute_to_destinationSnapshot-response", false);
+          }
+        } else {
+          socket.emit("getRoute_to_destinationSnapshot-response", false);
+        }
+      });
+    } //Invalid params
+    else {
+      socket.emit("getRoute_to_destinationSnapshot-response", false);
+    }
+  });
+
+  /**
    * SEARCH SERVICE, port 9091
    * Route: getSearchedLocations
    * Event: getSearchedLocations
