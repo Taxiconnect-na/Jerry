@@ -1337,6 +1337,37 @@ dbPool.getConnection(function (err, connection) {
 
     app.post("/getOverallPricingAndAvailabilityDetails", function (req, res) {
       resolveDate();
+      //DELIVERY TEST DATA - DEBUG
+      let deliveryPricingInputDataRaw = {
+        user_fingerprint: "7c57cb6c9471fd33fd265d5441f253eced2a6307c0207dea57c987035b496e6e8dfa7105b86915da",
+        connectType: "ConnectUs",
+        country: "Namibia",
+        isAllGoingToSameDestination: false,
+        naturePickup: "PrivateLocation", //Force PrivateLocation type if nothing found
+        passengersNo: 1, //Default 1 possible destination
+        rideType: "DELIVERY",
+        timeScheduled: "Now",
+        pickupData: {
+          coordinates: [-22.576655, 17.083548],
+          location_name: "Wecke Street",
+          street_name: "Street name",
+          city: "Windhoek",
+        },
+        destinationData: {
+          passenger1Destination: {
+            coordinates: [-22.576655, 17.083548],
+            location_name: "Wecke Street",
+            street: "Street name",
+            city: "Windhoek",
+          },
+          passenger2Destination: false,
+          passenger3Destination: false,
+          passenger4Destination: false,
+        },
+      };
+      req.body = deliveryPricingInputDataRaw;
+      console.log(req.body);
+      //...
 
       try {
         let inputDataInitial = req.body;
