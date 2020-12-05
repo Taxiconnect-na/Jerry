@@ -22,7 +22,7 @@ const moment = require("moment");
 
 const URL_SEARCH_SERVICES = "http://www.taxiconnectna.com:7007/";
 const URL_MONGODB = "mongodb://localhost:27017";
-const DB_NAME_MONGODB = "searched_locations_persist";
+const DB_NAME_MONGODB = "Taxiconnect";
 
 const clientMongo = new MongoClient(URL_MONGODB, { useUnifiedTopology: true });
 
@@ -133,7 +133,9 @@ function similarityCheck_locations_search(arrayLocations, query, res) {
   }
 }
 
-function newLoaction_search_engine(queryOR, bbox, res, timestamp, collectionMongoDb) {
+function newLoaction_search_engine(queryOR, city, bbox, res, timestamp, collectionMongoDb) {
+  let keyREDIS = "search_locations-" + city.trim().toLowerCase();
+  //..
   query = encodeURIComponent(queryOR.toLowerCase().trim());
   let urlRequest = URL_SEARCH_SERVICES + "api?q=" + query + "&bbox=" + bbox + "&limit=" + _LIMIT_LOCATION_SEARCH_RESULTS;
   requestAPI(urlRequest, function (err, response, body) {
@@ -202,48 +204,56 @@ function newLoaction_search_engine(queryOR, bbox, res, timestamp, collectionMong
                   if (result.length > 0) {
                     //populated
                     //Update search cache - redis
-                    redisGet("search_locations").then(
+                    redisGet(keyREDIS).then(
                       (resp) => {
-                        let respPrevRedisCache = JSON.parse(resp);
-                        //logObject(respPrevRedisCache);
-                        respPrevRedisCache = respPrevRedisCache.map(JSON.stringify);
-                        //logObject(respPrevRedisCache);
-                        let newSearchRecords = [];
-                        //...
-                        let request2 = new Promise((resolve) => {
-                          result.map((item) => {
-                            if (!respPrevRedisCache.includes(JSON.stringify(item))) {
-                              //New record
-                              respPrevRedisCache.push(JSON.stringify(item));
-                              newSearchRecords.push(item);
-                              resolve("success");
-                            } else {
-                              resolve("already_existing_record");
-                            }
-                          });
-                        }).then(
-                          (reslt) => {
-                            //Update cache
-                            //let cachedString = JSON.stringify(respPrevRedisCache);
-                            let cachedString = JSON.stringify(respPrevRedisCache.map(JSON.parse));
-                            //logObject(newSearchRecords);
-                            if (newSearchRecords.length > 0) {
-                              collectionMongoDb.insertMany(newSearchRecords, function (err, res) {
-                                console.log(res);
-                              });
-                            }
-                            //Update redis local cache
-                            client.set("search_locations", cachedString, redis.print);
-                            //Update mongodb - cache
-                            res({
-                              search_timestamp: timestamp,
-                              result: { search_timestamp: timestamp, result: removeResults_duplicates(result).slice(0, 5) },
+                        console.log(resp);
+                        if (resp !== null) {
+                          let respPrevRedisCache = JSON.parse(resp);
+                          //logObject(respPrevRedisCache);
+                          respPrevRedisCache = respPrevRedisCache.map(JSON.stringify);
+                          //logObject(respPrevRedisCache);
+                          let newSearchRecords = [];
+                          //...
+                          let request2 = new Promise((resolve) => {
+                            result.map((item) => {
+                              if (!respPrevRedisCache.includes(JSON.stringify(item))) {
+                                //New record
+                                respPrevRedisCache.push(JSON.stringify(item));
+                                newSearchRecords.push(item);
+                                resolve("success");
+                              } else {
+                                resolve("already_existing_record");
+                              }
                             });
-                          },
-                          (err) => {
-                            res({ search_timestamp: timestamp, result: removeResults_duplicates(result).slice(0, 5) });
-                          }
-                        );
+                          }).then(
+                            (reslt) => {
+                              //Update cache
+                              //let cachedString = JSON.stringify(respPrevRedisCache);
+                              let cachedString = JSON.stringify(respPrevRedisCache.map(JSON.parse));
+                              //logObject(newSearchRecords);
+                              if (newSearchRecords.length > 0) {
+                                collectionMongoDb.insertMany(newSearchRecords, function (err, res) {
+                                  console.log(res);
+                                });
+                              }
+                              //Update redis local cache
+                              client.set(keyREDIS, cachedString, redis.print);
+                              //Update mongodb - cache
+                              res({
+                                search_timestamp: timestamp,
+                                result: { search_timestamp: timestamp, result: removeResults_duplicates(result).slice(0, 5) },
+                              });
+                            },
+                            (err) => {
+                              res({ search_timestamp: timestamp, result: removeResults_duplicates(result).slice(0, 5) });
+                            }
+                          );
+                        } else {
+                          console.log("setting redis");
+                          //set redis
+                          client.set(keyREDIS, JSON.stringify(result), redis.print);
+                          res({ search_timestamp: timestamp, result: removeResults_duplicates(result).slice(0, 5) });
+                        }
                       },
                       (error) => {
                         console.log(error);
@@ -292,9 +302,10 @@ function removeResults_duplicates(arrayResults, resolve) {
   return arrayResultsClean;
 }
 
-function getLocationList_five(queryOR, bbox, res, timestamp, collectionMongoDb) {
+function getLocationList_five(queryOR, city, bbox, res, timestamp, collectionMongoDb) {
   //Check if cached results are available
-  redisGet("search_locations").then(
+  let keyREDIS = "search_locations-" + city.trim().toLowerCase();
+  redisGet(keyREDIS).then(
     (reslt) => {
       if (reslt != null && reslt !== undefined) {
         //logObject(JSON.parse(reslt));
@@ -324,19 +335,19 @@ function getLocationList_five(queryOR, bbox, res, timestamp, collectionMongoDb) 
         } //No results launch new search
         else {
           console.log("Launch new search");
-          newLoaction_search_engine(queryOR, bbox, res, timestamp, collectionMongoDb);
+          newLoaction_search_engine(queryOR, city, bbox, res, timestamp, collectionMongoDb);
         }
       } //No cached results
       else {
         //Launch new search
         console.log("Launch new search");
-        newLoaction_search_engine(queryOR, bbox, res, timestamp, collectionMongoDb);
+        newLoaction_search_engine(queryOR, city, bbox, res, timestamp, collectionMongoDb);
       }
     },
     (error) => {
       //Launch new search
       console.log("Launch new search");
-      newLoaction_search_engine(queryOR, bbox, res, timestamp, collectionMongoDb);
+      newLoaction_search_engine(queryOR, city, bbox, res, timestamp, collectionMongoDb);
     }
   );
 }
@@ -387,7 +398,7 @@ dbPool.getConnection(function (err, connection) {
           //Get the location
           let request1 = new Promise((res, rej) => {
             let tmpTimestamp = search_timestamp;
-            getLocationList_five(request.query, bbox, res, tmpTimestamp, collectionMongoDb);
+            getLocationList_five(request.query, request.city, bbox, res, tmpTimestamp, collectionMongoDb);
           }).then(
             (result) => {
               if (parseInt(search_timestamp) != parseInt(result.search_timestamp)) {
@@ -400,11 +411,6 @@ dbPool.getConnection(function (err, connection) {
                 //logObject(result);
                 //socket.emit("getLocations-response", result);
                 res.send(result);
-
-                redisGet("search_locations").then((val) => {
-                  //val
-                  //logObject(JSON.parse(val).map(JSON.parse));
-                });
               }
             },
             (error) => {

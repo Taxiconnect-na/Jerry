@@ -22,7 +22,7 @@ const e = require("express");
 const { response } = require("express");
 
 const URL_MONGODB = "mongodb://localhost:27017";
-const DB_NAME_MONGODB = "riders_data_schemeless";
+const DB_NAME_MONGODB = "Taxiconnect";
 const TOKEN_PAYMENT_CP = "9F416C11-127B-4DE2-AC7F-D5710E4C5E0A";
 const REDIRECT_URL_AFTER_PROCESSES = "https://taxiconnectna.com";
 const COMPANY_DPO_REF = "49FKEOA"; //Company;s ref on DPO
@@ -483,7 +483,7 @@ dbPool.getConnection(function (err, connection) {
     console.log("Connected to Mongodb");
     const dbMongo = clientMongo.db(DB_NAME_MONGODB);
     const collectionRidersData_repr = dbMongo.collection("riders_data_representation"); //Hold the information about the riders
-    const collectionRidersData_repr_topups = dbMongo.collection("riders_data_topups_repr"); //Hold the latest information about the riders topups
+    const collectionRidersData_repr_topups = dbMongo.collection("wallet_transactions_logs"); //Hold the latest information about the riders topups
     //-------------
     const bodyParser = require("body-parser");
     app.get("/", function (req, res) {
