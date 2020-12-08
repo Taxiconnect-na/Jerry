@@ -75,7 +75,13 @@ function logToSimulator(socket, data) {
   socket.emit("updateTripLog", { logText: data });
 }
 
-function getRouteInfosDestination(coordsInfos, resolve) {
+/**
+ * Responsible for finding vital ETA and route informations from one point
+ * to another.
+ * @param simplifiedResults: to only return the ETA and distance infos
+ * @param cache: to cache the results to the provided REDIS key at the provided value index, DO NOT OVERWRITE
+ */
+function getRouteInfosDestination(coordsInfos, resolve, simplifiedResults = false, cache = false) {
   let destinationPosition = coordsInfos.destination;
   let passengerPosition = coordsInfos.passenger;
 
@@ -106,16 +112,75 @@ function getRouteInfosDestination(coordsInfos, resolve) {
               eta = Math.round(eta) + " sec away";
             }
             //...
-            var rawPoints = body.paths[0].points.coordinates;
-            var pointsTravel = rawPoints;
-            //=====================================================================
-            resolve({
-              routePoints: pointsTravel,
-              driverNextPoint: pointsTravel[0],
-              destinationPoint: [destinationPosition.longitude, destinationPosition.latitude],
-              eta: eta,
-              distance: distance,
-            });
+            if (cache !== false) {
+              //Update the cache
+              //Check for previous redis record
+              new Promise((res) => {
+                redisGet(cache.redisKey).then(
+                  (resp) => {
+                    if (resp !== null) {
+                      //Has a record, update the provided value inddex with the result
+                      try {
+                        resp = JSON.parse(resp);
+                        resp[cache.valueIndex] = {
+                          eta: eta,
+                          distance: distance,
+                        };
+                        client.set(cache.redisKey, JSON.stringify(resp));
+                        res(true);
+                      } catch (error) {
+                        //Write new record
+                        let tmp = {};
+                        tmp[cache.valueIndex] = {
+                          eta: eta,
+                          distance: distance,
+                        };
+                        client.set(cache.redisKey, JSON.stringify(tmp));
+                        res(true);
+                      }
+                    } //Write brand new record
+                    else {
+                      let tmp = {};
+                      tmp[cache.valueIndex] = {
+                        eta: eta,
+                        distance: distance,
+                      };
+                      client.set(cache.redisKey, JSON.stringify(tmp));
+                      res(true);
+                    }
+                  },
+                  (error) => {
+                    //Skip caching
+                    res(false);
+                  }
+                );
+              }).then(
+                () => {
+                  console.log("Updated relative eta cache.");
+                },
+                () => {}
+              );
+            }
+            //...
+            if (simplifiedResults === false) {
+              var rawPoints = body.paths[0].points.coordinates;
+              var pointsTravel = rawPoints;
+              //=====================================================================
+              resolve({
+                routePoints: pointsTravel,
+                driverNextPoint: pointsTravel[0],
+                destinationPoint: [destinationPosition.longitude, destinationPosition.latitude],
+                eta: eta,
+                distance: distance,
+              });
+            } //Simplify results
+            else {
+              //=====================================================================
+              resolve({
+                eta: eta,
+                distance: distance,
+              });
+            }
           } else {
             resolve(false);
           }
@@ -1250,6 +1315,111 @@ function findRouteSnapshotExec(resolve, pointData) {
 }
 
 /**
+ * @func updateRelativeDistancesRiderDrivers
+ * @param relativeHeader: includes the city, country, distance and ETA rider fingerprint and rider fingerprint
+ * @param collectionRelativeDistances: realtive distances btw the riders and drivers
+ * @param resolve
+ * Responsible for updating the relative distances of a rider relative to the closeby drivers (city, country)
+ */
+function updateRelativeDistancesRiderDrivers(collectionRelativeDistances, relativeHeader, resolve) {
+  resolveDate();
+  //Check if a previous mongo record already exists
+  let queryChecker = {
+    user_fingerprint: relativeHeader.user_fingerprint,
+    driver_fingerprint: relativeHeader.driver_fingerprint,
+  };
+  collectionRelativeDistances.find(queryChecker).toArray(function (err, record) {
+    if (record.length === 0) {
+      //Empty - create a new record
+      let record = {
+        user_fingerprint: relativeHeader.user_fingerprint,
+        driver_fingerprint: relativeHeader.driver_fingerprint,
+        driver_coordinates: relativeHeader.driver_coordinates,
+        city: relativeHeader.city,
+        country: relativeHeader.country,
+        eta: relativeHeader.eta,
+        distance: relativeHeader.distance,
+        date_updated: chaineDateUTC,
+      };
+      //...
+      collectionRelativeDistances.insertOne(record, function (err, res) {
+        console.log("New relative distance record added.");
+        resolve(true);
+      });
+    } //Not empty - just update
+    else {
+      let updatedRecord = {
+        $set: {
+          driver_coordinates: relativeHeader.driver_coordinates,
+          city: relativeHeader.city,
+          country: relativeHeader.country,
+          eta: relativeHeader.eta,
+          distance: relativeHeader.distance,
+          date_updated: chaineDateUTC,
+        },
+      };
+      //...
+      collectionRelativeDistances.updateOne(queryChecker, updatedRecord, function (err, res) {
+        console.log("Updated relative distance record.");
+        resolve(true);
+      });
+    }
+  });
+}
+
+/**
+ * @func cleanAndAdjustRelativeDistancesList
+ * Responsible for clean the relative distances of drivers and passengers of all false values and
+ * limiting the result number based on the @param list_limit parameter
+ * @param list_limit: for limiting the result returned or "all" for all the results (not recommended for mobile responses).
+ * @param resolve
+ */
+function cleanAndAdjustRelativeDistancesList(rawList, list_limit = 5, resolve) {
+  //Remove any false values
+  rawList = rawList.filter((element) => element !== false && element.eta !== false);
+  //Sort based on the distance
+  rawList = rawList.sort((a, b) => a.distance - b.distance);
+  //...
+  if (/all/i.test(list_limit)) {
+    //All the closest drivers in order
+    //Check if there are any results
+    if (rawList.length > 0) {
+      //has a close driver
+      resolve(rawList);
+    } //No close drivers
+    else {
+      resolve({ response: "no_close_drivers_found" });
+    }
+  } //Limit the results
+  else {
+    try {
+      list_limit = parseInt(list_limit);
+      rawList = rawList.slice(0, list_limit);
+      //Check if there are any results
+      if (rawList.length > 0) {
+        //has a close driver
+        resolve(rawList);
+      } //No close drivers
+      else {
+        resolve({ response: "no_close_drivers_found" });
+      }
+    } catch (error) {
+      list_limit = 5;
+      rawList = rawList.slice(0, list_limit);
+      //Check if there are any results
+      if (rawList.length > 0) {
+        //has a close driver
+        resolve(rawList);
+      } //No close drivers
+      else {
+        resolve({ response: "no_close_drivers_found" });
+      }
+    }
+  }
+  //...
+}
+
+/**
  * MAIN
  */
 
@@ -1259,7 +1429,9 @@ dbPool.getConnection(function (err, connection) {
     console.log("[+] MAP services active.");
     const dbMongo = clientMongo.db(DB_NAME_MONGODB);
     const collectionRidersData_repr = dbMongo.collection("riders_data_representation"); //Hold the latest location update from the rider
+    const collectionRelativeDistances = dbMongo.collection("relative_distances_riders_drivers"); //Hold the relative distances between rider and the drivers (online, same city, same country) at any given time
     const collectionRidersLocation_log = dbMongo.collection("historical_positioning_logs"); //Hold all the location updated from the rider
+    const collectionDrivers_profiles = dbMongo.collection("drivers_profiles"); //Hold all the drivers profiles
     //-------------
     const bodyParser = require("body-parser");
     app
@@ -1490,6 +1662,314 @@ dbPool.getConnection(function (err, connection) {
         );
       } //error
       else {
+        res.send(false);
+      }
+    });
+
+    /**
+     * GET VITALS ETAs OR ROUTE INFOS
+     * Responsible for returning the ordered list (any specified number) of all the closest online drivers IF ANY (finds Etas or route infos between 2 points natively).
+     * The details of the response must inlude the drives fingerprints, the eta and the distances.
+     * Drivers filter criteria: should be online, should be able to pick up, same city, same country.
+     * @param user_fingerprint: the rider's fingerprint
+     * @param org_latitude: rider's latitude
+     * @param org_longitude: rider's longitude
+     * @param city: rider's city
+     * @param country: rider's country
+     * @param list_limit: the number of the closest drivers to fetch, OR "all" for the full list (very important after requesting a ride or delivery) - default: 7
+     * @param ride_type: RIDE or DELIVERY (depending on which scenario it is) - should match the operation clearances for the drivers
+     * VERY IMPORTANT FOR BACH RIDER - DRIVERS MATCHING.
+     * Redis key: user_fingerprint-driver-fingerprint
+     * valueIndex: 'relativeEta'
+     */
+    app.get("/getVitalsETAOrRouteInfos2points", function (req, res) {
+      let params = urlParser.parse(req.url, true);
+      req = params.query;
+      //...
+      if (
+        req.user_fingerprint !== undefined &&
+        req.org_latitude !== undefined &&
+        req.org_longitude !== undefined &&
+        req.city !== undefined &&
+        req.country !== undefined &&
+        req.ride_type !== undefined
+      ) {
+        //Check the list limit
+        if (req.list_limit === undefined) {
+          req.list_limit = 5;
+        }
+        //Get the list of drivers match the availability criteria
+        let driverFilter = {
+          "operational_state.status": { $regex: /online/i },
+          "operational_state.last_location.city": { $regex: req.city, $options: "i" },
+          "operational_state.last_location.country": { $regex: req.country, $options: "i" },
+          operation_clearances: { $regex: req.ride_type, $options: "i" },
+        };
+        //...
+        collectionDrivers_profiles.find(driverFilter).toArray(function (err, driversProfiles) {
+          //check that some drivers where found
+          if (driversProfiles.length > 0) {
+            //yep
+            let mainPromiser = driversProfiles.map((driverData) => {
+              return new Promise((resolve) => {
+                //Check for the coords
+                if (
+                  driverData.operational_state.last_location.coordinates.latitude !== undefined &&
+                  driverData.operational_state.last_location.coordinates.longitude !== undefined
+                ) {
+                  //...
+                  let tmp = {
+                    passenger: {
+                      latitude: req.org_latitude,
+                      longitude: req.org_longitude,
+                    },
+                    destination: {
+                      latitude: driverData.operational_state.last_location.coordinates.latitude,
+                      longitude: driverData.operational_state.last_location.coordinates.longitude,
+                    },
+                  };
+                  let redisKey = req.user_fingerprint + "-" + driverData.driver_fingerprint;
+                  let valueIndex = "relativeEta";
+                  //CHeck for cache value
+                  redisGet(redisKey).then(
+                    (resp) => {
+                      if (resp !== null) {
+                        //Has some record
+                        //Check if the wanted value is present
+                        try {
+                          resp = JSON.parse(resp);
+                          if (resp[valueIndex] !== undefined && resp[valueIndex] !== null && resp[valueIndex] !== false) {
+                            console.log("Foudn cached data");
+                            //Update the cache as well
+                            new Promise((res) => {
+                              getRouteInfosDestination(tmp, res, true, { redisKey: redisKey, valueIndex: valueIndex }); //Only get simplified data : ETA and distance
+                            }).then(
+                              () => {},
+                              () => {}
+                            );
+                            //Update the relative mongo records
+                            if (resp[valueIndex] !== false && resp[valueIndex] !== undefined && resp[valueIndex].eta !== undefined) {
+                              new Promise((res1) => {
+                                let relativeHeader = {
+                                  user_fingerprint: req.user_fingerprint,
+                                  driver_fingerprint: driverData.driver_fingerprint,
+                                  driver_coordinates: {
+                                    latitude: driverData.operational_state.last_location.coordinates.latitude,
+                                    longitude: driverData.operational_state.last_location.coordinates.longitude,
+                                  },
+                                  eta: resp[valueIndex].eta,
+                                  distance: resp[valueIndex].distance,
+                                  city: req.city,
+                                  country: req.country,
+                                };
+                                updateRelativeDistancesRiderDrivers(collectionRelativeDistances, relativeHeader, res1);
+                              }).then(
+                                () => {},
+                                () => {}
+                              );
+                            }
+                            //has something, return that
+                            resp[valueIndex].driver_fingerprint = driverData.driver_fingerprint; //Add the driver fingerprint to the response
+                            resp[valueIndex].driver_coordinates = {
+                              latitude: driverData.operational_state.last_location.coordinates.latitude,
+                              longitude: driverData.operational_state.last_location.coordinates.longitude,
+                            }; //Add the driver coordinates to the response
+                            resolve(resp[valueIndex]);
+                          } //The wanted index is not present, make a new search
+                          else {
+                            new Promise((res) => {
+                              getRouteInfosDestination(tmp, res, true, { redisKey: redisKey, valueIndex: valueIndex }); //Only get simplified data : ETA and distance
+                            }).then(
+                              (result) => {
+                                //Update the relative mongo records
+                                if (result !== false && result !== undefined && result.eta !== undefined) {
+                                  new Promise((res1) => {
+                                    let relativeHeader = {
+                                      user_fingerprint: req.user_fingerprint,
+                                      driver_fingerprint: driverData.driver_fingerprint,
+                                      driver_coordinates: {
+                                        latitude: driverData.operational_state.last_location.coordinates.latitude,
+                                        longitude: driverData.operational_state.last_location.coordinates.longitude,
+                                      },
+                                      eta: result.eta,
+                                      distance: result.distance,
+                                      city: req.city,
+                                      country: req.country,
+                                    };
+                                    updateRelativeDistancesRiderDrivers(collectionRelativeDistances, relativeHeader, res1);
+                                  }).then(
+                                    () => {},
+                                    () => {}
+                                  );
+                                }
+                                //...
+                                result.driver_fingerprint = driverData.driver_fingerprint; //Add the driver fingerprint to the response
+                                result.driver_coordinates = {
+                                  latitude: driverData.operational_state.last_location.coordinates.latitude,
+                                  longitude: driverData.operational_state.last_location.coordinates.longitude,
+                                }; //Add the driver coordinates to the response
+                                resolve(result);
+                              },
+                              (error) => {
+                                resolve(false);
+                              }
+                            );
+                          }
+                        } catch (error) {
+                          //Make a fresh search
+                          new Promise((res) => {
+                            getRouteInfosDestination(tmp, res, true, { redisKey: redisKey, valueIndex: valueIndex }); //Only get simplified data : ETA and distance
+                          }).then(
+                            (result) => {
+                              //Update the relative mongo records
+                              if (result !== false && result !== undefined && result.eta !== undefined) {
+                                new Promise((res1) => {
+                                  let relativeHeader = {
+                                    user_fingerprint: req.user_fingerprint,
+                                    driver_fingerprint: driverData.driver_fingerprint,
+                                    driver_coordinates: {
+                                      latitude: driverData.operational_state.last_location.coordinates.latitude,
+                                      longitude: driverData.operational_state.last_location.coordinates.longitude,
+                                    },
+                                    eta: result.eta,
+                                    distance: result.distance,
+                                    city: req.city,
+                                    country: req.country,
+                                  };
+                                  updateRelativeDistancesRiderDrivers(collectionRelativeDistances, relativeHeader, res1);
+                                }).then(
+                                  () => {},
+                                  () => {}
+                                );
+                              }
+                              //...
+                              result.driver_fingerprint = driverData.driver_fingerprint; //Add the driver fingerprint to the response
+                              result.driver_coordinates = {
+                                latitude: driverData.operational_state.last_location.coordinates.latitude,
+                                longitude: driverData.operational_state.last_location.coordinates.longitude,
+                              }; //Add the driver coordinates to the response
+                              resolve(result);
+                            },
+                            (error) => {
+                              resolve(false);
+                            }
+                          );
+                        }
+                      } //No records make a fresh search
+                      else {
+                        new Promise((res) => {
+                          getRouteInfosDestination(tmp, res, true, { redisKey: redisKey, valueIndex: valueIndex }); //Only get simplified data : ETA and distance
+                        }).then(
+                          (result) => {
+                            //Update the relative mongo records
+                            if (result !== false && result !== undefined && result.eta !== undefined) {
+                              new Promise((res1) => {
+                                let relativeHeader = {
+                                  user_fingerprint: req.user_fingerprint,
+                                  driver_fingerprint: driverData.driver_fingerprint,
+                                  driver_coordinates: {
+                                    latitude: driverData.operational_state.last_location.coordinates.latitude,
+                                    longitude: driverData.operational_state.last_location.coordinates.longitude,
+                                  },
+                                  eta: result.eta,
+                                  distance: result.distance,
+                                  city: req.city,
+                                  country: req.country,
+                                };
+                                updateRelativeDistancesRiderDrivers(collectionRelativeDistances, relativeHeader, res1);
+                              }).then(
+                                () => {},
+                                () => {}
+                              );
+                            }
+                            //...
+                            result.driver_fingerprint = driverData.driver_fingerprint; //Add the driver fingerprint to the response
+                            result.driver_coordinates = {
+                              latitude: driverData.operational_state.last_location.coordinates.latitude,
+                              longitude: driverData.operational_state.last_location.coordinates.longitude,
+                            }; //Add the driver coordinates to the response
+                            resolve(result);
+                          },
+                          (error) => {
+                            resolve(false);
+                          }
+                        );
+                      }
+                    },
+                    (error) => {
+                      //Make a fresh search
+                      new Promise((res) => {
+                        getRouteInfosDestination(tmp, res, true, { redisKey: redisKey, valueIndex: valueIndex }); //Only get simplified data : ETA and distance
+                      }).then(
+                        (result) => {
+                          //Update the relative mongo records
+                          if (result !== false && result !== undefined && result.eta !== undefined) {
+                            new Promise((res1) => {
+                              let relativeHeader = {
+                                user_fingerprint: req.user_fingerprint,
+                                driver_fingerprint: driverData.driver_fingerprint,
+                                driver_coordinates: {
+                                  latitude: driverData.operational_state.last_location.coordinates.latitude,
+                                  longitude: driverData.operational_state.last_location.coordinates.longitude,
+                                },
+                                eta: result.eta,
+                                distance: result.distance,
+                                city: req.city,
+                                country: req.country,
+                              };
+                              updateRelativeDistancesRiderDrivers(collectionRelativeDistances, relativeHeader, res1);
+                            }).then(
+                              () => {},
+                              () => {}
+                            );
+                          }
+                          //...
+                          result.driver_fingerprint = driverData.driver_fingerprint; //Add the driver fingerprint to the response
+                          result.driver_coordinates = {
+                            latitude: driverData.operational_state.last_location.coordinates.latitude,
+                            longitude: driverData.operational_state.last_location.coordinates.longitude,
+                          }; //Add the driver coordinates to the response
+                          resolve(result);
+                        },
+                        (error) => {
+                          resolve(false);
+                        }
+                      );
+                    }
+                  );
+                } else {
+                  resolve(false);
+                }
+              });
+            });
+            //Resolve all
+            Promise.all(mainPromiser).then(
+              (result) => {
+                //Done- exlude all false
+                new Promise((res) => {
+                  cleanAndAdjustRelativeDistancesList(result, req.list_limit, res);
+                }).then(
+                  (reslt) => {
+                    console.log(reslt);
+                    res.send(reslt);
+                  },
+                  (error) => {
+                    console.log(error);
+                    res.send({ response: "no_close_drivers_found" });
+                  }
+                );
+              },
+              (error) => {
+                console.log(error);
+                res.send(false);
+              }
+            );
+          } //No close drivers
+          else {
+            res.send(false);
+          }
+        });
+      } else {
         res.send(false);
       }
     });
