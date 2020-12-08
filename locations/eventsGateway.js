@@ -241,6 +241,70 @@ io.sockets.on("connection", function (socket) {
   });
 
   /**
+   * MAP SERVICE
+   * route name: getVitalsETAOrRouteInfos2points
+   * event: get_closest_drivers_to_point
+   * params: origin latitude, origin longitude, user fingerprint, city, country, ride type (ride or delivery) and data limit
+   * Responsible for getting the list of all the closest drivers to a point (rider) limited by @param list_limit.
+   */
+  socket.on("get_closest_drivers_to_point", function (req) {
+    console.log("Getting all the closest drivers");
+    console.log(req);
+    let servicePort = 9090;
+    let list_limit = 7; //Limited to 7 for all clients requests
+
+    if (
+      req.org_latitude !== undefined &&
+      req.org_latitude !== null &&
+      req.org_longitude !== undefined &&
+      req.org_longitude !== null &&
+      req.city !== undefined &&
+      req.city !== null &&
+      req.country !== undefined &&
+      req.country !== null &&
+      req.user_fingerprint !== null &&
+      req.user_fingerprint !== undefined &&
+      req.ride_type !== null &&
+      req.ride_type !== undefined
+    ) {
+      let url =
+        localURL +
+        ":" +
+        servicePort +
+        "/getVitalsETAOrRouteInfos2points?user_fingerprint=" +
+        req.user_fingerprint +
+        "&org_latitude=" +
+        req.org_latitude +
+        "&org_longitude=" +
+        req.org_longitude +
+        "&ride_type=" +
+        req.ride_type +
+        "&city=" +
+        req.city +
+        "&country=" +
+        req.country +
+        "&list_limit=" +
+        list_limit;
+      requestAPI(url, function (error, response, body) {
+        console.log(body);
+        if (error === null) {
+          try {
+            body = JSON.parse(body);
+            socket.emit("get_closest_drivers_to_point-response", body);
+          } catch (error) {
+            socket.emit("get_closest_drivers_to_point-response", false);
+          }
+        } else {
+          socket.emit("get_closest_drivers_to_point-response", false);
+        }
+      });
+    } //Invalid params
+    else {
+      socket.emit("get_closest_drivers_to_point-response", false);
+    }
+  });
+
+  /**
    * SEARCH SERVICE, port 9091
    * Route: getSearchedLocations
    * Event: getSearchedLocations

@@ -1696,7 +1696,7 @@ dbPool.getConnection(function (err, connection) {
       ) {
         //Check the list limit
         if (req.list_limit === undefined) {
-          req.list_limit = 5;
+          req.list_limit = 7;
         }
         //Get the list of drivers match the availability criteria
         let driverFilter = {
@@ -1774,6 +1774,10 @@ dbPool.getConnection(function (err, connection) {
                               latitude: driverData.operational_state.last_location.coordinates.latitude,
                               longitude: driverData.operational_state.last_location.coordinates.longitude,
                             }; //Add the driver coordinates to the response
+                            resp[valueIndex].prev_driver_coordinates = {
+                              latitude: driverData.operational_state.last_location.prev_coordinates.latitude,
+                              longitude: driverData.operational_state.last_location.prev_coordinates.longitude,
+                            }; //Add the driver's previous coordinates to the response
                             resolve(resp[valueIndex]);
                           } //The wanted index is not present, make a new search
                           else {
@@ -1808,6 +1812,10 @@ dbPool.getConnection(function (err, connection) {
                                   latitude: driverData.operational_state.last_location.coordinates.latitude,
                                   longitude: driverData.operational_state.last_location.coordinates.longitude,
                                 }; //Add the driver coordinates to the response
+                                result.prev_driver_coordinates = {
+                                  latitude: driverData.operational_state.last_location.prev_coordinates.latitude,
+                                  longitude: driverData.operational_state.last_location.prev_coordinates.longitude,
+                                }; //Add the driver's previous coordinates to the response
                                 resolve(result);
                               },
                               (error) => {
@@ -1848,6 +1856,10 @@ dbPool.getConnection(function (err, connection) {
                                 latitude: driverData.operational_state.last_location.coordinates.latitude,
                                 longitude: driverData.operational_state.last_location.coordinates.longitude,
                               }; //Add the driver coordinates to the response
+                              result.prev_driver_coordinates = {
+                                latitude: driverData.operational_state.last_location.prev_coordinates.latitude,
+                                longitude: driverData.operational_state.last_location.prev_coordinates.longitude,
+                              }; //Add the driver's previous coordinates to the response
                               resolve(result);
                             },
                             (error) => {
@@ -1888,6 +1900,10 @@ dbPool.getConnection(function (err, connection) {
                               latitude: driverData.operational_state.last_location.coordinates.latitude,
                               longitude: driverData.operational_state.last_location.coordinates.longitude,
                             }; //Add the driver coordinates to the response
+                            result.prev_driver_coordinates = {
+                              latitude: driverData.operational_state.last_location.prev_coordinates.latitude,
+                              longitude: driverData.operational_state.last_location.prev_coordinates.longitude,
+                            }; //Add the driver's previous coordinates to the response
                             resolve(result);
                           },
                           (error) => {
@@ -1929,6 +1945,10 @@ dbPool.getConnection(function (err, connection) {
                             latitude: driverData.operational_state.last_location.coordinates.latitude,
                             longitude: driverData.operational_state.last_location.coordinates.longitude,
                           }; //Add the driver coordinates to the response
+                          result.prev_driver_coordinates = {
+                            latitude: driverData.operational_state.last_location.prev_coordinates.latitude,
+                            longitude: driverData.operational_state.last_location.prev_coordinates.longitude,
+                          }; //Add the driver's previous coordinates to the response
                           resolve(result);
                         },
                         (error) => {
