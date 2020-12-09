@@ -1428,7 +1428,7 @@ dbPool.getConnection(function (err, connection) {
     //if (err) throw err;
     console.log("[+] MAP services active.");
     const dbMongo = clientMongo.db(DB_NAME_MONGODB);
-    const collectionRidersData_repr = dbMongo.collection("riders_data_representation"); //Hold the latest location update from the rider
+    const collectionRidersData_repr = dbMongo.collection("rides_deliveries_requests"); //Hold all the requests made (rides and deliveries)
     const collectionRelativeDistances = dbMongo.collection("relative_distances_riders_drivers"); //Hold the relative distances between rider and the drivers (online, same city, same country) at any given time
     const collectionRidersLocation_log = dbMongo.collection("historical_positioning_logs"); //Hold all the location updated from the rider
     const collectionDrivers_profiles = dbMongo.collection("drivers_profiles"); //Hold all the drivers profiles

@@ -148,7 +148,7 @@ function checkInputIntegrity(input) {
  * Specifically the suburbs infos and the drop off types of the destinations.
  * Save record in Mongo and Cache when down.
  * REDIS SCHEMA
- * key: savedSuburbResults
+ * key: savedSuburbResults-location_name-street_name-city
  * data: [{}, {}, ...]
  */
 function autocompleteInputData(resolve, inputData, collectionSavedSuburbResults) {
@@ -156,7 +156,19 @@ function autocompleteInputData(resolve, inputData, collectionSavedSuburbResults)
   let destinationInfos = inputData.destination_location_infos;
   //[PICKUP LOCATION] Complete pickup location suburb infos
   //Check Redis for previous record
-  redisGet("savedSuburbResults").then(
+  let redisKey =
+    "savedSuburbResults-" +
+    (pickupInfos.location_name !== undefined && pickupInfos.location_name !== false
+      ? pickupInfos.location_name.trim().toLowerCase()
+      : pickupInfos.location_name) +
+    "-" +
+    (pickupInfos.street_name !== undefined && pickupInfos.street_name !== false
+      ? pickupInfos.street_name.trim().toLowerCase()
+      : pickupInfos.street_name) +
+    "-" +
+    (pickupInfos.city !== undefined && pickupInfos.city !== false ? pickupInfos.city.trim().toLowerCase() : pickupInfos.city);
+  //..
+  redisGet(redisKey).then(
     (resp) => {
       console.log(resp);
       if (resp !== null && resp !== undefined) {
@@ -164,17 +176,7 @@ function autocompleteInputData(resolve, inputData, collectionSavedSuburbResults)
         resp = JSON.parse(resp);
         console.log("Found something in the cache");
         //Check if there's our concerned record for the pickup location
-        let focusedRecord = false;
-        resp.map((location) => {
-          if (
-            location.location_name === pickupInfos.location_name &&
-            location.city === pickupInfos.city &&
-            location.street_name === pickupInfos.street_name
-          ) {
-            //Found
-            focusedRecord = location;
-          }
-        });
+        let focusedRecord = resp;
         //Check for wanted record
         if (focusedRecord !== false) {
           //Found something
@@ -331,7 +333,7 @@ function autocompleteInputData(resolve, inputData, collectionSavedSuburbResults)
  * Depend on @func doMongoSearchForAutocompletedSuburbs
  * Responsible for autocompleting input data for ALL the destination locations and return the complete array.
  * REDIS
- * key: destinationLocationsAutoCompletedNature: [{location_name, street_name, suburb, city, locationType}]
+ * key: destinationLocationsAutoCompletedNature-location_name-location_street-city: [{location_name, street_name, suburb, city, locationType}]
  */
 function manageAutoCompleteDestinationLocations(resolve, destinationLocations, user_fingerprint, collectionSavedSuburbResults) {
   console.log("AUTO COMPLETE DESTINATION DATA");
@@ -408,51 +410,31 @@ function manageAutoCompleteDestinationLocations(resolve, destinationLocations, u
                 destinationLocations[location.passenger_number_id - 1].dropoff_type = location.locationType;
                 //Cache the location
                 new Promise((res) => {
+                  let redisKey =
+                    "destinationLocationsAutoCompletedNature-" +
+                    (destinationLocations.location_name !== undefined && destinationLocations.location_name !== false
+                      ? destinationLocations.location_name.trim().toLowerCase()
+                      : destinationLocations.location_name) +
+                    "-" +
+                    (destinationLocations.street_name !== undefined && destinationLocations.street_name !== false
+                      ? destinationLocations.street_name.trim().toLowerCase()
+                      : destinationLocations.street_name) +
+                    "-" +
+                    (destinationLocations.city !== undefined && destinationLocations.city !== false
+                      ? destinationLocations.city.trim().toLowerCase()
+                      : destinationLocations.city);
                   //Check if redis already have key record
-                  redisGet("destinationLocationsAutoCompletedNature").then(
-                    (reslt) => {
-                      if (reslt !== null) {
-                        //Has record - just update
-                        try {
-                          reslt = JSON.parse(reslt);
-                          reslt.push({
-                            location_name: destinationLocations.location_name,
-                            street_name: destinationLocations.street_name,
-                            suburb: destinationLocations.suburb,
-                            city: destinationLocations.city,
-                            locationType: location.locationType,
-                          });
-                          client.set("destinationLocationsAutoCompletedNature", JSON.stringify(reslt));
-                          res(true);
-                        } catch (error) {
-                          let recordTmp = {
-                            location_name: destinationLocations.location_name,
-                            street_name: destinationLocations.street_name,
-                            suburb: destinationLocations.suburb,
-                            city: destinationLocations.city,
-                            locationType: location.locationType,
-                          };
-                          client.set("destinationLocationsAutoCompletedNature", JSON.stringify(recordTmp));
-                          res(true);
-                        }
-                      } //No record - create one - [{location_name, street_name, suburb, city, locationType}]
-                      else {
-                        let recordTmp = {
-                          location_name: destinationLocations.location_name,
-                          street_name: destinationLocations.street_name,
-                          suburb: destinationLocations.suburb,
-                          city: destinationLocations.city,
-                          locationType: location.locationType,
-                        };
-                        client.set("destinationLocationsAutoCompletedNature", JSON.stringify(recordTmp));
-                        res(true);
-                      }
-                    },
-                    (error) => {
-                      console.log(error);
-                      res(false);
-                    }
+                  client.set(
+                    redisKey,
+                    JSON.stringify({
+                      location_name: destinationLocations.location_name,
+                      street_name: destinationLocations.street_name,
+                      suburb: destinationLocations.suburb,
+                      city: destinationLocations.city,
+                      locationType: location.locationType,
+                    })
                   );
+                  res(true);
                 }).then(
                   () => {},
                   () => {}
@@ -534,48 +516,32 @@ function doMongoSearchForAutocompletedSuburbs(resolve, locationInfos, collection
 
               //Cache result
               new Promise((res2) => {
-                redisGet("savedSuburbResults").then(
-                  (reslt) => {
-                    let prevCache = null;
-                    if (reslt !== null && reslt !== undefined) {
-                      try {
-                        prevCache = JSON.parse(reslt);
-                        //[REVIEW] MIGHT PROBABLY WANNA CHECK TO AVOID DUPLICATES
-                        prevCache.push({
-                          suburb: body.address.suburb,
-                          state: body.address.state,
-                          location_name: locationInfos.location_name,
-                          city: locationInfos.city,
-                          street_name: locationInfos.street_name,
-                        });
-                        //add new record
-                        client.set("savedSuburbResults", JSON.stringify(prevCache), redis.print);
-                        res2(true);
-                      } catch (error) {
-                        console.log(error);
-                        res2(false);
-                      }
-                    } //No records yet do a new one
-                    else {
-                      prevCache = [];
-                      //[REVIEW] MIGHT PROBABLY WANNA CHECK TO AVOID DUPLICATES
-                      prevCache.push({
-                        suburb: body.address.suburb,
-                        state: body.address.state,
-                        location_name: locationInfos.location_name,
-                        city: locationInfos.city,
-                        street_name: locationInfos.street_name,
-                      });
-                      //add new record
-                      client.set("savedSuburbResults", JSON.stringify(prevCache), redis.print);
-                      res2(true);
-                    }
-                  },
-                  (error) => {
-                    console.log(error);
-                    res2(false);
-                  }
+                let redisKey =
+                  "savedSuburbResults-" +
+                  (locationInfos.location_name !== undefined && locationInfos.location_name !== false
+                    ? locationInfos.location_name.trim().toLowerCase()
+                    : locationInfos.location_name) +
+                  "-" +
+                  (locationInfos.street_name !== undefined && locationInfos.street_name !== false
+                    ? locationInfos.street_name.trim().toLowerCase()
+                    : locationInfos.street_name) +
+                  "-" +
+                  (locationInfos.city !== undefined && locationInfos.city !== false ? locationInfos.city.trim().toLowerCase() : locationInfos.city);
+                //Update the cache
+                //add new record
+                client.set(
+                  redisKey,
+                  JSON.stringify({
+                    suburb: body.address.suburb,
+                    state: body.address.state,
+                    location_name: locationInfos.location_name,
+                    city: locationInfos.city,
+                    street_name: locationInfos.street_name,
+                  }),
+                  redis.print
                 );
+                //...
+                res2(true);
               }).then(
                 () => {},
                 (error) => {
@@ -1335,6 +1301,9 @@ dbPool.getConnection(function (err, connection) {
 
     //-------------------------------
 
+    /**
+     * Get the price estimates for every single vehicle types available.
+     */
     app.post("/getOverallPricingAndAvailabilityDetails", function (req, res) {
       resolveDate();
       //DELIVERY TEST DATA - DEBUG
@@ -1441,6 +1410,74 @@ dbPool.getConnection(function (err, connection) {
         console.log(error);
         res.send({ response: "Failed parsing." });
       }
+    });
+
+    /**
+     * GET SUBURBS INFORMATION
+     * [Should be moved to the MAP service]
+     * Resposible for getting the corresponding suburbs for provided location.
+     * Input data: location name, street name, city, country and coordinates (obj, lat and long)
+     */
+    app.get("/getCorrespondingSuburbInfos", function (req, res) {
+      let params = urlParser.parse(req.url, true);
+      req = params.query;
+      console.log(req);
+
+      if (req !== undefined && req.user_fingerprint !== undefined) {
+        new Promise((res) => {
+          doMongoSearchForAutocompletedSuburbs(
+            res,
+            {
+              location_name: req.location_name,
+              street_name: req.street_name,
+              city: req.city,
+              country: req.country,
+              coordinates: {
+                latitude: req.latitude,
+                longitude: req.longitude,
+              },
+            },
+            collectionSavedSuburbResults
+          );
+        }).then(
+          (result) => {
+            console.log(result);
+            res.send(result);
+          },
+          (error) => {
+            console.log(error);
+            res.send(false);
+          }
+        );
+      } else {
+        res.send(false);
+      }
+    });
+
+    /**
+     * GET BACH DESTINATION SUBURBS AND LOCATION TYPE
+     * Responsible for autocompleting the suburbs and location types of locations (external to this service)
+     * Input data: @array containing compatible parsed data of locations
+     */
+    app.post("/manageAutoCompleteSuburbsAndLocationTypes", function (req, res) {
+      let arrayData = req.body;
+      new Promise((res) => {
+        manageAutoCompleteDestinationLocations(res, arrayData.locationData, arrayData.user_fingerprint, collectionSavedSuburbResults);
+      }).then(
+        (result) => {
+          if (result !== false) {
+            //DONE AUTOCOMPLETING
+            res.send(result);
+          } //Error
+          else {
+            res.send(false);
+          }
+        },
+        (error) => {
+          console.log(error);
+          res.send(false);
+        }
+      );
     });
   });
 });
