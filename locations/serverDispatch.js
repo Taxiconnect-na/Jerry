@@ -56,10 +56,10 @@ function generateUniqueFingerprint(str, encryption = false, resolve) {
   str = str.trim();
   let fingerprint = null;
   if (encryption === false) {
-    fingerprint = crypto.createHmac("sha256", "TAXICONNECTBASICKEYFINGERPRINTS-RIDES-DELIVERY").update(str).digest("hex");
+    fingerprint = crypto.createHmac("sha512WithRSAEncryption", "TAXICONNECTBASICKEYFINGERPRINTS-RIDES-DELIVERY").update(str).digest("hex");
     resolve(fingerprint);
   } else if (/md5/i.test(encryption)) {
-    fingerprint = crypto.createHmac("md5", "TAXICONNECTBASICKEYFINGERPRINTS-RIDES-DELIVERY").update(str).digest("hex");
+    fingerprint = crypto.createHmac("md5WithRSAEncryption", "TAXICONNECTBASICKEYFINGERPRINTS-RIDES-DELIVERY").update(str).digest("hex");
     resolve(fingerprint);
   } //Other - default
   else {
@@ -531,6 +531,26 @@ function parseRequestData(inputData, resolve) {
 }
 
 /**
+ * @func intitiateStagedDispatch
+ * @param resolve
+ * @param snapshotTripInfos: this will contain basic review of the trip, specifically the fare, passengers number, ride type (ride/delivery),
+ * connect type (connectMe/connectUS).
+ * Responsible for sending notifications to drivers and a staged manner:
+ * * Closest first (1 driver)
+ * after 1min30'' of not accepting
+ * * increase the radius (3 drivers)
+ * after 1 min of not accepting
+ * * increase the radius (5 drivers)
+ * after 1 min of not accepting
+ * * increase the radius (all the rest)
+ * * after 20 min of not accepting - AUTO cancel request
+ */
+function intitiateStagedDispatch(snapshotTripInfos, resolve) {
+
+}
+
+
+/**
  * MAIN
  */
 
@@ -538,7 +558,7 @@ clientMongo.connect(function (err) {
   //if (err) throw err;
   console.log("[+] Dispatch services active.");
   const dbMongo = clientMongo.db(DB_NAME_MONGODB);
-  const collectionRidersData_repr = dbMongo.collection("rides_deliveries_requests"); //Hold all the requests made (rides and deliveries)
+  const collectionRidesDeliveryData = dbMongo.collection("rides_deliveries_requests"); //Hold all the requests made (rides and deliveries)
   const collectionRelativeDistances = dbMongo.collection("relative_distances_riders_drivers"); //Hold the relative distances between rider and the drivers (online, same city, same country) at any given time
   const collectionRidersLocation_log = dbMongo.collection("historical_positioning_logs"); //Hold all the location updated from the rider
   const collectionDrivers_profiles = dbMongo.collection("drivers_profiles"); //Hold all the drivers profiles
@@ -637,24 +657,51 @@ clientMongo.connect(function (err) {
     };
     req = testData;
     //...
-    //Parse the data
-    new Promise((res) => {
-      parseRequestData(req, res);
-    }).then(
-      (result) => {
-        if (result !== false) {
-          console.log(result);
-          res.send(result);
-        } //Error
+    if (req.user_fingerprint !== undefined && req.user_fingerprint !== null) {
+      //1. CHECK THAT THIS RIDER DOESN'T ALREADY HAVE AN ACTIVE RIDE/DELIVERY
+      //Request is considered as completed when the rider has submited a rating.
+      let checkPrevRequest = {
+        client_id: req.user_fingerprint,
+        "ride_state_vars.isRideCompleted_riderSide": false,
+      };
+      collectionRidesDeliveryData.find(checkPrevRequest).toArray(function (err, prevRequest) {
+        if (prevRequest.length === 0) {
+          //No previous pending request - MAKE REQUEST VALID
+          //Parse the data
+          new Promise((res) => {
+            parseRequestData(req, res);
+          }).then(
+            (result) => {
+              if (result !== false) {
+                console.log(result);
+                //Save the request in mongodb
+                collectionRidesDeliveryData.insertOne(result, function (err, requestDt) {
+                  if (err) {
+                    res.send({ response: "Unable_to_make_the_request" });
+                  }
+                  //..Success
+                  //2. INITIATE STAGED toDrivers DISPATCH
+                  res.send(result);
+                });
+              } //Error
+              else {
+                res.send({ response: "Unable_to_make_the_request" });
+              }
+            },
+            (error) => {
+              console.log(error);
+              res.send({ response: "Unable_to_make_the_request" });
+            }
+          );
+        } //Has a previous uncompleted ride
         else {
-          res.send({ response: "Unable_to_make_the_request" });
+          res.send({ response: "already_have_a_pending_request" });
         }
-      },
-      (error) => {
-        console.log(error);
-        res.send({ response: "Unable_to_make_the_request" });
-      }
-    );
+      });
+    } //Invalid user fp
+    else {
+      res.send({ response: "Unable_to_make_the_request" });
+    }
   });
 });
 

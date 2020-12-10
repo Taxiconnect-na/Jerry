@@ -1704,12 +1704,25 @@ dbPool.getConnection(function (err, connection) {
           "operational_state.last_location.city": { $regex: req.city, $options: "i" },
           "operational_state.last_location.country": { $regex: req.country, $options: "i" },
           operation_clearances: { $regex: req.ride_type, $options: "i" },
+          //Filter the drivers based on the vehicle type if provided
+          "operational_state.default_selected_car.vehicle_type":
+            req.vehicle_type !== undefined && req.vehicle_type !== false
+              ? { $regex: req.vehicle_type, $options: "i" }
+              : { $regex: /[a-zA-Z]/, $options: "i" },
         };
         //...
         collectionDrivers_profiles.find(driverFilter).toArray(function (err, driversProfiles) {
           //check that some drivers where found
           if (driversProfiles.length > 0) {
             //yep
+            //Filter the drivers based on their car's maximum capacity (the amount of passengers it can handle)
+            //They can receive 3 additional requests on top of the limit of sits in their selected cars.
+            driversProfiles = driversProfiles.filter(
+              (dData) =>
+                dData.operational_state.accepted_requests_infos.total_passengers_number <=
+                dData.operational_state.default_selected_car.max_passengers + 3
+            );
+            //...
             let mainPromiser = driversProfiles.map((driverData) => {
               return new Promise((resolve) => {
                 //Check for the coords
@@ -1986,7 +1999,7 @@ dbPool.getConnection(function (err, connection) {
             );
           } //No close drivers
           else {
-            res.send(false);
+            res.send({ response: "no_close_drivers_found" });
           }
         });
       } else {
