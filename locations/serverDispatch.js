@@ -31,6 +31,7 @@ const DB_NAME_MONGODB = "Taxiconnect";
 const URL_SEARCH_SERVICES = "http://www.taxiconnectna.com:7007/";
 const URL_ROUTE_SERVICES = "http://www.taxiconnectna.com:7008/route?";
 const PRICING_SERVICE_PORT = 8989;
+const MAP_SERVICE_PORT = 9090;
 //const URL_ROUTE_SERVICES = "localhost:8987/route?";
 
 const clientMongo = new MongoClient(URL_MONGODB, { useUnifiedTopology: true });
@@ -47,6 +48,35 @@ function resolveDate() {
 resolveDate();
 
 const port = 9094;
+
+/**
+ * Responsible for sending push notification to devices
+ */
+var sendPushUPNotification = function (data) {
+  var headers = {
+    "Content-Type": "application/json; charset=utf-8",
+  };
+
+  var options = {
+    host: "onesignal.com",
+    port: 443,
+    path: "/api/v1/notifications",
+    method: "POST",
+    headers: headers,
+  };
+
+  var https = require("https");
+  var req = https.request(options, function (res) {
+    res.on("data", function (data) {
+      //console.log("Response:");
+    });
+  });
+
+  req.on("error", function (e) {});
+
+  req.write(JSON.stringify(data));
+  req.end();
+};
 
 /**
  * @func generateUniqueFingerprint()
@@ -118,6 +148,7 @@ function parseRequestData(inputData, resolve) {
         parsedData.fare = inputData.fareAmount;
         parsedData.passengers_number = inputData.passengersNo;
         parsedData.request_type = /now/i.test(inputData.timeScheduled) ? "immediate" : "scheduled";
+        parsedData.allowed_drivers_see = []; //LIST OF THE DRIVERS WHO CAN SEE THE REQUEST IN THEIR APP.
         //Resolve the pickup time
         new Promise((res1) => {
           if (/immediate/i.test(parsedData.request_type)) {
@@ -534,6 +565,8 @@ function parseRequestData(inputData, resolve) {
  * @func intitiateStagedDispatch
  * @param resolve
  * @param snapshotTripInfos: this will contain basic review of the trip, specifically the fare, passengers number, ride type (ride/delivery),
+ * @param collectionRidesDeliveryData: rides and delivery collection
+ * @param collectionDrivers_profiles: drivers profiles collection
  * connect type (connectMe/connectUS).
  * Responsible for sending notifications to drivers and a staged manner:
  * * Closest first (1 driver)
@@ -545,10 +578,188 @@ function parseRequestData(inputData, resolve) {
  * * increase the radius (all the rest)
  * * after 20 min of not accepting - AUTO cancel request
  */
-function intitiateStagedDispatch(snapshotTripInfos, resolve) {
-
+function intitiateStagedDispatch(snapshotTripInfos, collectionDrivers_profiles, collectionRidesDeliveryData, resolve) {
+  //Get the list of all the closest drivers
+  let url =
+    localURL +
+    ":" +
+    MAP_SERVICE_PORT +
+    "/getVitalsETAOrRouteInfos2points?user_fingerprint=" +
+    snapshotTripInfos.user_fingerprint +
+    "&org_latitude=" +
+    snapshotTripInfos.org_latitude +
+    "&org_longitude=" +
+    snapshotTripInfos.org_longitude +
+    "&ride_type=" +
+    snapshotTripInfos.ride_type +
+    "&city=" +
+    snapshotTripInfos.city +
+    "&country=" +
+    snapshotTripInfos.country +
+    "&list_limit=all";
+  requestAPI(url, function (error, response, body) {
+    console.log(body);
+    if (error === null) {
+      try {
+        body = JSON.parse(body);
+        if (body.response !== undefined || response === false) {
+          //Error getting the list - send to all drivers
+          new Promise((res) => {
+            sendStagedNotificationsDrivers(false, snapshotTripInfos, collectionDrivers_profiles, collectionRidesDeliveryData, res);
+          }).then(
+            (result) => {
+              console.log(result);
+              resolve(result);
+            },
+            (error) => {
+              console.log(error);
+              resolve(false);
+            }
+          );
+        } //Successfully got the list
+        else {
+          new Promise((res) => {
+            sendStagedNotificationsDrivers(body, snapshotTripInfos, collectionDrivers_profiles, collectionRidesDeliveryData, res);
+          }).then(
+            (result) => {
+              console.log(result);
+              resolve(result);
+            },
+            (error) => {
+              console.log(error);
+              resolve(false);
+            }
+          );
+        }
+      } catch (error) {
+        console.log(error);
+        //Error getting the list of closest drivers - send to all the drivers
+        new Promise((res) => {
+          sendStagedNotificationsDrivers(false, snapshotTripInfos, collectionDrivers_profiles, collectionRidesDeliveryData, res);
+        }).then(
+          (result) => {
+            console.log(result);
+            resolve(result);
+          },
+          (error) => {
+            console.log(error);
+            resolve(false);
+          }
+        );
+      }
+    } else {
+      //Error getting the list of closest drivers - send to all the drivers
+      new Promise((res) => {
+        sendStagedNotificationsDrivers(false, snapshotTripInfos, collectionDrivers_profiles, collectionRidesDeliveryData, res);
+      }).then(
+        (result) => {
+          console.log(result);
+          resolve(result);
+        },
+        (error) => {
+          console.log(error);
+          resolve(false);
+        }
+      );
+    }
+  });
 }
 
+/**
+ * @func sendStagedNotificationsDrivers
+ * @param resolve
+ * @param collectionRidesDeliveryData: rides and delivery collection
+ * @param collectionDrivers_profiles: drivers profiles collection
+ * @param snapshotTripInfos: brief trip infos
+ * @param closestDriversList: the list of all the closest drivers OR false if failed to get the list,
+ * in the last scenario, dispatch to all the online drivers.
+ * Responsible for EXECUTING the staged sending of notifications and adding correspoding drivers to
+ * the allowed_drivers_see list of the request so that they can access the trip from their app if not
+ * yet accepted.
+ * * Closest first (1 driver)
+ * after 1min30'' of not accepting
+ * * increase the radius (3 drivers)
+ * after 1 min of not accepting
+ * * increase the radius (5 drivers)
+ * after 1 min of not accepting
+ * * increase the radius (all the rest)
+ * * after 20 min of not accepting - AUTO cancel request
+ */
+function sendStagedNotificationsDrivers(closestDriversList, snapshotTripInfos, collectionDrivers_profiles, collectionRidesDeliveryData, resolve) {
+  if (closestDriversList === false) {
+    //Send to all the drivers
+    //1. Filter the drivers based on trip requirements
+    //2. Register their fp in the allowed_drivers_see on the requests
+    //3. Send the notifications to each selected one.
+    let driverFilter = {
+      "operational_state.status": { $regex: /online/i },
+      "operational_state.last_location.city": { $regex: snapshotTripInfos.city, $options: "i" },
+      "operational_state.last_location.country": { $regex: snapshotTripInfos.country, $options: "i" },
+      operation_clearances: { $regex: snapshotTripInfos.ride_type, $options: "i" },
+      //Filter the drivers based on the vehicle type if provided
+      "operational_state.default_selected_car.vehicle_type": { $regex: snapshotTripInfos.vehicle_type, $options: "i" },
+    };
+    //..
+    collectionDrivers_profiles.find(driverFilter).toArray(function (err, driversProfiles) {
+      //Filter the drivers based on their car's maximum capacity (the amount of passengers it can handle)
+      //They can receive 3 additional requests on top of the limit of sits in their selected cars.
+      driversProfiles = driversProfiles.filter(
+        (dData) =>
+          dData.operational_state.accepted_requests_infos.total_passengers_number <= dData.operational_state.default_selected_car.max_passengers + 3
+      );
+
+      //...Register the drivers fp so that thei can see tne requests
+      let driversFp = driversProfiles.map((data) => data.driver_fp); //Drivers fingerprints
+      let driversPushNotif_token = driversProfiles.map((data) => data.push_notification_token); //Push notification token
+      collectionRidesDeliveryData.updateOne(
+        { request_fp: snapshotTripInfos.request_fp },
+        { $set: { allowed_drivers_see: driversFp } },
+        function (err, reslt) {
+          //Send the push notifications
+          let message = (message = {
+            app_id: "1e2207f0-99c2-4782-8813-d623bd0ff32a",
+            android_channel_id: /RIDE/i.test(snapshotTripInfos.ride_type)
+              ? "4ff13528-5fbb-4a98-9925-00af10aaf9fb"
+              : "4ff13528-5fbb-4a98-9925-00af10aaf9fb", //Ride or delivery channel
+            priority: 10,
+            contents: /RIDE/i.test(snapshotTripInfos.ride_type)
+              ? {
+                  en:
+                    "You have a new ride request " +
+                    (snapshotTripInfos.pickup_suburb !== false
+                      ? "from " +
+                        snapshotTripInfos.pickup_suburb.toUpperCase() +
+                        " to " +
+                        snapshotTripInfos.destination_suburb.toUpperCase() +
+                        ". Click here for more details."
+                      : "near your location, click here for more details."),
+                }
+              : {
+                  en:
+                    "You have a new delivery request " +
+                    (snapshotTripInfos.pickup_suburb !== false
+                      ? "from " +
+                        snapshotTripInfos.pickup_suburb.toUpperCase() +
+                        " to " +
+                        snapshotTripInfos.destination_suburb.toUpperCase() +
+                        ". Click here for more details."
+                      : "near your location, click here for more details."),
+                },
+            headings: /RIDE/i.test(snapshotTripInfos.ride_type)
+              ? { en: "New ride request, N$" + snapshotTripInfos.fare }
+              : { en: "New delivery request, N$" + snapshotTripInfos.fare },
+            include_player_ids: driversPushNotif_token,
+          });
+          //Send
+          sendPushUPNotification(message);
+        }
+      );
+    });
+  } //Staged send
+  else {
+    console.log("Staged send");
+  }
+}
 
 /**
  * MAIN
