@@ -1770,6 +1770,7 @@ dbPool.getConnection(function (err, connection) {
                                     latitude: driverData.operational_state.last_location.coordinates.latitude,
                                     longitude: driverData.operational_state.last_location.coordinates.longitude,
                                   },
+                                  push_notification_token: driverData.push_notification_token,
                                   eta: resp[valueIndex].eta,
                                   distance: resp[valueIndex].distance,
                                   city: req.city,
@@ -1791,6 +1792,7 @@ dbPool.getConnection(function (err, connection) {
                               latitude: driverData.operational_state.last_location.prev_coordinates.latitude,
                               longitude: driverData.operational_state.last_location.prev_coordinates.longitude,
                             }; //Add the driver's previous coordinates to the response
+                            resp[valueIndex].push_notification_token= driverData.push_notification_token; //Add the push notification token
                             resolve(resp[valueIndex]);
                           } //The wanted index is not present, make a new search
                           else {
@@ -1808,6 +1810,7 @@ dbPool.getConnection(function (err, connection) {
                                         latitude: driverData.operational_state.last_location.coordinates.latitude,
                                         longitude: driverData.operational_state.last_location.coordinates.longitude,
                                       },
+                                      push_notification_token: driverData.push_notification_token,
                                       eta: result.eta,
                                       distance: result.distance,
                                       city: req.city,
@@ -1829,6 +1832,7 @@ dbPool.getConnection(function (err, connection) {
                                   latitude: driverData.operational_state.last_location.prev_coordinates.latitude,
                                   longitude: driverData.operational_state.last_location.prev_coordinates.longitude,
                                 }; //Add the driver's previous coordinates to the response
+                                result.push_notification_token= driverData.push_notification_token;  //Add push toekn
                                 resolve(result);
                               },
                               (error) => {
@@ -1852,6 +1856,7 @@ dbPool.getConnection(function (err, connection) {
                                       latitude: driverData.operational_state.last_location.coordinates.latitude,
                                       longitude: driverData.operational_state.last_location.coordinates.longitude,
                                     },
+                                    push_notification_token: driverData.push_notification_token,
                                     eta: result.eta,
                                     distance: result.distance,
                                     city: req.city,
@@ -1872,7 +1877,8 @@ dbPool.getConnection(function (err, connection) {
                               result.prev_driver_coordinates = {
                                 latitude: driverData.operational_state.last_location.prev_coordinates.latitude,
                                 longitude: driverData.operational_state.last_location.prev_coordinates.longitude,
-                              }; //Add the driver's previous coordinates to the response
+                              }; //Add the driver's previous coordinates to the response 
+                              result.push_notification_token= driverData.push_notification_token;  //Add push token
                               resolve(result);
                             },
                             (error) => {
@@ -1896,6 +1902,7 @@ dbPool.getConnection(function (err, connection) {
                                     latitude: driverData.operational_state.last_location.coordinates.latitude,
                                     longitude: driverData.operational_state.last_location.coordinates.longitude,
                                   },
+                                  push_notification_token: driverData.push_notification_token,
                                   eta: result.eta,
                                   distance: result.distance,
                                   city: req.city,
@@ -1917,6 +1924,7 @@ dbPool.getConnection(function (err, connection) {
                               latitude: driverData.operational_state.last_location.prev_coordinates.latitude,
                               longitude: driverData.operational_state.last_location.prev_coordinates.longitude,
                             }; //Add the driver's previous coordinates to the response
+                            result.push_notification_token= driverData.push_notification_token;  //Add push notif token
                             resolve(result);
                           },
                           (error) => {
@@ -1941,6 +1949,7 @@ dbPool.getConnection(function (err, connection) {
                                   latitude: driverData.operational_state.last_location.coordinates.latitude,
                                   longitude: driverData.operational_state.last_location.coordinates.longitude,
                                 },
+                                push_notification_token: driverData.push_notification_token,
                                 eta: result.eta,
                                 distance: result.distance,
                                 city: req.city,
@@ -1962,6 +1971,7 @@ dbPool.getConnection(function (err, connection) {
                             latitude: driverData.operational_state.last_location.prev_coordinates.latitude,
                             longitude: driverData.operational_state.last_location.prev_coordinates.longitude,
                           }; //Add the driver's previous coordinates to the response
+                          result.push_notification_token= driverData.push_notification_token;  //Add push notif token
                           resolve(result);
                         },
                         (error) => {
