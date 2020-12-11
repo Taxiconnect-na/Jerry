@@ -472,6 +472,79 @@ function manageAutoCompleteDestinationLocations(resolve, destinationLocations, u
  * Responsible for checking in mongodb for previous exact record already searched.
  */
 function doMongoSearchForAutocompletedSuburbs(resolve, locationInfos, collectionSavedSuburbResults) {
+  let redisKey =
+    "savedSuburbResults-" +
+    (locationInfos.location_name !== undefined && locationInfos.location_name !== false
+      ? locationInfos.location_name.trim().toLowerCase()
+      : locationInfos.location_name) +
+    "-" +
+    (locationInfos.street_name !== undefined && locationInfos.street_name !== false
+      ? locationInfos.street_name.trim().toLowerCase()
+      : locationInfos.street_name) +
+    "-" +
+    (locationInfos.city !== undefined && locationInfos.city !== false ? locationInfos.city.trim().toLowerCase() : locationInfos.city);
+  //Check from redis first
+  redisGet(redisKey).then(
+    (resp) => {
+      if (resp !== null) {
+        //Has a previous record
+        try {
+          console.log("FOUND REDIS RECORD OF SUBURB!");
+          resp = JSON.parse(resp);
+          resolve(resp);
+        } catch (
+          error //Error parsing -get from mongodb
+        ) {
+          new Promise((res) => {
+            execMongoSearchAutoComplete(res, locationInfos, redisKey, collectionSavedSuburbResults);
+          }).then(
+            (result) => {
+              resolve(result);
+            },
+            (error) => {
+              resolve(false);
+            }
+          );
+        }
+      } //No records - get from mongodb
+      else {
+        new Promise((res) => {
+          execMongoSearchAutoComplete(res, locationInfos, redisKey, collectionSavedSuburbResults);
+        }).then(
+          (result) => {
+            resolve(result);
+          },
+          (error) => {
+            resolve(false);
+          }
+        );
+      }
+    },
+    (error) => {
+      //Error -get from mongodb
+      new Promise((res) => {
+        execMongoSearchAutoComplete(res, locationInfos, redisKey, collectionSavedSuburbResults);
+      }).then(
+        (result) => {
+          resolve(result);
+        },
+        (error) => {
+          resolve(false);
+        }
+      );
+    }
+  );
+}
+
+/**
+ * @func execMongoSearchAutoComplete
+ * Responsible for actively performing the location search from nominatim or mongodb.
+ * @param locationInfos: object containing specific single location infos
+ * @param resolve
+ * @param collectionSavedSuburbResults: collection containing all the already proccessed records
+ * @param redisKey: corresponding record key for this location point
+ */
+function execMongoSearchAutoComplete(resolve, locationInfos, redisKey, collectionSavedSuburbResults) {
   //Check mongodb for previous record
   let findPrevQuery = { location_name: locationInfos.location_name, city: locationInfos.city, street_name: locationInfos.street_name };
   collectionSavedSuburbResults.find(findPrevQuery).toArray(function (err, result) {
@@ -516,17 +589,6 @@ function doMongoSearchForAutocompletedSuburbs(resolve, locationInfos, collection
 
               //Cache result
               new Promise((res2) => {
-                let redisKey =
-                  "savedSuburbResults-" +
-                  (locationInfos.location_name !== undefined && locationInfos.location_name !== false
-                    ? locationInfos.location_name.trim().toLowerCase()
-                    : locationInfos.location_name) +
-                  "-" +
-                  (locationInfos.street_name !== undefined && locationInfos.street_name !== false
-                    ? locationInfos.street_name.trim().toLowerCase()
-                    : locationInfos.street_name) +
-                  "-" +
-                  (locationInfos.city !== undefined && locationInfos.city !== false ? locationInfos.city.trim().toLowerCase() : locationInfos.city);
                 //Update the cache
                 //add new record
                 client.set(
@@ -1461,6 +1523,7 @@ dbPool.getConnection(function (err, connection) {
      */
     app.post("/manageAutoCompleteSuburbsAndLocationTypes", function (req, res) {
       let arrayData = req.body;
+      console.log(arrayData);
       new Promise((res) => {
         manageAutoCompleteDestinationLocations(res, arrayData.locationData, arrayData.user_fingerprint, collectionSavedSuburbResults);
       }).then(

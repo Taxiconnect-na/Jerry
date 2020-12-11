@@ -322,8 +322,8 @@ function parseRequestData(inputData, resolve) {
                               passenger_number_id: index + 1,
                               dropoff_type: false,
                               coordinates: {
-                                latitude: inputData.destinationData.passenger1Destination.coordinates[0],
-                                longitude: inputData.destinationData.passenger1Destination.coordinates[1],
+                                latitude: inputData.destinationData.passenger1Destination.coordinates[1],
+                                longitude: inputData.destinationData.passenger1Destination.coordinates[0],
                               },
                               location_name:
                                 inputData.destinationData.passenger1Destination.location_name !== undefined &&
@@ -350,7 +350,7 @@ function parseRequestData(inputData, resolve) {
                             cleanInputData.destinationData.push({
                               passenger_number_id: 1,
                               dropoff_type: false,
-                              coordinates: { latitude: passenger1Data.coordinates[0], longitude: passenger1Data.coordinates[1] },
+                              coordinates: { latitude: passenger1Data.coordinates[1], longitude: passenger1Data.coordinates[0] },
                               location_name:
                                 passenger1Data.location_name !== undefined && passenger1Data.location_name !== false
                                   ? passenger1Data.location_name
@@ -365,7 +365,7 @@ function parseRequestData(inputData, resolve) {
                             cleanInputData.destinationData.push({
                               passenger_number_id: 2,
                               dropoff_type: false,
-                              coordinates: { latitude: passenger2Data.coordinates[0], longitude: passenger2Data.coordinates[1] },
+                              coordinates: { latitude: passenger2Data.coordinates[1], longitude: passenger2Data.coordinates[0] },
                               location_name:
                                 passenger2Data.location_name !== undefined && passenger2Data.location_name !== false
                                   ? passenger2Data.location_name
@@ -383,7 +383,7 @@ function parseRequestData(inputData, resolve) {
                             cleanInputData.destinationData.push({
                               passenger_number_id: 1,
                               dropoff_type: false,
-                              coordinates: { latitude: passenger1Data.coordinates[0], longitude: passenger1Data.coordinates[1] },
+                              coordinates: { latitude: passenger1Data.coordinates[1], longitude: passenger1Data.coordinates[0] },
                               location_name:
                                 passenger1Data.location_name !== undefined && passenger1Data.location_name !== false
                                   ? passenger1Data.location_name
@@ -398,7 +398,7 @@ function parseRequestData(inputData, resolve) {
                             cleanInputData.destinationData.push({
                               passenger_number_id: 2,
                               dropoff_type: false,
-                              coordinates: { latitude: passenger2Data.coordinates[0], longitude: passenger2Data.coordinates[1] },
+                              coordinates: { latitude: passenger2Data.coordinates[1], longitude: passenger2Data.coordinates[0] },
                               location_name:
                                 passenger2Data.location_name !== undefined && passenger2Data.location_name !== false
                                   ? passenger2Data.location_name
@@ -413,7 +413,7 @@ function parseRequestData(inputData, resolve) {
                             cleanInputData.destinationData.push({
                               passenger_number_id: 3,
                               dropoff_type: false,
-                              coordinates: { latitude: passenger3Data.coordinates[0], longitude: passenger3Data.coordinates[1] },
+                              coordinates: { latitude: passenger3Data.coordinates[1], longitude: passenger3Data.coordinates[0] },
                               location_name:
                                 passenger3Data.location_name !== undefined && passenger3Data.location_name !== false
                                   ? passenger3Data.location_name
@@ -432,7 +432,7 @@ function parseRequestData(inputData, resolve) {
                             cleanInputData.destinationData.push({
                               passenger_number_id: 1,
                               dropoff_type: false,
-                              coordinates: { latitude: passenger1Data.coordinates[0], longitude: passenger1Data.coordinates[1] },
+                              coordinates: { latitude: passenger1Data.coordinates[1], longitude: passenger1Data.coordinates[0] },
                               location_name:
                                 passenger1Data.location_name !== undefined && passenger1Data.location_name !== false
                                   ? passenger1Data.location_name
@@ -447,7 +447,7 @@ function parseRequestData(inputData, resolve) {
                             cleanInputData.destinationData.push({
                               passenger_number_id: 2,
                               dropoff_type: false,
-                              coordinates: { latitude: passenger2Data.coordinates[0], longitude: passenger2Data.coordinates[1] },
+                              coordinates: { latitude: passenger2Data.coordinates[1], longitude: passenger2Data.coordinates[0] },
                               location_name:
                                 passenger2Data.location_name !== undefined && passenger2Data.location_name !== false
                                   ? passenger2Data.location_name
@@ -462,7 +462,7 @@ function parseRequestData(inputData, resolve) {
                             cleanInputData.destinationData.push({
                               passenger_number_id: 3,
                               dropoff_type: false,
-                              coordinates: { latitude: passenger3Data.coordinates[0], longitude: passenger3Data.coordinates[1] },
+                              coordinates: { latitude: passenger3Data.coordinates[1], longitude: passenger3Data.coordinates[0] },
                               location_name:
                                 passenger3Data.location_name !== undefined && passenger3Data.location_name !== false
                                   ? passenger3Data.location_name
@@ -477,7 +477,7 @@ function parseRequestData(inputData, resolve) {
                             cleanInputData.destinationData.push({
                               passenger_number_id: 4,
                               dropoff_type: false,
-                              coordinates: { latitude: passenger4Data.coordinates[0], longitude: passenger4Data.coordinates[1] },
+                              coordinates: { latitude: passenger4Data.coordinates[1], longitude: passenger4Data.coordinates[0] },
                               location_name:
                                 passenger4Data.location_name !== undefined && passenger4Data.location_name !== false
                                   ? passenger4Data.location_name
@@ -497,8 +497,8 @@ function parseRequestData(inputData, resolve) {
                           passenger_number_id: 1,
                           dropoff_type: false,
                           coordinates: {
-                            latitude: inputData.destinationData.passenger1Destination.coordinates[0],
-                            longitude: inputData.destinationData.passenger1Destination.coordinates[1],
+                            latitude: inputData.destinationData.passenger1Destination.coordinates[1],
+                            longitude: inputData.destinationData.passenger1Destination.coordinates[0],
                           },
                           location_name:
                             inputData.destinationData.passenger1Destination.location_name !== undefined &&
@@ -808,10 +808,12 @@ function sendStagedNotificationsDrivers(closestDriversList, snapshotTripInfos, c
                       res2(true); //Conclude promise 2
                     } //End the staged dispatch - done
                     else {
+                      console.log("DONE STAGED DISPATCH  ---ticket: " + snapshotTripInfos.request_fp);
                       resolve({ response: "successfully_dispatched" });
                     }
                   },
                   (error) => {
+                    console.log("DONE STAGED DISPATCH  ---ticket: " + snapshotTripInfos.request_fp);
                     //Error - but notify dispatch as successfull
                     resolve({ response: "successfully_dispatched" });
                   }
@@ -841,10 +843,12 @@ function sendStagedNotificationsDrivers(closestDriversList, snapshotTripInfos, c
                             res3(true); //Conclude promise 3
                           } //End the staged dispatch - done
                           else {
+                            console.log("DONE STAGED DISPATCH  ---ticket: " + snapshotTripInfos.request_fp);
                             resolve({ response: "successfully_dispatched" });
                           }
                         },
                         (error) => {
+                          console.log("DONE STAGED DISPATCH  ---ticket: " + snapshotTripInfos.request_fp);
                           //Error - but notify dispatch as successfull
                           resolve({ response: "successfully_dispatched" });
                         }
@@ -874,10 +878,12 @@ function sendStagedNotificationsDrivers(closestDriversList, snapshotTripInfos, c
                                   res4(true); //Conclude promise 4
                                 } //End the staged dispatch - done
                                 else {
+                                  console.log("DONE STAGED DISPATCH  ---ticket: " + snapshotTripInfos.request_fp);
                                   resolve({ response: "successfully_dispatched" });
                                 }
                               },
                               (error) => {
+                                console.log("DONE STAGED DISPATCH  ---ticket: " + snapshotTripInfos.request_fp);
                                 //Error - but notify dispatch as successfull
                                 resolve({ response: "successfully_dispatched" });
                               }
