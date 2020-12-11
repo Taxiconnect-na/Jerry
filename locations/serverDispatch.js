@@ -957,7 +957,7 @@ function registerAllowedDriversForRidesAndNotify(
     request_fp: request_fp,
   };
   collectionRidesDeliveryData.find(checkAcceptance).toArray(function (err, requestInfos) {
-    if (requestInfos.length > 0) {
+    if (requestInfos.length > 0 && driversSnap.drivers_fp.length > 0) {
       //Not yet accepted
       requestInfos = requestInfos[0];
       //...
@@ -1001,7 +1001,7 @@ function registerAllowedDriversForRidesAndNotify(
           headings: /RIDE/i.test(snapshotTripInfos.ride_type)
             ? { en: "New ride request, N$" + snapshotTripInfos.fare }
             : { en: "New delivery request, N$" + snapshotTripInfos.fare },
-          include_player_ids: driversSnap.pushNotif_tokens,
+          include_player_ids: driversSnap.drivers_fp,
         };
         //Send
         sendPushUPNotification(message);
