@@ -250,6 +250,7 @@ function parseRequestData(inputData, resolve) {
                   street_name: inputData.pickupData.street_name,
                   suburb: false,
                   pickup_note: inputData.pickupNote,
+                  city: inputData.pickupData.city
                 };
                 //Auto complete the suburb
                 new Promise((res3) => {
@@ -602,6 +603,7 @@ function intitiateStagedDispatch(snapshotTripInfos, collectionDrivers_profiles, 
     if (error === null) {
       try {
         body = JSON.parse(body);
+        let
         if (body.response !== undefined || response === false) {
           //Error getting the list - send to all drivers
           new Promise((res) => {
@@ -1141,6 +1143,7 @@ clientMongo.connect(function (err) {
       };
       collectionRidesDeliveryData.find(checkPrevRequest).toArray(function (err, prevRequest) {
         if (prevRequest.length === 0) {
+            prevRequest = prevRequest[0];
           //No previous pending request - MAKE REQUEST VALID
           //Parse the data
           new Promise((res) => {
@@ -1156,7 +1159,32 @@ clientMongo.connect(function (err) {
                   }
                   //..Success
                   //2. INITIATE STAGED toDrivers DISPATCH
-                  res.send(result);
+                  new Promise((resStaged) => {
+                    //FORM THE REQUEST SNAPSHOT
+                    let snapshotTripInfos = {
+                        user_fingerprint:result.client_id,
+                        city: result.pickup_location_infos.city,
+                        country: result.country,
+                        ride_type: result.ride_mode,
+                        vehicle_type: result.carTypeSelected,
+                        org_latitude: result.pickup_location_infos.coordinates.latitude,
+                        org_longitude: result.pickup_location_infos.coordinates.longitude,
+                        request_fp:result.request_fp,
+                        pickup_suburb:result.pickup_location_infos.suburb,
+                        destination_suburb:result.destinationData[0].suburb,
+                        fare: result.fare
+                    };
+                    intitiateStagedDispatch(snapshotTripInfos, collectionDrivers_profiles, collectionRidesDeliveryData, resStaged)
+                  })
+                  .then(
+                      (result) => {
+                        res.send(result);
+                      },
+                      (error) => {
+                          console.log(error);
+                        res.send({ response: "Unable_to_make_the_request" });
+                      }
+                  );
                 });
               } //Error
               else {
