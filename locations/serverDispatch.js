@@ -686,7 +686,7 @@ function intitiateStagedDispatch(snapshotTripInfos, collectionDrivers_profiles, 
  * * after 20 min of not accepting - AUTO cancel request
  */
 function sendStagedNotificationsDrivers(closestDriversList, snapshotTripInfos, collectionDrivers_profiles, collectionRidesDeliveryData, resolve) {
-  if (closestDriversList === false) {
+  if (closestDriversList === false || closestDriversList[0] === undefined) {
     //Send to all the drivers
     //1. Filter the drivers based on trip requirements
     //2. Register their fp in the allowed_drivers_see on the requests
@@ -752,13 +752,277 @@ function sendStagedNotificationsDrivers(closestDriversList, snapshotTripInfos, c
           });
           //Send
           sendPushUPNotification(message);
+          resolve({ response: "successfully_dispatched" });
         }
       );
     });
   } //Staged send
   else {
     console.log("Staged send");
+    let driverFilter = {
+      "operational_state.status": { $regex: /online/i },
+      "operational_state.last_location.city": { $regex: snapshotTripInfos.city, $options: "i" },
+      "operational_state.last_location.country": { $regex: snapshotTripInfos.country, $options: "i" },
+      operation_clearances: { $regex: snapshotTripInfos.ride_type, $options: "i" },
+      //Filter the drivers based on the vehicle type if provided
+      "operational_state.default_selected_car.vehicle_type": { $regex: snapshotTripInfos.vehicle_type, $options: "i" },
+    };
+    //..
+    collectionDrivers_profiles.find(driverFilter).toArray(function (err, driversProfiles) {
+      //Filter the drivers based on their car's maximum capacity (the amount of passengers it can handle)
+      //They can receive 3 additional requests on top of the limit of sits in their selected cars.
+      driversProfiles = driversProfiles.filter(
+        (dData) =>
+          dData.operational_state.accepted_requests_infos.total_passengers_number <= dData.operational_state.default_selected_car.max_passengers + 3
+      );
+
+      //...Register the drivers fp so that thei can see tne requests
+      let driversFp = driversProfiles.map((data) => data.driver_fp); //Drivers fingerprints
+      let driversPushNotif_token = driversProfiles.map((data) => data.push_notification_token); //Push notification token
+
+      console.log("REQUEST TICKET " + index);
+      new Promise((res) => {
+        //Asnwer
+        console.log("[1] Closest drivers ---ticket: " + index);
+        new Promise((res5) => {
+          registerAllowedDriversForRidesAndNotify(
+            snapshotTripInfos.request_fp,
+            snapshotTripInfos,
+            { drivers_fp: driversFp, pushNotif_tokens: driversPushNotif_token },
+            collectionRidesDeliveryData,
+            1,
+            res5
+          );
+        }).then(
+          (reslt) => {
+            if (/staged_dispatch_successfull/i.test(reslt)) {
+              //Proceed with the staged dispatch
+              //1. Wait for 1 min 30'' - in ms
+              console.log("Waiting for 1min 30. ---ticket: " + index);
+              setTimeout(() => {
+                new Promise((res2) => {
+                  console.log("[2] Less closest after 1min 30. ---ticket: " + index);
+                  new Promise((res6) => {
+                    registerAllowedDriversForRidesAndNotify(
+                      snapshotTripInfos.request_fp,
+                      snapshotTripInfos,
+                      { drivers_fp: driversFp, pushNotif_tokens: driversPushNotif_token },
+                      collectionRidesDeliveryData,
+                      2,
+                      res6
+                    );
+                  }).then(
+                    (reslt) => {
+                      if (/staged_dispatch_successfull/i.test(reslt)) {
+                        //Proceed with the staged dispatch
+                        //Allow these drivers to see the requests athen resolve 2
+                        res(true); //Conclude promise 1
+                        res2(true); //Conclude promise 2
+                      } //End the staged dispatch - done
+                      else {
+                        resolve({ response: "successfully_dispatched" });
+                      }
+                    },
+                    (error) => {
+                      //Error - but notify dispatch as successfull
+                      resolve({ response: "successfully_dispatched" });
+                    }
+                  );
+                })
+                  .then()
+                  .finally(() => {
+                    //2. Wait for 1 min
+                    console.log("Waiting for 1min ---ticket: " + index);
+                    setTimeout(() => {
+                      new Promise((res3) => {
+                        console.log("[3] Less*2 closest after 1 min. ---ticket: " + index);
+                        new Promise((res7) => {
+                          registerAllowedDriversForRidesAndNotify(
+                            snapshotTripInfos.request_fp,
+                            snapshotTripInfos,
+                            { drivers_fp: driversFp, pushNotif_tokens: driversPushNotif_token },
+                            collectionRidesDeliveryData,
+                            3,
+                            res7
+                          );
+                        }).then(
+                          (reslt) => {
+                            if (/staged_dispatch_successfull/i.test(reslt)) {
+                              //Proceed with the staged dispatch
+                              //Allow these drivers to see the requests athen resolve 3
+                              res3(true); //Conclude promise 3
+                            } //End the staged dispatch - done
+                            else {
+                              resolve({ response: "successfully_dispatched" });
+                            }
+                          },
+                          (error) => {
+                            //Error - but notify dispatch as successfull
+                            resolve({ response: "successfully_dispatched" });
+                          }
+                        );
+                      })
+                        .then()
+                        .finally(() => {
+                          //3. Wait for 1 min
+                          console.log("Waiting for 1min ---ticket: " + index);
+                          setTimeout(() => {
+                            new Promise((res4) => {
+                              console.log("[4] Less*3 closest after 1 min. ---ticket: " + index);
+                              new Promise((res8) => {
+                                registerAllowedDriversForRidesAndNotify(
+                                  snapshotTripInfos.request_fp,
+                                  snapshotTripInfos,
+                                  { drivers_fp: driversFp, pushNotif_tokens: driversPushNotif_token },
+                                  collectionRidesDeliveryData,
+                                  4,
+                                  res8
+                                );
+                              }).then(
+                                (reslt) => {
+                                  if (/staged_dispatch_successfull/i.test(reslt)) {
+                                    //Proceed with the staged dispatch
+                                    //Allow these drivers to see the requests athen resolve 4
+                                    res4(true); //Conclude promise 4
+                                  } //End the staged dispatch - done
+                                  else {
+                                    resolve({ response: "successfully_dispatched" });
+                                  }
+                                },
+                                (error) => {
+                                  //Error - but notify dispatch as successfull
+                                  resolve({ response: "successfully_dispatched" });
+                                }
+                              );
+                            })
+                              .then()
+                              .finally(() => {
+                                console.log("DONE STAGED DISPATCH  ---ticket: " + index);
+                                //Done FULL STAGED DISPATCH!
+                                resolve({ response: "successfully_dispatched" });
+                              });
+                          }, 1 * 60 * 1000);
+                        });
+                    }, 1 * 60 * 1000);
+                  });
+              }, 90 * 1000);
+            } //End the staged dispatch - done
+            else {
+              resolve({ response: "successfully_dispatched" });
+            }
+          },
+          (error) => {
+            //Error - but notify dispatch as successfull
+            resolve({ response: "successfully_dispatched" });
+          }
+        );
+      });
+    });
   }
+}
+
+/**
+ * @func registerAllowedDriversForRidesAndNotify
+ * @param resolve
+ * @param collectionRidesDeliveryData: rides and deliveries collection
+ * @param driversSnap: 2 lists, one of drivers fingerprints(drivers_fp), the other for their push notification tokens(pushNotif_tokens).
+ * @param request_fp: request's fingerprint
+ * @param snapshotTripInfos: brief trip infos
+ * @param incrementalStage: number indicating which driver circle to dispatch to (from 1->4) - default:1 (closest drivers)
+ * Responsible for adding drivers to the list of those who can see the requests
+ * and send out push notification after.
+ * Also CHECK IF THE REQUEST WAS ALREADY ACCEPTED, if so end the staged dispatch process.
+ * Also CHECK IF THE NUMBER OF CLOSEST DRIVERS ALLOW the incremental stage numer.
+ */
+function registerAllowedDriversForRidesAndNotify(
+  request_fp,
+  snapshotTripInfos,
+  driversSnap,
+  collectionRidesDeliveryData,
+  incrementalStage = 1,
+  resolve
+) {
+  //Fit back to boundary.limit max
+  if (incrementalStage > 4) {
+    incrementalStage = 4;
+  }
+  //Staged boundaries
+  let stagedBoundaries = {
+    1: { start: 0, end: 1 },
+    2: { start: 1, end: 4 },
+    3: { start: 4, end: 9 },
+    4: { start: 9, end: false },
+  };
+  //Slice the drivers fp and push notif tokens to be within the boundaries
+  driversSnap.drivers_fp = driversSnap.drivers_fp.slice(
+    stagedBoundaries[incrementalStage].start,
+    stagedBoundaries[incrementalStage].end === false ? driversSnap.drivers_fp.length : stagedBoundaries[incrementalStage].end
+  );
+  driversSnap.pushNotif_tokens = driversSnap.pushNotif_tokens.slice(
+    stagedBoundaries[incrementalStage].start,
+    stagedBoundaries[incrementalStage].end === false ? driversSnap.pushNotif_tokens.length : stagedBoundaries[incrementalStage].end
+  );
+  //Check whether the request was accepted or not.
+  let checkAcceptance = {
+    "ride_state_vars.isAccepted": false,
+    request_fp: request_fp,
+  };
+  collectionRidesDeliveryData.find(checkAcceptance).toArray(function (err, requestInfos) {
+    if (requestInfos.length > 0) {
+      //Not yet accepted
+      requestInfos = requestInfos[0];
+      //...
+      //Add the drivers' fingerprints to the allowed_drivers_see
+      let updatedAllowedSee = {
+        $set: { allowed_drivers_see: [...new Set([...requestInfos.allowed_drivers_see, ...driversSnap.drivers_fp])] },
+      };
+      collectionRidesDeliveryData.updateOne(checkAcceptance, updatedAllowedSee, function (err, reslt) {
+        //Send notifications to the newly registered drivers to the allowed_drivers_see
+        //Send the push notifications
+        let message = (message = {
+          app_id: "1e2207f0-99c2-4782-8813-d623bd0ff32a",
+          android_channel_id: /RIDE/i.test(snapshotTripInfos.ride_type)
+            ? "4ff13528-5fbb-4a98-9925-00af10aaf9fb"
+            : "4ff13528-5fbb-4a98-9925-00af10aaf9fb", //Ride or delivery channel
+          priority: 10,
+          contents: /RIDE/i.test(snapshotTripInfos.ride_type)
+            ? {
+                en:
+                  "You have a new ride request " +
+                  (snapshotTripInfos.pickup_suburb !== false
+                    ? "from " +
+                      snapshotTripInfos.pickup_suburb.toUpperCase() +
+                      " to " +
+                      snapshotTripInfos.destination_suburb.toUpperCase() +
+                      ". Click here for more details."
+                    : "near your location, click here for more details."),
+              }
+            : {
+                en:
+                  "You have a new delivery request " +
+                  (snapshotTripInfos.pickup_suburb !== false
+                    ? "from " +
+                      snapshotTripInfos.pickup_suburb.toUpperCase() +
+                      " to " +
+                      snapshotTripInfos.destination_suburb.toUpperCase() +
+                      ". Click here for more details."
+                    : "near your location, click here for more details."),
+              },
+          headings: /RIDE/i.test(snapshotTripInfos.ride_type)
+            ? { en: "New ride request, N$" + snapshotTripInfos.fare }
+            : { en: "New delivery request, N$" + snapshotTripInfos.fare },
+          include_player_ids: driversSnap.pushNotif_tokens,
+        });
+        //Send
+        sendPushUPNotification(message);
+        //...
+        resolve({ response: "staged_dispatch_successfull" });
+      });
+    } //Request already accepted
+    else {
+      resolve({ response: "request_already_accepted" });
+    }
+  });
 }
 
 /**
