@@ -518,7 +518,6 @@ function parseRequestData(inputData, resolve) {
                       }
                     }).then(
                       (reslt) => {
-                        console.log("HERR");
                         //DONE
                         let url = localURL + ":" + PRICING_SERVICE_PORT + "/manageAutoCompleteSuburbsAndLocationTypes";
 
