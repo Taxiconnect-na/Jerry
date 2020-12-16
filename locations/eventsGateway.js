@@ -129,7 +129,7 @@ io.on("connection", (socket) => {
         "&user_fingerprint=" +
         req.user_fingerprint;
       requestAPI(url, function (error, response, body) {
-        console.log(body);
+        //console.log(body);
         if (error === null) {
           try {
             body = JSON.parse(body);
@@ -176,7 +176,7 @@ io.on("connection", (socket) => {
         "&user_fingerprint=" +
         req.user_fingerprint;
       requestAPI(url, function (error, response, body) {
-        console.log(body);
+        //console.log(body);
         if (error === null) {
           try {
             body = JSON.parse(body);
@@ -204,7 +204,7 @@ io.on("connection", (socket) => {
    */
   socket.on("getRoute_to_destinationSnapshot", function (req) {
     console.log("Finding route snapshot");
-    console.log(req);
+    //console.log(req);
     let servicePort = 9090;
 
     if (
@@ -260,8 +260,8 @@ io.on("connection", (socket) => {
    * Responsible for getting the list of all the closest drivers to a point (rider) limited by @param list_limit.
    */
   socket.on("get_closest_drivers_to_point", function (req) {
-    console.log("Getting all the closest drivers");
-    console.log(req);
+    //console.log("Getting all the closest drivers");
+    //console.log(req);
     let servicePort = 9090;
     let list_limit = 7; //Limited to 7 for all clients requests
 
@@ -298,7 +298,7 @@ io.on("connection", (socket) => {
         "&list_limit=" +
         list_limit;
       requestAPI(url, function (error, response, body) {
-        console.log(body);
+        //console.log(body);
         if (error === null) {
           try {
             body = JSON.parse(body);
@@ -345,7 +345,7 @@ io.on("connection", (socket) => {
         req.city;
 
       requestAPI(url, function (error, response, body) {
-        console.log(body);
+        //console.log(body);
         if (error === null) {
           try {
             body = JSON.parse(body);
@@ -370,7 +370,7 @@ io.on("connection", (socket) => {
    */
   //socket.emit("getPricingForRideorDelivery");
   socket.on("getPricingForRideorDelivery", function (req) {
-    console.log(req);
+    //console.log(req);
     let servicePort = 8989;
     if (
       req.user_fingerprint !== undefined &&

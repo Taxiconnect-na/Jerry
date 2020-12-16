@@ -177,7 +177,7 @@ function getRouteInfosDestination(
                 );
               }).then(
                 () => {
-                  console.log("Updated relative eta cache.");
+                  //console.log("Updated relative eta cache.");
                 },
                 () => {}
               );
@@ -463,10 +463,23 @@ function tripChecker_Dispatcher(
   user_nature,
   resolve
 ) {
+  /*
+  getMongoRecordTrip_cacheLater(
+                        collectionRidersData_repr,
+                        user_fingerprint,
+                        user_nature,
+                        request_fp,
+                        resolve
+                      );
+  */
   if (user_nature == "rider") {
     //Check if the user has a pending request
+    let rideChecker = {
+      client_id: user_fingerprint,
+      "ride_state_vars.isRideCompleted_riderSide": false,
+    };
     collectionRidersData_repr
-      .find({ client_id: user_fingerprint, isArrivedToDestination: false })
+      .find(rideChecker)
       .toArray(function (err, userDataRepr) {
         if (err) {
           resolve(false);
@@ -477,101 +490,49 @@ function tripChecker_Dispatcher(
           resolve(false);
         } //Found a user record
         else {
-          userDataRepr[0].isArrivedToDestination = true; //DEBUG FOR NO RIDES SIMULATION
+          //userDataRepr[0].isArrivedToDestination = true; //DEBUG FOR NO RIDES SIMULATION
           //...
-          if (userDataRepr[0].isArrivedToDestination === false) {
+          if (
+            userDataRepr[0].ride_state_vars.isRideCompleted_riderSide === false
+          ) {
             //REQUEST FP
             let request_fp = userDataRepr[0].request_fp;
             //Check if there are any requests cached
-            redisGet(user_fingerprint).then(
-              (respUser) => {
-                if (respUser !== null) {
-                  try {
-                    respUser = JSON.parse(respUser);
-                    if (
-                      respUser.rides_history.isArrivedToDestination === false
-                    ) {
-                      respUser = respUser.rides_history;
-                      //Found cached infos
-                      //Launch a precomputation for the next details and cache them of course
-                      /*let request0 = new Promise((reslv) => {
-                    getUserRideCachedData_andComputeRoute(collectionRidersData_repr, user_fingerprint, user_nature, respUser, reslv);
-                  }).then(
-                    (result) => {
-                      //console.log(result);
-                    },
-                    (error) => {
-                      //console.log(error);
-                    }
-                  );*/
+            redisGet(user_fingerprint).then((reslt) => {
+              if (reslt !== null) {
+                //Has some record
+                try {
+                  reslt = JSON.parse(reslt);
+                  if (
+                    reslt.rides_history !== undefined &&
+                    reslt.rides_history !== null &&
+                    reslt.rides_history !== "no_rides"
+                  ) {
+                    //Make a fresh query in the background and return cached results
+                    new Promise((resX) => {
                       getMongoRecordTrip_cacheLater(
                         collectionRidersData_repr,
                         user_fingerprint,
                         user_nature,
                         request_fp,
-                        resolve
+                        resX
                       );
-                      //Return the cached data if any
-                      redisGet(respUser.request_fp).then(
-                        (cachedTripData) => {
-                          if (cachedTripData !== null) {
-                            //FOUND CACHED TRIP DATA
-                            try {
-                              cachedTripData = JSON.parse(cachedTripData);
-                              //DOne
-                              //Isolate pending requests
-                              if (respUser.isAccepted !== true) {
-                                resolve(cachedTripData);
-                              }
-                            } catch (error) {
-                              //console.log(error);
-                              //Error precompute from mongo
-                              //console.log("Compute route infos from mongo");
-                              getMongoRecordTrip_cacheLater(
-                                collectionRidersData_repr,
-                                user_fingerprint,
-                                user_nature,
-                                request_fp,
-                                resolve
-                              );
-                            }
-                          } //No cached trip data - precompute from mongo
-                          else {
-                            //console.log("Compute route infos from mongo");
-                            getMongoRecordTrip_cacheLater(
-                              collectionRidersData_repr,
-                              user_fingerprint,
-                              user_nature,
-                              request_fp,
-                              resolve
-                            );
-                          }
-                        },
-                        (errorGet) => {
-                          //console.log("No cached trip found");
-                          //console.log("Compute route infos from mongo");
-                          getMongoRecordTrip_cacheLater(
-                            collectionRidersData_repr,
-                            user_fingerprint,
-                            user_nature,
-                            request_fp,
-                            resolve
-                          );
-                        }
-                      );
-                    } //No cached trip infos - No requests
-                    else {
-                      //console.log("No rides");
-                      resolve("no_rides");
-                    }
-                  } catch (error) {
-                    //console.log(error);
-                    //console.log("No rides");
-                    resolve("no_rides");
+                    }).then(() => {});
+                    //return response
+                    resolve(reslt.rides_history);
+                  } //Make a fresh query
+                  else {
+                    getMongoRecordTrip_cacheLater(
+                      collectionRidersData_repr,
+                      user_fingerprint,
+                      user_nature,
+                      request_fp,
+                      resolve
+                    );
                   }
-                } //No cached trip infos - get from mongo and cache it at the end
-                else {
-                  //console.log("Compute route infos from mongo");
+                } catch (
+                  error //Make fresh query
+                ) {
                   getMongoRecordTrip_cacheLater(
                     collectionRidersData_repr,
                     user_fingerprint,
@@ -580,11 +541,8 @@ function tripChecker_Dispatcher(
                     resolve
                   );
                 }
-              },
-              (errorGet) => {
-                //Get from mongo and cache
-                //console.log(errorGet);
-                //console.log("Compute route infos from mongo");
+              } //No records - make a fresh query
+              else {
                 getMongoRecordTrip_cacheLater(
                   collectionRidersData_repr,
                   user_fingerprint,
@@ -593,7 +551,8 @@ function tripChecker_Dispatcher(
                   resolve
                 );
               }
-            );
+            });
+            //console.log(userDataRepr);
           } //No rides recorded
           else {
             //console.log("no rides");
@@ -946,6 +905,64 @@ function computeRouteDetails_skeleton(result, resolve) {
           resolve(false);
         }
       );*/
+      //Cache response
+      new Promise((res) => {
+        //Get previous record
+        redisGet(rideHistory.client_id).then(
+          (reslt) => {
+            if (reslt !== null) {
+              try {
+                reslt = JSON.parse(reslt);
+                //Update old record
+                reslt.rides_history = {
+                  pickupLocation_name:
+                    rideHistory.pickup_location_infos.location_name,
+                  pickupLocation_point: [
+                    rideHistory.pickup_location_infos.coordinates.longitude,
+                    rideHistory.pickup_location_infos.coordinates.latitude,
+                  ],
+                  request_status: "pending",
+                };
+                //..
+                client.set(
+                  rideHistory.client_id,
+                  JSON.stringify(reslt),
+                  redis.print
+                );
+                res(true);
+              } catch (error) {
+                //Ignore
+                res(false);
+              }
+            } //Create fresh record
+            else {
+              client.set(
+                rideHistory.client_id,
+                JSON.stringify({
+                  rides_history: {
+                    pickupLocation_name:
+                      rideHistory.pickup_location_infos.location_name,
+                    pickupLocation_point: [
+                      rideHistory.pickup_location_infos.coordinates.longitude,
+                      rideHistory.pickup_location_infos.coordinates.latitude,
+                    ],
+                    request_status: "pending",
+                  },
+                }),
+                redis.print
+              );
+              res(true);
+            }
+          },
+          (error) => {
+            //Ignore
+            res(false);
+          }
+        );
+      }).then(
+        () => {},
+        () => {}
+      );
       //Add request status variable - pending
       resolve({
         pickupLocation_name: rideHistory.pickup_location_infos.location_name,
@@ -1604,7 +1621,7 @@ function updateRelativeDistancesRiderDrivers(
           queryChecker,
           updatedRecord,
           function (err, res) {
-            console.log("Updated relative distance record.");
+            //console.log("Updated relative distance record.");
             resolve(true);
           }
         );
@@ -1776,7 +1793,7 @@ dbPool.getConnection(function (err, connection) {
             //console.log("[" + chaineDateUTC + "] Compute and dispatch time (trip) ------>  " + timeTaken + " ms");
             //Update the rider
             if (result !== false) {
-              //console.log(result);
+              console.log(result);
               if (result != "no_rides") {
                 res.send(result);
                 //socket.emit("trackdriverroute-response", result);
@@ -1812,7 +1829,7 @@ dbPool.getConnection(function (err, connection) {
           );
         }).then(
           () => {
-            console.log("Location updated [rider]");
+            //console.log("Location updated [rider]");
           },
           () => {}
         );
@@ -2041,7 +2058,7 @@ dbPool.getConnection(function (err, connection) {
                               resp[valueIndex] !== null &&
                               resp[valueIndex] !== false
                             ) {
-                              console.log("Foudn cached data");
+                              //console.log("Foudn cached data");
                               //Update the cache as well
                               new Promise((res) => {
                                 getRouteInfosDestination(tmp, res, true, {
@@ -2424,7 +2441,7 @@ dbPool.getConnection(function (err, connection) {
                     );
                   }).then(
                     (reslt) => {
-                      console.log(reslt);
+                      //console.log(reslt);
                       res.send(reslt);
                     },
                     (error) => {
