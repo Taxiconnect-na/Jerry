@@ -9,7 +9,7 @@ const MongoClient = require("mongodb").MongoClient;
 
 var app = express();
 var server = http.createServer(app);
-const io = require("socket.io").listen(server);
+const io = require("socket.io")(server);
 const mysql = require("mysql");
 const requestAPI = require("request");
 const crypto = require("crypto");
@@ -42,7 +42,18 @@ function resolveDate() {
   date = moment(date.getTime()).utcOffset(2);
 
   dateObject = date;
-  date = date.year() + "-" + (date.month() + 1) + "-" + date.date() + " " + date.hour() + ":" + date.minute() + ":" + date.second();
+  date =
+    date.year() +
+    "-" +
+    (date.month() + 1) +
+    "-" +
+    date.date() +
+    " " +
+    date.hour() +
+    ":" +
+    date.minute() +
+    ":" +
+    date.second();
   chaineDateUTC = date;
 }
 resolveDate();
@@ -88,14 +99,29 @@ function generateUniqueFingerprint(str, encryption = false, resolve) {
   str = str.trim();
   let fingerprint = null;
   if (encryption === false) {
-    fingerprint = crypto.createHmac("sha512WithRSAEncryption", "TAXICONNECTBASICKEYFINGERPRINTS-RIDES-DELIVERY").update(str).digest("hex");
+    fingerprint = crypto
+      .createHmac(
+        "sha512WithRSAEncryption",
+        "TAXICONNECTBASICKEYFINGERPRINTS-RIDES-DELIVERY"
+      )
+      .update(str)
+      .digest("hex");
     resolve(fingerprint);
   } else if (/md5/i.test(encryption)) {
-    fingerprint = crypto.createHmac("md5WithRSAEncryption", "TAXICONNECTBASICKEYFINGERPRINTS-RIDES-DELIVERY").update(str).digest("hex");
+    fingerprint = crypto
+      .createHmac(
+        "md5WithRSAEncryption",
+        "TAXICONNECTBASICKEYFINGERPRINTS-RIDES-DELIVERY"
+      )
+      .update(str)
+      .digest("hex");
     resolve(fingerprint);
   } //Other - default
   else {
-    fingerprint = crypto.createHmac("sha256", "TAXICONNECTBASICKEYFINGERPRINTS-RIDES-DELIVERY").update(str).digest("hex");
+    fingerprint = crypto
+      .createHmac("sha256", "TAXICONNECTBASICKEYFINGERPRINTS-RIDES-DELIVERY")
+      .update(str)
+      .digest("hex");
     resolve(fingerprint);
   }
 }
@@ -126,7 +152,12 @@ function parseRequestData(inputData, resolve) {
     parsedData.client_id = inputData.user_fingerprint;
     parsedData.request_fp = dateObject.unix();
     //Compute the request fp
-    let uniqueString = inputData.user_fingerprint + "-" + inputData.passengersNo + "-" + chaineDateUTC;
+    let uniqueString =
+      inputData.user_fingerprint +
+      "-" +
+      inputData.passengersNo +
+      "-" +
+      chaineDateUTC;
     new Promise((res) => {
       generateUniqueFingerprint(uniqueString, false, res);
     })
@@ -137,19 +168,24 @@ function parseRequestData(inputData, resolve) {
         },
         (error) => {
           console.log(error);
-          parsedData.request_fp = parsedData.user_fingerprint + dateObject.unix(); //Make a fingerprint out of the timestamp
+          parsedData.request_fp =
+            parsedData.user_fingerprint + dateObject.unix(); //Make a fingerprint out of the timestamp
         }
       )
       .finally(() => {
         console.log("here");
         //Continue
         parsedData.taxi_id = false;
-        parsedData.payment_method = inputData.paymentMethod.trim().toUpperCase();
+        parsedData.payment_method = inputData.paymentMethod
+          .trim()
+          .toUpperCase();
         parsedData.connect_type = inputData.connectType;
         parsedData.ride_mode = inputData.rideType;
         parsedData.fare = inputData.fareAmount;
         parsedData.passengers_number = inputData.passengersNo;
-        parsedData.request_type = /now/i.test(inputData.timeScheduled) ? "immediate" : "scheduled";
+        parsedData.request_type = /now/i.test(inputData.timeScheduled)
+          ? "immediate"
+          : "scheduled";
         parsedData.allowed_drivers_see = []; //LIST OF THE DRIVERS WHO CAN SEE THE REQUEST IN THEIR APP.
         //Resolve the pickup time
         new Promise((res1) => {
@@ -163,7 +199,9 @@ function parseRequestData(inputData, resolve) {
               //For today
               //Generate a date mockup for today
               //Timestring format of eg. Today at 14:30 - EXTREMELY IMPORTANT
-              let specifiedTIme = inputData.timeScheduled.split(" ")[2].split(":");
+              let specifiedTIme = inputData.timeScheduled
+                .split(" ")[2]
+                .split(":");
               let tmpDateString =
                 dateObject.year() +
                 "-" +
@@ -182,9 +220,20 @@ function parseRequestData(inputData, resolve) {
             else {
               //Generate a date mockup for tomorrow
               //Timestring format of eg. Today at 14:30 - EXTREMELY IMPORTANT
-              let specifiedTIme = inputData.timeScheduled.split(" ")[2].split(":");
+              let specifiedTIme = inputData.timeScheduled
+                .split(" ")[2]
+                .split(":");
               let tmpDateString = new Date(
-                dateObject.year() + "-" + (dateObject.month() + 1) + "-" + dateObject.date() + " " + specifiedTIme[0] + ":" + specifiedTIme[1] + ":00"
+                dateObject.year() +
+                  "-" +
+                  (dateObject.month() + 1) +
+                  "-" +
+                  dateObject.date() +
+                  " " +
+                  specifiedTIme[0] +
+                  ":" +
+                  specifiedTIme[1] +
+                  ":00"
               );
               tmpDateString = tmpDateString.getTime();
               tmpDateString += 86400000; //Add a day in ms
@@ -223,13 +272,16 @@ function parseRequestData(inputData, resolve) {
                   parsedData.trip_simplified_id = result;
                 },
                 (erro) => {
-                  parsedData.trip_simplified_id = parsedData.client_id.substring(0, 15) + dateObject.milliseconds();
+                  parsedData.trip_simplified_id =
+                    parsedData.client_id.substring(0, 15) +
+                    dateObject.milliseconds();
                 }
               )
               .finally(() => {
                 //continue
                 parsedData.carTypeSelected = inputData.carTypeSelected;
-                parsedData.isAllGoingToSameDestination = inputData.isAllGoingToSameDestination;
+                parsedData.isAllGoingToSameDestination =
+                  inputData.isAllGoingToSameDestination;
                 parsedData.isArrivedToDestination = false;
                 parsedData.date_dropoff = false;
                 parsedData.date_pickup = false;
@@ -247,7 +299,10 @@ function parseRequestData(inputData, resolve) {
                 //2.Pickup location infos
                 parsedData.pickup_location_infos = {
                   pickup_type: inputData.naturePickup,
-                  coordinates: { latitude: inputData.pickupData.coordinates[0], longitude: inputData.pickupData.coordinates[1] },
+                  coordinates: {
+                    latitude: inputData.pickupData.coordinates[0],
+                    longitude: inputData.pickupData.coordinates[1],
+                  },
                   location_name: inputData.pickupData.location_name,
                   street_name: inputData.pickupData.street_name,
                   suburb: false,
@@ -301,8 +356,11 @@ function parseRequestData(inputData, resolve) {
                     };
                     //4. Rider infos
                     parsedData.rider_infos = {
-                      actualRider: /^someonelese$/i.test(inputData.actualRider) ? "someoneelse" : "me",
-                      actualRiderPhone_number: inputData.actualRiderPhone_number,
+                      actualRider: /^someonelese$/i.test(inputData.actualRider)
+                        ? "someoneelse"
+                        : "me",
+                      actualRiderPhone_number:
+                        inputData.actualRiderPhone_number,
                     };
                     console.log("DESTInation data autoc");
                     //5. DESTINATION DATA
@@ -322,18 +380,28 @@ function parseRequestData(inputData, resolve) {
                               passenger_number_id: index + 1,
                               dropoff_type: false,
                               coordinates: {
-                                latitude: inputData.destinationData.passenger1Destination.coordinates[1],
-                                longitude: inputData.destinationData.passenger1Destination.coordinates[0],
+                                latitude:
+                                  inputData.destinationData
+                                    .passenger1Destination.coordinates[1],
+                                longitude:
+                                  inputData.destinationData
+                                    .passenger1Destination.coordinates[0],
                               },
                               location_name:
-                                inputData.destinationData.passenger1Destination.location_name !== undefined &&
-                                inputData.destinationData.passenger1Destination.location_name !== false
-                                  ? inputData.destinationData.passenger1Destination.location_name
+                                inputData.destinationData.passenger1Destination
+                                  .location_name !== undefined &&
+                                inputData.destinationData.passenger1Destination
+                                  .location_name !== false
+                                  ? inputData.destinationData
+                                      .passenger1Destination.location_name
                                   : false,
                               street_name:
-                                inputData.destinationData.passenger1Destination.street !== undefined &&
-                                inputData.destinationData.passenger1Destination.street !== false
-                                  ? inputData.destinationData.passenger1Destination.street
+                                inputData.destinationData.passenger1Destination
+                                  .street !== undefined &&
+                                inputData.destinationData.passenger1Destination
+                                  .street !== false
+                                  ? inputData.destinationData
+                                      .passenger1Destination.street
                                   : false,
                               suburb: false,
                               state: false,
@@ -346,31 +414,49 @@ function parseRequestData(inputData, resolve) {
                         else {
                           if (inputData.passengersNo == 2) {
                             //Passenger1
-                            let passenger1Data = inputData.destinationData.passenger1Destination;
+                            let passenger1Data =
+                              inputData.destinationData.passenger1Destination;
                             cleanInputData.destinationData.push({
                               passenger_number_id: 1,
                               dropoff_type: false,
-                              coordinates: { latitude: passenger1Data.coordinates[1], longitude: passenger1Data.coordinates[0] },
+                              coordinates: {
+                                latitude: passenger1Data.coordinates[1],
+                                longitude: passenger1Data.coordinates[0],
+                              },
                               location_name:
-                                passenger1Data.location_name !== undefined && passenger1Data.location_name !== false
+                                passenger1Data.location_name !== undefined &&
+                                passenger1Data.location_name !== false
                                   ? passenger1Data.location_name
                                   : false,
-                              street_name: passenger1Data.street !== undefined && passenger1Data.street !== false ? passenger1Data.street : false,
+                              street_name:
+                                passenger1Data.street !== undefined &&
+                                passenger1Data.street !== false
+                                  ? passenger1Data.street
+                                  : false,
                               suburb: false,
                               state: false,
                               city: inputData.pickupData.city,
                             });
                             //Passenger2
-                            let passenger2Data = inputData.destinationData.passenger2Destination;
+                            let passenger2Data =
+                              inputData.destinationData.passenger2Destination;
                             cleanInputData.destinationData.push({
                               passenger_number_id: 2,
                               dropoff_type: false,
-                              coordinates: { latitude: passenger2Data.coordinates[1], longitude: passenger2Data.coordinates[0] },
+                              coordinates: {
+                                latitude: passenger2Data.coordinates[1],
+                                longitude: passenger2Data.coordinates[0],
+                              },
                               location_name:
-                                passenger2Data.location_name !== undefined && passenger2Data.location_name !== false
+                                passenger2Data.location_name !== undefined &&
+                                passenger2Data.location_name !== false
                                   ? passenger2Data.location_name
                                   : false,
-                              street_name: passenger2Data.street !== undefined && passenger2Data.street !== false ? passenger2Data.street : false,
+                              street_name:
+                                passenger2Data.street !== undefined &&
+                                passenger2Data.street !== false
+                                  ? passenger2Data.street
+                                  : false,
                               suburb: false,
                               state: false,
                               city: inputData.pickupData.city,
@@ -379,46 +465,73 @@ function parseRequestData(inputData, resolve) {
                             res5(cleanInputData);
                           } else if (inputData.passengersNo == 3) {
                             //Passenger1
-                            let passenger1Data = inputData.destinationData.passenger1Destination;
+                            let passenger1Data =
+                              inputData.destinationData.passenger1Destination;
                             cleanInputData.destinationData.push({
                               passenger_number_id: 1,
                               dropoff_type: false,
-                              coordinates: { latitude: passenger1Data.coordinates[1], longitude: passenger1Data.coordinates[0] },
+                              coordinates: {
+                                latitude: passenger1Data.coordinates[1],
+                                longitude: passenger1Data.coordinates[0],
+                              },
                               location_name:
-                                passenger1Data.location_name !== undefined && passenger1Data.location_name !== false
+                                passenger1Data.location_name !== undefined &&
+                                passenger1Data.location_name !== false
                                   ? passenger1Data.location_name
                                   : false,
-                              street_name: passenger1Data.street !== undefined && passenger1Data.street !== false ? passenger1Data.street : false,
+                              street_name:
+                                passenger1Data.street !== undefined &&
+                                passenger1Data.street !== false
+                                  ? passenger1Data.street
+                                  : false,
                               suburb: false,
                               state: false,
                               city: inputData.pickupData.city,
                             });
                             //Passenger2
-                            let passenger2Data = inputData.destinationData.passenger2Destination;
+                            let passenger2Data =
+                              inputData.destinationData.passenger2Destination;
                             cleanInputData.destinationData.push({
                               passenger_number_id: 2,
                               dropoff_type: false,
-                              coordinates: { latitude: passenger2Data.coordinates[1], longitude: passenger2Data.coordinates[0] },
+                              coordinates: {
+                                latitude: passenger2Data.coordinates[1],
+                                longitude: passenger2Data.coordinates[0],
+                              },
                               location_name:
-                                passenger2Data.location_name !== undefined && passenger2Data.location_name !== false
+                                passenger2Data.location_name !== undefined &&
+                                passenger2Data.location_name !== false
                                   ? passenger2Data.location_name
                                   : false,
-                              street_name: passenger2Data.street !== undefined && passenger2Data.street !== false ? passenger2Data.street : false,
+                              street_name:
+                                passenger2Data.street !== undefined &&
+                                passenger2Data.street !== false
+                                  ? passenger2Data.street
+                                  : false,
                               suburb: false,
                               state: false,
                               city: inputData.pickupData.city,
                             });
                             //Passenger3
-                            let passenger3Data = inputData.destinationData.passenger3Destination;
+                            let passenger3Data =
+                              inputData.destinationData.passenger3Destination;
                             cleanInputData.destinationData.push({
                               passenger_number_id: 3,
                               dropoff_type: false,
-                              coordinates: { latitude: passenger3Data.coordinates[1], longitude: passenger3Data.coordinates[0] },
+                              coordinates: {
+                                latitude: passenger3Data.coordinates[1],
+                                longitude: passenger3Data.coordinates[0],
+                              },
                               location_name:
-                                passenger3Data.location_name !== undefined && passenger3Data.location_name !== false
+                                passenger3Data.location_name !== undefined &&
+                                passenger3Data.location_name !== false
                                   ? passenger3Data.location_name
                                   : false,
-                              street_name: passenger3Data.street !== undefined && passenger3Data.street !== false ? passenger3Data.street : false,
+                              street_name:
+                                passenger3Data.street !== undefined &&
+                                passenger3Data.street !== false
+                                  ? passenger3Data.street
+                                  : false,
                               suburb: false,
                               state: false,
                               city: inputData.pickupData.city,
@@ -428,61 +541,97 @@ function parseRequestData(inputData, resolve) {
                           } else if (inputData.passengersNo == 4) {
                             console.log("Foudn 4");
                             //Passenger1
-                            let passenger1Data = inputData.destinationData.passenger1Destination;
+                            let passenger1Data =
+                              inputData.destinationData.passenger1Destination;
                             cleanInputData.destinationData.push({
                               passenger_number_id: 1,
                               dropoff_type: false,
-                              coordinates: { latitude: passenger1Data.coordinates[1], longitude: passenger1Data.coordinates[0] },
+                              coordinates: {
+                                latitude: passenger1Data.coordinates[1],
+                                longitude: passenger1Data.coordinates[0],
+                              },
                               location_name:
-                                passenger1Data.location_name !== undefined && passenger1Data.location_name !== false
+                                passenger1Data.location_name !== undefined &&
+                                passenger1Data.location_name !== false
                                   ? passenger1Data.location_name
                                   : false,
-                              street_name: passenger1Data.street !== undefined && passenger1Data.street !== false ? passenger1Data.street : false,
+                              street_name:
+                                passenger1Data.street !== undefined &&
+                                passenger1Data.street !== false
+                                  ? passenger1Data.street
+                                  : false,
                               suburb: false,
                               state: false,
                               city: inputData.pickupData.city,
                             });
                             //Passenger2
-                            let passenger2Data = inputData.destinationData.passenger2Destination;
+                            let passenger2Data =
+                              inputData.destinationData.passenger2Destination;
                             cleanInputData.destinationData.push({
                               passenger_number_id: 2,
                               dropoff_type: false,
-                              coordinates: { latitude: passenger2Data.coordinates[1], longitude: passenger2Data.coordinates[0] },
+                              coordinates: {
+                                latitude: passenger2Data.coordinates[1],
+                                longitude: passenger2Data.coordinates[0],
+                              },
                               location_name:
-                                passenger2Data.location_name !== undefined && passenger2Data.location_name !== false
+                                passenger2Data.location_name !== undefined &&
+                                passenger2Data.location_name !== false
                                   ? passenger2Data.location_name
                                   : false,
-                              street_name: passenger2Data.street !== undefined && passenger2Data.street !== false ? passenger2Data.street : false,
+                              street_name:
+                                passenger2Data.street !== undefined &&
+                                passenger2Data.street !== false
+                                  ? passenger2Data.street
+                                  : false,
                               suburb: false,
                               state: false,
                               city: inputData.pickupData.city,
                             });
                             //Passenger3
-                            let passenger3Data = inputData.destinationData.passenger3Destination;
+                            let passenger3Data =
+                              inputData.destinationData.passenger3Destination;
                             cleanInputData.destinationData.push({
                               passenger_number_id: 3,
                               dropoff_type: false,
-                              coordinates: { latitude: passenger3Data.coordinates[1], longitude: passenger3Data.coordinates[0] },
+                              coordinates: {
+                                latitude: passenger3Data.coordinates[1],
+                                longitude: passenger3Data.coordinates[0],
+                              },
                               location_name:
-                                passenger3Data.location_name !== undefined && passenger3Data.location_name !== false
+                                passenger3Data.location_name !== undefined &&
+                                passenger3Data.location_name !== false
                                   ? passenger3Data.location_name
                                   : false,
-                              street_name: passenger3Data.street !== undefined && passenger3Data.street !== false ? passenger3Data.street : false,
+                              street_name:
+                                passenger3Data.street !== undefined &&
+                                passenger3Data.street !== false
+                                  ? passenger3Data.street
+                                  : false,
                               suburb: false,
                               state: false,
                               city: inputData.pickupData.city,
                             });
                             //Passenger4
-                            let passenger4Data = inputData.destinationData.passenger4Destination;
+                            let passenger4Data =
+                              inputData.destinationData.passenger4Destination;
                             cleanInputData.destinationData.push({
                               passenger_number_id: 4,
                               dropoff_type: false,
-                              coordinates: { latitude: passenger4Data.coordinates[1], longitude: passenger4Data.coordinates[0] },
+                              coordinates: {
+                                latitude: passenger4Data.coordinates[1],
+                                longitude: passenger4Data.coordinates[0],
+                              },
                               location_name:
-                                passenger4Data.location_name !== undefined && passenger4Data.location_name !== false
+                                passenger4Data.location_name !== undefined &&
+                                passenger4Data.location_name !== false
                                   ? passenger4Data.location_name
                                   : false,
-                              street_name: passenger4Data.street !== undefined && passenger4Data.street !== false ? passenger4Data.street : false,
+                              street_name:
+                                passenger4Data.street !== undefined &&
+                                passenger4Data.street !== false
+                                  ? passenger4Data.street
+                                  : false,
                               suburb: false,
                               state: false,
                               city: inputData.pickupData.city,
@@ -497,18 +646,28 @@ function parseRequestData(inputData, resolve) {
                           passenger_number_id: 1,
                           dropoff_type: false,
                           coordinates: {
-                            latitude: inputData.destinationData.passenger1Destination.coordinates[1],
-                            longitude: inputData.destinationData.passenger1Destination.coordinates[0],
+                            latitude:
+                              inputData.destinationData.passenger1Destination
+                                .coordinates[1],
+                            longitude:
+                              inputData.destinationData.passenger1Destination
+                                .coordinates[0],
                           },
                           location_name:
-                            inputData.destinationData.passenger1Destination.location_name !== undefined &&
-                            inputData.destinationData.passenger1Destination.location_name !== false
-                              ? inputData.destinationData.passenger1Destination.location_name
+                            inputData.destinationData.passenger1Destination
+                              .location_name !== undefined &&
+                            inputData.destinationData.passenger1Destination
+                              .location_name !== false
+                              ? inputData.destinationData.passenger1Destination
+                                  .location_name
                               : false,
                           street_name:
-                            inputData.destinationData.passenger1Destination.street !== undefined &&
-                            inputData.destinationData.passenger1Destination.street !== false
-                              ? inputData.destinationData.passenger1Destination.street
+                            inputData.destinationData.passenger1Destination
+                              .street !== undefined &&
+                            inputData.destinationData.passenger1Destination
+                              .street !== false
+                              ? inputData.destinationData.passenger1Destination
+                                  .street
                               : false,
                           suburb: false,
                           state: false,
@@ -519,10 +678,20 @@ function parseRequestData(inputData, resolve) {
                     }).then(
                       (reslt) => {
                         //DONE
-                        let url = localURL + ":" + PRICING_SERVICE_PORT + "/manageAutoCompleteSuburbsAndLocationTypes";
+                        let url =
+                          localURL +
+                          ":" +
+                          PRICING_SERVICE_PORT +
+                          "/manageAutoCompleteSuburbsAndLocationTypes";
 
                         requestAPI.post(
-                          { url, form: { locationData: reslt.destinationData, user_fingerprint: inputData.user_fingerprint } },
+                          {
+                            url,
+                            form: {
+                              locationData: reslt.destinationData,
+                              user_fingerprint: inputData.user_fingerprint,
+                            },
+                          },
                           function (error, response, body) {
                             console.log(body);
                             if (error === null) {
@@ -580,7 +749,12 @@ function parseRequestData(inputData, resolve) {
  * * increase the radius (all the rest)
  * * after 20 min of not accepting - AUTO cancel request
  */
-function intitiateStagedDispatch(snapshotTripInfos, collectionDrivers_profiles, collectionRidesDeliveryData, resolve) {
+function intitiateStagedDispatch(
+  snapshotTripInfos,
+  collectionDrivers_profiles,
+  collectionRidesDeliveryData,
+  resolve
+) {
   //Get the list of all the closest drivers
   let url =
     localURL +
@@ -607,7 +781,13 @@ function intitiateStagedDispatch(snapshotTripInfos, collectionDrivers_profiles, 
         if (body.response !== undefined || response === false) {
           //Error getting the list - send to all drivers
           new Promise((res) => {
-            sendStagedNotificationsDrivers(false, snapshotTripInfos, collectionDrivers_profiles, collectionRidesDeliveryData, res);
+            sendStagedNotificationsDrivers(
+              false,
+              snapshotTripInfos,
+              collectionDrivers_profiles,
+              collectionRidesDeliveryData,
+              res
+            );
           }).then(
             (result) => {
               console.log(result);
@@ -621,7 +801,13 @@ function intitiateStagedDispatch(snapshotTripInfos, collectionDrivers_profiles, 
         } //Successfully got the list
         else {
           new Promise((res) => {
-            sendStagedNotificationsDrivers(body, snapshotTripInfos, collectionDrivers_profiles, collectionRidesDeliveryData, res);
+            sendStagedNotificationsDrivers(
+              body,
+              snapshotTripInfos,
+              collectionDrivers_profiles,
+              collectionRidesDeliveryData,
+              res
+            );
           }).then(
             (result) => {
               console.log(result);
@@ -637,7 +823,13 @@ function intitiateStagedDispatch(snapshotTripInfos, collectionDrivers_profiles, 
         console.log(error);
         //Error getting the list of closest drivers - send to all the drivers
         new Promise((res) => {
-          sendStagedNotificationsDrivers(false, snapshotTripInfos, collectionDrivers_profiles, collectionRidesDeliveryData, res);
+          sendStagedNotificationsDrivers(
+            false,
+            snapshotTripInfos,
+            collectionDrivers_profiles,
+            collectionRidesDeliveryData,
+            res
+          );
         }).then(
           (result) => {
             console.log(result);
@@ -652,7 +844,13 @@ function intitiateStagedDispatch(snapshotTripInfos, collectionDrivers_profiles, 
     } else {
       //Error getting the list of closest drivers - send to all the drivers
       new Promise((res) => {
-        sendStagedNotificationsDrivers(false, snapshotTripInfos, collectionDrivers_profiles, collectionRidesDeliveryData, res);
+        sendStagedNotificationsDrivers(
+          false,
+          snapshotTripInfos,
+          collectionDrivers_profiles,
+          collectionRidesDeliveryData,
+          res
+        );
       }).then(
         (result) => {
           console.log(result);
@@ -687,7 +885,13 @@ function intitiateStagedDispatch(snapshotTripInfos, collectionDrivers_profiles, 
  * * increase the radius (all the rest)
  * * after 20 min of not accepting - AUTO cancel request
  */
-function sendStagedNotificationsDrivers(closestDriversList, snapshotTripInfos, collectionDrivers_profiles, collectionRidesDeliveryData, resolve) {
+function sendStagedNotificationsDrivers(
+  closestDriversList,
+  snapshotTripInfos,
+  collectionDrivers_profiles,
+  collectionRidesDeliveryData,
+  resolve
+) {
   if (closestDriversList === false || closestDriversList[0] === undefined) {
     //Send to all the drivers
     //1. Filter the drivers based on trip requirements
@@ -695,80 +899,102 @@ function sendStagedNotificationsDrivers(closestDriversList, snapshotTripInfos, c
     //3. Send the notifications to each selected one.
     let driverFilter = {
       "operational_state.status": { $regex: /online/i },
-      "operational_state.last_location.city": { $regex: snapshotTripInfos.city, $options: "i" },
-      "operational_state.last_location.country": { $regex: snapshotTripInfos.country, $options: "i" },
-      operation_clearances: { $regex: snapshotTripInfos.ride_type, $options: "i" },
+      "operational_state.last_location.city": {
+        $regex: snapshotTripInfos.city,
+        $options: "i",
+      },
+      "operational_state.last_location.country": {
+        $regex: snapshotTripInfos.country,
+        $options: "i",
+      },
+      operation_clearances: {
+        $regex: snapshotTripInfos.ride_type,
+        $options: "i",
+      },
       //Filter the drivers based on the vehicle type if provided
-      "operational_state.default_selected_car.vehicle_type": { $regex: snapshotTripInfos.vehicle_type, $options: "i" },
+      "operational_state.default_selected_car.vehicle_type": {
+        $regex: snapshotTripInfos.vehicle_type,
+        $options: "i",
+      },
     };
     //..
-    collectionDrivers_profiles.find(driverFilter).toArray(function (err, driversProfiles) {
-      //Filter the drivers based on their car's maximum capacity (the amount of passengers it can handle)
-      //They can receive 3 additional requests on top of the limit of sits in their selected cars.
-      driversProfiles = driversProfiles.filter(
-        (dData) =>
-          dData.operational_state.accepted_requests_infos.total_passengers_number <= dData.operational_state.default_selected_car.max_passengers + 3
-      );
+    collectionDrivers_profiles
+      .find(driverFilter)
+      .toArray(function (err, driversProfiles) {
+        //Filter the drivers based on their car's maximum capacity (the amount of passengers it can handle)
+        //They can receive 3 additional requests on top of the limit of sits in their selected cars.
+        driversProfiles = driversProfiles.filter(
+          (dData) =>
+            dData.operational_state.accepted_requests_infos
+              .total_passengers_number <=
+            dData.operational_state.default_selected_car.max_passengers + 3
+        );
 
-      //...Register the drivers fp so that thei can see tne requests
-      let driversFp = driversProfiles.map((data) => data.driver_fp); //Drivers fingerprints
-      let driversPushNotif_token = driversProfiles.map((data) => data.push_notification_token); //Push notification token
-      collectionRidesDeliveryData.updateOne(
-        { request_fp: snapshotTripInfos.request_fp },
-        { $set: { allowed_drivers_see: driversFp } },
-        function (err, reslt) {
-          //Send the push notifications
-          let message = {
-            app_id: "1e2207f0-99c2-4782-8813-d623bd0ff32a",
-            android_channel_id: /RIDE/i.test(snapshotTripInfos.ride_type)
-              ? "4ff13528-5fbb-4a98-9925-00af10aaf9fb"
-              : "4ff13528-5fbb-4a98-9925-00af10aaf9fb", //Ride or delivery channel
-            priority: 10,
-            contents: /RIDE/i.test(snapshotTripInfos.ride_type)
-              ? {
-                  en:
-                    "You have a new ride request " +
-                    (snapshotTripInfos.pickup_suburb !== false
-                      ? "from " +
-                        snapshotTripInfos.pickup_suburb.toUpperCase() +
-                        " to " +
-                        snapshotTripInfos.destination_suburb.toUpperCase() +
-                        ". Click here for more details."
-                      : "near your location, click here for more details."),
-                }
-              : {
-                  en:
-                    "You have a new delivery request " +
-                    (snapshotTripInfos.pickup_suburb !== false
-                      ? "from " +
-                        snapshotTripInfos.pickup_suburb.toUpperCase() +
-                        " to " +
-                        snapshotTripInfos.destination_suburb.toUpperCase() +
-                        ". Click here for more details."
-                      : "near your location, click here for more details."),
-                },
-            headings: /RIDE/i.test(snapshotTripInfos.ride_type)
-              ? { en: "New ride request, N$" + snapshotTripInfos.fare }
-              : { en: "New delivery request, N$" + snapshotTripInfos.fare },
-            include_player_ids: driversPushNotif_token,
-          };
-          //Send
-          sendPushUPNotification(message);
-          resolve({ response: "successfully_dispatched" });
-        }
-      );
-    });
+        //...Register the drivers fp so that thei can see tne requests
+        let driversFp = driversProfiles.map((data) => data.driver_fp); //Drivers fingerprints
+        let driversPushNotif_token = driversProfiles.map(
+          (data) => data.push_notification_token
+        ); //Push notification token
+        collectionRidesDeliveryData.updateOne(
+          { request_fp: snapshotTripInfos.request_fp },
+          { $set: { allowed_drivers_see: driversFp } },
+          function (err, reslt) {
+            //Send the push notifications
+            let message = {
+              app_id: "1e2207f0-99c2-4782-8813-d623bd0ff32a",
+              android_channel_id: /RIDE/i.test(snapshotTripInfos.ride_type)
+                ? "4ff13528-5fbb-4a98-9925-00af10aaf9fb"
+                : "4ff13528-5fbb-4a98-9925-00af10aaf9fb", //Ride or delivery channel
+              priority: 10,
+              contents: /RIDE/i.test(snapshotTripInfos.ride_type)
+                ? {
+                    en:
+                      "You have a new ride request " +
+                      (snapshotTripInfos.pickup_suburb !== false
+                        ? "from " +
+                          snapshotTripInfos.pickup_suburb.toUpperCase() +
+                          " to " +
+                          snapshotTripInfos.destination_suburb.toUpperCase() +
+                          ". Click here for more details."
+                        : "near your location, click here for more details."),
+                  }
+                : {
+                    en:
+                      "You have a new delivery request " +
+                      (snapshotTripInfos.pickup_suburb !== false
+                        ? "from " +
+                          snapshotTripInfos.pickup_suburb.toUpperCase() +
+                          " to " +
+                          snapshotTripInfos.destination_suburb.toUpperCase() +
+                          ". Click here for more details."
+                        : "near your location, click here for more details."),
+                  },
+              headings: /RIDE/i.test(snapshotTripInfos.ride_type)
+                ? { en: "New ride request, N$" + snapshotTripInfos.fare }
+                : { en: "New delivery request, N$" + snapshotTripInfos.fare },
+              include_player_ids: driversPushNotif_token,
+            };
+            //Send
+            sendPushUPNotification(message);
+            resolve({ response: "successfully_dispatched" });
+          }
+        );
+      });
   } //Staged send
   else {
     console.log("Staged send");
     //...Register the drivers fp so that thei can see tne requests
     let driversFp = closestDriversList.map((data) => data.driver_fingerprint); //Drivers fingerprints
-    let driversPushNotif_token = closestDriversList.map((data) => data.push_notification_token); //Push notification token
+    let driversPushNotif_token = closestDriversList.map(
+      (data) => data.push_notification_token
+    ); //Push notification token
 
     console.log("REQUEST TICKET " + snapshotTripInfos.request_fp);
     new Promise((res) => {
       //Asnwer
-      console.log("[1] Closest drivers ---ticket: " + snapshotTripInfos.request_fp);
+      console.log(
+        "[1] Closest drivers ---ticket: " + snapshotTripInfos.request_fp
+      );
       new Promise((res5) => {
         registerAllowedDriversForRidesAndNotify(
           snapshotTripInfos.request_fp,
@@ -785,15 +1011,23 @@ function sendStagedNotificationsDrivers(closestDriversList, snapshotTripInfos, c
             resolve({ response: "successfully_dispatched" });
             //Proceed with the staged dispatch
             //1. Wait for 1 min 30'' - in ms
-            console.log("Waiting for 1min 30. ---ticket: " + snapshotTripInfos.request_fp);
+            console.log(
+              "Waiting for 1min 30. ---ticket: " + snapshotTripInfos.request_fp
+            );
             setTimeout(() => {
               new Promise((res2) => {
-                console.log("[2] Less closest after 1min 30. ---ticket: " + snapshotTripInfos.request_fp);
+                console.log(
+                  "[2] Less closest after 1min 30. ---ticket: " +
+                    snapshotTripInfos.request_fp
+                );
                 new Promise((res6) => {
                   registerAllowedDriversForRidesAndNotify(
                     snapshotTripInfos.request_fp,
                     snapshotTripInfos,
-                    { drivers_fp: driversFp, pushNotif_tokens: driversPushNotif_token },
+                    {
+                      drivers_fp: driversFp,
+                      pushNotif_tokens: driversPushNotif_token,
+                    },
                     collectionRidesDeliveryData,
                     2,
                     res6
@@ -807,12 +1041,18 @@ function sendStagedNotificationsDrivers(closestDriversList, snapshotTripInfos, c
                       res2(true); //Conclude promise 2
                     } //End the staged dispatch - done
                     else {
-                      console.log("DONE STAGED DISPATCH  ---ticket: " + snapshotTripInfos.request_fp);
+                      console.log(
+                        "DONE STAGED DISPATCH  ---ticket: " +
+                          snapshotTripInfos.request_fp
+                      );
                       resolve({ response: "successfully_dispatched" });
                     }
                   },
                   (error) => {
-                    console.log("DONE STAGED DISPATCH  ---ticket: " + snapshotTripInfos.request_fp);
+                    console.log(
+                      "DONE STAGED DISPATCH  ---ticket: " +
+                        snapshotTripInfos.request_fp
+                    );
                     //Error - but notify dispatch as successfull
                     resolve({ response: "successfully_dispatched" });
                   }
@@ -821,33 +1061,50 @@ function sendStagedNotificationsDrivers(closestDriversList, snapshotTripInfos, c
                 .then()
                 .finally(() => {
                   //2. Wait for 1 min
-                  console.log("Waiting for 1min ---ticket: " + snapshotTripInfos.request_fp);
+                  console.log(
+                    "Waiting for 1min ---ticket: " +
+                      snapshotTripInfos.request_fp
+                  );
                   setTimeout(() => {
                     new Promise((res3) => {
-                      console.log("[3] Less*2 closest after 1 min. ---ticket: " + snapshotTripInfos.request_fp);
+                      console.log(
+                        "[3] Less*2 closest after 1 min. ---ticket: " +
+                          snapshotTripInfos.request_fp
+                      );
                       new Promise((res7) => {
                         registerAllowedDriversForRidesAndNotify(
                           snapshotTripInfos.request_fp,
                           snapshotTripInfos,
-                          { drivers_fp: driversFp, pushNotif_tokens: driversPushNotif_token },
+                          {
+                            drivers_fp: driversFp,
+                            pushNotif_tokens: driversPushNotif_token,
+                          },
                           collectionRidesDeliveryData,
                           3,
                           res7
                         );
                       }).then(
                         (reslt) => {
-                          if (/staged_dispatch_successfull/i.test(reslt.response)) {
+                          if (
+                            /staged_dispatch_successfull/i.test(reslt.response)
+                          ) {
                             //Proceed with the staged dispatch
                             //Allow these drivers to see the requests athen resolve 3
                             res3(true); //Conclude promise 3
                           } //End the staged dispatch - done
                           else {
-                            console.log("DONE STAGED DISPATCH  ---ticket: " + snapshotTripInfos.request_fp);
+                            console.log(
+                              "DONE STAGED DISPATCH  ---ticket: " +
+                                snapshotTripInfos.request_fp
+                            );
                             resolve({ response: "successfully_dispatched" });
                           }
                         },
                         (error) => {
-                          console.log("DONE STAGED DISPATCH  ---ticket: " + snapshotTripInfos.request_fp);
+                          console.log(
+                            "DONE STAGED DISPATCH  ---ticket: " +
+                              snapshotTripInfos.request_fp
+                          );
                           //Error - but notify dispatch as successfull
                           resolve({ response: "successfully_dispatched" });
                         }
@@ -856,41 +1113,67 @@ function sendStagedNotificationsDrivers(closestDriversList, snapshotTripInfos, c
                       .then()
                       .finally(() => {
                         //3. Wait for 1 min
-                        console.log("Waiting for 1min ---ticket: " + snapshotTripInfos.request_fp);
+                        console.log(
+                          "Waiting for 1min ---ticket: " +
+                            snapshotTripInfos.request_fp
+                        );
                         setTimeout(() => {
                           new Promise((res4) => {
-                            console.log("[4] Less*3 closest after 1 min. ---ticket: " + snapshotTripInfos.request_fp);
+                            console.log(
+                              "[4] Less*3 closest after 1 min. ---ticket: " +
+                                snapshotTripInfos.request_fp
+                            );
                             new Promise((res8) => {
                               registerAllowedDriversForRidesAndNotify(
                                 snapshotTripInfos.request_fp,
                                 snapshotTripInfos,
-                                { drivers_fp: driversFp, pushNotif_tokens: driversPushNotif_token },
+                                {
+                                  drivers_fp: driversFp,
+                                  pushNotif_tokens: driversPushNotif_token,
+                                },
                                 collectionRidesDeliveryData,
                                 4,
                                 res8
                               );
                             }).then(
                               (reslt) => {
-                                if (/staged_dispatch_successfull/i.test(reslt.response)) {
+                                if (
+                                  /staged_dispatch_successfull/i.test(
+                                    reslt.response
+                                  )
+                                ) {
                                   //Proceed with the staged dispatch
                                   //Allow these drivers to see the requests athen resolve 4
                                   res4(true); //Conclude promise 4
                                 } //End the staged dispatch - done
                                 else {
-                                  console.log("DONE STAGED DISPATCH  ---ticket: " + snapshotTripInfos.request_fp);
-                                  resolve({ response: "successfully_dispatched" });
+                                  console.log(
+                                    "DONE STAGED DISPATCH  ---ticket: " +
+                                      snapshotTripInfos.request_fp
+                                  );
+                                  resolve({
+                                    response: "successfully_dispatched",
+                                  });
                                 }
                               },
                               (error) => {
-                                console.log("DONE STAGED DISPATCH  ---ticket: " + snapshotTripInfos.request_fp);
+                                console.log(
+                                  "DONE STAGED DISPATCH  ---ticket: " +
+                                    snapshotTripInfos.request_fp
+                                );
                                 //Error - but notify dispatch as successfull
-                                resolve({ response: "successfully_dispatched" });
+                                resolve({
+                                  response: "successfully_dispatched",
+                                });
                               }
                             );
                           })
                             .then()
                             .finally(() => {
-                              console.log("DONE STAGED DISPATCH  ---ticket: " + snapshotTripInfos.request_fp);
+                              console.log(
+                                "DONE STAGED DISPATCH  ---ticket: " +
+                                  snapshotTripInfos.request_fp
+                              );
                               //Done FULL STAGED DISPATCH!
                               resolve({ response: "successfully_dispatched" });
                             });
@@ -949,11 +1232,15 @@ function registerAllowedDriversForRidesAndNotify(
   console.log(driversSnap.drivers_fp);
   driversSnap.drivers_fp = driversSnap.drivers_fp.slice(
     stagedBoundaries[incrementalStage].start,
-    stagedBoundaries[incrementalStage].end === false ? driversSnap.drivers_fp.length : stagedBoundaries[incrementalStage].end
+    stagedBoundaries[incrementalStage].end === false
+      ? driversSnap.drivers_fp.length
+      : stagedBoundaries[incrementalStage].end
   );
   driversSnap.pushNotif_tokens = driversSnap.pushNotif_tokens.slice(
     stagedBoundaries[incrementalStage].start,
-    stagedBoundaries[incrementalStage].end === false ? driversSnap.pushNotif_tokens.length : stagedBoundaries[incrementalStage].end
+    stagedBoundaries[incrementalStage].end === false
+      ? driversSnap.pushNotif_tokens.length
+      : stagedBoundaries[incrementalStage].end
   );
   console.log(driversSnap.drivers_fp);
   //Check whether the request was accepted or not.
@@ -961,63 +1248,76 @@ function registerAllowedDriversForRidesAndNotify(
     "ride_state_vars.isAccepted": false,
     request_fp: request_fp,
   };
-  collectionRidesDeliveryData.find(checkAcceptance).toArray(function (err, requestInfos) {
-    if (requestInfos.length > 0 && driversSnap.drivers_fp.length > 0) {
-      //Not yet accepted
-      requestInfos = requestInfos[0];
-      //...
-      //Add the drivers' fingerprints to the allowed_drivers_see
-      let updatedAllowedSee = {
-        $set: { allowed_drivers_see: [...new Set([...requestInfos.allowed_drivers_see, ...driversSnap.drivers_fp])] },
-      };
-      collectionRidesDeliveryData.updateOne(checkAcceptance, updatedAllowedSee, function (err, reslt) {
-        console.log(err);
-        //Send notifications to the newly registered drivers to the allowed_drivers_see
-        //Send the push notifications
-        let message = {
-          app_id: "1e2207f0-99c2-4782-8813-d623bd0ff32a",
-          android_channel_id: /RIDE/i.test(snapshotTripInfos.ride_type)
-            ? "4ff13528-5fbb-4a98-9925-00af10aaf9fb"
-            : "4ff13528-5fbb-4a98-9925-00af10aaf9fb", //Ride or delivery channel
-          priority: 10,
-          contents: /RIDE/i.test(snapshotTripInfos.ride_type)
-            ? {
-                en:
-                  "You have a new ride request " +
-                  (snapshotTripInfos.pickup_suburb !== false
-                    ? "from " +
-                      snapshotTripInfos.pickup_suburb.toUpperCase() +
-                      " to " +
-                      snapshotTripInfos.destination_suburb.toUpperCase() +
-                      ". Click here for more details."
-                    : "near your location, click here for more details."),
-              }
-            : {
-                en:
-                  "You have a new delivery request " +
-                  (snapshotTripInfos.pickup_suburb !== false
-                    ? "from " +
-                      snapshotTripInfos.pickup_suburb.toUpperCase() +
-                      " to " +
-                      snapshotTripInfos.destination_suburb.toUpperCase() +
-                      ". Click here for more details."
-                    : "near your location, click here for more details."),
-              },
-          headings: /RIDE/i.test(snapshotTripInfos.ride_type)
-            ? { en: "New ride request, N$" + snapshotTripInfos.fare }
-            : { en: "New delivery request, N$" + snapshotTripInfos.fare },
-          include_player_ids: driversSnap.drivers_fp,
-        };
-        //Send
-        sendPushUPNotification(message);
+  collectionRidesDeliveryData
+    .find(checkAcceptance)
+    .toArray(function (err, requestInfos) {
+      if (requestInfos.length > 0 && driversSnap.drivers_fp.length > 0) {
+        //Not yet accepted
+        requestInfos = requestInfos[0];
         //...
-        resolve({ response: "staged_dispatch_successfull" });
-      });
-    } //Request already accepted
-    else {
-      resolve({ response: "request_already_accepted" });
-    }
-  });
+        //Add the drivers' fingerprints to the allowed_drivers_see
+        let updatedAllowedSee = {
+          $set: {
+            allowed_drivers_see: [
+              ...new Set([
+                ...requestInfos.allowed_drivers_see,
+                ...driversSnap.drivers_fp,
+              ]),
+            ],
+          },
+        };
+        collectionRidesDeliveryData.updateOne(
+          checkAcceptance,
+          updatedAllowedSee,
+          function (err, reslt) {
+            console.log(err);
+            //Send notifications to the newly registered drivers to the allowed_drivers_see
+            //Send the push notifications
+            let message = {
+              app_id: "1e2207f0-99c2-4782-8813-d623bd0ff32a",
+              android_channel_id: /RIDE/i.test(snapshotTripInfos.ride_type)
+                ? "4ff13528-5fbb-4a98-9925-00af10aaf9fb"
+                : "4ff13528-5fbb-4a98-9925-00af10aaf9fb", //Ride or delivery channel
+              priority: 10,
+              contents: /RIDE/i.test(snapshotTripInfos.ride_type)
+                ? {
+                    en:
+                      "You have a new ride request " +
+                      (snapshotTripInfos.pickup_suburb !== false
+                        ? "from " +
+                          snapshotTripInfos.pickup_suburb.toUpperCase() +
+                          " to " +
+                          snapshotTripInfos.destination_suburb.toUpperCase() +
+                          ". Click here for more details."
+                        : "near your location, click here for more details."),
+                  }
+                : {
+                    en:
+                      "You have a new delivery request " +
+                      (snapshotTripInfos.pickup_suburb !== false
+                        ? "from " +
+                          snapshotTripInfos.pickup_suburb.toUpperCase() +
+                          " to " +
+                          snapshotTripInfos.destination_suburb.toUpperCase() +
+                          ". Click here for more details."
+                        : "near your location, click here for more details."),
+                  },
+              headings: /RIDE/i.test(snapshotTripInfos.ride_type)
+                ? { en: "New ride request, N$" + snapshotTripInfos.fare }
+                : { en: "New delivery request, N$" + snapshotTripInfos.fare },
+              include_player_ids: driversSnap.drivers_fp,
+            };
+            //Send
+            sendPushUPNotification(message);
+            //...
+            resolve({ response: "staged_dispatch_successfull" });
+          }
+        );
+      } //Request already accepted
+      else {
+        resolve({ response: "request_already_accepted" });
+      }
+    });
 }
 
 /**
@@ -1028,9 +1328,15 @@ clientMongo.connect(function (err) {
   //if (err) throw err;
   console.log("[+] Dispatch services active.");
   const dbMongo = clientMongo.db(DB_NAME_MONGODB);
-  const collectionRidesDeliveryData = dbMongo.collection("rides_deliveries_requests"); //Hold all the requests made (rides and deliveries)
-  const collectionRelativeDistances = dbMongo.collection("relative_distances_riders_drivers"); //Hold the relative distances between rider and the drivers (online, same city, same country) at any given time
-  const collectionRidersLocation_log = dbMongo.collection("historical_positioning_logs"); //Hold all the location updated from the rider
+  const collectionRidesDeliveryData = dbMongo.collection(
+    "rides_deliveries_requests"
+  ); //Hold all the requests made (rides and deliveries)
+  const collectionRelativeDistances = dbMongo.collection(
+    "relative_distances_riders_drivers"
+  ); //Hold the relative distances between rider and the drivers (online, same city, same country) at any given time
+  const collectionRidersLocation_log = dbMongo.collection(
+    "historical_positioning_logs"
+  ); //Hold all the location updated from the rider
   const collectionDrivers_profiles = dbMongo.collection("drivers_profiles"); //Hold all the drivers profiles
   //-------------
   const bodyParser = require("body-parser");
@@ -1047,11 +1353,10 @@ clientMongo.connect(function (err) {
    * of accepting it.
    * @param requestRawData: ride or delivery data coming from the rider's device for booking (MUST contain the city and country)
    */
-  app.get("/dispatchRidesOrDeliveryRequests", function (req, res) {
-    let params = urlParser.parse(req.url, true);
-    req = params.query;
+  app.post("/dispatchRidesOrDeliveryRequests", function (req, res) {
+    req = req.body;
     //TEST DATA
-    let testData = {
+    /*let testData = {
       actualRider: "someonelese",
       actualRiderPhone_number: "0817563369",
       carTypeSelected: "comfortNormalRide",
@@ -1125,7 +1430,7 @@ clientMongo.connect(function (err) {
       paymentMethod: "CASH",
       user_fingerprint: "7c57cb6c9471fd33fd265d5441f253eced2a6307c0207dea57c987035b496e6e8dfa7105b86915da",
     };
-    req = testData;
+    req = testData;*/
     //...
     if (req.user_fingerprint !== undefined && req.user_fingerprint !== null) {
       //1. CHECK THAT THIS RIDER DOESN'T ALREADY HAVE AN ACTIVE RIDE/DELIVERY
@@ -1134,65 +1439,79 @@ clientMongo.connect(function (err) {
         client_id: req.user_fingerprint,
         "ride_state_vars.isRideCompleted_riderSide": false,
       };
-      collectionRidesDeliveryData.find(checkPrevRequest).toArray(function (err, prevRequest) {
-        if (prevRequest.length === 0) {
-          prevRequest = prevRequest[0];
-          //No previous pending request - MAKE REQUEST VALID
-          //Parse the data
-          new Promise((res) => {
-            parseRequestData(req, res);
-          }).then(
-            (result) => {
-              if (result !== false) {
-                console.log(result);
-                //Save the request in mongodb
-                collectionRidesDeliveryData.insertOne(result, function (err, requestDt) {
-                  if (err) {
-                    res.send({ response: "Unable_to_make_the_request" });
-                  }
-                  //..Success
-                  //2. INITIATE STAGED toDrivers DISPATCH
-                  new Promise((resStaged) => {
-                    //FORM THE REQUEST SNAPSHOT
-                    let snapshotTripInfos = {
-                      user_fingerprint: result.client_id,
-                      city: result.pickup_location_infos.city,
-                      country: result.country,
-                      ride_type: result.ride_mode,
-                      vehicle_type: result.carTypeSelected,
-                      org_latitude: result.pickup_location_infos.coordinates.latitude,
-                      org_longitude: result.pickup_location_infos.coordinates.longitude,
-                      request_fp: result.request_fp,
-                      pickup_suburb: result.pickup_location_infos.suburb,
-                      destination_suburb: result.destinationData[0].suburb,
-                      fare: result.fare,
-                    };
-                    intitiateStagedDispatch(snapshotTripInfos, collectionDrivers_profiles, collectionRidesDeliveryData, resStaged);
-                  }).then(
-                    (result) => {
-                      res.send(result);
-                    },
-                    (error) => {
-                      console.log(error);
-                      res.send({ response: "Unable_to_make_the_request" });
+      collectionRidesDeliveryData
+        .find(checkPrevRequest)
+        .toArray(function (err, prevRequest) {
+          if (prevRequest.length === 0) {
+            prevRequest = prevRequest[0];
+            //No previous pending request - MAKE REQUEST VALID
+            //Parse the data
+            new Promise((res) => {
+              parseRequestData(req, res);
+            }).then(
+              (result) => {
+                if (result !== false) {
+                  console.log(result);
+                  //Save the request in mongodb
+                  collectionRidesDeliveryData.insertOne(
+                    result,
+                    function (err, requestDt) {
+                      if (err) {
+                        res.send({ response: "Unable_to_make_the_request" });
+                      }
+
+                      //2. INITIATE STAGED toDrivers DISPATCH
+                      new Promise((resStaged) => {
+                        //FORM THE REQUEST SNAPSHOT
+                        let snapshotTripInfos = {
+                          user_fingerprint: result.client_id,
+                          city: result.pickup_location_infos.city,
+                          country: result.country,
+                          ride_type: result.ride_mode,
+                          vehicle_type: result.carTypeSelected,
+                          org_latitude:
+                            result.pickup_location_infos.coordinates.latitude,
+                          org_longitude:
+                            result.pickup_location_infos.coordinates.longitude,
+                          request_fp: result.request_fp,
+                          pickup_suburb: result.pickup_location_infos.suburb,
+                          destination_suburb: result.destinationData[0].suburb,
+                          fare: result.fare,
+                        };
+                        intitiateStagedDispatch(
+                          snapshotTripInfos,
+                          collectionDrivers_profiles,
+                          collectionRidesDeliveryData,
+                          resStaged
+                        );
+                      }).then(
+                        (result) => {
+                          console.log(result);
+                        },
+                        (error) => {
+                          console.log(error);
+                        }
+                      );
+
+                      //..Success - respond to the user
+                      res.send({ response: "successfully_requested" });
                     }
                   );
-                });
-              } //Error
-              else {
+                } //Error
+                else {
+                  res.send({ response: "Unable_to_make_the_request" });
+                }
+              },
+              (error) => {
+                console.log(error);
                 res.send({ response: "Unable_to_make_the_request" });
               }
-            },
-            (error) => {
-              console.log(error);
-              res.send({ response: "Unable_to_make_the_request" });
-            }
-          );
-        } //Has a previous uncompleted ride
-        else {
-          res.send({ response: "already_have_a_pending_request" });
-        }
-      });
+            );
+          } //Has a previous uncompleted ride
+          else {
+            res.send({ response: "already_have_a_pending_request" });
+          }
+        });
     } //Invalid user fp
     else {
       res.send({ response: "Unable_to_make_the_request" });

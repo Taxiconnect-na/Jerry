@@ -9,7 +9,7 @@ const MongoClient = require("mongodb").MongoClient;
 
 var app = express();
 var server = http.createServer(app);
-const io = require("socket.io").listen(server);
+const io = require("socket.io")(server);
 const mysql = require("mysql");
 const requestAPI = require("request");
 //....
@@ -26,7 +26,7 @@ const moment = require("moment");
 const e = require("express");
 
 const URL_MONGODB = "mongodb://localhost:27017";
-const DB_NAME_MONGODB = "geospatial_and_vehicles_schemaless";
+const DB_NAME_MONGODB = "Taxiconnect";
 const URL_SEARCH_SERVICES = "http://www.taxiconnectna.com:7007/";
 const URL_ROUTE_SERVICES = "http://www.taxiconnectna.com:7008/route?";
 const URL_NOMINATIM_SERVICES = "http://taxiconnectna.com:9009";
@@ -43,7 +43,18 @@ function resolveDate() {
   date = moment(date.getTime()).utcOffset(2);
 
   dateObject = date;
-  date = date.year() + "-" + (date.month() + 1) + "-" + date.date() + " " + date.hour() + ":" + date.minute() + ":" + date.second();
+  date =
+    date.year() +
+    "-" +
+    (date.month() + 1) +
+    "-" +
+    date.date() +
+    " " +
+    date.hour() +
+    ":" +
+    date.minute() +
+    ":" +
+    date.second();
   chaineDateUTC = date;
 }
 resolveDate();
@@ -96,7 +107,10 @@ function checkInputIntegrity(input) {
         //Check
         //Check the destination infos
         let destinationInfos = input.destination_location_infos;
-        if (destinationInfos[0].passenger_number_id !== undefined && destinationInfos[0].passenger_number_id !== null) {
+        if (
+          destinationInfos[0].passenger_number_id !== undefined &&
+          destinationInfos[0].passenger_number_id !== null
+        ) {
           //check
           //Check passenger 1 doubt beneficiairy data: rely on passenger 1 to determine the integrity of the rest of the passenger's data
           let passenger1Infos = input.destination_location_infos[0];
@@ -151,14 +165,19 @@ function checkInputIntegrity(input) {
  * key: savedSuburbResults-location_name-street_name-city
  * data: [{}, {}, ...]
  */
-function autocompleteInputData(resolve, inputData, collectionSavedSuburbResults) {
+function autocompleteInputData(
+  resolve,
+  inputData,
+  collectionSavedSuburbResults
+) {
   let pickupInfos = inputData.pickup_location_infos;
   let destinationInfos = inputData.destination_location_infos;
   //[PICKUP LOCATION] Complete pickup location suburb infos
   //Check Redis for previous record
   let redisKey =
     "savedSuburbResults-" +
-    (pickupInfos.location_name !== undefined && pickupInfos.location_name !== false
+    (pickupInfos.location_name !== undefined &&
+    pickupInfos.location_name !== false
       ? pickupInfos.location_name.trim().toLowerCase()
       : pickupInfos.location_name) +
     "-" +
@@ -166,7 +185,9 @@ function autocompleteInputData(resolve, inputData, collectionSavedSuburbResults)
       ? pickupInfos.street_name.trim().toLowerCase()
       : pickupInfos.street_name) +
     "-" +
-    (pickupInfos.city !== undefined && pickupInfos.city !== false ? pickupInfos.city.trim().toLowerCase() : pickupInfos.city);
+    (pickupInfos.city !== undefined && pickupInfos.city !== false
+      ? pickupInfos.city.trim().toLowerCase()
+      : pickupInfos.city);
   //..
   redisGet(redisKey).then(
     (resp) => {
@@ -186,7 +207,12 @@ function autocompleteInputData(resolve, inputData, collectionSavedSuburbResults)
           pickupInfos = inputData.pickup_location_infos.state; //Update shortcut var
           //...Done auto complete destination locations
           new Promise((res) => {
-            manageAutoCompleteDestinationLocations(res, destinationInfos, inputData.user_fingerprint, collectionSavedSuburbResults);
+            manageAutoCompleteDestinationLocations(
+              res,
+              destinationInfos,
+              inputData.user_fingerprint,
+              collectionSavedSuburbResults
+            );
           }).then(
             (result) => {
               if (result !== false) {
@@ -207,7 +233,11 @@ function autocompleteInputData(resolve, inputData, collectionSavedSuburbResults)
         } //No wanted record - do a fresh search
         else {
           new Promise((res) => {
-            doMongoSearchForAutocompletedSuburbs(res, pickupInfos, collectionSavedSuburbResults);
+            doMongoSearchForAutocompletedSuburbs(
+              res,
+              pickupInfos,
+              collectionSavedSuburbResults
+            );
           }).then(
             (result) => {
               if (result !== false) {
@@ -217,7 +247,12 @@ function autocompleteInputData(resolve, inputData, collectionSavedSuburbResults)
                 //...Done auto complete destination locations
                 //console.log(result);
                 new Promise((res) => {
-                  manageAutoCompleteDestinationLocations(res, destinationInfos, inputData.user_fingerprint, collectionSavedSuburbResults);
+                  manageAutoCompleteDestinationLocations(
+                    res,
+                    destinationInfos,
+                    inputData.user_fingerprint,
+                    collectionSavedSuburbResults
+                  );
                 }).then(
                   (result) => {
                     if (result !== false) {
@@ -247,7 +282,11 @@ function autocompleteInputData(resolve, inputData, collectionSavedSuburbResults)
         //No cached result, do a mongo search
         console.log("[No cache] No cached data, do mongo search");
         new Promise((res) => {
-          doMongoSearchForAutocompletedSuburbs(res, pickupInfos, collectionSavedSuburbResults);
+          doMongoSearchForAutocompletedSuburbs(
+            res,
+            pickupInfos,
+            collectionSavedSuburbResults
+          );
         }).then(
           (result) => {
             if (result !== false) {
@@ -257,7 +296,12 @@ function autocompleteInputData(resolve, inputData, collectionSavedSuburbResults)
               //...Done auto complete destination locations
               //console.log(result);
               new Promise((res) => {
-                manageAutoCompleteDestinationLocations(res, destinationInfos, inputData.user_fingerprint, collectionSavedSuburbResults);
+                manageAutoCompleteDestinationLocations(
+                  res,
+                  destinationInfos,
+                  inputData.user_fingerprint,
+                  collectionSavedSuburbResults
+                );
               }).then(
                 (result) => {
                   if (result !== false) {
@@ -287,7 +331,11 @@ function autocompleteInputData(resolve, inputData, collectionSavedSuburbResults)
       //No cached result, do a mongo search
       console.log("Error, No cached data, do mongo search");
       new Promise((res) => {
-        doMongoSearchForAutocompletedSuburbs(res, pickupInfos, collectionSavedSuburbResults);
+        doMongoSearchForAutocompletedSuburbs(
+          res,
+          pickupInfos,
+          collectionSavedSuburbResults
+        );
       }).then(
         (result) => {
           if (result !== false) {
@@ -296,7 +344,12 @@ function autocompleteInputData(resolve, inputData, collectionSavedSuburbResults)
             pickupInfos = inputData.pickup_location_infos; //Update shortcut var
             //...Done auto complete destination locations
             new Promise((res) => {
-              manageAutoCompleteDestinationLocations(res, destinationInfos, inputData.user_fingerprint, collectionSavedSuburbResults);
+              manageAutoCompleteDestinationLocations(
+                res,
+                destinationInfos,
+                inputData.user_fingerprint,
+                collectionSavedSuburbResults
+              );
             }).then(
               (result) => {
                 if (result !== false) {
@@ -335,7 +388,12 @@ function autocompleteInputData(resolve, inputData, collectionSavedSuburbResults)
  * REDIS
  * key: destinationLocationsAutoCompletedNature-location_name-location_street-city: [{location_name, street_name, suburb, city, locationType}]
  */
-function manageAutoCompleteDestinationLocations(resolve, destinationLocations, user_fingerprint, collectionSavedSuburbResults) {
+function manageAutoCompleteDestinationLocations(
+  resolve,
+  destinationLocations,
+  user_fingerprint,
+  collectionSavedSuburbResults
+) {
   console.log("AUTO COMPLETE DESTINATION DATA");
   let promiseParent = destinationLocations.map((destination) => {
     return new Promise((res) => {
@@ -343,7 +401,11 @@ function manageAutoCompleteDestinationLocations(resolve, destinationLocations, u
       let tmp = destination.coordinates.latitude;
       destination.coordinates.latitude = destination.coordinates.longitude;
       destination.coordinates.longitude = tmp;
-      doMongoSearchForAutocompletedSuburbs(res, destination, collectionSavedSuburbResults);
+      doMongoSearchForAutocompletedSuburbs(
+        res,
+        destination,
+        collectionSavedSuburbResults
+      );
     });
   });
   Promise.all(promiseParent).then(
@@ -405,22 +467,30 @@ function manageAutoCompleteDestinationLocations(resolve, destinationLocations, u
         Promise.all(promiseParent2).then(
           (result) => {
             result.map((location) => {
-              if (location !== undefined && location.passenger_number_id !== undefined) {
+              if (
+                location !== undefined &&
+                location.passenger_number_id !== undefined
+              ) {
                 //Linked to a user
-                destinationLocations[location.passenger_number_id - 1].dropoff_type = location.locationType;
+                destinationLocations[
+                  location.passenger_number_id - 1
+                ].dropoff_type = location.locationType;
                 //Cache the location
                 new Promise((res) => {
                   let redisKey =
                     "destinationLocationsAutoCompletedNature-" +
-                    (destinationLocations.location_name !== undefined && destinationLocations.location_name !== false
+                    (destinationLocations.location_name !== undefined &&
+                    destinationLocations.location_name !== false
                       ? destinationLocations.location_name.trim().toLowerCase()
                       : destinationLocations.location_name) +
                     "-" +
-                    (destinationLocations.street_name !== undefined && destinationLocations.street_name !== false
+                    (destinationLocations.street_name !== undefined &&
+                    destinationLocations.street_name !== false
                       ? destinationLocations.street_name.trim().toLowerCase()
                       : destinationLocations.street_name) +
                     "-" +
-                    (destinationLocations.city !== undefined && destinationLocations.city !== false
+                    (destinationLocations.city !== undefined &&
+                    destinationLocations.city !== false
                       ? destinationLocations.city.trim().toLowerCase()
                       : destinationLocations.city);
                   //Check if redis already have key record
@@ -471,18 +541,26 @@ function manageAutoCompleteDestinationLocations(resolve, destinationLocations, u
  * @param collectionSavedSuburbResults: collection containing all the already proccessed records
  * Responsible for checking in mongodb for previous exact record already searched.
  */
-function doMongoSearchForAutocompletedSuburbs(resolve, locationInfos, collectionSavedSuburbResults) {
+function doMongoSearchForAutocompletedSuburbs(
+  resolve,
+  locationInfos,
+  collectionSavedSuburbResults
+) {
   let redisKey =
     "savedSuburbResults-" +
-    (locationInfos.location_name !== undefined && locationInfos.location_name !== false
+    (locationInfos.location_name !== undefined &&
+    locationInfos.location_name !== false
       ? locationInfos.location_name.trim().toLowerCase()
       : locationInfos.location_name) +
     "-" +
-    (locationInfos.street_name !== undefined && locationInfos.street_name !== false
+    (locationInfos.street_name !== undefined &&
+    locationInfos.street_name !== false
       ? locationInfos.street_name.trim().toLowerCase()
       : locationInfos.street_name) +
     "-" +
-    (locationInfos.city !== undefined && locationInfos.city !== false ? locationInfos.city.trim().toLowerCase() : locationInfos.city);
+    (locationInfos.city !== undefined && locationInfos.city !== false
+      ? locationInfos.city.trim().toLowerCase()
+      : locationInfos.city);
   //Check from redis first
   redisGet(redisKey).then(
     (resp) => {
@@ -496,7 +574,12 @@ function doMongoSearchForAutocompletedSuburbs(resolve, locationInfos, collection
           error //Error parsing -get from mongodb
         ) {
           new Promise((res) => {
-            execMongoSearchAutoComplete(res, locationInfos, redisKey, collectionSavedSuburbResults);
+            execMongoSearchAutoComplete(
+              res,
+              locationInfos,
+              redisKey,
+              collectionSavedSuburbResults
+            );
           }).then(
             (result) => {
               resolve(result);
@@ -509,7 +592,12 @@ function doMongoSearchForAutocompletedSuburbs(resolve, locationInfos, collection
       } //No records - get from mongodb
       else {
         new Promise((res) => {
-          execMongoSearchAutoComplete(res, locationInfos, redisKey, collectionSavedSuburbResults);
+          execMongoSearchAutoComplete(
+            res,
+            locationInfos,
+            redisKey,
+            collectionSavedSuburbResults
+          );
         }).then(
           (result) => {
             resolve(result);
@@ -523,7 +611,12 @@ function doMongoSearchForAutocompletedSuburbs(resolve, locationInfos, collection
     (error) => {
       //Error -get from mongodb
       new Promise((res) => {
-        execMongoSearchAutoComplete(res, locationInfos, redisKey, collectionSavedSuburbResults);
+        execMongoSearchAutoComplete(
+          res,
+          locationInfos,
+          redisKey,
+          collectionSavedSuburbResults
+        );
       }).then(
         (result) => {
           resolve(result);
@@ -544,90 +637,114 @@ function doMongoSearchForAutocompletedSuburbs(resolve, locationInfos, collection
  * @param collectionSavedSuburbResults: collection containing all the already proccessed records
  * @param redisKey: corresponding record key for this location point
  */
-function execMongoSearchAutoComplete(resolve, locationInfos, redisKey, collectionSavedSuburbResults) {
+function execMongoSearchAutoComplete(
+  resolve,
+  locationInfos,
+  redisKey,
+  collectionSavedSuburbResults
+) {
   //Check mongodb for previous record
-  let findPrevQuery = { location_name: locationInfos.location_name, city: locationInfos.city, street_name: locationInfos.street_name };
-  collectionSavedSuburbResults.find(findPrevQuery).toArray(function (err, result) {
-    if (result.length > 0) {
-      //Found previous record
-      resolve(result[0]);
-    } //Do a fresh search
-    else {
-      console.log("PERFORM FRESH GEOCODINGR -->", locationInfos.coordinates.latitude, ",", locationInfos.coordinates.longitude);
-      let url =
-        URL_NOMINATIM_SERVICES +
-        "/reverse?format=json&lat=" +
-        locationInfos.coordinates.latitude +
-        "&lon=" +
-        locationInfos.coordinates.longitude +
-        "&zoom=18&addressdetails=1&extratags=1&namedetails=1";
-      requestAPI(url, function (err, response, body) {
-        try {
-          //Get only the state and suburb infos
-          body = JSON.parse(body);
-          if (body.address !== undefined && body.address !== null) {
-            if (body.address.state !== undefined && body.address.suburb !== undefined) {
-              console.log("fresh search done!");
-              new Promise((res1) => {
-                //Save result in MongoDB
-                let newRecord = {
-                  suburb: body.address.suburb,
-                  state: body.address.state,
-                  location_name: locationInfos.location_name,
-                  city: locationInfos.city,
-                  street_name: locationInfos.street_name,
-                };
-
-                collectionSavedSuburbResults.insertOne(newRecord, function (err, reslt) {
-                  console.log("Saved new record in mongo");
-                  res1(true);
-                });
-              }).then(
-                () => {},
-                () => {}
-              );
-
-              //Cache result
-              new Promise((res2) => {
-                //Update the cache
-                //add new record
-                client.set(
-                  redisKey,
-                  JSON.stringify({
+  let findPrevQuery = {
+    location_name: locationInfos.location_name,
+    city: locationInfos.city,
+    street_name: locationInfos.street_name,
+  };
+  collectionSavedSuburbResults
+    .find(findPrevQuery)
+    .toArray(function (err, result) {
+      if (result.length > 0) {
+        //Found previous record
+        resolve(result[0]);
+      } //Do a fresh search
+      else {
+        console.log(
+          "PERFORM FRESH GEOCODINGR -->",
+          locationInfos.coordinates.latitude,
+          ",",
+          locationInfos.coordinates.longitude
+        );
+        let url =
+          URL_NOMINATIM_SERVICES +
+          "/reverse?format=json&lat=" +
+          locationInfos.coordinates.latitude +
+          "&lon=" +
+          locationInfos.coordinates.longitude +
+          "&zoom=18&addressdetails=1&extratags=1&namedetails=1";
+        requestAPI(url, function (err, response, body) {
+          try {
+            console.log(err, body, response);
+            //Get only the state and suburb infos
+            body = JSON.parse(body);
+            if (body.address !== undefined && body.address !== null) {
+              if (
+                body.address.state !== undefined &&
+                body.address.suburb !== undefined
+              ) {
+                console.log("fresh search done!");
+                new Promise((res1) => {
+                  //Save result in MongoDB
+                  let newRecord = {
                     suburb: body.address.suburb,
                     state: body.address.state,
                     location_name: locationInfos.location_name,
                     city: locationInfos.city,
                     street_name: locationInfos.street_name,
-                  }),
-                  redis.print
+                  };
+
+                  collectionSavedSuburbResults.insertOne(
+                    newRecord,
+                    function (err, reslt) {
+                      console.log("Saved new record in mongo");
+                      res1(true);
+                    }
+                  );
+                }).then(
+                  () => {},
+                  () => {}
                 );
-                //...
-                res2(true);
-              }).then(
-                () => {},
-                (error) => {
-                  console.log(error);
-                }
-              );
-              //..respond - complete the input data
-              locationInfos.suburb = body.address.suburb;
-              locationInfos.state = body.address.state;
-              resolve(locationInfos);
-            } //Error
+
+                //Cache result
+                new Promise((res2) => {
+                  //Update the cache
+                  //add new record
+                  client.set(
+                    redisKey,
+                    JSON.stringify({
+                      suburb: body.address.suburb,
+                      state: body.address.state,
+                      location_name: locationInfos.location_name,
+                      city: locationInfos.city,
+                      street_name: locationInfos.street_name,
+                    }),
+                    redis.print
+                  );
+                  //...
+                  res2(true);
+                }).then(
+                  () => {},
+                  (error) => {
+                    console.log(error);
+                  }
+                );
+                //..respond - complete the input data
+                locationInfos.suburb = body.address.suburb;
+                locationInfos.state = body.address.state;
+                resolve(locationInfos);
+              } //Error
+              else {
+                resolve(false);
+              }
+            } //error
             else {
               resolve(false);
             }
-          } //error
-          else {
+          } catch (error) {
+            console.log(error);
             resolve(false);
           }
-        } catch (error) {
-          resolve(false);
-        }
-      });
-    }
-  });
+        });
+      }
+    });
 }
 
 /**
@@ -656,11 +773,12 @@ function estimateFullVehiclesCatPrices(
   //completedInputData.destination_location_infos[3].dropoff_type = "PrivateLocation";
   //DEBUG
   //Check for the input data
-  //console.log(completedInputData);
+  console.log(completedInputData);
   if (
     completedInputData.pickup_location_infos.suburb !== undefined &&
     completedInputData.pickup_location_infos.suburb !== false &&
-    completedInputData.destination_location_infos[0].dropoff_type !== undefined &&
+    completedInputData.destination_location_infos[0].dropoff_type !==
+      undefined &&
     completedInputData.destination_location_infos[0].dropoff_type !== false &&
     completedInputData.destination_location_infos[0].suburb !== undefined &&
     completedInputData.destination_location_infos[0].suburb !== false &&
@@ -670,13 +788,15 @@ function estimateFullVehiclesCatPrices(
     //Check
     //Get the list of all the vehicles corresponding to the ride type (RIDE or DELIVERY), country, city and availability (AVAILABLE)
     let filterQuery = {
-      ride_type: completedInputData.ride_mode,
-      country: completedInputData.country,
-      city: completedInputData.pickup_location_infos.city,
-      availability: "available",
+      ride_type: { $regex: completedInputData.ride_mode, $options: "i" },
+      country: { $regex: completedInputData.country, $options: "i" },
+      city: {
+        $regex: completedInputData.pickup_location_infos.city,
+        $options: "i",
+      },
+      availability: { $regex: "available", $options: "i" },
     };
     collectionVehiclesInfos.find(filterQuery).toArray(function (err, result) {
-      //console.log(result);
       if (result.length > 0) {
         //Found something
         let genericRidesInfos = result;
@@ -685,60 +805,77 @@ function estimateFullVehiclesCatPrices(
           filterQuery = {
             country: completedInputData.country,
             city: completedInputData.pickup_location_infos.city,
-            pickup_suburb: completedInputData.pickup_location_infos.suburb.toUpperCase().trim(),
+            pickup_suburb: completedInputData.pickup_location_infos.suburb
+              .toUpperCase()
+              .trim(),
           };
-          collectionPricesLocationsMap.find(filterQuery).toArray(function (err, result) {
-            if (result.length > 0) {
-              //Found corresponding prices maps
-              res(result);
-            } //No prices map found - Set default prices NAD 12 - non realistic and fixed prices
-            else {
-              //Did not find suburbs with mathing suburbs included
-              //Register in mongo
-              new Promise((resX) => {
-                //Schema
-                //{point1_suburb:XXXX, point2_suburb:XXXX, city:XXX, country:XXX, date:XXX}
-                let queryNoMatch = {
-                  point1_suburb: completedInputData.pickup_location_infos.suburb,
-                  point2_suburb: "ANY",
-                  city: completedInputData.pickup_location_infos.city,
-                  country: completedInputData.country,
-                  date: chaineDateUTC,
-                };
-                let checkQuery = {
-                  point1_suburb: completedInputData.pickup_location_infos.suburb,
-                  point2_suburb: "ANY",
-                  city: completedInputData.pickup_location_infos.city,
-                  country: completedInputData.country,
-                };
-                //Check to avoid duplicates
-                collectionNotFoundSubursPricesMap.find(checkQuery).toArray(function (err, resultX) {
-                  if (resultX.length <= 0) {
-                    //New record
-                    collectionNotFoundSubursPricesMap.insertOne(queryNoMatch, function (err, res) {
-                      console.log("New record added");
-                      resX(true);
+          collectionPricesLocationsMap
+            .find(filterQuery)
+            .toArray(function (err, result) {
+              if (result.length > 0) {
+                //Found corresponding prices maps
+                res(result);
+              } //No prices map found - Set default prices NAD 12 - non realistic and fixed prices
+              else {
+                //Did not find suburbs with mathing suburbs included
+                //Register in mongo
+                new Promise((resX) => {
+                  //Schema
+                  //{point1_suburb:XXXX, point2_suburb:XXXX, city:XXX, country:XXX, date:XXX}
+                  let queryNoMatch = {
+                    point1_suburb:
+                      completedInputData.pickup_location_infos.suburb,
+                    point2_suburb: "ANY",
+                    city: completedInputData.pickup_location_infos.city,
+                    country: completedInputData.country,
+                    date: chaineDateUTC,
+                  };
+                  let checkQuery = {
+                    point1_suburb:
+                      completedInputData.pickup_location_infos.suburb,
+                    point2_suburb: "ANY",
+                    city: completedInputData.pickup_location_infos.city,
+                    country: completedInputData.country,
+                  };
+                  //Check to avoid duplicates
+                  collectionNotFoundSubursPricesMap
+                    .find(checkQuery)
+                    .toArray(function (err, resultX) {
+                      if (resultX.length <= 0) {
+                        //New record
+                        collectionNotFoundSubursPricesMap.insertOne(
+                          queryNoMatch,
+                          function (err, res) {
+                            console.log("New record added");
+                            resX(true);
+                          }
+                        );
+                      }
                     });
-                  }
-                });
-              }).then(
-                () => {},
-                () => {}
-              );
-              res([
-                { pickup_suburb: false, fare: 12 },
-                { pickup_suburb: false, fare: 12 },
-                { pickup_suburb: false, fare: 12 },
-                { pickup_suburb: false, fare: 12 },
-              ]);
-            }
-          });
+                }).then(
+                  () => {},
+                  () => {}
+                );
+                res([
+                  { pickup_suburb: false, fare: 12 },
+                  { pickup_suburb: false, fare: 12 },
+                  { pickup_suburb: false, fare: 12 },
+                  { pickup_suburb: false, fare: 12 },
+                ]);
+              }
+            });
         }).then(
           (reslt) => {
             let globalPricesMap = reslt;
             //call computeInDepthPricesMap
             new Promise((res) => {
-              computeInDepthPricesMap(res, completedInputData, globalPricesMap, genericRidesInfos, collectionNotFoundSubursPricesMap);
+              computeInDepthPricesMap(
+                res,
+                completedInputData,
+                globalPricesMap,
+                genericRidesInfos,
+                collectionNotFoundSubursPricesMap
+              );
             }).then(
               (reslt) => {
                 //DONE
@@ -781,7 +918,13 @@ function estimateFullVehiclesCatPrices(
  * @param collectionNotFoundSubursPricesMap: collection of all not found suburbs from the global prices map.
  * Responsible for performing all the operations of header prices, multipliers (time and passengers) and outputing the final price map
  */
-function computeInDepthPricesMap(resolve, completedInputData, globalPricesMap, genericRidesInfos, collectionNotFoundSubursPricesMap) {
+function computeInDepthPricesMap(
+  resolve,
+  completedInputData,
+  globalPricesMap,
+  genericRidesInfos,
+  collectionNotFoundSubursPricesMap
+) {
   resolveDate();
   console.log("compute in depth called");
   //ESTABLISH IMPORTANT PRICING VARIABLES
@@ -825,7 +968,12 @@ function computeInDepthPricesMap(resolve, completedInputData, globalPricesMap, g
         //Check if the pickup if an Airport
         //In case of an Airport, apply vehicle default airport price and mar as unavailable those not supporting
         //airport rides as pickup
-        if (/Airport/i.test(pickup_type) && /Eros Airport/i.test(completedInputData.pickup_location_infos.location_name) === false) {
+        if (
+          /Airport/i.test(pickup_type) &&
+          /Eros Airport/i.test(
+            completedInputData.pickup_location_infos.location_name
+          ) === false
+        ) {
           isGoingToAirport = true;
           //From Airport - mark vehicles that can't do airports as unavailable.
           if (vehicle.airport_rides == false) {
@@ -841,7 +989,10 @@ function computeInDepthPricesMap(resolve, completedInputData, globalPricesMap, g
           //If connectMe, apply connect me rules, for comfort and luxury apply default price + header price
           if (/ConnectMe/i.test(connectType)) {
             //ConnectMe
-            if (/Comfort/i.test(vehicle.category) || /Luxury/i.test(vehicle.category)) {
+            if (
+              /Comfort/i.test(vehicle.category) ||
+              /Luxury/i.test(vehicle.category)
+            ) {
               //Comfort or luxury
               //Set to 0
               basePrice = 0;
@@ -854,7 +1005,10 @@ function computeInDepthPricesMap(resolve, completedInputData, globalPricesMap, g
           else {
             //Just apply the time multiplier
             //Based on the regional suburb price map - assign base price to 0
-            if (/Comfort/i.test(vehicle.category) || /Luxury/i.test(vehicle.category)) {
+            if (
+              /Comfort/i.test(vehicle.category) ||
+              /Luxury/i.test(vehicle.category)
+            ) {
               //Comfort or luxury
               //SET to 0
               basePrice = 0;
@@ -869,7 +1023,10 @@ function computeInDepthPricesMap(resolve, completedInputData, globalPricesMap, g
             let tmpPickupPickup = pickup_suburb;
             let tmpDestinationSuburb = destination.suburb;
             //To Airport - mark vehicles that can't do airports as unavailable.
-            if (/Airport/i.test(destination.dropoff_type) && /Eros Airport/i.test(destination.location_name) === false) {
+            if (
+              /Airport/i.test(destination.dropoff_type) &&
+              /Eros Airport/i.test(destination.location_name) === false
+            ) {
               isGoingToAirport = true;
               //From Airport - mark vehicles that can't do airports as unavailable.
               if (vehicle.airport_rides == false) {
@@ -880,7 +1037,10 @@ function computeInDepthPricesMap(resolve, completedInputData, globalPricesMap, g
                 //Check for connectMe or US
                 // remove count for one user and add base airport rate
                 if (/ConnectMe/i.test(connectType)) {
-                  if (/Comfort/i.test(vehicle.category) || /Luxury/i.test(vehicle.category)) {
+                  if (
+                    /Comfort/i.test(vehicle.category) ||
+                    /Luxury/i.test(vehicle.category)
+                  ) {
                     //Comfort or luxury
                     //Do nothing
                   } //Economy
@@ -900,7 +1060,10 @@ function computeInDepthPricesMap(resolve, completedInputData, globalPricesMap, g
                   else {
                     let lockPorgress = false; //Reponsible for avoiding repetitive removeal in case of FALSE suburb
                     globalPricesMap.map((suburbToSuburbInfo) => {
-                      if (suburbToSuburbInfo.pickup_suburb === false && lockPorgress === false) {
+                      if (
+                        suburbToSuburbInfo.pickup_suburb === false &&
+                        lockPorgress === false
+                      ) {
                         //Remove once
                         if (basePrice > 0) {
                           basePrice -= suburbToSuburbInfo.fare;
@@ -908,7 +1071,8 @@ function computeInDepthPricesMap(resolve, completedInputData, globalPricesMap, g
                         }
                       } else if (
                         suburbToSuburbInfo.pickup_suburb === tmpPickupPickup &&
-                        suburbToSuburbInfo.destination_suburb === tmpDestinationSuburb
+                        suburbToSuburbInfo.destination_suburb ===
+                          tmpDestinationSuburb
                       ) {
                         basePrice -= suburbToSuburbInfo.fare;
                       }
@@ -935,7 +1099,10 @@ function computeInDepthPricesMap(resolve, completedInputData, globalPricesMap, g
                   let didFindRegisteredSuburbs = false; //To know whether or not has found registered suburs or else did not find matching suburbs.
                   //...
                   globalPricesMap.map((suburbToSuburbInfo) => {
-                    if (suburbToSuburbInfo.pickup_suburb === false && lockPorgress === false) {
+                    if (
+                      suburbToSuburbInfo.pickup_suburb === false &&
+                      lockPorgress === false
+                    ) {
                       //Add once
                       if (basePrice > 0) {
                         //Add basic vehicle price instead of false suburb fare
@@ -946,8 +1113,11 @@ function computeInDepthPricesMap(resolve, completedInputData, globalPricesMap, g
                       }
                     } else if (
                       suburbToSuburbInfo.pickup_suburb !== false &&
-                      suburbToSuburbInfo.pickup_suburb.toUpperCase().trim() === tmpPickupPickup.toUpperCase().trim() &&
-                      suburbToSuburbInfo.destination_suburb.toUpperCase().trim() === tmpDestinationSuburb.toUpperCase().trim()
+                      suburbToSuburbInfo.pickup_suburb.toUpperCase().trim() ===
+                        tmpPickupPickup.toUpperCase().trim() &&
+                      suburbToSuburbInfo.destination_suburb
+                        .toUpperCase()
+                        .trim() === tmpDestinationSuburb.toUpperCase().trim()
                     ) {
                       lockPorgress = false;
                       didFindRegisteredSuburbs = true; //Found registered suburbs.
@@ -983,15 +1153,20 @@ function computeInDepthPricesMap(resolve, completedInputData, globalPricesMap, g
                         country: request_country,
                       };
                       //Check to avoid duplicates
-                      collectionNotFoundSubursPricesMap.find(checkQuery).toArray(function (err, resultX) {
-                        if (resultX.length <= 0) {
-                          //New record
-                          collectionNotFoundSubursPricesMap.insertOne(queryNoMatch, function (err, res) {
-                            console.log("New record added");
-                            resX(true);
-                          });
-                        }
-                      });
+                      collectionNotFoundSubursPricesMap
+                        .find(checkQuery)
+                        .toArray(function (err, resultX) {
+                          if (resultX.length <= 0) {
+                            //New record
+                            collectionNotFoundSubursPricesMap.insertOne(
+                              queryNoMatch,
+                              function (err, res) {
+                                console.log("New record added");
+                                resX(true);
+                              }
+                            );
+                          }
+                        });
                     }).then(
                       () => {},
                       () => {}
@@ -1000,13 +1175,19 @@ function computeInDepthPricesMap(resolve, completedInputData, globalPricesMap, g
                     //Assign ride base price
                     basePrice += vehicle.base_fare;
                   }
-                } else if (/Comfort/i.test(vehicle.category) || /Luxury/i.test(vehicle.category)) {
+                } else if (
+                  /Comfort/i.test(vehicle.category) ||
+                  /Luxury/i.test(vehicle.category)
+                ) {
                   //Add base fare for one person
                   basePrice += vehicle.base_fare;
                 }
               } //ConnectMe - for comfort and luxury only
               else {
-                if (/Comfort/i.test(vehicle.category) || /Luxury/i.test(vehicle.category)) {
+                if (
+                  /Comfort/i.test(vehicle.category) ||
+                  /Luxury/i.test(vehicle.category)
+                ) {
                   //Add base fare for one person
                   basePrice += vehicle.base_fare;
                 }
@@ -1024,7 +1205,17 @@ function computeInDepthPricesMap(resolve, completedInputData, globalPricesMap, g
         //Update the rides infos data
         genericRidesInfos[index].base_fare = basePrice;
         //Only get relevant information form the metadata
-        let { category, ride_type, country, city, base_fare, car_type, app_label, media, availability } = genericRidesInfos[index];
+        let {
+          category,
+          ride_type,
+          country,
+          city,
+          base_fare,
+          car_type,
+          app_label,
+          media,
+          availability,
+        } = genericRidesInfos[index];
         genericRidesInfos[index] = {
           id: index,
           category: category,
@@ -1072,11 +1263,16 @@ function parsePricingInputData(resolve, inputData) {
       cleanInputData.connect_type = inputData.connectType;
       cleanInputData.ride_mode = inputData.rideType;
       cleanInputData.passengers_number = inputData.passengersNo;
-      cleanInputData.request_type = /now/i.test(inputData.timeScheduled) ? "immediate" : "scheduled";
+      cleanInputData.request_type = /now/i.test(inputData.timeScheduled)
+        ? "immediate"
+        : "scheduled";
       new Promise((res) => {
         //..Deduct the pickup time if scheduled
         if (/scheduled/i.test(cleanInputData.request_type)) {
-          let timeExtracted = inputData.timeScheduled.split(" ")[2].trim().split(":");
+          let timeExtracted = inputData.timeScheduled
+            .split(" ")[2]
+            .trim()
+            .split(":");
           let hourExtracted = timeExtracted[0];
           let minutesExtracted = timeExtracted[1];
           //Recreate now time
@@ -1088,7 +1284,17 @@ function parsePricingInputData(resolve, inputData) {
               //GMT+2 in Namibia
               dateTMP = moment(dateTMP.getTime() + 86400000).utcOffset(2);
           }
-          dateTMP = dateTMP.year() + "-" + (dateTMP.month() + 1) + "-" + dateTMP.date() + " " + hourExtracted + ":" + minutesExtracted + ":00";
+          dateTMP =
+            dateTMP.year() +
+            "-" +
+            (dateTMP.month() + 1) +
+            "-" +
+            dateTMP.date() +
+            " " +
+            hourExtracted +
+            ":" +
+            minutesExtracted +
+            ":00";
           cleanInputData.pickup_time = dateTMP.millisecond() / 1000;
           res(true);
         } //Immediate request
@@ -1104,13 +1310,20 @@ function parsePricingInputData(resolve, inputData) {
           cleanInputData.country = inputData.country;
           cleanInputData.pickup_location_infos = {
             pickup_type: inputData.naturePickup,
-            coordinates: { latitude: inputData.pickupData.coordinates[0], longitude: inputData.pickupData.coordinates[1] },
+            coordinates: {
+              latitude: inputData.pickupData.coordinates[0],
+              longitude: inputData.pickupData.coordinates[1],
+            },
             location_name:
-              inputData.pickupData.location_name !== undefined && inputData.pickupData.location_name !== false
+              inputData.pickupData.location_name !== undefined &&
+              inputData.pickupData.location_name !== false
                 ? inputData.pickupData.location_name
                 : false,
             street_name:
-              inputData.pickupData.street_name !== undefined && inputData.pickupData.street_name !== false ? inputData.pickupData.street_name : false,
+              inputData.pickupData.street_name !== undefined &&
+              inputData.pickupData.street_name !== false
+                ? inputData.pickupData.street_name
+                : false,
             suburb: false,
             state: false,
             city: inputData.pickupData.city,
@@ -1129,17 +1342,26 @@ function parsePricingInputData(resolve, inputData) {
                     passenger_number_id: index + 1,
                     dropoff_type: false,
                     coordinates: {
-                      latitude: inputData.destinationData.passenger1Destination.coordinates[0],
-                      longitude: inputData.destinationData.passenger1Destination.coordinates[1],
+                      latitude:
+                        inputData.destinationData.passenger1Destination
+                          .coordinates[0],
+                      longitude:
+                        inputData.destinationData.passenger1Destination
+                          .coordinates[1],
                     },
                     location_name:
-                      inputData.destinationData.passenger1Destination.location_name !== undefined &&
-                      inputData.destinationData.passenger1Destination.location_name !== false
-                        ? inputData.destinationData.passenger1Destination.location_name
+                      inputData.destinationData.passenger1Destination
+                        .location_name !== undefined &&
+                      inputData.destinationData.passenger1Destination
+                        .location_name !== false
+                        ? inputData.destinationData.passenger1Destination
+                            .location_name
                         : false,
                     street_name:
-                      inputData.destinationData.passenger1Destination.street !== undefined &&
-                      inputData.destinationData.passenger1Destination.street !== false
+                      inputData.destinationData.passenger1Destination.street !==
+                        undefined &&
+                      inputData.destinationData.passenger1Destination.street !==
+                        false
                         ? inputData.destinationData.passenger1Destination.street
                         : false,
                     suburb: false,
@@ -1153,27 +1375,49 @@ function parsePricingInputData(resolve, inputData) {
               else {
                 if (cleanInputData.passengers_number == 2) {
                   //Passenger1
-                  let passenger1Data = inputData.destinationData.passenger1Destination;
+                  let passenger1Data =
+                    inputData.destinationData.passenger1Destination;
                   cleanInputData.destination_location_infos.push({
                     passenger_number_id: 1,
                     dropoff_type: false,
-                    coordinates: { latitude: passenger1Data.coordinates[0], longitude: passenger1Data.coordinates[1] },
+                    coordinates: {
+                      latitude: passenger1Data.coordinates[0],
+                      longitude: passenger1Data.coordinates[1],
+                    },
                     location_name:
-                      passenger1Data.location_name !== undefined && passenger1Data.location_name !== false ? passenger1Data.location_name : false,
-                    street_name: passenger1Data.street !== undefined && passenger1Data.street !== false ? passenger1Data.street : false,
+                      passenger1Data.location_name !== undefined &&
+                      passenger1Data.location_name !== false
+                        ? passenger1Data.location_name
+                        : false,
+                    street_name:
+                      passenger1Data.street !== undefined &&
+                      passenger1Data.street !== false
+                        ? passenger1Data.street
+                        : false,
                     suburb: false,
                     state: false,
                     city: inputData.pickupData.city,
                   });
                   //Passenger2
-                  let passenger2Data = inputData.destinationData.passenger2Destination;
+                  let passenger2Data =
+                    inputData.destinationData.passenger2Destination;
                   cleanInputData.destination_location_infos.push({
                     passenger_number_id: 2,
                     dropoff_type: false,
-                    coordinates: { latitude: passenger2Data.coordinates[0], longitude: passenger2Data.coordinates[1] },
+                    coordinates: {
+                      latitude: passenger2Data.coordinates[0],
+                      longitude: passenger2Data.coordinates[1],
+                    },
                     location_name:
-                      passenger2Data.location_name !== undefined && passenger2Data.location_name !== false ? passenger2Data.location_name : false,
-                    street_name: passenger2Data.street !== undefined && passenger2Data.street !== false ? passenger2Data.street : false,
+                      passenger2Data.location_name !== undefined &&
+                      passenger2Data.location_name !== false
+                        ? passenger2Data.location_name
+                        : false,
+                    street_name:
+                      passenger2Data.street !== undefined &&
+                      passenger2Data.street !== false
+                        ? passenger2Data.street
+                        : false,
                     suburb: false,
                     state: false,
                     city: inputData.pickupData.city,
@@ -1182,40 +1426,73 @@ function parsePricingInputData(resolve, inputData) {
                   res(cleanInputData);
                 } else if (cleanInputData.passengers_number == 3) {
                   //Passenger1
-                  let passenger1Data = inputData.destinationData.passenger1Destination;
+                  let passenger1Data =
+                    inputData.destinationData.passenger1Destination;
                   cleanInputData.destination_location_infos.push({
                     passenger_number_id: 1,
                     dropoff_type: false,
-                    coordinates: { latitude: passenger1Data.coordinates[0], longitude: passenger1Data.coordinates[1] },
+                    coordinates: {
+                      latitude: passenger1Data.coordinates[0],
+                      longitude: passenger1Data.coordinates[1],
+                    },
                     location_name:
-                      passenger1Data.location_name !== undefined && passenger1Data.location_name !== false ? passenger1Data.location_name : false,
-                    street_name: passenger1Data.street !== undefined && passenger1Data.street !== false ? passenger1Data.street : false,
+                      passenger1Data.location_name !== undefined &&
+                      passenger1Data.location_name !== false
+                        ? passenger1Data.location_name
+                        : false,
+                    street_name:
+                      passenger1Data.street !== undefined &&
+                      passenger1Data.street !== false
+                        ? passenger1Data.street
+                        : false,
                     suburb: false,
                     state: false,
                     city: inputData.pickupData.city,
                   });
                   //Passenger2
-                  let passenger2Data = inputData.destinationData.passenger2Destination;
+                  let passenger2Data =
+                    inputData.destinationData.passenger2Destination;
                   cleanInputData.destination_location_infos.push({
                     passenger_number_id: 2,
                     dropoff_type: false,
-                    coordinates: { latitude: passenger2Data.coordinates[0], longitude: passenger2Data.coordinates[1] },
+                    coordinates: {
+                      latitude: passenger2Data.coordinates[0],
+                      longitude: passenger2Data.coordinates[1],
+                    },
                     location_name:
-                      passenger2Data.location_name !== undefined && passenger2Data.location_name !== false ? passenger2Data.location_name : false,
-                    street_name: passenger2Data.street !== undefined && passenger2Data.street !== false ? passenger2Data.street : false,
+                      passenger2Data.location_name !== undefined &&
+                      passenger2Data.location_name !== false
+                        ? passenger2Data.location_name
+                        : false,
+                    street_name:
+                      passenger2Data.street !== undefined &&
+                      passenger2Data.street !== false
+                        ? passenger2Data.street
+                        : false,
                     suburb: false,
                     state: false,
                     city: inputData.pickupData.city,
                   });
                   //Passenger3
-                  let passenger3Data = inputData.destinationData.passenger3Destination;
+                  let passenger3Data =
+                    inputData.destinationData.passenger3Destination;
                   cleanInputData.destination_location_infos.push({
                     passenger_number_id: 3,
                     dropoff_type: false,
-                    coordinates: { latitude: passenger3Data.coordinates[0], longitude: passenger3Data.coordinates[1] },
+                    coordinates: {
+                      latitude: passenger3Data.coordinates[0],
+                      longitude: passenger3Data.coordinates[1],
+                    },
                     location_name:
-                      passenger3Data.location_name !== undefined && passenger3Data.location_name !== false ? passenger3Data.location_name : false,
-                    street_name: passenger3Data.street !== undefined && passenger3Data.street !== false ? passenger3Data.street : false,
+                      passenger3Data.location_name !== undefined &&
+                      passenger3Data.location_name !== false
+                        ? passenger3Data.location_name
+                        : false,
+                    street_name:
+                      passenger3Data.street !== undefined &&
+                      passenger3Data.street !== false
+                        ? passenger3Data.street
+                        : false,
                     suburb: false,
                     state: false,
                     city: inputData.pickupData.city,
@@ -1224,53 +1501,97 @@ function parsePricingInputData(resolve, inputData) {
                   res(cleanInputData);
                 } else if (cleanInputData.passengers_number == 4) {
                   //Passenger1
-                  let passenger1Data = inputData.destinationData.passenger1Destination;
+                  let passenger1Data =
+                    inputData.destinationData.passenger1Destination;
                   cleanInputData.destination_location_infos.push({
                     passenger_number_id: 1,
                     dropoff_type: false,
-                    coordinates: { latitude: passenger1Data.coordinates[0], longitude: passenger1Data.coordinates[1] },
+                    coordinates: {
+                      latitude: passenger1Data.coordinates[0],
+                      longitude: passenger1Data.coordinates[1],
+                    },
                     location_name:
-                      passenger1Data.location_name !== undefined && passenger1Data.location_name !== false ? passenger1Data.location_name : false,
-                    street_name: passenger1Data.street !== undefined && passenger1Data.street !== false ? passenger1Data.street : false,
+                      passenger1Data.location_name !== undefined &&
+                      passenger1Data.location_name !== false
+                        ? passenger1Data.location_name
+                        : false,
+                    street_name:
+                      passenger1Data.street !== undefined &&
+                      passenger1Data.street !== false
+                        ? passenger1Data.street
+                        : false,
                     suburb: false,
                     state: false,
                     city: inputData.pickupData.city,
                   });
                   //Passenger2
-                  let passenger2Data = inputData.destinationData.passenger2Destination;
+                  let passenger2Data =
+                    inputData.destinationData.passenger2Destination;
                   cleanInputData.destination_location_infos.push({
                     passenger_number_id: 2,
                     dropoff_type: false,
-                    coordinates: { latitude: passenger2Data.coordinates[0], longitude: passenger2Data.coordinates[1] },
+                    coordinates: {
+                      latitude: passenger2Data.coordinates[0],
+                      longitude: passenger2Data.coordinates[1],
+                    },
                     location_name:
-                      passenger2Data.location_name !== undefined && passenger2Data.location_name !== false ? passenger2Data.location_name : false,
-                    street_name: passenger2Data.street !== undefined && passenger2Data.street !== false ? passenger2Data.street : false,
+                      passenger2Data.location_name !== undefined &&
+                      passenger2Data.location_name !== false
+                        ? passenger2Data.location_name
+                        : false,
+                    street_name:
+                      passenger2Data.street !== undefined &&
+                      passenger2Data.street !== false
+                        ? passenger2Data.street
+                        : false,
                     suburb: false,
                     state: false,
                     city: inputData.pickupData.city,
                   });
                   //Passenger3
-                  let passenger3Data = inputData.destinationData.passenger3Destination;
+                  let passenger3Data =
+                    inputData.destinationData.passenger3Destination;
                   cleanInputData.destination_location_infos.push({
                     passenger_number_id: 3,
                     dropoff_type: false,
-                    coordinates: { latitude: passenger3Data.coordinates[0], longitude: passenger3Data.coordinates[1] },
+                    coordinates: {
+                      latitude: passenger3Data.coordinates[0],
+                      longitude: passenger3Data.coordinates[1],
+                    },
                     location_name:
-                      passenger3Data.location_name !== undefined && passenger3Data.location_name !== false ? passenger3Data.location_name : false,
-                    street_name: passenger3Data.street !== undefined && passenger3Data.street !== false ? passenger3Data.street : false,
+                      passenger3Data.location_name !== undefined &&
+                      passenger3Data.location_name !== false
+                        ? passenger3Data.location_name
+                        : false,
+                    street_name:
+                      passenger3Data.street !== undefined &&
+                      passenger3Data.street !== false
+                        ? passenger3Data.street
+                        : false,
                     suburb: false,
                     state: false,
                     city: inputData.pickupData.city,
                   });
                   //Passenger4
-                  let passenger4Data = inputData.destinationData.passenger4Destination;
+                  let passenger4Data =
+                    inputData.destinationData.passenger4Destination;
                   cleanInputData.destination_location_infos.push({
                     passenger_number_id: 4,
                     dropoff_type: false,
-                    coordinates: { latitude: passenger4Data.coordinates[0], longitude: passenger4Data.coordinates[1] },
+                    coordinates: {
+                      latitude: passenger4Data.coordinates[0],
+                      longitude: passenger4Data.coordinates[1],
+                    },
                     location_name:
-                      passenger4Data.location_name !== undefined && passenger4Data.location_name !== false ? passenger4Data.location_name : false,
-                    street_name: passenger4Data.street !== undefined && passenger4Data.street !== false ? passenger4Data.street : false,
+                      passenger4Data.location_name !== undefined &&
+                      passenger4Data.location_name !== false
+                        ? passenger4Data.location_name
+                        : false,
+                    street_name:
+                      passenger4Data.street !== undefined &&
+                      passenger4Data.street !== false
+                        ? passenger4Data.street
+                        : false,
                     suburb: false,
                     state: false,
                     city: inputData.pickupData.city,
@@ -1285,17 +1606,26 @@ function parsePricingInputData(resolve, inputData) {
                 passenger_number_id: 1,
                 dropoff_type: false,
                 coordinates: {
-                  latitude: inputData.destinationData.passenger1Destination.coordinates[0],
-                  longitude: inputData.destinationData.passenger1Destination.coordinates[1],
+                  latitude:
+                    inputData.destinationData.passenger1Destination
+                      .coordinates[0],
+                  longitude:
+                    inputData.destinationData.passenger1Destination
+                      .coordinates[1],
                 },
                 location_name:
-                  inputData.destinationData.passenger1Destination.location_name !== undefined &&
-                  inputData.destinationData.passenger1Destination.location_name !== false
-                    ? inputData.destinationData.passenger1Destination.location_name
+                  inputData.destinationData.passenger1Destination
+                    .location_name !== undefined &&
+                  inputData.destinationData.passenger1Destination
+                    .location_name !== false
+                    ? inputData.destinationData.passenger1Destination
+                        .location_name
                     : false,
                 street_name:
-                  inputData.destinationData.passenger1Destination.street !== undefined &&
-                  inputData.destinationData.passenger1Destination.street !== false
+                  inputData.destinationData.passenger1Destination.street !==
+                    undefined &&
+                  inputData.destinationData.passenger1Destination.street !==
+                    false
                     ? inputData.destinationData.passenger1Destination.street
                     : false,
                 suburb: false,
@@ -1328,220 +1658,230 @@ function parsePricingInputData(resolve, inputData) {
   }
 }
 
-//Database connection
-const dbPool = mysql.createPool({
-  connectionLimit: 1000000000,
-  host: "localhost",
-  database: "taxiconnect",
-  user: "root",
-  password: "",
-});
-
 /**
  * Pricing service
  * Responsible for computing all the price estimates for evey vehicle type based on any type of requests (RIDE or DELIVERY)
  * and also return the status (available - can be selected, unavailable - can't be selected) of each vehicle to enable or disable selection in-app.
  */
 
-dbPool.getConnection(function (err, connection) {
-  clientMongo.connect(function (err) {
-    //if (err) throw err;
-    console.log("[+] Pricing service active");
-    const dbMongo = clientMongo.db(DB_NAME_MONGODB);
-    const collectionVehiclesInfos = dbMongo.collection("vehicles_collection_infos"); //Collection containing the list of all the vehicles types and all their corresponding infos
-    const collectionPricesLocationsMap = dbMongo.collection("global_prices_to_locations_map"); //Collection containing all the prices and locations in a format
-    const collectionSavedSuburbResults = dbMongo.collection("autocompleted_location_suburbs"); //Collection of all the location matching will all their corresponding suburbs and other fetched infos
-    const collectionNotFoundSubursPricesMap = dbMongo.collection("not_found_suburbs_prices_map"); //Colleciton of all suburbs prices that where not found in the global prices map.
-    //-------------
-    const bodyParser = require("body-parser");
-    app
-      .get("/", function (req, res) {
-        res.send("Pricing services up");
-      })
-      .use(bodyParser.json())
-      .use(bodyParser.urlencoded({ extended: true }));
+clientMongo.connect(function (err) {
+  //if (err) throw err;
+  console.log("[+] Pricing service active");
+  const dbMongo = clientMongo.db(DB_NAME_MONGODB);
+  const collectionVehiclesInfos = dbMongo.collection(
+    "vehicles_collection_infos"
+  ); //Collection containing the list of all the vehicles types and all their corresponding infos
+  const collectionPricesLocationsMap = dbMongo.collection(
+    "global_prices_to_locations_map"
+  ); //Collection containing all the prices and locations in a format
+  const collectionSavedSuburbResults = dbMongo.collection(
+    "autocompleted_location_suburbs"
+  ); //Collection of all the location matching will all their corresponding suburbs and other fetched infos
+  const collectionNotFoundSubursPricesMap = dbMongo.collection(
+    "not_found_suburbs_prices_map"
+  ); //Colleciton of all suburbs prices that where not found in the global prices map.
+  //-------------
+  const bodyParser = require("body-parser");
+  app
+    .get("/", function (req, res) {
+      res.send("Pricing services up");
+    })
+    .use(bodyParser.json())
+    .use(bodyParser.urlencoded({ extended: true }));
 
-    //-------------------------------
+  //-------------------------------
 
-    /**
-     * Get the price estimates for every single vehicle types available.
-     */
-    app.post("/getOverallPricingAndAvailabilityDetails", function (req, res) {
-      resolveDate();
-      //DELIVERY TEST DATA - DEBUG
-      /*let deliveryPricingInputDataRaw = {
-        user_fingerprint: "7c57cb6c9471fd33fd265d5441f253eced2a6307c0207dea57c987035b496e6e8dfa7105b86915da",
-        connectType: "ConnectUs",
-        country: "Namibia",
-        isAllGoingToSameDestination: false,
-        naturePickup: "PrivateLocation", //Force PrivateLocation type if nothing found
-        passengersNo: 1, //Default 1 possible destination
-        rideType: "DELIVERY",
-        timeScheduled: "Now",
-        pickupData: {
+  /**
+   * Get the price estimates for every single vehicle types available.
+   */
+  app.post("/getOverallPricingAndAvailabilityDetails", function (req, res) {
+    resolveDate();
+    //DELIVERY TEST DATA - DEBUG
+    /*let deliveryPricingInputDataRaw = {
+      user_fingerprint:
+        "7c57cb6c9471fd33fd265d5441f253eced2a6307c0207dea57c987035b496e6e8dfa7105b86915da",
+      connectType: "ConnectUs",
+      country: "Namibia",
+      isAllGoingToSameDestination: false,
+      naturePickup: "PrivateLocation", //Force PrivateLocation type if nothing found
+      passengersNo: 1, //Default 1 possible destination
+      rideType: "DELIVERY",
+      timeScheduled: "Now",
+      pickupData: {
+        coordinates: [-22.576655, 17.083548],
+        location_name: "Wecke Street",
+        street_name: "Street name",
+        city: "Windhoek",
+      },
+      destinationData: {
+        passenger1Destination: {
           coordinates: [-22.576655, 17.083548],
           location_name: "Wecke Street",
-          street_name: "Street name",
+          street: "Street name",
           city: "Windhoek",
         },
-        destinationData: {
-          passenger1Destination: {
-            coordinates: [-22.576655, 17.083548],
-            location_name: "Wecke Street",
-            street: "Street name",
-            city: "Windhoek",
-          },
-          passenger2Destination: false,
-          passenger3Destination: false,
-          passenger4Destination: false,
-        },
-      };
-      req.body = deliveryPricingInputDataRaw;*/
-      console.log(req.body);
-      //...
+        passenger2Destination: false,
+        passenger3Destination: false,
+        passenger4Destination: false,
+      },
+    };
+    req.body = deliveryPricingInputDataRaw;*/
+    console.log(req.body);
+    //...
 
-      try {
-        let inputDataInitial = req.body;
-        //Parse input to the correct format
-        //Parse input date to the good format
-        new Promise((res) => {
-          parsePricingInputData(res, inputDataInitial);
-        }).then(
-          (reslt) => {
-            if (reslt !== false) {
-              let parsedData = reslt; //Clean parsed data
-              if (checkInputIntegrity(parsedData)) {
-                //Check inetgrity
-                console.log("Passenged the integrity test.");
-                console.log(parsedData);
-                //Valid input
-                //Autocomplete the input data
-                new Promise((res) => {
-                  autocompleteInputData(res, parsedData, collectionSavedSuburbResults);
-                }).then(
-                  (result) => {
-                    if (result !== false) {
-                      let completeInput = result;
-                      console.log("Done autocompleting");
-                      //Generate prices metadata for all the relevant vehicles categories
-                      console.log("Computing prices metadata of relevant car categories");
-                      new Promise((res) => {
-                        estimateFullVehiclesCatPrices(
-                          res,
-                          completeInput,
-                          collectionVehiclesInfos,
-                          collectionPricesLocationsMap,
-                          collectionNotFoundSubursPricesMap
-                        );
-                      }).then(
-                        (result) => {
-                          console.log("DOne computing fares");
-                          res.send(result);
-                        },
-                        (error) => {
-                          console.log(error);
-                          res.send({ response: "Failed perform the operations" });
-                        }
+    try {
+      let inputDataInitial = req.body;
+      //Parse input to the correct format
+      //Parse input date to the good format
+      new Promise((res) => {
+        parsePricingInputData(res, inputDataInitial);
+      }).then(
+        (reslt) => {
+          if (reslt !== false) {
+            let parsedData = reslt; //Clean parsed data
+            if (checkInputIntegrity(parsedData)) {
+              //Check inetgrity
+              console.log("Passenged the integrity test.");
+              console.log(parsedData);
+              //Valid input
+              //Autocomplete the input data
+              new Promise((res) => {
+                autocompleteInputData(
+                  res,
+                  parsedData,
+                  collectionSavedSuburbResults
+                );
+              }).then(
+                (result) => {
+                  if (result !== false) {
+                    let completeInput = result;
+                    console.log("Done autocompleting");
+                    //Generate prices metadata for all the relevant vehicles categories
+                    console.log(
+                      "Computing prices metadata of relevant car categories"
+                    );
+                    new Promise((res) => {
+                      estimateFullVehiclesCatPrices(
+                        res,
+                        completeInput,
+                        collectionVehiclesInfos,
+                        collectionPricesLocationsMap,
+                        collectionNotFoundSubursPricesMap
                       );
-                      //...
-                    } //Error - Failed input augmentation
-                    else {
-                      res.send({ response: "Failed input augmentation" });
-                    }
-                  },
-                  (error) => {
-                    //Error - Failed input augmentation
-                    console.log(error);
+                    }).then(
+                      (result) => {
+                        console.log("DOne computing fares");
+                        console.log(result);
+                        res.send(result);
+                      },
+                      (error) => {
+                        console.log(error);
+                        res.send({ response: "Failed perform the operations" });
+                      }
+                    );
+                    //...
+                  } //Error - Failed input augmentation
+                  else {
                     res.send({ response: "Failed input augmentation" });
                   }
-                );
-              } //Invalid input data
-              else {
-                res.send({ response: "Failed integrity" });
-              }
-            } //Faild parsing
+                },
+                (error) => {
+                  //Error - Failed input augmentation
+                  console.log(error);
+                  res.send({ response: "Failed input augmentation" });
+                }
+              );
+            } //Invalid input data
             else {
-              res.send({ response: "Failed parsing." });
+              res.send({ response: "Failed integrity" });
             }
-          },
-          (error) => {
+          } //Faild parsing
+          else {
             res.send({ response: "Failed parsing." });
           }
-        );
-      } catch (error) {
-        console.log(error);
-        res.send({ response: "Failed parsing." });
-      }
-    });
+        },
+        (error) => {
+          res.send({ response: "Failed parsing." });
+        }
+      );
+    } catch (error) {
+      console.log(error);
+      res.send({ response: "Failed parsing." });
+    }
+  });
 
-    /**
-     * GET SUBURBS INFORMATION
-     * [Should be moved to the MAP service]
-     * Resposible for getting the corresponding suburbs for provided location.
-     * Input data: location name, street name, city, country and coordinates (obj, lat and long)
-     */
-    app.get("/getCorrespondingSuburbInfos", function (req, res) {
-      let params = urlParser.parse(req.url, true);
-      req = params.query;
-      console.log(req);
+  /**
+   * GET SUBURBS INFORMATION
+   * [Should be moved to the MAP service]
+   * Resposible for getting the corresponding suburbs for provided location.
+   * Input data: location name, street name, city, country and coordinates (obj, lat and long)
+   */
+  app.get("/getCorrespondingSuburbInfos", function (req, res) {
+    let params = urlParser.parse(req.url, true);
+    req = params.query;
+    console.log(req);
 
-      if (req !== undefined && req.user_fingerprint !== undefined) {
-        new Promise((res) => {
-          doMongoSearchForAutocompletedSuburbs(
-            res,
-            {
-              location_name: req.location_name,
-              street_name: req.street_name,
-              city: req.city,
-              country: req.country,
-              coordinates: {
-                latitude: req.latitude,
-                longitude: req.longitude,
-              },
-            },
-            collectionSavedSuburbResults
-          );
-        }).then(
-          (result) => {
-            console.log(result);
-            res.send(result);
-          },
-          (error) => {
-            console.log(error);
-            res.send(false);
-          }
-        );
-      } else {
-        res.send(false);
-      }
-    });
-
-    /**
-     * GET BACH DESTINATION SUBURBS AND LOCATION TYPE
-     * Responsible for autocompleting the suburbs and location types of locations (external to this service)
-     * Input data: @array containing compatible parsed data of locations
-     */
-    app.post("/manageAutoCompleteSuburbsAndLocationTypes", function (req, res) {
-      let arrayData = req.body;
-      console.log(arrayData);
+    if (req !== undefined && req.user_fingerprint !== undefined) {
       new Promise((res) => {
-        manageAutoCompleteDestinationLocations(res, arrayData.locationData, arrayData.user_fingerprint, collectionSavedSuburbResults);
+        doMongoSearchForAutocompletedSuburbs(
+          res,
+          {
+            location_name: req.location_name,
+            street_name: req.street_name,
+            city: req.city,
+            country: req.country,
+            coordinates: {
+              latitude: req.latitude,
+              longitude: req.longitude,
+            },
+          },
+          collectionSavedSuburbResults
+        );
       }).then(
         (result) => {
-          if (result !== false) {
-            //DONE AUTOCOMPLETING
-            res.send(result);
-          } //Error
-          else {
-            res.send(false);
-          }
+          console.log(result);
+          res.send(result);
         },
         (error) => {
           console.log(error);
           res.send(false);
         }
       );
-    });
+    } else {
+      res.send(false);
+    }
+  });
+
+  /**
+   * GET BACH DESTINATION SUBURBS AND LOCATION TYPE
+   * Responsible for autocompleting the suburbs and location types of locations (external to this service)
+   * Input data: @array containing compatible parsed data of locations
+   */
+  app.post("/manageAutoCompleteSuburbsAndLocationTypes", function (req, res) {
+    let arrayData = req.body;
+    console.log(arrayData);
+    new Promise((res) => {
+      manageAutoCompleteDestinationLocations(
+        res,
+        arrayData.locationData,
+        arrayData.user_fingerprint,
+        collectionSavedSuburbResults
+      );
+    }).then(
+      (result) => {
+        if (result !== false) {
+          //DONE AUTOCOMPLETING
+          res.send(result);
+        } //Error
+        else {
+          res.send(false);
+        }
+      },
+      (error) => {
+        console.log(error);
+        res.send(false);
+      }
+    );
   });
 });
 

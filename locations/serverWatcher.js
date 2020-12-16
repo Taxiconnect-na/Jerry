@@ -9,7 +9,7 @@ const MongoClient = require("mongodb").MongoClient;
 
 var app = express();
 var server = http.createServer(app);
-const io = require("socket.io").listen(server);
+const io = require("socket.io")(server);
 const mysql = require("mysql");
 const requestAPI = require("request");
 const crypto = require("crypto");
@@ -45,7 +45,18 @@ function resolveDate() {
   date = moment(date.getTime()).utcOffset(2);
 
   dateObject = date;
-  date = date.year() + "-" + (date.month() + 1) + "-" + date.date() + " " + date.hour() + ":" + date.minute() + ":" + date.second();
+  date =
+    date.year() +
+    "-" +
+    (date.month() + 1) +
+    "-" +
+    date.date() +
+    " " +
+    date.hour() +
+    ":" +
+    date.minute() +
+    ":" +
+    date.second();
   chaineDateUTC = date;
 }
 resolveDate();
@@ -91,14 +102,29 @@ function generateUniqueFingerprint(str, encryption = false, resolve) {
   str = str.trim();
   let fingerprint = null;
   if (encryption === false) {
-    fingerprint = crypto.createHmac("sha512WithRSAEncryption", "TAXICONNECTBASICKEYFINGERPRINTS-RIDES-DELIVERY").update(str).digest("hex");
+    fingerprint = crypto
+      .createHmac(
+        "sha512WithRSAEncryption",
+        "TAXICONNECTBASICKEYFINGERPRINTS-RIDES-DELIVERY"
+      )
+      .update(str)
+      .digest("hex");
     resolve(fingerprint);
   } else if (/md5/i.test(encryption)) {
-    fingerprint = crypto.createHmac("md5WithRSAEncryption", "TAXICONNECTBASICKEYFINGERPRINTS-RIDES-DELIVERY").update(str).digest("hex");
+    fingerprint = crypto
+      .createHmac(
+        "md5WithRSAEncryption",
+        "TAXICONNECTBASICKEYFINGERPRINTS-RIDES-DELIVERY"
+      )
+      .update(str)
+      .digest("hex");
     resolve(fingerprint);
   } //Other - default
   else {
-    fingerprint = crypto.createHmac("sha256", "TAXICONNECTBASICKEYFINGERPRINTS-RIDES-DELIVERY").update(str).digest("hex");
+    fingerprint = crypto
+      .createHmac("sha256", "TAXICONNECTBASICKEYFINGERPRINTS-RIDES-DELIVERY")
+      .update(str)
+      .digest("hex");
     resolve(fingerprint);
   }
 }
@@ -111,9 +137,15 @@ clientMongo.connect(function (err) {
   //if (err) throw err;
   console.log("[+] Watcher services active.");
   const dbMongo = clientMongo.db(DB_NAME_MONGODB);
-  const collectionRidesDeliveryData = dbMongo.collection("rides_deliveries_requests"); //Hold all the requests made (rides and deliveries)
-  const collectionRelativeDistances = dbMongo.collection("relative_distances_riders_drivers"); //Hold the relative distances between rider and the drivers (online, same city, same country) at any given time
-  const collectionRidersLocation_log = dbMongo.collection("historical_positioning_logs"); //Hold all the location updated from the rider
+  const collectionRidesDeliveryData = dbMongo.collection(
+    "rides_deliveries_requests"
+  ); //Hold all the requests made (rides and deliveries)
+  const collectionRelativeDistances = dbMongo.collection(
+    "relative_distances_riders_drivers"
+  ); //Hold the relative distances between rider and the drivers (online, same city, same country) at any given time
+  const collectionRidersLocation_log = dbMongo.collection(
+    "historical_positioning_logs"
+  ); //Hold all the location updated from the rider
   const collectionDrivers_profiles = dbMongo.collection("drivers_profiles"); //Hold all the drivers profiles
   //-------------
   const bodyParser = require("body-parser");
@@ -130,7 +162,7 @@ clientMongo.connect(function (err) {
    * Reference it from the last acceptance time.
    */
   _INTERVAL_PERSISTER_LATE_REQUESTS = setInterval(() => {
-    console.log("Requests watcher");
+    //console.log("Requests watcher");
   }, _INTERVAL_PERSISTER_LATE_REQUESTS_TIME);
 });
 

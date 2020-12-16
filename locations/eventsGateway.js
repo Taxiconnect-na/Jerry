@@ -22,7 +22,18 @@ function resolveDate() {
   date = moment(date.getTime()).utcOffset(2);
 
   dateObject = date;
-  date = date.year() + "-" + (date.month() + 1) + "-" + date.date() + " " + date.hour() + ":" + date.minute() + ":" + date.second();
+  date =
+    date.year() +
+    "-" +
+    (date.month() + 1) +
+    "-" +
+    date.date() +
+    " " +
+    date.hour() +
+    ":" +
+    date.minute() +
+    ":" +
+    date.second();
   chaineDateUTC = date;
 }
 resolveDate();
@@ -42,7 +53,7 @@ app
   .use(bodyParser.urlencoded({ extended: true }));
 
 //EVENTS ROUTER
-io.sockets.on("connection", function (socket) {
+io.on("connection", (socket) => {
   console.log("Connected to the event gateway.");
   /**
    * MAP SERVICE, port 9090
@@ -51,6 +62,7 @@ io.sockets.on("connection", function (socket) {
    * Update the passenger's location in the system and prefetch the navigation data if any.
    */
   socket.on("update-passenger-location", function (req) {
+    console.log(req);
     let servicePort = 9090;
 
     if (
@@ -321,7 +333,16 @@ io.sockets.on("connection", function (socket) {
       req.city !== undefined &&
       req.city !== null
     ) {
-      let url = localURL + ":" + servicePort + "/getSearchedLocations?user_fp=" + req.user_fp + "&query=" + req.query + "&city=" + req.city;
+      let url =
+        localURL +
+        ":" +
+        servicePort +
+        "/getSearchedLocations?user_fp=" +
+        req.user_fp +
+        "&query=" +
+        req.query +
+        "&city=" +
+        req.city;
 
       requestAPI(url, function (error, response, body) {
         console.log(body);
@@ -363,7 +384,11 @@ io.sockets.on("connection", function (socket) {
       req.destinationData.passenger1Destination !== undefined &&
       req.destinationData.passenger1Destination !== null
     ) {
-      let url = localURL + ":" + servicePort + "/getOverallPricingAndAvailabilityDetails";
+      let url =
+        localURL +
+        ":" +
+        servicePort +
+        "/getOverallPricingAndAvailabilityDetails";
 
       requestAPI.post({ url, form: req }, function (error, response, body) {
         console.log(body);
@@ -386,6 +411,43 @@ io.sockets.on("connection", function (socket) {
       });
     } else {
       socket.emit("getPricingForRideorDelivery-response", false);
+    }
+  });
+
+  /**
+   * DISPATCH SERVICE, port 9094
+   * Route: dispatchRidesOrDeliveryRequests
+   * event: requestRideOrDeliveryForThis
+   * Make a ride or delivery request for a rider.
+   */
+  socket.on("requestRideOrDeliveryForThis", function (req) {
+    console.log(req);
+    let servicePort = 9094;
+    if (req.user_fingerprint !== undefined && req.user_fingerprint !== null) {
+      let url =
+        localURL + ":" + servicePort + "/dispatchRidesOrDeliveryRequests";
+
+      requestAPI.post({ url, form: req }, function (error, response, body) {
+        console.log(body);
+        if (error === null) {
+          try {
+            body = JSON.parse(body);
+            if (body.response !== undefined) {
+              //Error
+              socket.emit("requestRideOrDeliveryForThis-response", body);
+            } //SUCCESS
+            else {
+              socket.emit("requestRideOrDeliveryForThis-response", body);
+            }
+          } catch (error) {
+            socket.emit("requestRideOrDeliveryForThis-response", false);
+          }
+        } else {
+          socket.emit("requestRideOrDeliveryForThis-response", false);
+        }
+      });
+    } else {
+      socket.emit("requestRideOrDeliveryForThis-response", false);
     }
   });
 });
