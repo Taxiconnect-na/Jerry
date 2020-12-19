@@ -450,6 +450,55 @@ io.on("connection", (socket) => {
       socket.emit("requestRideOrDeliveryForThis-response", false);
     }
   });
+
+  /**
+   * ACCOUNTS SERVICE, port 9797
+   * Route: sendOTPAndCheckUserStatus
+   * event: sendOtpAndCheckerUserStatusTc
+   * Verify the phone number by sending an otp and check whether the user is registered or not (status)
+   */
+  socket.on("sendOtpAndCheckerUserStatusTc", function (req) {
+    console.log(req);
+    let servicePort = 9797;
+    if (req.user_fingerprint !== undefined && req.user_fingerprint !== null) {
+      let url =
+        localURL +
+        ":" +
+        servicePort +
+        "/sendOTPAndCheckUserStatus?phone_number=" +
+        req.phone_number;
+
+      requestAPI(url, function (error, response, body) {
+        console.log(body);
+        if (error === null) {
+          try {
+            body = JSON.parse(body);
+            if (body.response !== undefined) {
+              //Error
+              socket.emit("sendOtpAndCheckerUserStatusTc-response", {
+                response: "error_checking_user",
+              });
+            } //SUCCESS - got a status - not necessarily success
+            else {
+              socket.emit("sendOtpAndCheckerUserStatusTc-response", body);
+            }
+          } catch (error) {
+            socket.emit("sendOtpAndCheckerUserStatusTc-response", {
+              response: "error_checking_user",
+            });
+          }
+        } else {
+          socket.emit("sendOtpAndCheckerUserStatusTc-response", {
+            response: "error_checking_user",
+          });
+        }
+      });
+    } else {
+      socket.emit("sendOtpAndCheckerUserStatusTc-response", {
+        response: "error_checking_user",
+      });
+    }
+  });
 });
 
 server.listen(port);
