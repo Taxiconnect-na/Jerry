@@ -143,7 +143,7 @@ function generateUniqueFingerprint(str, encryption = false, resolve) {
     fingerprint = crypto
       .createHmac(
         "sha512WithRSAEncryption",
-        "TAXICONNECTBASICKEYFINGERPRINTS-RIDES-DELIVERY"
+        "TAXICONNECTBASICKEYFINGERPRINTS-RIDES-DELIVERY-ACCOUNTS"
       )
       .update(str)
       .digest("hex");
@@ -152,7 +152,7 @@ function generateUniqueFingerprint(str, encryption = false, resolve) {
     fingerprint = crypto
       .createHmac(
         "md5WithRSAEncryption",
-        "TAXICONNECTBASICKEYFINGERPRINTS-RIDES-DELIVERY"
+        "TAXICONNECTBASICKEYFINGERPRINTS-RIDES-DELIVERY-ACCOUNTS"
       )
       .update(str)
       .digest("hex");
@@ -160,7 +160,10 @@ function generateUniqueFingerprint(str, encryption = false, resolve) {
   } //Other - default
   else {
     fingerprint = crypto
-      .createHmac("sha256", "TAXICONNECTBASICKEYFINGERPRINTS-RIDES-DELIVERY")
+      .createHmac(
+        "sha256",
+        "TAXICONNECTBASICKEYFINGERPRINTS-RIDES-DELIVERY-ACCOUNTS"
+      )
       .update(str)
       .digest("hex");
     resolve(fingerprint);
@@ -216,11 +219,10 @@ function checkUserStatus(
         resolve({
           response: "registered",
           user_fp: result[0].user_fingerprint,
-          otp: otp,
         });
       } //Not yet registeredd
       else {
-        resolve({ response: "not_yet_registered", otp: otp });
+        resolve({ response: "not_yet_registered" });
       }
     });
 }
@@ -254,6 +256,7 @@ clientMongo.connect(function (err) {
   app.get("/sendOTPAndCheckUserStatus", function (req, res) {
     resolveDate();
     let params = urlParser.parse(req.url, true);
+    console.log(params);
     req = params.query;
 
     if (
@@ -306,6 +309,212 @@ clientMongo.connect(function (err) {
     } //Error phone number not received
     else {
       res.send({ response: "error_phone_number_not_received" });
+    }
+  });
+
+  /**
+   * CHECK THAT THE OTP ENTERED BY THE USER IS CORRECT
+   * Responsible for checking that the otp entered by the user matches the one generated.
+   */
+  app.get("/checkSMSOTPTruly", function (req, res) {
+    resolveDate();
+    let params = urlParser.parse(req.url, true);
+    req = params.query;
+
+    if (
+      req.phone_number !== undefined &&
+      req.phone_number !== null &&
+      req.otp !== undefined &&
+      req.otp !== null
+    ) {
+      req.phone_number = req.phone_number.replace("+", "").trim(); //Critical, should only contain digits
+      new Promise((res0) => {
+        let checkOTP = {
+          phone_number: req.phone_number,
+          otp: req.otp,
+        };
+        //Check if it exists for this number
+        collection_OTP_dispatch_map
+          .find(checkOTP)
+          .toArray(function (error, result) {
+            if (error) {
+              res0({ response: "error_checking_otp" });
+            }
+            //...
+            if (result.length > 0) {
+              //True OTP
+              res0({ response: true });
+            } //Wrong otp
+            else {
+              res0({ response: false });
+            }
+          });
+      }).then(
+        (reslt) => {
+          res.send(reslt);
+        },
+        (error) => {
+          res.send({ response: "error_checking_otp" });
+        }
+      );
+    } //Error - missing details
+    else {
+      res.send({ response: "error_checking_otp" });
+    }
+  });
+
+  /**
+   * CREATE A NEW ACCOUNT - RIDER
+   * Responsible for creating a minimal rider account with only the phone number as an argument.
+   */
+  app.get("/createMinimalRiderAccount", function (req, res) {
+    resolveDate();
+    let params = urlParser.parse(req.url, true);
+    req = params.query;
+
+    if (req.phone_number !== undefined && req.phone_number !== null) {
+      new Promise((res0) => {
+        //Generate fingerprint: phone number + date
+        new Promise((res1) => {
+          generateUniqueFingerprint(
+            req.phone_number + chaineDateUTC,
+            false,
+            res1
+          );
+        }).then(
+          (user_fingerprint) => {
+            let minimalAccount = {
+              name: "User",
+              surname: "",
+              gender: "Unknown",
+              user_fingerprint: user_fingerprint,
+              phone_number: /^\+/.test(req.phone_number)
+                ? req.phone_number
+                : "+" + req.phone_number.trim(),
+              email: false,
+              password: false,
+              media: {
+                profile_picture: "default_male.jpg",
+              },
+              account_verifications: {
+                is_accountVerified: true, //Account already checked
+                is_policies_accepted: true, //Terms and conditions implicitly accepted
+              },
+              pushnotif_token:
+                req.pushnotif_token !== undefined &&
+                req.pushnotif_token !== null
+                  ? decodeURIComponent(req.pushnotif_token)
+                  : false,
+              last_updated: {
+                date: chaineDateUTC,
+              },
+              date_registered: {
+                date: chaineDateUTC,
+              },
+            };
+            console.log(minimalAccount);
+            //..
+            collectionPassengers_profiles.insertOne(
+              minimalAccount,
+              function (error, result) {
+                if (error) {
+                  res0({ response: "error_creating_account" });
+                }
+                //...Send back the status and fingerprint
+                res0({
+                  response: "successfully_created",
+                  user_fp: user_fingerprint,
+                });
+              }
+            );
+          },
+          (error) => {
+            res0({ response: "error_creating_account" });
+          }
+        );
+      }).then(
+        (result) => {
+          res.send(result);
+        },
+        (error) => {
+          console.log(error);
+          res.send({ response: "error_creating_account" });
+        }
+      );
+    } //Error - missing details
+    else {
+      res.send({ response: "error_creating_account" });
+    }
+  });
+
+  /**
+   * UDPATE ADDITIONAL DETAILS WHILE CREATING ACCOUNT - RIDER
+   * Responsible for updating the rider's profile with the additional profile infos (name, gender and email)
+   */
+  app.get("/updateAdditionalProfileData_newAccount", function (req, res) {
+    resolveDate();
+    let params = urlParser.parse(req.url, true);
+    req = params.query;
+
+    if (
+      req.user_fingerprint !== undefined &&
+      req.user_fingerprint !== null &&
+      req.name !== undefined &&
+      req.name !== null &&
+      req.gender !== undefined &&
+      req.gender !== null &&
+      req.email !== undefined &&
+      req.email !== null
+    ) {
+      req.email = req.email.toLowerCase().trim();
+      req.name = req.name.trim();
+      //..
+      new Promise((res0) => {
+        let findProfile = {
+          user_fingerprint: req.user_fingerprint,
+        };
+        let updateProfile = {
+          $set: {
+            name: req.name,
+            email: req.email,
+            gender: req.gender,
+            last_updated: chaineDateUTC,
+          },
+        };
+        //Update
+        collectionPassengers_profiles.updateOne(
+          findProfile,
+          updateProfile,
+          function (error, result) {
+            if (error) {
+              res0({
+                response: "error_adding_additional_profile_details_new_account",
+              });
+            }
+            res0({
+              response: "updated",
+              name: req.name,
+              email: req.email,
+              gender: req.gender,
+            });
+          }
+        );
+      }).then(
+        (result) => {
+          res.send(result);
+        },
+        (error) => {
+          res.send({
+            response: "error_adding_additional_profile_details_new_account",
+          });
+        }
+      );
+    }
+    //Error - missing details
+    else {
+      res.send({
+        response: "error_adding_additional_profile_details_new_account",
+      });
     }
   });
 });

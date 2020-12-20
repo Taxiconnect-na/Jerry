@@ -452,15 +452,15 @@ io.on("connection", (socket) => {
   });
 
   /**
-   * ACCOUNTS SERVICE, port 9797
+   * ACCOUNTS SERVICE, port 9696
    * Route: sendOTPAndCheckUserStatus
    * event: sendOtpAndCheckerUserStatusTc
    * Verify the phone number by sending an otp and check whether the user is registered or not (status)
    */
   socket.on("sendOtpAndCheckerUserStatusTc", function (req) {
     console.log(req);
-    let servicePort = 9797;
-    if (req.user_fingerprint !== undefined && req.user_fingerprint !== null) {
+    let servicePort = 9696;
+    if (req.phone_number !== undefined && req.phone_number !== null) {
       let url =
         localURL +
         ":" +
@@ -473,15 +473,7 @@ io.on("connection", (socket) => {
         if (error === null) {
           try {
             body = JSON.parse(body);
-            if (body.response !== undefined) {
-              //Error
-              socket.emit("sendOtpAndCheckerUserStatusTc-response", {
-                response: "error_checking_user",
-              });
-            } //SUCCESS - got a status - not necessarily success
-            else {
-              socket.emit("sendOtpAndCheckerUserStatusTc-response", body);
-            }
+            socket.emit("sendOtpAndCheckerUserStatusTc-response", body);
           } catch (error) {
             socket.emit("sendOtpAndCheckerUserStatusTc-response", {
               response: "error_checking_user",
@@ -496,6 +488,155 @@ io.on("connection", (socket) => {
     } else {
       socket.emit("sendOtpAndCheckerUserStatusTc-response", {
         response: "error_checking_user",
+      });
+    }
+  });
+
+  /**
+   * ACCOUNTS SERVICE, port 9696
+   * Route: checkSMSOTPTruly
+   * event: checkThisOTP_SMS
+   * Check that the inputed otp by the user is true (return true, false, or error_checking_otp)
+   */
+  socket.on("checkThisOTP_SMS", function (req) {
+    console.log(req);
+    let servicePort = 9696;
+    if (
+      req.phone_number !== undefined &&
+      req.phone_number !== null &&
+      req.otp !== undefined &&
+      req.otp !== null
+    ) {
+      let url =
+        localURL +
+        ":" +
+        servicePort +
+        "/checkSMSOTPTruly?phone_number=" +
+        req.phone_number +
+        "&otp=" +
+        req.otp;
+
+      requestAPI(url, function (error, response, body) {
+        console.log(body);
+        if (error === null) {
+          try {
+            body = JSON.parse(body);
+            socket.emit("checkThisOTP_SMS-response", body);
+          } catch (error) {
+            socket.emit("checkThisOTP_SMS-response", {
+              response: "error_checking_otp",
+            });
+          }
+        } else {
+          socket.emit("checkThisOTP_SMS-response", {
+            response: "error_checking_otp",
+          });
+        }
+      });
+    } else {
+      socket.emit("checkSMSOTPTruly-response", {
+        response: "error_checking_otp",
+      });
+    }
+  });
+
+  /**
+   * ACCOUNTS SERVICE, port 9696
+   * Route: createMinimalRiderAccount
+   * event: createInitialRider_account
+   * Create a minimal rider account with only the phone number as crucial param, and return the status
+   * of the operation and the user fingerprint if successful.
+   */
+  socket.on("createInitialRider_account", function (req) {
+    console.log(req);
+    let servicePort = 9696;
+    if (req.phone_number !== undefined && req.phone_number !== null) {
+      let url =
+        localURL +
+        ":" +
+        servicePort +
+        "/createMinimalRiderAccount?phone_number=" +
+        req.phone_number +
+        "&pushnotif_token=" +
+        (req.pushnotif_token !== undefined && req.pushnotif_token !== null
+          ? encodeURIComponent(req.pushnotif_token)
+          : false);
+      console.log(url);
+      requestAPI(url, function (error, response, body) {
+        console.log(error, body);
+        if (error === null) {
+          try {
+            body = JSON.parse(body);
+            socket.emit("createInitialRider_account-response", body);
+          } catch (error) {
+            socket.emit("createInitialRider_account-response", {
+              response: "error_creating_account",
+            });
+          }
+        } else {
+          socket.emit("createInitialRider_account-response", {
+            response: "error_creating_account",
+          });
+        }
+      });
+    } else {
+      socket.emit("createInitialRider_account-response", {
+        response: "error_creating_account",
+      });
+    }
+  });
+  /**
+   * ACCOUNTS SERVICE, port 9696
+   * Route: updateAdditionalProfileData_newAccount
+   * event: updateAdditionalProfileData
+   * Create a minimal rider account with only the phone number as crucial param, and return the status
+   * of the operation and the user fingerprint if successful.
+   */
+  socket.on("updateAdditionalProfileData", function (req) {
+    console.log(req);
+    let servicePort = 9696;
+    if (
+      req.user_fingerprint !== undefined &&
+      req.user_fingerprint !== null &&
+      req.name !== undefined &&
+      req.name !== null &&
+      req.gender !== undefined &&
+      req.gender !== null &&
+      req.email !== undefined &&
+      req.email !== null
+    ) {
+      let url =
+        localURL +
+        ":" +
+        servicePort +
+        "/updateAdditionalProfileData_newAccount?name=" +
+        req.name +
+        "&gender=" +
+        req.gender +
+        "&email=" +
+        req.email +
+        "&user_fingerprint=" +
+        req.user_fingerprint;
+      requestAPI(url, function (error, response, body) {
+        console.log(error, body);
+        if (error === null) {
+          try {
+            body = JSON.parse(body);
+            socket.emit("updateAdditionalProfileData-response", body);
+          } catch (error) {
+            socket.emit("updateAdditionalProfileData-response", {
+              response: "error_adding_additional_profile_details_new_account",
+            });
+          }
+        } else {
+          socket.emit("updateAdditionalProfileData-response", {
+            response: "error_adding_additional_profile_details_new_account",
+          });
+        }
+      });
+    } else {
+      socket.emit("updateAdditionalProfileData-response", {
+        response: "error_adding_additional_profile_details_new_account",
       });
     }
   });
