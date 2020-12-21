@@ -488,242 +488,353 @@ function shrinkDataSchema_forBatchRidesHistory(
     );
   } //Targeted requests
   else {
-    let full_request_schema = {
-      pickup_name: null,
-      destination_name: null,
-      date_requested: null,
-      estimated_travel_time: null,
-      payment_method: null,
-      ride_mode: null,
-      fare_amount: null,
-      numberOf_passengers: null,
-      ride_rating: null,
-      country: null,
-      city: null,
-      driver_details: {
-        name: null,
-        driver_picture: null,
-      },
-      car_details: {
-        plate_number: null,
-        car_brand: null,
-        car_picture: null,
-        taxi_number: null,
-        vehicle_type: null,
-        verification_status: null,
-      },
-      request_fp: null,
-    }; //Will hold the final product
-    //1. Reformat the data
-    let dateRequest = new Date(request.date_requested);
-    dateRequest = moment(dateRequest.getTime());
-    dateRequest =
-      (dateRequest.date().length > 1
-        ? dateRequest.date()
-        : "0" + dateRequest.date()) +
-      "/" +
-      ((dateRequest.month() + 1).length > 1
-        ? dateRequest.month() + 1
-        : "0" + (dateRequest.month() + 1)) +
-      "/" +
-      dateRequest.year() +
-      ", " +
-      (dateRequest.hour().length > 1
-        ? dateRequest.hour()
-        : "0" + dateRequest.hour()) +
-      ":" +
-      (dateRequest.minute().length > 1
-        ? dateRequest.minute()
-        : "0" + dateRequest.minute());
-    //Save
-    full_request_schema.date_requested = dateRequest;
-    //2. Get the car details and driver details
-    new Promise((res) => {
-      let findCar = {
-        "cars_data.car_fingerprint": request.car_fingerprint,
-      };
-      collectionDrivers_profiles.find(findCar).toArray(function (err, result) {
-        if (err) {
-          res(false);
-        }
-        //...
-        if (result.length > 0) {
-          //FOund something
-          let car_brand = false;
-          let plate_number = false;
-          let car_picture = false;
-          let driver_name = false;
-          let taxi_number = false;
-          let vehicle_type = false;
-          let driver_picture = "default_driver.png";
-          //Get the car brand
-          result.map((driver) => {
-            driver.cars_data.map((car) => {
-              if (request.car_fingerprint === car.car_fingerprint) {
-                console.log(car);
-                car_brand = car.car_brand;
-                car_picture = car.taxi_picture;
-                taxi_number = car.taxi_number;
-                vehicle_type = /Economy/i.test(car.vehicle_type)
-                  ? "Economy"
-                  : /Comfort/i.test(car.vehicle_type)
-                  ? "Comfort"
-                  : /Luxury/i.test(car.vehicle_type);
-                plate_number = car.plate_number.toUpperCase();
-                plate_number =
-                  plate_number[0] +
-                  " " +
-                  plate_number.substring(1, plate_number.length - 1) +
-                  " " +
-                  plate_number[plate_number - 1];
-                driver_name = driver.name + " " + driver.surname;
-                driver_picture = driver.identification_data.profile_picture;
+    let redisKey = request.request_fp + "-your_rides_app_history";
+    redisGet(redisKey).then(
+      (resp) => {
+        if (resp !== null) {
+          //Has a record
+          try {
+            //Rehydrate the redis record
+            new Promise((res) => {
+              proceedTargeted_requestHistory_fetcher(
+                request,
+                collectionDrivers_profiles,
+                redisKey,
+                res
+              );
+            }).then(
+              () => {},
+              () => {}
+            );
+            //..Quickly respond to the user with the cached results
+            resp = JSON.parse(resp);
+            console.log("cached result found");
+            resolve(resp);
+          } catch (error) {
+            //Erro - make a fresh request
+            console.log(error);
+            new Promise((res) => {
+              proceedTargeted_requestHistory_fetcher(
+                request,
+                collectionDrivers_profiles,
+                redisKey,
+                res
+              );
+            }).then(
+              (result) => {
+                resolve(result);
+              },
+              (error) => {
+                console.log(error);
+                resolve(false);
               }
-            });
-          });
-          //...
-          res({
-            car_brand: car_brand,
-            plate_number: plate_number,
-            car_picture: car_picture,
-            taxi_number: taxi_number,
-            vehicle_type: vehicle_type,
-            driver_name: driver_name,
-            driver_picture: driver_picture,
-          });
-        } //Empty - strange
+            );
+          }
+        } //No records - make a fresh request
         else {
-          res(false);
-        }
-      });
-    }).then(
-      (result) => {
-        if (result !== false) {
-          //good
-          //Save
-          full_request_schema.car_details.car_brand = result.car_brand;
-          full_request_schema.car_details.plate_number = result.plate_number;
-          full_request_schema.car_details.car_picture = result.car_picture;
-          full_request_schema.car_details.taxi_number = result.taxi_number;
-          full_request_schema.car_details.vehicle_type = result.vehicle_type;
-          full_request_schema.car_details.verification_status = "Verified"; //By default
-          full_request_schema.driver_details.name = result.driver_name;
-          full_request_schema.driver_details.driver_picture =
-            result.driver_picture;
-          //3. Resolve the destinations
-          request.destinationData.map((location) => {
-            if (full_request_schema.destination_name === null) {
-              //Still empty
-              full_request_schema.destination_name =
-                location.location_name !== false &&
-                location.location_name !== undefined
-                  ? location.location_name
-                  : location.suburb !== false && location.suburb !== undefined
-                  ? location.suburb
-                  : "Click for more";
-            } //Add
-            else {
-              full_request_schema.destination_name +=
-                ", " +
-                (location.location_name !== false &&
-                location.location_name !== undefined
-                  ? location.location_name
-                  : location.suburb !== false && location.suburb !== undefined
-                  ? location.suburb
-                  : "Click for more");
-            }
-          });
-          //4. Resolve pickup location name
-          full_request_schema.pickup_name =
-            request.pickup_location_infos.location_name !== false &&
-            request.pickup_location_infos.location_name !== undefined
-              ? request.pickup_location_infos.location_name
-              : request.pickup_location_infos.street_name !== false &&
-                request.pickup_location_infos.street_name !== undefined
-              ? request.pickup_location_infos.street_name
-              : request.pickup_location_infos.suburb !== false &&
-                request.pickup_location_infos.suburb !== undefined
-              ? request.pickup_location_infos.suburb
-              : "unclear location.";
-          //5. Add fare amount
-          full_request_schema.fare_amount = request.fare;
-          //6. Add the number of passengers
-          full_request_schema.numberOf_passengers = request.passengers_number;
-          //7. Add ride rating
-          full_request_schema.ride_rating = request.rider_driverRating;
-          //8. Add country and city
-          full_request_schema.country = request.country;
-          full_request_schema.city = null;
-          //9. Add payment method
-          full_request_schema.payment_method = request.payment_method.toUpperCase();
-          //10. Add ride mode
-          full_request_schema.ride_mode = request.ride_mode;
-          //11. Add the ride rating
-          full_request_schema.ride_rating =
-            request.ride_state_vars.rider_driverRating;
-          //x. Finally add the request fp
-          full_request_schema.request_fp = request.request_fp;
-          //9. Add estimated travel time to the first destination
-          let originPoint = request.pickup_location_infos.coordinates;
-          let destinationPoint = request.destinationData[0].coordinates;
-          new Promise((res4) => {
-            let url =
-              localURL +
-              ":" +
-              MAP_SERVICE_PORT +
-              "/getRouteToDestinationSnapshot?org_latitude=" +
-              originPoint.latitude +
-              "&org_longitude=" +
-              originPoint.longitude +
-              "&dest_latitude=" +
-              destinationPoint.latitude +
-              "&dest_longitude=" +
-              destinationPoint.longitude +
-              "&user_fingerprint=" +
-              request.client_id;
-            requestAPI(url, function (error, response, body) {
-              console.log(body);
-              if (error === null) {
-                try {
-                  body = JSON.parse(body);
-                  res4(body.eta.replace(" away", "").replace(" ", ""));
-                } catch (error) {
-                  res4(false);
-                }
-              } else {
-                res4(false);
-              }
-            });
+          new Promise((res) => {
+            proceedTargeted_requestHistory_fetcher(
+              request,
+              collectionDrivers_profiles,
+              redisKey,
+              res
+            );
           }).then(
-            (e_travel_time) => {
-              if (e_travel_time !== false) {
-                //Found an eta
-                //Add eta
-                full_request_schema.estimated_travel_time = e_travel_time;
-                //..Done
-                resolve(full_request_schema);
-              } //No eta found
-              else {
-                //..Done
-                resolve(full_request_schema);
-              }
+            (result) => {
+              resolve(result);
             },
             (error) => {
-              //..Done
-              resolve(full_request_schema);
+              console.log(error);
+              resolve(false);
             }
           );
-        } //Error
-        else {
-          resolve(false);
         }
       },
       (error) => {
+        //Error - make a fresh request
         console.log(error);
-        resolve(false);
+        new Promise((res) => {
+          proceedTargeted_requestHistory_fetcher(
+            request,
+            collectionDrivers_profiles,
+            redisKey,
+            res
+          );
+        }).then(
+          (result) => {
+            resolve(result);
+          },
+          (error) => {
+            console.log(error);
+            resolve(false);
+          }
+        );
       }
     );
+    //Check for a potential cached result
   }
+}
+
+/**
+ * @func proceedTargeted_requestHistory_fetcher
+ * @param request: the stored details of the targeted request straight from MongoDB
+ * @param redisKey: the wanted cache key
+ * @param collectionDrivers_profiles: list of all the drivers
+ * @param resolve
+ * Responsible for executing the fresh fetching of a targeted request
+ */
+function proceedTargeted_requestHistory_fetcher(
+  request,
+  collectionDrivers_profiles,
+  redisKey,
+  resolve
+) {
+  let full_request_schema = {
+    pickup_name: null,
+    destination_name: null,
+    date_requested: null,
+    estimated_travel_time: null,
+    payment_method: null,
+    ride_mode: null,
+    fare_amount: null,
+    numberOf_passengers: null,
+    ride_rating: null,
+    country: null,
+    city: null,
+    driver_details: {
+      name: null,
+      driver_picture: null,
+    },
+    car_details: {
+      plate_number: null,
+      car_brand: null,
+      car_picture: null,
+      taxi_number: null,
+      vehicle_type: null,
+      verification_status: null,
+    },
+    request_fp: null,
+  }; //Will hold the final product
+  //1. Reformat the data
+  let dateRequest = new Date(request.date_requested);
+  dateRequest = moment(dateRequest.getTime());
+  dateRequest =
+    (dateRequest.date().length > 1
+      ? dateRequest.date()
+      : "0" + dateRequest.date()) +
+    "/" +
+    ((dateRequest.month() + 1).length > 1
+      ? dateRequest.month() + 1
+      : "0" + (dateRequest.month() + 1)) +
+    "/" +
+    dateRequest.year() +
+    ", " +
+    (dateRequest.hour().length > 1
+      ? dateRequest.hour()
+      : "0" + dateRequest.hour()) +
+    ":" +
+    (dateRequest.minute().length > 1
+      ? dateRequest.minute()
+      : "0" + dateRequest.minute());
+  //Save
+  full_request_schema.date_requested = dateRequest;
+  //2. Get the car details and driver details
+  new Promise((res) => {
+    let findCar = {
+      "cars_data.car_fingerprint": request.car_fingerprint,
+    };
+    collectionDrivers_profiles.find(findCar).toArray(function (err, result) {
+      if (err) {
+        res(false);
+      }
+      //...
+      if (result.length > 0) {
+        //FOund something
+        let car_brand = false;
+        let plate_number = false;
+        let car_picture = false;
+        let driver_name = false;
+        let taxi_number = false;
+        let vehicle_type = false;
+        let driver_picture = "default_driver.png";
+        //Get the car brand
+        result.map((driver) => {
+          driver.cars_data.map((car) => {
+            if (request.car_fingerprint === car.car_fingerprint) {
+              console.log(car);
+              car_brand = car.car_brand;
+              car_picture = car.taxi_picture;
+              taxi_number = car.taxi_number;
+              vehicle_type = /Economy/i.test(car.vehicle_type)
+                ? "Economy"
+                : /Comfort/i.test(car.vehicle_type)
+                ? "Comfort"
+                : /Luxury/i.test(car.vehicle_type);
+              plate_number = car.plate_number.toUpperCase();
+              plate_number =
+                plate_number[0] +
+                " " +
+                plate_number.substring(1, plate_number.length - 1) +
+                " " +
+                plate_number[plate_number - 1];
+              driver_name = driver.name + " " + driver.surname;
+              driver_picture = driver.identification_data.profile_picture;
+            }
+          });
+        });
+        //...
+        res({
+          car_brand: car_brand,
+          plate_number: plate_number,
+          car_picture: car_picture,
+          taxi_number: taxi_number,
+          vehicle_type: vehicle_type,
+          driver_name: driver_name,
+          driver_picture: driver_picture,
+        });
+      } //Empty - strange
+      else {
+        res(false);
+      }
+    });
+  }).then(
+    (result) => {
+      if (result !== false) {
+        //good
+        //Save
+        full_request_schema.car_details.car_brand = result.car_brand;
+        full_request_schema.car_details.plate_number = result.plate_number;
+        full_request_schema.car_details.car_picture = result.car_picture;
+        full_request_schema.car_details.taxi_number = result.taxi_number;
+        full_request_schema.car_details.vehicle_type = result.vehicle_type;
+        full_request_schema.car_details.verification_status = "Verified"; //By default
+        full_request_schema.driver_details.name = result.driver_name;
+        full_request_schema.driver_details.driver_picture =
+          result.driver_picture;
+        //3. Resolve the destinations
+        request.destinationData.map((location) => {
+          if (full_request_schema.destination_name === null) {
+            //Still empty
+            full_request_schema.destination_name =
+              location.location_name !== false &&
+              location.location_name !== undefined
+                ? location.location_name
+                : location.suburb !== false && location.suburb !== undefined
+                ? location.suburb
+                : "Click for more";
+          } //Add
+          else {
+            full_request_schema.destination_name +=
+              ", " +
+              (location.location_name !== false &&
+              location.location_name !== undefined
+                ? location.location_name
+                : location.suburb !== false && location.suburb !== undefined
+                ? location.suburb
+                : "Click for more");
+          }
+        });
+        //4. Resolve pickup location name
+        full_request_schema.pickup_name =
+          request.pickup_location_infos.location_name !== false &&
+          request.pickup_location_infos.location_name !== undefined
+            ? request.pickup_location_infos.location_name
+            : request.pickup_location_infos.street_name !== false &&
+              request.pickup_location_infos.street_name !== undefined
+            ? request.pickup_location_infos.street_name
+            : request.pickup_location_infos.suburb !== false &&
+              request.pickup_location_infos.suburb !== undefined
+            ? request.pickup_location_infos.suburb
+            : "unclear location.";
+        //5. Add fare amount
+        full_request_schema.fare_amount = request.fare;
+        //6. Add the number of passengers
+        full_request_schema.numberOf_passengers = request.passengers_number;
+        //7. Add ride rating
+        full_request_schema.ride_rating = request.rider_driverRating;
+        //8. Add country and city
+        full_request_schema.country = request.country;
+        full_request_schema.city = null;
+        //9. Add payment method
+        full_request_schema.payment_method = request.payment_method.toUpperCase();
+        //10. Add ride mode
+        full_request_schema.ride_mode = request.ride_mode;
+        //11. Add the ride rating
+        full_request_schema.ride_rating =
+          request.ride_state_vars.rider_driverRating;
+        //x. Finally add the request fp
+        full_request_schema.request_fp = request.request_fp;
+        //9. Add estimated travel time to the first destination
+        let originPoint = request.pickup_location_infos.coordinates;
+        let destinationPoint = request.destinationData[0].coordinates;
+        new Promise((res4) => {
+          let url =
+            localURL +
+            ":" +
+            MAP_SERVICE_PORT +
+            "/getRouteToDestinationSnapshot?org_latitude=" +
+            originPoint.latitude +
+            "&org_longitude=" +
+            originPoint.longitude +
+            "&dest_latitude=" +
+            destinationPoint.latitude +
+            "&dest_longitude=" +
+            destinationPoint.longitude +
+            "&user_fingerprint=" +
+            request.client_id;
+          requestAPI(url, function (error, response, body) {
+            if (error === null) {
+              try {
+                body = JSON.parse(body);
+                res4(body.eta.replace(" away", "").replace(" ", ""));
+              } catch (error) {
+                res4(false);
+              }
+            } else {
+              res4(false);
+            }
+          });
+        }).then(
+          (e_travel_time) => {
+            if (e_travel_time !== false) {
+              //Found an eta
+              //Add eta
+              full_request_schema.estimated_travel_time = e_travel_time;
+              //Cache the result
+              new Promise((resCache) => {
+                client.set(
+                  redisKey,
+                  JSON.stringify(full_request_schema),
+                  redis.print
+                );
+                resCache(true);
+              }).then(
+                () => {},
+                () => {}
+              );
+              //..Done
+              resolve(full_request_schema);
+            } //No eta found
+            else {
+              //..Done
+              resolve(full_request_schema);
+            }
+          },
+          (error) => {
+            //..Done
+            resolve(full_request_schema);
+          }
+        );
+      } //Error
+      else {
+        resolve(false);
+      }
+    },
+    (error) => {
+      console.log(error);
+      resolve(false);
+    }
+  );
 }
 
 /**
