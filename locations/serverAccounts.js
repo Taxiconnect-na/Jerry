@@ -243,24 +243,33 @@ function getBachRidesHistory(
 ) {
   //Resolve ride type object searcher
   new Promise((res0) => {
-    if (/past/i.test(req.ride_type)) {
-      //Past requests
-      res0({
-        "ride_state_vars.isRideCompleted_riderSide": true,
-      });
-    } else if (/scheduled/i.test(req.ride_type)) {
-      //Scheduled
-      res0({
-        request_type: { $regex: /^scheduled$/, $options: "i" },
-      });
-    } else if (/business/i.test(req.ride_type)) {
-      //Business
-      res0({
-        ride_flag: { $regex: /business/, $options: "i" },
-      });
-    } //Invalid data
+    if (req.targeted === undefined && req.request_fp === undefined) {
+      //Batch request
+      if (/past/i.test(req.ride_type)) {
+        //Past requests
+        res0({
+          "ride_state_vars.isRideCompleted_riderSide": true,
+        });
+      } else if (/scheduled/i.test(req.ride_type)) {
+        //Scheduled
+        res0({
+          request_type: { $regex: /^scheduled$/, $options: "i" },
+        });
+      } else if (/business/i.test(req.ride_type)) {
+        //Business
+        res0({
+          ride_flag: { $regex: /business/, $options: "i" },
+        });
+      } //Invalid data
+      else {
+        res0(false);
+      }
+    } //Targeted request
     else {
-      res0(false);
+      console.log("Targeted request detected!");
+      res0({
+        request_fp: req.request_fp,
+      });
     }
   }).then(
     (result) => {
@@ -281,7 +290,8 @@ function getBachRidesHistory(
                   shrinkDataSchema_forBatchRidesHistory(
                     requestSingle,
                     collectionDrivers_profiles,
-                    res1
+                    res1,
+                    req.target !== undefined ? true : false
                   );
                 });
               });
@@ -290,7 +300,10 @@ function getBachRidesHistory(
                 (batchResults) => {
                   resolve({
                     response: "success",
-                    ride_type: req.ride_type.trim().toUpperCase(),
+                    ride_type:
+                      req.ride_type !== undefined
+                        ? req.ride_type.trim().toUpperCase()
+                        : "Targeted",
                     data: batchResults,
                   });
                 },
@@ -303,7 +316,10 @@ function getBachRidesHistory(
             else {
               resolve({
                 response: "success",
-                ride_type: req.ride_type.trim().toUpperCase(),
+                ride_type:
+                  req.ride_type !== undefined
+                    ? req.ride_type.trim().toUpperCase()
+                    : "Targeted",
                 data: [],
               });
             }
@@ -325,6 +341,8 @@ function getBachRidesHistory(
  * @param request: a single request to process
  * @param collectionDrivers_profiles: list of all drivers
  * @param resolve
+ * @param shrink_for_targeted: if true will format the request for a specific request - default: false (for batch requests)
+ * @info Targeted requests have significantly more data than batch requests - AND REQUIRED TO BE CACHED!
  * Responsible for changing the original stored data schema of a request into a light
  * batch optimized on for BACTH history fetching.
  *{
@@ -333,112 +351,379 @@ function getBachRidesHistory(
  *    car_brand: Toyota corolla
  *    request_fp: XXXXXXXXXX
  * }
+ *
+ * 2. Schema example for targeted requests - SHOULD BE CACHED - redis key: request_fp-your_rides_app_history
+ * {
+ *    pickup_name: pickup location
+ *    destination_name:destination_1,destination_2,...
+ *    date_requested: dd/mm/yyyy, hh:mm
+ *    estimated_travel_time: 2min (in minutes)
+ *    payment_method: cash/wallet
+ *    ride_mode:RIDE/DELIVERY
+ *    fare_amount: N$15
+ *    numberOf_passengers: 4,
+ *    ride_rating: 4.7
+ *    driver_details: {
+ *    name: 'Alex Tangeni'
+ *    driver_picture: default_driver.png
+ *    }
+ *    car_details: {
+ *      plate_number: 'N 458 W',
+ *      car_brand: Toyota corolla
+ *      car_picture: default_car.png
+ *      taxi_number:H09/or false for shuttles
+ *      vehicle_type:Economy,Comfort or Luxury
+ *      verification_status: true
+ *    }
+ *    request_fp: XXXXXXXXXX
+ * }
  */
 function shrinkDataSchema_forBatchRidesHistory(
   request,
   collectionDrivers_profiles,
-  resolve
+  resolve,
+  shrink_for_targeted = false
 ) {
-  let light_request_schema = {
-    destination_name: null,
-    date_requested: null,
-    car_brand: null,
-    request_fp: null,
-  }; //Will hold the final product
-  //1. Reformat the data
-  let dateRequest = new Date(request.date_requested);
-  dateRequest = moment(dateRequest.getTime());
-  dateRequest =
-    (dateRequest.date().length > 1
-      ? dateRequest.date()
-      : "0" + dateRequest.date()) +
-    "/" +
-    ((dateRequest.month() + 1).length > 1
-      ? dateRequest.month() + 1
-      : "0" + (dateRequest.month() + 1)) +
-    "/" +
-    dateRequest.year() +
-    ", " +
-    (dateRequest.hour().length > 1
-      ? dateRequest.hour()
-      : "0" + dateRequest.hour()) +
-    ":" +
-    (dateRequest.minute().length > 1
-      ? dateRequest.minute()
-      : "0" + dateRequest.minute());
-  //Save
-  light_request_schema.date_requested = dateRequest;
-  //2. Get the car brand
-  new Promise((res) => {
-    let findCar = {
-      "cars_data.car_fingerprint": request.car_fingerprint,
-    };
-    collectionDrivers_profiles.find(findCar).toArray(function (err, result) {
-      if (err) {
-        res(false);
-      }
-      //...
-      if (result.length > 0) {
-        //FOund something
-        let car_brand = false;
-        //Get the car brand
-        result.map((driver) => {
-          driver.cars_data.map((car) => {
-            if (request.car_fingerprint === car.car_fingerprint) {
-              car_brand = car.car_brand;
+  if (shrink_for_targeted === false) {
+    //Batch requests
+    let light_request_schema = {
+      destination_name: null,
+      date_requested: null,
+      car_brand: null,
+      request_fp: null,
+    }; //Will hold the final product
+    //1. Reformat the data
+    let dateRequest = new Date(request.date_requested);
+    dateRequest = moment(dateRequest.getTime());
+    dateRequest =
+      (dateRequest.date().length > 1
+        ? dateRequest.date()
+        : "0" + dateRequest.date()) +
+      "/" +
+      ((dateRequest.month() + 1).length > 1
+        ? dateRequest.month() + 1
+        : "0" + (dateRequest.month() + 1)) +
+      "/" +
+      dateRequest.year() +
+      ", " +
+      (dateRequest.hour().length > 1
+        ? dateRequest.hour()
+        : "0" + dateRequest.hour()) +
+      ":" +
+      (dateRequest.minute().length > 1
+        ? dateRequest.minute()
+        : "0" + dateRequest.minute());
+    //Save
+    light_request_schema.date_requested = dateRequest;
+    //2. Get the car brand
+    new Promise((res) => {
+      let findCar = {
+        "cars_data.car_fingerprint": request.car_fingerprint,
+      };
+      collectionDrivers_profiles.find(findCar).toArray(function (err, result) {
+        if (err) {
+          res(false);
+        }
+        //...
+        if (result.length > 0) {
+          //FOund something
+          let car_brand = false;
+          //Get the car brand
+          result.map((driver) => {
+            driver.cars_data.map((car) => {
+              if (request.car_fingerprint === car.car_fingerprint) {
+                car_brand = car.car_brand;
+              }
+            });
+          });
+          //...
+          res(car_brand);
+        } //Empty - strange
+        else {
+          res(false);
+        }
+      });
+    }).then(
+      (result) => {
+        if (result !== false) {
+          //good
+          //Save
+          light_request_schema.car_brand = result;
+          //3. Resolve the destinations
+          request.destinationData.map((location) => {
+            if (light_request_schema.destination_name === null) {
+              //Still empty
+              light_request_schema.destination_name =
+                location.location_name !== false &&
+                location.location_name !== undefined
+                  ? location.location_name
+                  : location.suburb !== false && location.suburb !== undefined
+                  ? location.suburb
+                  : "Click for more";
+            } //Add
+            else {
+              light_request_schema.destination_name +=
+                ", " +
+                (location.location_name !== false &&
+                location.location_name !== undefined
+                  ? location.location_name
+                  : location.suburb !== false && location.suburb !== undefined
+                  ? location.suburb
+                  : "Click for more");
             }
           });
-        });
-        //...
-        res(car_brand);
-      } //Empty - strange
-      else {
-        res(false);
-      }
-    });
-  }).then(
-    (result) => {
-      if (result !== false) {
-        //good
-        //Save
-        light_request_schema.car_brand = result;
-        //3. Resolve the destinations
-        request.destinationData.map((location) => {
-          if (light_request_schema.destination_name === null) {
-            //Still empty
-            light_request_schema.destination_name =
-              location.location_name !== false &&
-              location.location_name !== undefined
-                ? location.location_name
-                : location.suburb !== false && location.suburb !== undefined
-                ? location.suburb
-                : "Click for more";
-          } //Add
-          else {
-            light_request_schema.destination_name +=
-              ", " +
-              (location.location_name !== false &&
-              location.location_name !== undefined
-                ? location.location_name
-                : location.suburb !== false && location.suburb !== undefined
-                ? location.suburb
-                : "Click for more");
-          }
-        });
-        //4. Finally add the request fp
-        light_request_schema.request_fp = request.request_fp;
-        //..Done
-        resolve(light_request_schema);
-      } //Error
-      else {
+          //4. Finally add the request fp
+          light_request_schema.request_fp = request.request_fp;
+          //..Done
+          resolve(light_request_schema);
+        } //Error
+        else {
+          resolve(false);
+        }
+      },
+      (error) => {
+        console.log(error);
         resolve(false);
       }
-    },
-    (error) => {
-      console.log(error);
-      resolve(false);
-    }
-  );
+    );
+  } //Targeted requests
+  else {
+    let full_request_schema = {
+      pickup_name: null,
+      destination_name: null,
+      date_requested: null,
+      estimated_travel_time: null,
+      payment_method: null,
+      ride_mode: null,
+      fare_amount: null,
+      numberOf_passengers: null,
+      ride_rating: null,
+      country: null,
+      city: null,
+      driver_details: {
+        name: null,
+        driver_picture: null,
+      },
+      car_details: {
+        plate_number: null,
+        car_brand: null,
+        car_picture: null,
+        taxi_number: null,
+        vehicle_type: null,
+        verification_status: null,
+      },
+      request_fp: null,
+    }; //Will hold the final product
+    //1. Reformat the data
+    let dateRequest = new Date(request.date_requested);
+    dateRequest = moment(dateRequest.getTime());
+    dateRequest =
+      (dateRequest.date().length > 1
+        ? dateRequest.date()
+        : "0" + dateRequest.date()) +
+      "/" +
+      ((dateRequest.month() + 1).length > 1
+        ? dateRequest.month() + 1
+        : "0" + (dateRequest.month() + 1)) +
+      "/" +
+      dateRequest.year() +
+      ", " +
+      (dateRequest.hour().length > 1
+        ? dateRequest.hour()
+        : "0" + dateRequest.hour()) +
+      ":" +
+      (dateRequest.minute().length > 1
+        ? dateRequest.minute()
+        : "0" + dateRequest.minute());
+    //Save
+    full_request_schema.date_requested = dateRequest;
+    //2. Get the car details and driver details
+    new Promise((res) => {
+      let findCar = {
+        "cars_data.car_fingerprint": request.car_fingerprint,
+      };
+      collectionDrivers_profiles.find(findCar).toArray(function (err, result) {
+        if (err) {
+          res(false);
+        }
+        //...
+        if (result.length > 0) {
+          //FOund something
+          let car_brand = false;
+          let plate_number = false;
+          let car_picture = false;
+          let driver_name = false;
+          let taxi_number = false;
+          let vehicle_type = false;
+          let driver_picture = "default_driver.png";
+          //Get the car brand
+          result.map((driver) => {
+            driver.cars_data.map((car) => {
+              if (request.car_fingerprint === car.car_fingerprint) {
+                console.log(car);
+                car_brand = car.car_brand;
+                car_picture = car.taxi_picture;
+                taxi_number = car.taxi_number;
+                vehicle_type = /Economy/i.test(car.vehicle_type)
+                  ? "Economy"
+                  : /Comfort/i.test(car.vehicle_type)
+                  ? "Comfort"
+                  : /Luxury/i.test(car.vehicle_type);
+                plate_number = car.plate_number.toUpperCase();
+                plate_number =
+                  plate_number[0] +
+                  " " +
+                  plate_number.substring(1, plate_number.length - 1) +
+                  " " +
+                  plate_number[plate_number - 1];
+                driver_name = driver.name + " " + driver.surname;
+                driver_picture = driver.identification_data.profile_picture;
+              }
+            });
+          });
+          //...
+          res({
+            car_brand: car_brand,
+            plate_number: plate_number,
+            car_picture: car_picture,
+            taxi_number: taxi_number,
+            vehicle_type: vehicle_type,
+            driver_name: driver_name,
+            driver_picture: driver_picture,
+          });
+        } //Empty - strange
+        else {
+          res(false);
+        }
+      });
+    }).then(
+      (result) => {
+        if (result !== false) {
+          //good
+          //Save
+          full_request_schema.car_details.car_brand = result.car_brand;
+          full_request_schema.car_details.plate_number = result.plate_number;
+          full_request_schema.car_details.car_picture = result.car_picture;
+          full_request_schema.car_details.taxi_number = result.taxi_number;
+          full_request_schema.car_details.vehicle_type = result.vehicle_type;
+          full_request_schema.car_details.verification_status = "Verified"; //By default
+          full_request_schema.driver_details.name = result.driver_name;
+          full_request_schema.driver_details.driver_picture =
+            result.driver_picture;
+          //3. Resolve the destinations
+          request.destinationData.map((location) => {
+            if (full_request_schema.destination_name === null) {
+              //Still empty
+              full_request_schema.destination_name =
+                location.location_name !== false &&
+                location.location_name !== undefined
+                  ? location.location_name
+                  : location.suburb !== false && location.suburb !== undefined
+                  ? location.suburb
+                  : "Click for more";
+            } //Add
+            else {
+              full_request_schema.destination_name +=
+                ", " +
+                (location.location_name !== false &&
+                location.location_name !== undefined
+                  ? location.location_name
+                  : location.suburb !== false && location.suburb !== undefined
+                  ? location.suburb
+                  : "Click for more");
+            }
+          });
+          //4. Resolve pickup location name
+          full_request_schema.pickup_name =
+            request.pickup_location_infos.location_name !== false &&
+            request.pickup_location_infos.location_name !== undefined
+              ? request.pickup_location_infos.location_name
+              : request.pickup_location_infos.street_name !== false &&
+                request.pickup_location_infos.street_name !== undefined
+              ? request.pickup_location_infos.street_name
+              : request.pickup_location_infos.suburb !== false &&
+                request.pickup_location_infos.suburb !== undefined
+              ? request.pickup_location_infos.suburb
+              : "unclear location.";
+          //5. Add fare amount
+          full_request_schema.fare_amount = request.fare;
+          //6. Add the number of passengers
+          full_request_schema.numberOf_passengers = request.passengers_number;
+          //7. Add ride rating
+          full_request_schema.ride_rating = request.rider_driverRating;
+          //8. Add country and city
+          full_request_schema.country = request.country;
+          full_request_schema.city = null;
+          //9. Add payment method
+          full_request_schema.payment_method = request.payment_method.toUpperCase();
+          //10. Add ride mode
+          full_request_schema.ride_mode = request.ride_mode;
+          //11. Add the ride rating
+          full_request_schema.ride_rating =
+            request.ride_state_vars.rider_driverRating;
+          //x. Finally add the request fp
+          full_request_schema.request_fp = request.request_fp;
+          //9. Add estimated travel time to the first destination
+          let originPoint = request.pickup_location_infos.coordinates;
+          let destinationPoint = request.destinationData[0].coordinates;
+          new Promise((res4) => {
+            let url =
+              localURL +
+              ":" +
+              MAP_SERVICE_PORT +
+              "/getRouteToDestinationSnapshot?org_latitude=" +
+              originPoint.latitude +
+              "&org_longitude=" +
+              originPoint.longitude +
+              "&dest_latitude=" +
+              destinationPoint.latitude +
+              "&dest_longitude=" +
+              destinationPoint.longitude +
+              "&user_fingerprint=" +
+              request.client_id;
+            requestAPI(url, function (error, response, body) {
+              console.log(body);
+              if (error === null) {
+                try {
+                  body = JSON.parse(body);
+                  res4(body.eta.replace(" away", "").replace(" ", ""));
+                } catch (error) {
+                  res4(false);
+                }
+              } else {
+                res4(false);
+              }
+            });
+          }).then(
+            (e_travel_time) => {
+              if (e_travel_time !== false) {
+                //Found an eta
+                //Add eta
+                full_request_schema.estimated_travel_time = e_travel_time;
+                //..Done
+                resolve(full_request_schema);
+              } //No eta found
+              else {
+                //..Done
+                resolve(full_request_schema);
+              }
+            },
+            (error) => {
+              //..Done
+              resolve(full_request_schema);
+            }
+          );
+        } //Error
+        else {
+          resolve(false);
+        }
+      },
+      (error) => {
+        console.log(error);
+        resolve(false);
+      }
+    );
+  }
 }
 
 /**
@@ -748,6 +1033,7 @@ clientMongo.connect(function (err) {
     resolveDate();
     let params = urlParser.parse(req.url, true);
     req = params.query;
+    console.log(req);
 
     if (req.user_fingerprint !== undefined && req.user_fingerprint !== null) {
       //Valid
@@ -757,7 +1043,25 @@ clientMongo.connect(function (err) {
         req.request_fp !== undefined &&
         req.request_fp !== null
       ) {
+        console.log("here");
         //Targeted request
+        new Promise((res0) => {
+          getBachRidesHistory(
+            req,
+            collectionRidesDeliveryData,
+            collectionDrivers_profiles,
+            res0
+          );
+        }).then(
+          (result) => {
+            console.log(result);
+            res.send(result);
+          },
+          (error) => {
+            console.log(error);
+            res.send({ response: "error_authentication_failed" });
+          }
+        );
       } else if (req.ride_type !== undefined && req.ride_type !== null) {
         //Batch request - history request
         new Promise((res0) => {
