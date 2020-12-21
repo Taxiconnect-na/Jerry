@@ -25,6 +25,7 @@ var chaineDateUTC = null;
 var dateObject = null;
 const moment = require("moment");
 var otpGenerator = require("otp-generator");
+const { resolve } = require("path");
 
 const URL_MONGODB = "mongodb://localhost:27017";
 const localURL = "http://localhost";
@@ -228,6 +229,219 @@ function checkUserStatus(
 }
 
 /**
+ * @func getBachRidesHistory
+ * @param collectionRidesDeliveryData: list of all rides made
+ * @param collectionDrivers_profiles: list of all drivers
+ * @param resolve
+ * @param req: the requests arguments : user_fp, ride_type, and/or the targeted argument
+ */
+function getBachRidesHistory(
+  req,
+  collectionRidesDeliveryData,
+  collectionDrivers_profiles,
+  resolve
+) {
+  //Resolve ride type object searcher
+  new Promise((res0) => {
+    if (/past/i.test(req.ride_type)) {
+      //Past requests
+      res0({
+        "ride_state_vars.isRideCompleted_riderSide": true,
+      });
+    } else if (/scheduled/i.test(req.ride_type)) {
+      //Scheduled
+      res0({
+        request_type: { $regex: /^scheduled$/, $options: "i" },
+      });
+    } else if (/business/i.test(req.ride_type)) {
+      //Business
+      res0({
+        ride_flag: { $regex: /business/, $options: "i" },
+      });
+    } //Invalid data
+    else {
+      res0(false);
+    }
+  }).then(
+    (result) => {
+      if (result !== false) {
+        //Got some object
+        //Get the mongodb data
+        collectionRidesDeliveryData
+          .find(result)
+          .toArray(function (error, ridesData) {
+            if (error) {
+              resolve({ response: "error_authentication_failed" });
+            }
+            //...
+            if (ridesData.length > 0) {
+              //Found something - reformat
+              let parentPromises = ridesData.map((requestSingle) => {
+                return new Promise((res1) => {
+                  shrinkDataSchema_forBatchRidesHistory(
+                    requestSingle,
+                    collectionDrivers_profiles,
+                    res1
+                  );
+                });
+              });
+              //Done
+              Promise.all(parentPromises).then(
+                (batchResults) => {
+                  resolve({
+                    response: "success",
+                    ride_type: req.ride_type.trim().toUpperCase(),
+                    data: batchResults,
+                  });
+                },
+                (error) => {
+                  console.log(error);
+                  resolve({ response: "error_authentication_failed" });
+                }
+              );
+            } //Empty
+            else {
+              resolve({
+                response: "success",
+                ride_type: req.ride_type.trim().toUpperCase(),
+                data: [],
+              });
+            }
+          });
+      } //invalid data
+      else {
+        resolve({ response: "error_authentication_failed" });
+      }
+    },
+    (error) => {
+      console.log(error);
+      resolve({ response: "error_authentication_failed" });
+    }
+  );
+}
+
+/**
+ * @func shrinkDataSchema_forBatchRidesHistory
+ * @param request: a single request to process
+ * @param collectionDrivers_profiles: list of all drivers
+ * @param resolve
+ * Responsible for changing the original stored data schema of a request into a light
+ * batch optimized on for BACTH history fetching.
+ *{
+ *    destination_name:destination_1,destination_2,...
+ *    date_requested: dd/mm/yyyy, hh:mm
+ *    car_brand: Toyota corolla
+ *    request_fp: XXXXXXXXXX
+ * }
+ */
+function shrinkDataSchema_forBatchRidesHistory(
+  request,
+  collectionDrivers_profiles,
+  resolve
+) {
+  let light_request_schema = {
+    destination_name: null,
+    date_requested: null,
+    car_brand: null,
+    request_fp: null,
+  }; //Will hold the final product
+  //1. Reformat the data
+  let dateRequest = new Date(request.date_requested);
+  dateRequest = moment(dateRequest.getTime());
+  dateRequest =
+    (dateRequest.date().length > 1
+      ? dateRequest.date()
+      : "0" + dateRequest.date()) +
+    "/" +
+    ((dateRequest.month() + 1).length > 1
+      ? dateRequest.month() + 1
+      : "0" + (dateRequest.month() + 1)) +
+    "/" +
+    dateRequest.year() +
+    ", " +
+    (dateRequest.hour().length > 1
+      ? dateRequest.hour()
+      : "0" + dateRequest.hour()) +
+    ":" +
+    (dateRequest.minute().length > 1
+      ? dateRequest.minute()
+      : "0" + dateRequest.minute());
+  //Save
+  light_request_schema.date_requested = dateRequest;
+  //2. Get the car brand
+  new Promise((res) => {
+    let findCar = {
+      "cars_data.car_fingerprint": request.car_fingerprint,
+    };
+    collectionDrivers_profiles.find(findCar).toArray(function (err, result) {
+      if (err) {
+        res(false);
+      }
+      //...
+      if (result.length > 0) {
+        //FOund something
+        let car_brand = false;
+        //Get the car brand
+        result.map((driver) => {
+          driver.cars_data.map((car) => {
+            if (request.car_fingerprint === car.car_fingerprint) {
+              car_brand = car.car_brand;
+            }
+          });
+        });
+        //...
+        res(car_brand);
+      } //Empty - strange
+      else {
+        res(false);
+      }
+    });
+  }).then(
+    (result) => {
+      if (result !== false) {
+        //good
+        //Save
+        light_request_schema.car_brand = result;
+        //3. Resolve the destinations
+        request.destinationData.map((location) => {
+          if (light_request_schema.destination_name === null) {
+            //Still empty
+            light_request_schema.destination_name =
+              location.location_name !== false &&
+              location.location_name !== undefined
+                ? location.location_name
+                : location.suburb !== false && location.suburb !== undefined
+                ? location.suburb
+                : "Click for more";
+          } //Add
+          else {
+            light_request_schema.destination_name +=
+              ", " +
+              (location.location_name !== false &&
+              location.location_name !== undefined
+                ? location.location_name
+                : location.suburb !== false && location.suburb !== undefined
+                ? location.suburb
+                : "Click for more");
+          }
+        });
+        //4. Finally add the request fp
+        light_request_schema.request_fp = request.request_fp;
+        //..Done
+        resolve(light_request_schema);
+      } //Error
+      else {
+        resolve(false);
+      }
+    },
+    (error) => {
+      console.log(error);
+      resolve(false);
+    }
+  );
+}
+
+/**
  * MAIN
  */
 
@@ -238,7 +452,11 @@ clientMongo.connect(function (err) {
   const collectionPassengers_profiles = dbMongo.collection(
     "passengers_profiles"
   ); //Hold all the passengers profiles
+  const collectionRidesDeliveryData = dbMongo.collection(
+    "rides_deliveries_requests"
+  ); //Hold all the requests made (rides and deliveries)
   const collection_OTP_dispatch_map = dbMongo.collection("OTP_dispatch_map");
+  const collectionDrivers_profiles = dbMongo.collection("drivers_profiles"); //Hold all the drivers profiles
   //-------------
   const bodyParser = require("body-parser");
   app
@@ -515,6 +733,57 @@ clientMongo.connect(function (err) {
       res.send({
         response: "error_adding_additional_profile_details_new_account",
       });
+    }
+  });
+
+  /**
+   * GET RIDES HISTORY FOR THE RIDERS
+   * Responsible for getting different rides to mainly display in the "Your rides" tab for riders (or drivers?)
+   * Past, Scheduled or Business
+   * Targeted requests are very usefull when it comes to fetch more details about a SPECIFIC ride (ride fp required!)
+   * ride_type: Past (already completed - can include scheduled), Scheduled (upcoming) or Business (with business flag)
+   * LIMIT: last 50 rides
+   */
+  app.get("/getRides_historyRiders", function (req, res) {
+    resolveDate();
+    let params = urlParser.parse(req.url, true);
+    req = params.query;
+
+    if (req.user_fingerprint !== undefined && req.user_fingerprint !== null) {
+      //Valid
+      if (
+        req.target !== undefined &&
+        req.target !== null &&
+        req.request_fp !== undefined &&
+        req.request_fp !== null
+      ) {
+        //Targeted request
+      } else if (req.ride_type !== undefined && req.ride_type !== null) {
+        //Batch request - history request
+        new Promise((res0) => {
+          getBachRidesHistory(
+            req,
+            collectionRidesDeliveryData,
+            collectionDrivers_profiles,
+            res0
+          );
+        }).then(
+          (result) => {
+            console.log(result);
+            res.send(result);
+          },
+          (error) => {
+            console.log(error);
+            res.send({ response: "error_authentication_failed" });
+          }
+        );
+      } //Invalid data
+      else {
+        res.send({ response: "error_authentication_failed" });
+      }
+    } //Invalid data
+    else {
+      res.send({ response: "error_authentication_failed" });
     }
   });
 });

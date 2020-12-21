@@ -640,6 +640,61 @@ io.on("connection", (socket) => {
       });
     }
   });
+  /**
+   * ACCOUNTS SERVICE, port 9696
+   * Route: getRides_historyRiders
+   * event: getRides_historyRiders_batchOrNot
+   * Responsible for getting the rides history based on a select type (Past, Scheduledd or Business)
+   * or for a targeted one provided a request fingerprint.
+   */
+  socket.on("getRides_historyRiders_batchOrNot", function (req) {
+    console.log(req);
+    let servicePort = 9696;
+    if (req.user_fingerprint !== undefined && req.user_fingerprint !== null) {
+      let url =
+        localURL +
+        ":" +
+        servicePort +
+        "/getRides_historyRiders?user_fingerprint=" +
+        req.user_fingerprint;
+      //Add a ride_type if any
+      if (req.ride_type !== undefined && req.ride_type !== null) {
+        url += "&ride_type=" + req.ride_type;
+      }
+      //Add a request fp and targeted flag or any
+      if (
+        req.target !== undefined &&
+        req.target !== null &&
+        req.request_fp !== undefined &&
+        req.request_fp !== null
+      ) {
+        //Targeted request (target flags: single, multiple)
+        url += "&target=" + req.target + "&request_fp" + req.request_fp;
+      }
+      //...
+      requestAPI(url, function (error, response, body) {
+        console.log(error, body);
+        if (error === null) {
+          try {
+            body = JSON.parse(body);
+            socket.emit("getRides_historyRiders_batchOrNot-response", body);
+          } catch (error) {
+            socket.emit("getRides_historyRiders_batchOrNot-response", {
+              response: "error_authentication_failed",
+            });
+          }
+        } else {
+          socket.emit("getRides_historyRiders_batchOrNot-response", {
+            response: "error_authentication_failed",
+          });
+        }
+      });
+    } else {
+      socket.emit("getRides_historyRiders_batchOrNot-response", {
+        response: "error_authentication_failed",
+      });
+    }
+  });
 });
 
 server.listen(port);
