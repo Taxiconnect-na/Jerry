@@ -669,7 +669,7 @@ io.on("connection", (socket) => {
         req.request_fp !== null
       ) {
         //Targeted request (target flags: single, multiple)
-        url += "&target=" + req.target + "&request_fp" + req.request_fp;
+        url += "&target=" + req.target + "&request_fp=" + req.request_fp;
       }
       //...
       requestAPI(url, function (error, response, body) {

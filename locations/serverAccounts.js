@@ -676,7 +676,7 @@ function proceedTargeted_requestHistory_fetcher(
                 " " +
                 plate_number.substring(1, plate_number.length - 1) +
                 " " +
-                plate_number[plate_number - 1];
+                plate_number[plate_number.length - 1];
               driver_name = driver.name + " " + driver.surname;
               driver_picture = driver.identification_data.profile_picture;
             }
