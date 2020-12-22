@@ -246,65 +246,41 @@ function getRouteInfos(coordsInfos, resolve) {
   /*if (coordsInfos.destination !== undefined) {
     destinationPosition = coordsInfos.destination;
   }*/
-  //Rehydrate result
-  new Promise((resolveRoute) => {
-    url =
-      URL_ROUTE_SERVICES +
-      "point=" +
-      driverPosition.latitude +
-      "," +
-      driverPosition.longitude +
-      "&point=" +
-      passengerPosition.latitude +
-      "," +
-      passengerPosition.longitude +
-      "&heading_penalty=0&avoid=residential&avoid=ferry&ch.disable=true&locale=en&details=street_name&details=time&optimize=true&points_encoded=false&details=max_speed&snap_prevention=ferry&profile=car&pass_through=true&instructions=false&vehicle=car";
 
-    requestAPI(url, function (error, response, body) {
-      if (body != undefined) {
-        if (body.length > 20 && body.message === undefined) {
-          try {
-            body = JSON.parse(body);
-            if (body.paths[0].distance != undefined) {
-              var distance = body.paths[0].distance;
-              var eta = body.paths[0].time * (3 / 29); //Min
-              //Reshape ETA format
-              if (eta >= 60) {
-                eta = Math.round(eta / 60) + " min away";
-              } else {
-                eta = Math.round(eta) + " sec away";
-              }
-              //...
-              var rawPoints = body.paths[0].points.coordinates;
-              var pointsTravel = rawPoints;
-              //=====================================================================
-              //Get destination's route infos
-              if (destinationPosition !== false) {
-                //CACHE RESULT ONLY
-                let routeData = {
-                  routePoints: pointsTravel,
-                  destinationData: pointsTravel,
-                  driverNextPoint: pointsTravel[0],
-                  pickupPoint:
-                    coordsInfos.passenger_origin === undefined
-                      ? [
-                          passengerPosition.longitude,
-                          passengerPosition.latitude,
-                        ]
-                      : [driverPosition.longitude, driverPosition.latitude],
-                  //driverNextPoint: pointsTravel[pointsTravel.length - 1],
-                  eta: eta,
-                  distance: distance,
-                };
+  url =
+    URL_ROUTE_SERVICES +
+    "point=" +
+    driverPosition.latitude +
+    "," +
+    driverPosition.longitude +
+    "&point=" +
+    passengerPosition.latitude +
+    "," +
+    passengerPosition.longitude +
+    "&heading_penalty=0&avoid=residential&avoid=ferry&ch.disable=true&locale=en&details=street_name&details=time&optimize=true&points_encoded=false&details=max_speed&snap_prevention=ferry&profile=car&pass_through=true&instructions=false&vehicle=car";
 
-                //Update redis
-                client.set(
-                  coordsInfos.redisKey,
-                  JSON.stringify(routeData),
-                  redis.print
-                );
-                resolveRoute(true);
-                /*new Promise((res) => {
+  requestAPI(url, function (error, response, body) {
+    if (body != undefined) {
+      if (body.length > 20) {
+        try {
+          body = JSON.parse(body);
+          if (body.paths[0].distance != undefined) {
+            console.log("HERRRERE-----------");
+            var distance = body.paths[0].distance;
+            var eta = body.paths[0].time * (3 / 29); //Min
+            //Reshape ETA format
+            if (eta >= 60) {
+              eta = Math.round(eta / 60) + " min away";
+            } else {
+              eta = Math.round(eta) + " sec away";
+            }
+            //...
+            var rawPoints = body.paths[0].points.coordinates;
+            var pointsTravel = rawPoints;
+            //=====================================================================
+            //Get destination's route infos
+            if (destinationPosition !== false) {
+              new Promise((res) => {
                 let bundleData = {
                   passenger: passengerPosition,
                   destination: destinationPosition,
@@ -371,38 +347,9 @@ function getRouteInfos(coordsInfos, resolve) {
                     distance: distance,
                   });
                 }
-              );*/
-              } else {
-                let routeData = {
-                  routePoints: pointsTravel,
-                  destinationData:
-                    coordsInfos.passenger_destination === undefined
-                      ? "routeTracking"
-                      : "requestToDestinationTracking_pending", //Check whether the request is still pending (requestToDest...) or is accepted and is in progress (routeTracking)
-                  driverNextPoint: pointsTravel[0],
-                  pickupPoint:
-                    coordsInfos.passenger_origin === undefined
-                      ? [
-                          passengerPosition.longitude,
-                          passengerPosition.latitude,
-                        ]
-                      : [driverPosition.longitude, driverPosition.latitude],
-                  destinationPoint: [
-                    passengerPosition.longitude,
-                    passengerPosition.latitude,
-                  ],
-                  eta: eta,
-                  distance: distance,
-                };
-
-                //cache
-                client.set(
-                  coordsInfos.redisKey,
-                  JSON.stringify(routeData),
-                  redis.print
-                );
-                resolveRoute(true);
-                /*resolve({
+              );
+            } else {
+              resolve({
                 routePoints: pointsTravel,
                 destinationData:
                   coordsInfos.passenger_destination === undefined
@@ -419,49 +366,21 @@ function getRouteInfos(coordsInfos, resolve) {
                 ],
                 eta: eta,
                 distance: distance,
-              });*/
-              }
-            } else {
-              resolveRoute(false);
+              });
             }
-          } catch (error) {
-            resolveRoute(false);
+          } else {
+            resolve(false);
           }
-        } else {
-          resolveRoute(false);
-        }
-      } else {
-        resolveRoute(false);
-      }
-    });
-  }).then(
-    () => {},
-    () => {}
-  );
-  //coordsInfos.redisKey - REDIS KEY
-  //CHECK for a possible cached result
-  redisGet(coordsInfos.redisKey).then(
-    (resp) => {
-      if (resp !== null) {
-        try {
-          resp = JSON.parse(resp);
-          console.log("CACHED ROUTE DATA FOUND---------");
-          console.log(resp);
-          resolve(resp);
         } catch (error) {
-          console.log(error);
           resolve(false);
         }
-      } //empty record
-      else {
+      } else {
         resolve(false);
       }
-    },
-    (error) => {
-      console.log(error);
+    } else {
       resolve(false);
     }
-  );
+  });
 }
 
 /**
