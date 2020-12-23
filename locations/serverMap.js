@@ -17,6 +17,7 @@ var fastFilter = require("fast-filter");
 const { promisify, inspect } = require("util");
 const urlParser = require("url");
 const redis = require("redis");
+const geolib = require("geolib");
 const client = redis.createClient();
 const redisGet = promisify(client.get).bind(client);
 
@@ -60,9 +61,8 @@ resolveDate();
 const driverCacheData = {
   user_fingerprint:
     "23c9d088e03653169b9c18193a0b8dd329ea1e43eb0626ef9f16b5b979694a429710561a3cb3ddae",
-
-  latitude: -22.546736,
-  longitude: 17.090539,
+  latitude: -22.567989,
+  longitude: 17.084384,
   date_logged: chaineDateUTC,
 };
 //Cache
@@ -262,13 +262,14 @@ function getRouteInfos(coordsInfos, resolve) {
 
   requestAPI(url, function (error, response, body) {
     if (body != undefined) {
+      console.log(error, body);
       if (body.length > 20) {
         try {
           body = JSON.parse(body);
           if (body.paths[0].distance != undefined) {
             console.log("HERRRERE-----------");
             var distance = body.paths[0].distance;
-            var eta = body.paths[0].time * (3 / 29); //Min
+            var eta = body.paths[0].time; //Min
             //Reshape ETA format
             if (eta >= 60) {
               eta = Math.round(eta / 60) + " min away";
@@ -727,7 +728,7 @@ function computeRouteDetails_skeleton(result, resolve) {
                   if (resp0 !== null) {
                     try {
                       //Compute next route update ---------------------------------------------------
-                      let request0 = new Promise((reslv) => {
+                      new Promise((reslv) => {
                         computeAndCacheRouteDestination(
                           resp,
                           rideHistory,
@@ -751,7 +752,7 @@ function computeRouteDetails_skeleton(result, resolve) {
                   } //no record create a new one
                   else {
                     //Compute next route update ---------------------------------------------------
-                    let request0 = new Promise((reslv) => {
+                    new Promise((reslv) => {
                       computeAndCacheRouteDestination(
                         resp,
                         rideHistory,
@@ -781,7 +782,7 @@ function computeRouteDetails_skeleton(result, resolve) {
                 (err0) => {
                   //console.log(err0);
                   //Compute next route update ---------------------------------------------------
-                  let request1 = new Promise((reslv) => {
+                  new Promise((reslv) => {
                     computeAndCacheRouteDestination(
                       resp,
                       rideHistory,
@@ -971,6 +972,7 @@ function computeAndCacheRouteDestination(
       //destination: rideHistory.destinationData[0].coordinates,
     };
   } else if (request_status === "inRouteToDestination") {
+    console.log("in route to destination");
     //For to drop off only
     bundle = {
       passenger_origin: {
@@ -978,7 +980,10 @@ function computeAndCacheRouteDestination(
         longitude: riderCoords.longitude,
       },
       redisKey: redisKey,
-      passenger_destination: rideHistory.destinationData[0].coordinates,
+      passenger_destination: {
+        latitude: rideHistory.destinationData[0].coordinates.longitude,
+        longitude: rideHistory.destinationData[0].coordinates.latitude,
+      },
     };
   }
 
