@@ -60,8 +60,9 @@ resolveDate();
 const driverCacheData = {
   user_fingerprint:
     "23c9d088e03653169b9c18193a0b8dd329ea1e43eb0626ef9f16b5b979694a429710561a3cb3ddae",
-  latitude: -22.5704962,
-  longitude: 17.0809509,
+
+  latitude: -22.546736,
+  longitude: 17.090539,
   date_logged: chaineDateUTC,
 };
 //Cache
@@ -967,9 +968,8 @@ function computeAndCacheRouteDestination(
       },
       redisKey: redisKey,
       //Take the passenger's 1 destination as reference
-      destination: rideHistory.destinationData[0].coordinates,
+      //destination: rideHistory.destinationData[0].coordinates,
     };
-    console.log(bundle);
   } else if (request_status === "inRouteToDestination") {
     //For to drop off only
     bundle = {
