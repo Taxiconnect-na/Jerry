@@ -27,11 +27,12 @@ const moment = require("moment");
 const e = require("express");
 
 const URL_MONGODB = "mongodb://localhost:27017";
+const localURL = "http://localhost";
 const DB_NAME_MONGODB = "Taxiconnect";
 const URL_SEARCH_SERVICES = "http://www.taxiconnectna.com:7007/";
-//const URL_ROUTE_SERVICES = "http://www.taxiconnectna.com:7008/route?";
-const URL_ROUTE_SERVICES = "http://localhost:8383/route?";
+const URL_ROUTE_SERVICES = "http://www.taxiconnectna.com:8383/route?";
 //const URL_ROUTE_SERVICES = "localhost:8987/route?";
+const MAP_SERVICE_PORT = 9090;
 
 const clientMongo = new MongoClient(URL_MONGODB, { useUnifiedTopology: true });
 
@@ -120,20 +121,16 @@ function getRouteInfosDestination(
     destinationPosition.longitude +
     "&heading_penalty=0&avoid=residential&avoid=ferry&ch.disable=true&locale=en&details=street_name&details=time&optimize=true&points_encoded=false&details=max_speed&snap_prevention=ferry&profile=car&pass_through=true&instructions=false&vehicle=car";
   requestAPI(url, function (error, response, body) {
-    console.log(error, body);
     if (body != undefined) {
       if (body.length > 20) {
         try {
           body = JSON.parse(body);
           if (body.paths[0].distance != undefined) {
             let distance = body.paths[0].distance;
-            let eta = body.paths[0].time / 10; //Min
-            //Reshape ETA format
-            if (eta >= 60) {
-              eta = Math.round(eta / 60) + " min away";
-            } else {
-              eta = Math.round(eta) + " sec away";
-            }
+            let eta =
+              body.paths[0].time / 600 >= 60
+                ? Math.round(body.paths[0].time / 36000) + " min away"
+                : Math.round(body.paths[0].time / 600) + " sec away"; //Sec
             //...
             if (cache !== false) {
               //Update the cache
@@ -268,15 +265,11 @@ function getRouteInfos(coordsInfos, resolve) {
           if (body.paths[0].distance != undefined) {
             console.log("HERRRERE-----------");
             let distance = body.paths[0].distance;
-            /*let eta =
+            let eta =
               body.paths[0].time / 600 >= 60
                 ? Math.round(body.paths[0].time / 36000) + " min away"
-                : Math.round(body.paths[0].time / 600) + " sec away"; //Sec*/
-            let eta = "15 min away";
-            //let eta = Math.round(body.paths[0].time / 36000);
-            //Reshape ETA format
-            console.log(Math.round(body.paths[0].time / 600));
-            //...
+                : Math.round(body.paths[0].time / 600) + " sec away"; //Sec
+
             let rawPoints = body.paths[0].points.coordinates;
             let pointsTravel = rawPoints;
             //=====================================================================
@@ -463,11 +456,13 @@ function updateRiderLocationsLog(
  * @var isArrivedToDestination
  * @true when the passenger confirms his/her drop off
  * @var isRideCompleted_driverSide
+ * @param collectionDrivers_profiles: list of all the drivers
  * @true when the driver confirms that the trip is over from his/her side
  * REQUEST STATUS: pending, inRouteToPickup, inRouteToDropoff, completedDriverConfimed
  */
 function tripChecker_Dispatcher(
   collectionRidersData_repr,
+  collectionDrivers_profiles,
   user_fingerprint,
   user_nature,
   resolve
@@ -500,6 +495,7 @@ function tripChecker_Dispatcher(
             //Check if there are any requests cached
             getMongoRecordTrip_cacheLater(
               collectionRidersData_repr,
+              collectionDrivers_profiles,
               user_fingerprint,
               user_nature,
               request_fp,
@@ -558,11 +554,13 @@ function getUserRideCachedData_andComputeRoute(
 
 /**
  * @func getMongoRecordTrip_cacheLater()
+ * @param collectionDrivers_profiles: list of all the drivers
  * Responsible for getting user record from mongodb, compute route infos, cache it (and cache the user's trip infos for later use).
  * CAN BE USED FOR RIDERS AND DRIVERS
  */
 function getMongoRecordTrip_cacheLater(
   collectionRidersData_repr,
+  collectionDrivers_profiles,
   user_fingerprint,
   user_nature,
   request_fp,
@@ -579,16 +577,21 @@ function getMongoRecordTrip_cacheLater(
       throw err;
     }
     //Compute route via compute skeleton
-    computeRouteDetails_skeleton(result, resolve);
+    computeRouteDetails_skeleton(result, collectionDrivers_profiles, resolve);
   });
 }
 /**
  * @func computeRouteDetails_skeleton
  * Compute route details template.
+ * @param collectionDrivers_profiles: list of all the drivers
  * MUST convert input into a unique indexed array, eg: [result]
  * CAN BE USED FOR RIDERS AND DRIVERS
  */
-function computeRouteDetails_skeleton(result, resolve) {
+function computeRouteDetails_skeleton(
+  result,
+  collectionDrivers_profiles,
+  resolve
+) {
   if (result.length > 0 && result[0].request_fp !== undefined) {
     //console.log("[Runninf] COMPUTE SKELETON CALLED.");
     //There is a ride
@@ -596,267 +599,291 @@ function computeRouteDetails_skeleton(result, resolve) {
     let riderCoords = rideHistory.pickup_location_infos.coordinates;
     if (rideHistory.ride_state_vars.isAccepted) {
       console.log("request accepted");
-      //Ride pending
-      //3 Scenarios:
-      //- In route to pickup
-      //- In route to drop off
-      //- Trip over, confirm drop off rider
-      if (
-        rideHistory.ride_state_vars.inRideToDestination === false &&
-        rideHistory.ride_state_vars.isRideCompleted_driverSide === false
-      ) {
-        //In route to pickup
-        //console.log("In  route to pickup");
-        let requestStatusMain = "inRouteToPickup";
-        //Get driver coords from cache, it non existant, get from mongo
-        redisGet(rideHistory.taxi_id).then(
-          (resp) => {
-            if (resp !== null) {
-              //Check for any trip record related to the route infos in the cache
-              //KEY: request_fp
-              redisGet(rideHistory.request_fp).then(
-                (resp0) => {
-                  if (resp0 !== null) {
-                    try {
-                      //Compute next route update ---------------------------------------------------
-                      new Promise((reslv) => {
-                        computeAndCacheRouteDestination(
-                          resp,
-                          rideHistory,
-                          riderCoords,
-                          requestStatusMain,
-                          reslv
-                        );
-                      }).then(
-                        () => {},
-                        () => {}
-                      );
-                      //............Return cached
-                      let tripData = JSON.parse(resp0);
-                      //Found a precomputed record
-                      //console.log("Trip data cached found!");
-                      resolve(tripData);
-                    } catch (error) {
-                      //console.log(error);
-                      resolve(false);
-                    }
-                  } //no record create a new one
-                  else {
-                    //Compute next route update ---------------------------------------------------
-                    new Promise((reslv) => {
-                      computeAndCacheRouteDestination(
-                        resp,
-                        rideHistory,
-                        riderCoords,
-                        requestStatusMain,
-                        reslv
-                      );
-                    }).then(
-                      () => {
-                        //Get route infos from cache.
-                        redisGet(rideHistory.request_fp).then(
-                          (result) => {
-                            resolve(result);
-                          },
-                          (error) => {
+      //Get all the driver's informations
+      collectionDrivers_profiles
+        .find({ driver_fingerprint: rideHistory.taxi_id })
+        .toArray(function (err, driverProfile) {
+          if (err) {
+            resolve(false); //An error happened
+          }
+
+          if (driverProfile.length > 0) {
+            //Found the driver's profile
+            driverProfile = driverProfile[0];
+            //...EXPLORE RIDE SCENARIOS
+            //3 Scenarios:
+            //- In route to pickup
+            //- In route to drop off
+            //- Trip over, confirm drop off rider
+            if (
+              rideHistory.ride_state_vars.inRideToDestination === false &&
+              rideHistory.ride_state_vars.isRideCompleted_driverSide === false
+            ) {
+              //In route to pickup
+              //console.log("In  route to pickup");
+              let requestStatusMain = "inRouteToPickup";
+              //Get driver's coordinates
+              //Get driver coords from cache, it non existant, get from mongo
+              redisGet(rideHistory.taxi_id).then(
+                (resp) => {
+                  if (resp !== null) {
+                    //Check for any trip record related to the route infos in the cache
+                    //KEY: request_fp
+                    redisGet(rideHistory.request_fp).then(
+                      (resp0) => {
+                        if (resp0 !== null) {
+                          try {
+                            //Compute next route update ---------------------------------------------------
+                            new Promise((reslv) => {
+                              computeAndCacheRouteDestination(
+                                resp,
+                                rideHistory,
+                                driverProfile,
+                                riderCoords,
+                                requestStatusMain,
+                                reslv
+                              );
+                            }).then(
+                              () => {},
+                              () => {}
+                            );
+                            //............Return cached
+                            let tripData = JSON.parse(resp0);
+                            //Found a precomputed record
+                            //console.log("Trip data cached found!");
+                            resolve(tripData);
+                          } catch (error) {
                             //console.log(error);
                             resolve(false);
                           }
-                        );
-                      },
-                      (error) => {
-                        resolve(false);
-                      }
-                    );
-                  }
-                },
-                (err0) => {
-                  //console.log(err0);
-                  //Compute next route update ---------------------------------------------------
-                  new Promise((reslv) => {
-                    computeAndCacheRouteDestination(
-                      resp,
-                      rideHistory,
-                      riderCoords,
-                      requestStatusMain,
-                      reslv
-                    );
-                  }).then(
-                    () => {
-                      //Get route infos from cache.
-                      redisGet(rideHistory.request_fp).then(
-                        (result) => {
-                          resolve(result);
-                        },
-                        (error) => {
-                          //console.log(error);
-                          resolve(false);
-                        }
-                      );
-                    },
-                    (error) => {
-                      resolve(false);
-                    }
-                  );
-                }
-              );
-            } else {
-              //GET DRIVER LOCATION FROM MONGODB
-              resolve(false);
-            }
-          },
-          (error) => {
-            //console.log(error);
-            resolve(false);
-          }
-        );
-      } else if (
-        rideHistory.ride_state_vars.inRideToDestination === true &&
-        rideHistory.ride_state_vars.isRideCompleted_driverSide === false
-      ) {
-        //In route to drop off
-        //console.log("In route to drop off");
-        let requestStatusMain = "inRouteToDestination";
-        //Get driver coords from cache, it non existant, get from mongo
-        redisGet(rideHistory.taxi_id).then(
-          (resp) => {
-            if (resp !== null) {
-              //Check for any trip record related to the route infos in the cache
-              //KEY: request_fp
-              redisGet(rideHistory.request_fp).then(
-                (resp0) => {
-                  if (resp0 !== null) {
-                    try {
-                      //Compute next route update ---------------------------------------------------
-                      new Promise((reslv) => {
-                        computeAndCacheRouteDestination(
-                          resp,
-                          rideHistory,
-                          riderCoords,
-                          requestStatusMain,
-                          reslv
-                        );
-                      }).then(
-                        () => {
-                          console.log("Updated");
-                        },
-                        () => {}
-                      );
-                      //............Return cached
-                      let tripData = JSON.parse(resp0);
-                      //Found a precomputed record
-                      console.log("Trip data cached found!");
-                      resolve(tripData);
-                    } catch (error) {
-                      //console.log(error);
-                      //Compute next route update ---------------------------------------------------
-                      new Promise((reslv) => {
-                        computeAndCacheRouteDestination(
-                          resp,
-                          rideHistory,
-                          riderCoords,
-                          requestStatusMain,
-                          reslv
-                        );
-                      }).then(
-                        () => {
-                          //Get route infos from cache.
-                          redisGet(rideHistory.request_fp).then(
-                            (result) => {
-                              resolve(result);
+                        } //no record create a new one
+                        else {
+                          //Compute next route update ---------------------------------------------------
+                          new Promise((reslv) => {
+                            computeAndCacheRouteDestination(
+                              resp,
+                              rideHistory,
+                              driverProfile,
+                              riderCoords,
+                              requestStatusMain,
+                              reslv
+                            );
+                          }).then(
+                            () => {
+                              //Get route infos from cache.
+                              redisGet(rideHistory.request_fp).then(
+                                (result) => {
+                                  resolve(result);
+                                },
+                                (error) => {
+                                  //console.log(error);
+                                  resolve(false);
+                                }
+                              );
                             },
                             (error) => {
-                              //console.log(error);
                               resolve(false);
                             }
                           );
-                        },
-                        (error) => {
-                          resolve(false);
                         }
-                      );
-                    }
-                  } //no record create a new one
-                  else {
-                    //Compute next route update ---------------------------------------------------
-                    new Promise((reslv) => {
-                      computeAndCacheRouteDestination(
-                        resp,
-                        rideHistory,
-                        riderCoords,
-                        requestStatusMain,
-                        reslv
-                      );
-                    }).then(
-                      () => {
-                        //Get route infos from cache.
-                        redisGet(rideHistory.request_fp).then(
-                          (result) => {
-                            resolve(result);
+                      },
+                      (err0) => {
+                        //console.log(err0);
+                        //Compute next route update ---------------------------------------------------
+                        new Promise((reslv) => {
+                          computeAndCacheRouteDestination(
+                            resp,
+                            rideHistory,
+                            driverProfile,
+                            riderCoords,
+                            requestStatusMain,
+                            reslv
+                          );
+                        }).then(
+                          () => {
+                            //Get route infos from cache.
+                            redisGet(rideHistory.request_fp).then(
+                              (result) => {
+                                resolve(result);
+                              },
+                              (error) => {
+                                //console.log(error);
+                                resolve(false);
+                              }
+                            );
                           },
                           (error) => {
-                            //console.log(error);
                             resolve(false);
                           }
                         );
-                      },
-                      (error) => {
-                        resolve(false);
                       }
                     );
+                  } else {
+                    //GET DRIVER LOCATION FROM MONGODB
+                    resolve(false);
                   }
                 },
-                (err0) => {
-                  //console.log(err0);
-                  //Compute next route update ---------------------------------------------------
-                  new Promise((reslv) => {
-                    computeAndCacheRouteDestination(
-                      resp,
-                      rideHistory,
-                      riderCoords,
-                      requestStatusMain,
-                      reslv
-                    );
-                  }).then(
-                    () => {
-                      //Get route infos from cache.
-                      redisGet(rideHistory.request_fp).then(
-                        (result) => {
-                          resolve(result);
-                        },
-                        (error) => {
-                          //console.log(error);
-                          resolve(false);
-                        }
-                      );
-                    },
-                    (error) => {
-                      resolve(false);
-                    }
-                  );
+                (error) => {
+                  //console.log(error);
+                  resolve(false);
                 }
               );
-            } else {
-              //GET DRIVER LOCATION FROM MONGODB
-              resolve(false);
+            } else if (
+              rideHistory.ride_state_vars.inRideToDestination === true &&
+              rideHistory.ride_state_vars.isRideCompleted_driverSide === false
+            ) {
+              //In route to drop off
+              //console.log("In route to drop off");
+              let requestStatusMain = "inRouteToDestination";
+              //Get driver coords from cache, it non existant, get from mongo
+              redisGet(rideHistory.taxi_id).then(
+                (resp) => {
+                  if (resp !== null) {
+                    //Check for any trip record related to the route infos in the cache
+                    //KEY: request_fp
+                    redisGet(rideHistory.request_fp).then(
+                      (resp0) => {
+                        if (resp0 !== null) {
+                          try {
+                            //Compute next route update ---------------------------------------------------
+                            new Promise((reslv) => {
+                              computeAndCacheRouteDestination(
+                                resp,
+                                rideHistory,
+                                driverProfile,
+                                riderCoords,
+                                requestStatusMain,
+                                reslv
+                              );
+                            }).then(
+                              () => {
+                                console.log("Updated");
+                              },
+                              () => {}
+                            );
+                            //............Return cached
+                            let tripData = JSON.parse(resp0);
+                            //Found a precomputed record
+                            console.log("Trip data cached found!");
+                            resolve(tripData);
+                          } catch (error) {
+                            //console.log(error);
+                            //Compute next route update ---------------------------------------------------
+                            new Promise((reslv) => {
+                              computeAndCacheRouteDestination(
+                                resp,
+                                rideHistory,
+                                driverProfile,
+                                riderCoords,
+                                requestStatusMain,
+                                reslv
+                              );
+                            }).then(
+                              () => {
+                                //Get route infos from cache.
+                                redisGet(rideHistory.request_fp).then(
+                                  (result) => {
+                                    resolve(result);
+                                  },
+                                  (error) => {
+                                    //console.log(error);
+                                    resolve(false);
+                                  }
+                                );
+                              },
+                              (error) => {
+                                resolve(false);
+                              }
+                            );
+                          }
+                        } //no record create a new one
+                        else {
+                          //Compute next route update ---------------------------------------------------
+                          new Promise((reslv) => {
+                            computeAndCacheRouteDestination(
+                              resp,
+                              rideHistory,
+                              driverProfile,
+                              riderCoords,
+                              requestStatusMain,
+                              reslv
+                            );
+                          }).then(
+                            () => {
+                              //Get route infos from cache.
+                              redisGet(rideHistory.request_fp).then(
+                                (result) => {
+                                  resolve(result);
+                                },
+                                (error) => {
+                                  //console.log(error);
+                                  resolve(false);
+                                }
+                              );
+                            },
+                            (error) => {
+                              resolve(false);
+                            }
+                          );
+                        }
+                      },
+                      (err0) => {
+                        //console.log(err0);
+                        //Compute next route update ---------------------------------------------------
+                        new Promise((reslv) => {
+                          computeAndCacheRouteDestination(
+                            resp,
+                            rideHistory,
+                            driverProfile,
+                            riderCoords,
+                            requestStatusMain,
+                            reslv
+                          );
+                        }).then(
+                          () => {
+                            //Get route infos from cache.
+                            redisGet(rideHistory.request_fp).then(
+                              (result) => {
+                                resolve(result);
+                              },
+                              (error) => {
+                                //console.log(error);
+                                resolve(false);
+                              }
+                            );
+                          },
+                          (error) => {
+                            resolve(false);
+                          }
+                        );
+                      }
+                    );
+                  } else {
+                    //GET DRIVER LOCATION FROM MONGODB
+                    resolve(false);
+                  }
+                },
+                (error) => {
+                  //console.log(error);
+                  resolve(false);
+                }
+              );
+            } else if (
+              rideHistory.ride_state_vars.isRideCompleted_driverSide === true &&
+              rideHistory.ride_state_vars.isArrivedToDestination === false
+            ) {
+              //Rider's confirmation for the drop off left
+              console.log("Riders confirmation of drop off");
+              resolve(true);
+            } //No action needed
+            else {
+              resolve(true);
             }
-          },
-          (error) => {
-            //console.log(error);
+          } //No driver's profile found - error - very strange isn't it
+          else {
             resolve(false);
           }
-        );
-      } else if (
-        rideHistory.ride_state_vars.isRideCompleted_driverSide === true &&
-        rideHistory.ride_state_vars.isArrivedToDestination === false
-      ) {
-        //Rider's confirmation for the drop off left
-        console.log("Riders confirmation of drop off");
-        resolve(true);
-      } //No action needed
-      else {
-        resolve(true);
-      }
+        });
     } //Request pending
     else {
       //console.log("request pending...");
@@ -965,6 +992,7 @@ function computeRouteDetails_skeleton(result, resolve) {
  * ACCEPTED RIDES ONLY
  * @func computeAndCacheRouteDestination()
  * @param rideHistory: contains the infos about the passenger's ride history
+ * @param driverProfile: the profile information of the driver who accepted the request.
  * @param driverInfos: contains the infos of the associated driver from cache or mongo IN TEXT FROM - Use JSON.parse to make a useful object.
  * @param resolve: resover for the promise.
  * @param request_status: responsible for specifying if the computation is done for in route to pickup, in route to drop off or any other case.
@@ -975,12 +1003,13 @@ function computeRouteDetails_skeleton(result, resolve) {
 function computeAndCacheRouteDestination(
   driverInfos,
   rideHistory,
+  driverProfile = false,
   riderCoords = false,
   request_status,
   resolve
 ) {
   //Compute next route update ---------------------------------------------------
-  let resp = JSON.parse(driverInfos);
+  let resp = JSON.parse(driverInfos); //The coordinates
   let bundle = {};
   let redisKey = rideHistory.client_id + "-" + rideHistory.taxi_id;
   if (request_status === "inRouteToPickup") {
@@ -1018,86 +1047,202 @@ function computeAndCacheRouteDestination(
     getRouteInfos(bundle, reslv);
   }).then(
     (result) => {
+      //Do the preliminary caching
+      new Promise((resolvePreli) => {
+        //Update driver old trip cached ride history
+        redisGet(resp.user_fingerprint).then(
+          (res) => {
+            if (res !== null) {
+              try {
+                let prevDriverCache = JSON.parse(res);
+                prevDriverCache.rides_history = rideHistory;
+                client.set(
+                  resp.user_fingerprint,
+                  JSON.stringify(prevDriverCache),
+                  redis.print
+                );
+                //Update rider old trip cached ride history
+                redisGet(rideHistory.client_id).then(
+                  (res1) => {
+                    if (res !== null) {
+                      try {
+                        let prevRiderCache = JSON.parse(res1);
+                        prevRiderCache.rides_history = rideHistory;
+                        client.set(
+                          rideHistory.client_id,
+                          JSON.stringify(prevRiderCache),
+                          redis.print
+                        );
+                        resolvePreli(true);
+                      } catch (error) {
+                        resolvePreli(true);
+                      }
+                    } else {
+                      resolvePreli(true);
+                    }
+                  },
+                  () => {
+                    resolvePreli(true);
+                  }
+                );
+              } catch (error) {
+                resolvePreli(true);
+              }
+            } else {
+              resolvePreli(true);
+            }
+          },
+          () => {
+            resolvePreli(true);
+          }
+        );
+        //--------
+      }).then(
+        () => {},
+        () => {}
+      );
       //console.log(rideHistory.destinationData);
       //Add request status variable - inRouteToPickup, inRouteToDestination
       result["request_status"] = request_status;
-      //Cache computed result
-      redisGet(rideHistory.request_fp).then(
-        (cachedTripData) => {
-          if (cachedTripData !== null) {
-            client.set(
-              rideHistory.request_fp,
-              JSON.stringify(result),
-              redis.print
-            );
-          } //Update cache anyways
-          else {
-            //console.log("Update cache");
-            client.set(
-              rideHistory.request_fp,
-              JSON.stringify(result),
-              redis.print
-            );
-          }
+      let additionalInfos = {
+        ETA_toDestination: null,
+        driverDetails: {
+          name: null,
+          profile_picture: null,
+          global_rating: null,
+          phone_number: null,
         },
-        (errorGet) => {
-          //console.log("Update cache");
-          client.set(
-            rideHistory.request_fp,
-            JSON.stringify(result),
-            redis.print
+        carDetails: {
+          taxi_number: null,
+          car_brand: null,
+          car_image: null,
+          plate_number: null,
+          verification_status: "Verified",
+        },
+      }; //Will contain all the additional informations needed
+      //Add the driver's basic information (name, profile picture, taxi number-if any, car brand, car image, general rating, plate number, phone number)
+      additionalInfos.driverDetails.name = driverProfile.name;
+      additionalInfos.driverDetails.profile_picture =
+        driverProfile.identification_data.profile_picture;
+      additionalInfos.driverDetails.global_rating =
+        driverProfile.operational_state.global_rating;
+      additionalInfos.driverDetails.phone_number = driverProfile.phone_number;
+      //Add the current car details
+      //Get the correct car information
+      let currentVehicle = null;
+      driverProfile.cars_data.map((car) => {
+        if (
+          car.car_fingerprint ===
+          driverProfile.operational_state.default_selected_car.car_fingerprint
+        ) {
+          //Found the car
+          currentVehicle = car;
+        }
+      });
+      //Complete the car's infos
+      additionalInfos.carDetails.taxi_number = currentVehicle.taxi_number;
+      additionalInfos.carDetails.car_brand = currentVehicle.car_brand;
+      additionalInfos.carDetails.car_image = currentVehicle.taxi_picture;
+      additionalInfos.carDetails.plate_number = currentVehicle.plate_number;
+      //...
+      //Get the estimated time TO the destination (from the current's user position)
+      new Promise((res4) => {
+        let url =
+          localURL +
+          ":" +
+          MAP_SERVICE_PORT +
+          "/getRouteToDestinationSnapshot?org_latitude=" +
+          rideHistory.pickup_location_infos.coordinates.latitude +
+          "&org_longitude=" +
+          rideHistory.pickup_location_infos.coordinates.longitude +
+          "&dest_latitude=" +
+          rideHistory.destinationData[0].coordinates.longitude +
+          "&dest_longitude=" +
+          rideHistory.destinationData[0].coordinates.latitude +
+          "&user_fingerprint=" +
+          rideHistory.client_id;
+        requestAPI(url, function (error, response, body) {
+          if (error === null) {
+            try {
+              body = JSON.parse(body);
+              res4(body.eta);
+            } catch (error) {
+              res4(false);
+            }
+          } else {
+            res4(false);
+          }
+        });
+      }).then(
+        (estimated_travel_time) => {
+          //Add the eta to destination
+          additionalInfos.ETA_toDestination = estimated_travel_time;
+          result = { ...result, ...additionalInfos }; //Merge all the data
+          //Cache-
+          //Cache computed result
+          redisGet(rideHistory.request_fp).then(
+            (cachedTripData) => {
+              if (cachedTripData !== null) {
+                client.set(
+                  rideHistory.request_fp,
+                  JSON.stringify(result),
+                  redis.print
+                );
+              } //Update cache anyways
+              else {
+                //console.log("Update cache");
+                client.set(
+                  rideHistory.request_fp,
+                  JSON.stringify(result),
+                  redis.print
+                );
+              }
+            },
+            (errorGet) => {
+              //console.log("Update cache");
+              client.set(
+                rideHistory.request_fp,
+                JSON.stringify(result),
+                redis.print
+              );
+            }
+          );
+        },
+        (error) => {
+          console.log(error);
+          //If couldn't get the ETA to destination - just leave it as null
+          result = { ...result, ...additionalInfos }; //Merge all the data
+          //Cache-
+          //Cache computed result
+          redisGet(rideHistory.request_fp).then(
+            (cachedTripData) => {
+              if (cachedTripData !== null) {
+                client.set(
+                  rideHistory.request_fp,
+                  JSON.stringify(result),
+                  redis.print
+                );
+              } //Update cache anyways
+              else {
+                //console.log("Update cache");
+                client.set(
+                  rideHistory.request_fp,
+                  JSON.stringify(result),
+                  redis.print
+                );
+              }
+            },
+            (errorGet) => {
+              //console.log("Update cache");
+              client.set(
+                rideHistory.request_fp,
+                JSON.stringify(result),
+                redis.print
+              );
+            }
           );
         }
       );
-
-      //Update driver old trip cached ride history
-      redisGet(resp.user_fingerprint).then(
-        (res) => {
-          if (res !== null) {
-            try {
-              let prevDriverCache = JSON.parse(res);
-              prevDriverCache.rides_history = rideHistory;
-              client.set(
-                resp.user_fingerprint,
-                JSON.stringify(prevDriverCache),
-                redis.print
-              );
-              //Update rider old trip cached ride history
-              redisGet(rideHistory.client_id).then(
-                (res1) => {
-                  if (res !== null) {
-                    try {
-                      let prevRiderCache = JSON.parse(res1);
-                      prevRiderCache.rides_history = rideHistory;
-                      client.set(
-                        rideHistory.client_id,
-                        JSON.stringify(prevRiderCache),
-                        redis.print
-                      );
-                      resolve(true);
-                    } catch (error) {
-                      resolve(true);
-                    }
-                  } else {
-                    resolve(true);
-                  }
-                },
-                () => {
-                  resolve(true);
-                }
-              );
-            } catch (error) {
-              resolve(true);
-            }
-          } else {
-            resolve(true);
-          }
-        },
-        () => {
-          resolve(true);
-        }
-      );
-      //--------
     },
     (error) => {
       //console.log(error);
@@ -1762,6 +1907,7 @@ clientMongo.connect(function (err) {
         //console.log("fetching data");
         tripChecker_Dispatcher(
           collectionRidersData_repr,
+          collectionDrivers_profiles,
           req.user_fingerprint,
           "rider",
           res
@@ -1915,7 +2061,6 @@ clientMongo.connect(function (err) {
         findDestinationPathPreview(res, tmp);
       }).then(
         (result) => {
-          console.log("response", result);
           res.send(result);
         },
         (error) => {
