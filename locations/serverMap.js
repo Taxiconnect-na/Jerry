@@ -126,8 +126,8 @@ function getRouteInfosDestination(
         try {
           body = JSON.parse(body);
           if (body.paths[0].distance != undefined) {
-            var distance = body.paths[0].distance;
-            var eta = body.paths[0].time / 400; //Min
+            let distance = body.paths[0].distance;
+            let eta = body.paths[0].time / 10; //Min
             //Reshape ETA format
             if (eta >= 60) {
               eta = Math.round(eta / 60) + " min away";
@@ -262,23 +262,23 @@ function getRouteInfos(coordsInfos, resolve) {
 
   requestAPI(url, function (error, response, body) {
     if (body != undefined) {
-      console.log(error, body);
       if (body.length > 20) {
         try {
           body = JSON.parse(body);
           if (body.paths[0].distance != undefined) {
             console.log("HERRRERE-----------");
-            var distance = body.paths[0].distance;
-            var eta = body.paths[0].time; //Min
+            let distance = body.paths[0].distance;
+            /*let eta =
+              body.paths[0].time / 600 >= 60
+                ? Math.round(body.paths[0].time / 36000) + " min away"
+                : Math.round(body.paths[0].time / 600) + " sec away"; //Sec*/
+            let eta = "15 min away";
+            //let eta = Math.round(body.paths[0].time / 36000);
             //Reshape ETA format
-            if (eta >= 60) {
-              eta = Math.round(eta / 60) + " min away";
-            } else {
-              eta = Math.round(eta) + " sec away";
-            }
+            console.log(Math.round(body.paths[0].time / 600));
             //...
-            var rawPoints = body.paths[0].points.coordinates;
-            var pointsTravel = rawPoints;
+            let rawPoints = body.paths[0].points.coordinates;
+            let pointsTravel = rawPoints;
             //=====================================================================
             //Get destination's route infos
             if (destinationPosition !== false) {
@@ -737,17 +737,44 @@ function computeRouteDetails_skeleton(result, resolve) {
                           reslv
                         );
                       }).then(
-                        () => {},
+                        () => {
+                          console.log("Updated");
+                        },
                         () => {}
                       );
                       //............Return cached
                       let tripData = JSON.parse(resp0);
                       //Found a precomputed record
-                      //console.log("Trip data cached found!");
+                      console.log("Trip data cached found!");
                       resolve(tripData);
                     } catch (error) {
                       //console.log(error);
-                      resolve(false);
+                      //Compute next route update ---------------------------------------------------
+                      new Promise((reslv) => {
+                        computeAndCacheRouteDestination(
+                          resp,
+                          rideHistory,
+                          riderCoords,
+                          requestStatusMain,
+                          reslv
+                        );
+                      }).then(
+                        () => {
+                          //Get route infos from cache.
+                          redisGet(rideHistory.request_fp).then(
+                            (result) => {
+                              resolve(result);
+                            },
+                            (error) => {
+                              //console.log(error);
+                              resolve(false);
+                            }
+                          );
+                        },
+                        (error) => {
+                          resolve(false);
+                        }
+                      );
                     }
                   } //no record create a new one
                   else {
@@ -991,23 +1018,18 @@ function computeAndCacheRouteDestination(
     getRouteInfos(bundle, reslv);
   }).then(
     (result) => {
-      console.log("HEREEE");
-      console.log(result);
       //console.log(rideHistory.destinationData);
       //Add request status variable - inRouteToPickup, inRouteToDestination
       result["request_status"] = request_status;
       //Cache computed result
-      //Check if the cached trip data is different than the update
       redisGet(rideHistory.request_fp).then(
         (cachedTripData) => {
           if (cachedTripData !== null) {
-            if (cachedTripData != JSON.stringify(result)) {
-              client.set(
-                rideHistory.request_fp,
-                JSON.stringify(result),
-                redis.print
-              );
-            }
+            client.set(
+              rideHistory.request_fp,
+              JSON.stringify(result),
+              redis.print
+            );
           } //Update cache anyways
           else {
             //console.log("Update cache");
@@ -1035,14 +1057,11 @@ function computeAndCacheRouteDestination(
             try {
               let prevDriverCache = JSON.parse(res);
               prevDriverCache.rides_history = rideHistory;
-              if (res !== JSON.stringify(prevDriverCache)) {
-                //console.log("Different data");
-                client.set(
-                  resp.user_fingerprint,
-                  JSON.stringify(prevDriverCache),
-                  redis.print
-                );
-              }
+              client.set(
+                resp.user_fingerprint,
+                JSON.stringify(prevDriverCache),
+                redis.print
+              );
               //Update rider old trip cached ride history
               redisGet(rideHistory.client_id).then(
                 (res1) => {
@@ -1050,13 +1069,11 @@ function computeAndCacheRouteDestination(
                     try {
                       let prevRiderCache = JSON.parse(res1);
                       prevRiderCache.rides_history = rideHistory;
-                      if (res !== JSON.stringify(prevRiderCache)) {
-                        client.set(
-                          rideHistory.client_id,
-                          JSON.stringify(prevRiderCache),
-                          redis.print
-                        );
-                      }
+                      client.set(
+                        rideHistory.client_id,
+                        JSON.stringify(prevRiderCache),
+                        redis.print
+                      );
                       resolve(true);
                     } catch (error) {
                       resolve(true);
