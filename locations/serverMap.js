@@ -1119,6 +1119,15 @@ function computeAndCacheRouteDestination(
           plate_number: null,
           verification_status: "Verified",
         },
+        basicTripDetails: {
+          pickup_name: null,
+          destination_name: null, //comma concatenated list of destinations
+          payment_method: null, //CASH or WALLET
+          fare_amount: null,
+          passengers_number: null,
+          ride_mode: null, //Ride or delivery
+          ride_simplified_id: null, //Very useful for sharing/tracking the trip infos
+        },
       }; //Will contain all the additional informations needed
       //Add the driver's basic information (name, profile picture, taxi number-if any, car brand, car image, general rating, plate number, phone number)
       additionalInfos.driverDetails.name = driverProfile.name;
@@ -1144,7 +1153,54 @@ function computeAndCacheRouteDestination(
       additionalInfos.carDetails.car_brand = currentVehicle.car_brand;
       additionalInfos.carDetails.car_image = currentVehicle.taxi_picture;
       additionalInfos.carDetails.plate_number = currentVehicle.plate_number;
-      //...
+      //Add pickup name and destination name
+      additionalInfos.basicTripDetails.pickup_name =
+        rideHistory.pickup_location_infos.location_name !== false &&
+        rideHistory.pickup_location_infos.location_name !== undefined
+          ? rideHistory.pickup_location_infos.location_name
+          : rideHistory.pickup_location_infos.street_name !== false &&
+            rideHistory.pickup_location_infos.street_name !== undefined
+          ? rideHistory.pickup_location_infos.street_name
+          : rideHistory.pickup_location_infos.suburb !== false &&
+            rideHistory.pickup_location_infos.suburb !== undefined
+          ? rideHistory.pickup_location_infos.suburb
+          : "unclear location.";
+      //Add ddestination name(s)
+      rideHistory.destinationData.map((location) => {
+        if (additionalInfos.basicTripDetails.destination_name === null) {
+          //Still empty
+          additionalInfos.basicTripDetails.destination_name =
+            location.location_name !== false &&
+            location.location_name !== undefined
+              ? location.location_name
+              : location.suburb !== false && location.suburb !== undefined
+              ? location.suburb
+              : "Click for more";
+        } //Add
+        else {
+          additionalInfos.basicTripDetails.destination_name +=
+            ", " +
+            (location.location_name !== false &&
+            location.location_name !== undefined
+              ? location.location_name
+              : location.suburb !== false && location.suburb !== undefined
+              ? location.suburb
+              : "Click for more");
+        }
+      });
+      //Add payment method
+      additionalInfos.basicTripDetails.payment_method = rideHistory.payment_method.toUpperCase();
+      //Addd fare amount
+      additionalInfos.basicTripDetails.fare_amount = rideHistory.fare;
+      //Add the number of passengers
+      additionalInfos.basicTripDetails.passengers_number =
+        rideHistory.passengers_number;
+      //Add the ride mode
+      additionalInfos.basicTripDetails.ride_mode = rideHistory.ride_mode.toUpperCase();
+      //Add the simplified id
+      additionalInfos.basicTripDetails.ride_simplified_id =
+        rideHistory.trip_simplified_id;
+
       //Get the estimated time TO the destination (from the current's user position)
       new Promise((res4) => {
         let url =
