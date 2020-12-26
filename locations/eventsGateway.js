@@ -85,7 +85,7 @@ io.on("connection", (socket) => {
         "&user_fingerprint=" +
         req.user_fingerprint;
       requestAPI(url, function (error, response, body) {
-        console.log(body);
+        console.log("RESPONSE HEREE ", body);
         if (error === null) {
           try {
             body = JSON.parse(body);
@@ -448,6 +448,42 @@ io.on("connection", (socket) => {
       });
     } else {
       socket.emit("requestRideOrDeliveryForThis-response", false);
+    }
+  });
+
+  /**
+   * DISPATCH SERVICE, port 9094
+   * Route: confirmRiderDropoff_requests
+   * event: confirmRiderDropoff_requests_io
+   * Confirm rider's drop off and handle all the related proccesses linked to it.
+   */
+  socket.on("confirmRiderDropoff_requests_io", function (req) {
+    console.log(req);
+    let servicePort = 9094;
+    if (req.user_fingerprint !== undefined && req.user_fingerprint !== null) {
+      let url = localURL + ":" + servicePort + "/confirmRiderDropoff_requests";
+
+      requestAPI.post({ url, form: req }, function (error, response, body) {
+        console.log(body);
+        if (error === null) {
+          try {
+            body = JSON.parse(body);
+            socket.emit("confirmRiderDropoff_requests_io-response", body);
+          } catch (error) {
+            socket.emit("confirmRiderDropoff_requests_io-response", {
+              response: "error",
+            });
+          }
+        } else {
+          socket.emit("confirmRiderDropoff_requests_io-response", {
+            response: "error",
+          });
+        }
+      });
+    } else {
+      socket.emit("confirmRiderDropoff_requests_io-response", {
+        response: "error",
+      });
     }
   });
 

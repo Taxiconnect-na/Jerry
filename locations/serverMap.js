@@ -870,11 +870,105 @@ function computeRouteDetails_skeleton(
               );
             } else if (
               rideHistory.ride_state_vars.isRideCompleted_driverSide === true &&
-              rideHistory.ride_state_vars.isArrivedToDestination === false
+              rideHistory.ride_state_vars.isRideCompleted_riderSide === false &&
+              rideHistory.isArrivedToDestination === false
             ) {
               //Rider's confirmation for the drop off left
+              //Gather basic ride infos (origin, destination, ride mode - RIDE/DELIVERY, date requested, request_fp) and basic driver infos(name, picture)
+              //riderDropoffConfirmation_left
+              let confirmation_request_schema = {
+                request_status: "riderDropoffConfirmation_left",
+                trip_details: {
+                  pickup_name: null,
+                  destination_name: null,
+                  ride_mode: null, //Ride or delivery
+                  date_requested: null, //dd/mm/yy, hh/mm/ss
+                  request_fp: null,
+                },
+                driver_details: {
+                  name: null,
+                  profile_picture: null,
+                },
+              };
               console.log("Riders confirmation of drop off");
-              resolve(true);
+
+              //1. Resolve pickup location name
+              confirmation_request_schema.trip_details.pickup_name =
+                rideHistory.pickup_location_infos.location_name !== false &&
+                rideHistory.pickup_location_infos.location_name !== undefined
+                  ? rideHistory.pickup_location_infos.location_name
+                  : rideHistory.pickup_location_infos.street_name !== false &&
+                    rideHistory.pickup_location_infos.street_name !== undefined
+                  ? rideHistory.pickup_location_infos.street_name
+                  : rideHistory.pickup_location_infos.suburb !== false &&
+                    rideHistory.pickup_location_infos.suburb !== undefined
+                  ? rideHistory.pickup_location_infos.suburb
+                  : "unclear location.";
+              //2. Resolve the destinations
+              rideHistory.destinationData.map((location) => {
+                if (
+                  confirmation_request_schema.trip_details.destination_name ===
+                  null
+                ) {
+                  //Still empty
+                  confirmation_request_schema.trip_details.destination_name =
+                    location.location_name !== false &&
+                    location.location_name !== undefined
+                      ? location.location_name
+                      : location.suburb !== false &&
+                        location.suburb !== undefined
+                      ? location.suburb
+                      : "Click for more";
+                } //Add
+                else {
+                  confirmation_request_schema.trip_details.destination_name +=
+                    ", " +
+                    (location.location_name !== false &&
+                    location.location_name !== undefined
+                      ? location.location_name
+                      : location.suburb !== false &&
+                        location.suburb !== undefined
+                      ? location.suburb
+                      : "Click for more");
+                }
+              });
+              //3. Add ride mode
+              confirmation_request_schema.trip_details.ride_mode = rideHistory.ride_mode.toUpperCase();
+              //4. Add the date requested
+              //Reformat the data
+              let dateRequest = new Date(rideHistory.date_requested);
+              dateRequest = moment(dateRequest.getTime());
+              dateRequest =
+                (String(dateRequest.date()).length > 1
+                  ? dateRequest.date()
+                  : "0" + dateRequest.date()) +
+                "/" +
+                (String(dateRequest.month() + 1).length > 1
+                  ? dateRequest.month() + 1
+                  : "0" + (dateRequest.month() + 1)) +
+                "/" +
+                dateRequest.year() +
+                ", " +
+                (String(dateRequest.hour()).length > 1
+                  ? dateRequest.hour()
+                  : "0" + dateRequest.hour()) +
+                ":" +
+                (String(dateRequest.minute()).length > 1
+                  ? dateRequest.minute()
+                  : "0" + dateRequest.minute());
+              //Save
+              confirmation_request_schema.trip_details.date_requested = dateRequest;
+              //5. Add the request_fp - Very important
+              confirmation_request_schema.trip_details.request_fp =
+                rideHistory.request_fp;
+              //6. Add the driver's name and profile picture
+              confirmation_request_schema.driver_details.name =
+                driverProfile.name;
+              confirmation_request_schema.driver_details.profile_picture =
+                driverProfile.identification_data.profile_picture;
+
+              //Done
+              resolve(confirmation_request_schema);
             } //No action needed
             else {
               resolve(true);
@@ -1981,13 +2075,17 @@ clientMongo.connect(function (err) {
               //socket.emit("trackdriverroute-response", result);
             } //No rides
             else {
-              res.send({ request_status: result });
+              res.send({ request_status: "no_rides" });
               //socket.emit("trackdriverroute-response", { request_status: result });
             }
+          } //No rides
+          else {
+            res.send({ request_status: "no_rides" });
           }
         },
         (error) => {
-          res.send({ response: error });
+          console.log(error);
+          res.send({ request_status: "no_rides" });
           //console.log(error);
         }
       );

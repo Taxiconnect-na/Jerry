@@ -396,21 +396,21 @@ function shrinkDataSchema_forBatchRidesHistory(
     let dateRequest = new Date(request.date_requested);
     dateRequest = moment(dateRequest.getTime());
     dateRequest =
-      (dateRequest.date().length > 1
+      (String(dateRequest).date().length > 1
         ? dateRequest.date()
         : "0" + dateRequest.date()) +
       "/" +
-      ((dateRequest.month() + 1).length > 1
+      (String(dateRequest.month() + 1).length > 1
         ? dateRequest.month() + 1
         : "0" + (dateRequest.month() + 1)) +
       "/" +
       dateRequest.year() +
       ", " +
-      (dateRequest.hour().length > 1
+      (String(dateRequest.hour()).length > 1
         ? dateRequest.hour()
         : "0" + dateRequest.hour()) +
       ":" +
-      (dateRequest.minute().length > 1
+      (String(dateRequest.minute()).length > 1
         ? dateRequest.minute()
         : "0" + dateRequest.minute());
     //Save
@@ -619,21 +619,21 @@ function proceedTargeted_requestHistory_fetcher(
   let dateRequest = new Date(request.date_requested);
   dateRequest = moment(dateRequest.getTime());
   dateRequest =
-    (dateRequest.date().length > 1
+    (String(dateRequest.date()).length > 1
       ? dateRequest.date()
       : "0" + dateRequest.date()) +
     "/" +
-    ((dateRequest.month() + 1).length > 1
+    (String(dateRequest.month() + 1).length > 1
       ? dateRequest.month() + 1
       : "0" + (dateRequest.month() + 1)) +
     "/" +
     dateRequest.year() +
     ", " +
-    (dateRequest.hour().length > 1
+    (String(dateRequest.hour()).length > 1
       ? dateRequest.hour()
       : "0" + dateRequest.hour()) +
     ":" +
-    (dateRequest.minute().length > 1
+    (String(dateRequest.minute()).length > 1
       ? dateRequest.minute()
       : "0" + dateRequest.minute());
   //Save

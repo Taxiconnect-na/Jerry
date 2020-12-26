@@ -1321,6 +1321,61 @@ function registerAllowedDriversForRidesAndNotify(
 }
 
 /**
+ * @func confirmDropoff_fromRider_side
+ * @param resolve
+ * @param dropOffMeta_bundle: contains all the necessary information about the rating (rating_score, compliments array, personal note AND REQUEST FINGERPRINT)
+ * @param collectionRidesDeliveryData: rides and deliveries collection
+ * Responsible for confirming the drop off of a ride EXCLUSIVELY for the riders.
+ * Tasks:
+ * 1. Mark as arrived to destination.
+ * 2. Mark as confirmed from the rider side
+ * 3. Assign the rating
+ * 4. Assign compliments (if any)
+ * 5. Assign custom note (if any)
+ * //Reinforce all drop off vars in case
+ */
+function confirmDropoff_fromRider_side(
+  dropOffMeta_bundle,
+  collectionRidesDeliveryData,
+  resolve
+) {
+  resolveDate();
+
+  let retrieveTrip = {
+    client_id: dropOffMeta_bundle.user_fingerprint,
+    request_fp: dropOffMeta_bundle.request_fp,
+  };
+  //Updatedd data
+  let dropOffDataUpdate = {
+    $set: {
+      isArrivedToDestination: true,
+      date_dropoff: chaineDateUTC,
+      ride_state_vars: {
+        isAccepted: true,
+        inRideToDestination: true,
+        isRideCompleted_driverSide: true,
+        isRideCompleted_riderSide: true,
+        rider_driverRating: dropOffMeta_bundle.rating_score,
+        rating_compliment: dropOffMeta_bundle.dropoff_compliments,
+        rating_personal_note: dropOffMeta_bundle.dropoff_personal_note,
+      },
+    },
+  };
+  //..
+  collectionRidesDeliveryData.updateOne(
+    retrieveTrip,
+    dropOffDataUpdate,
+    function (err, result) {
+      if (err) {
+        resolve({ response: "error" });
+      }
+      //..
+      resolve({ response: "successfully_confirmed" });
+    }
+  );
+}
+
+/**
  * MAIN
  */
 
@@ -1515,6 +1570,61 @@ clientMongo.connect(function (err) {
     } //Invalid user fp
     else {
       res.send({ response: "Unable_to_make_the_request" });
+    }
+  });
+
+  /**
+   * CONFIRM RIDER DROP OFF
+   * Responsible for handling all the processes related to the drop off confirmation of a rider.
+   */
+  app.post("/confirmRiderDropoff_requests", function (req, res) {
+    req = req.body;
+    console.log(req);
+    //TEST data
+    /*req = {
+      user_fingerprint:
+        "7c57cb6c9471fd33fd265d5441f253eced2a6307c0207dea57c987035b496e6e8dfa7105b86915da",
+      dropoff_compliments: {
+        neatAndTidy: false,
+        excellentService: true,
+        greatMusic: false,
+        greatConversation: false,
+        expertNavigator: true,
+      },
+      dropoff_personal_note: "Very good experience",
+      rating_score: 5,
+      request_fp:
+        "87109d03cab8bc5032a71683e084551107f1c1bafb5136f6ee5a7c990550b81ef3ecf5c96b13f2afde2cc75e6c8187ce290c973dd1e8d137caf27fee334a68e8",
+    };*/
+
+    //Do basic checking
+    if (
+      req.user_fingerprint !== undefined &&
+      req.user_fingerprint !== null &&
+      req.request_fp !== undefined &&
+      req.request_fp !== null
+    ) {
+      //Auto assign 5 stars if invalid score found
+      req.rating_score =
+        req.rating_score === undefined ||
+        req.rating_score === null ||
+        req.rating_score < 0
+          ? 5
+          : req.rating_score > 5
+          ? 2
+          : req.rating_score; //Driver's rating safety shield - give 2 stars for fraudulous dropoffs
+      //...
+      new Promise((res0) => {
+        confirmDropoff_fromRider_side(req, collectionRidesDeliveryData, res0);
+      }).then(
+        (result) => {
+          res.send(result);
+        },
+        (error) => {
+          console.log(error);
+          res.sendDate({ response: "error" });
+        }
+      );
     }
   });
 });
