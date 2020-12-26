@@ -488,6 +488,42 @@ io.on("connection", (socket) => {
   });
 
   /**
+   * DISPATCH SERVICE, port 9094
+   * Route: cancelRiders_request
+   * event: cancelRiders_request_io
+   * Confirm rider's drop off and handle all the related proccesses linked to it.
+   */
+  socket.on("cancelRiders_request_io", function (req) {
+    console.log(req);
+    let servicePort = 9094;
+    if (req.user_fingerprint !== undefined && req.user_fingerprint !== null) {
+      let url = localURL + ":" + servicePort + "/cancelRiders_request";
+
+      requestAPI.post({ url, form: req }, function (error, response, body) {
+        console.log(body);
+        if (error === null) {
+          try {
+            body = JSON.parse(body);
+            socket.emit("cancelRiders_request_io-response", body);
+          } catch (error) {
+            socket.emit("cancelRiders_request_io-response", {
+              response: "error_cancelling",
+            });
+          }
+        } else {
+          socket.emit("cancelRiders_request_io-response", {
+            response: "error_cancelling",
+          });
+        }
+      });
+    } else {
+      socket.emit("cancelRiders_request_io-response", {
+        response: "error_cancelling",
+      });
+    }
+  });
+
+  /**
    * ACCOUNTS SERVICE, port 9696
    * Route: sendOTPAndCheckUserStatus
    * event: sendOtpAndCheckerUserStatusTc

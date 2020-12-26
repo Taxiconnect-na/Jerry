@@ -1376,6 +1376,67 @@ function confirmDropoff_fromRider_side(
 }
 
 /**
+ * @func cancelRider_request
+ * @param resolve
+ * @param collectionRidesDeliveryData: list of all the rides/delivery requests
+ * @param collection_cancelledRidesDeliveryData: list of all the cancelledd rides/delivery requests.
+ * @param requestBundle_data: object containing the request fp and the rider's fp
+ * Responsible for cancelling requests for riders and all the related processes.
+ */
+function cancelRider_request(
+  requestBundle_data,
+  collectionRidesDeliveryData,
+  collection_cancelledRidesDeliveryData,
+  resolve
+) {
+  resolveDate();
+  //Get the request first, if empty - error (very strange), if got something - migrate to the cancelled collection
+  //AND delete from the active requests collection.
+  let checkRequest = {
+    client_id: requestBundle_data.user_fingerprint,
+    request_fp: requestBundle_data.request_fp,
+  };
+  //Get data
+  collectionRidesDeliveryData
+    .find(checkRequest)
+    .toArray(function (err, requestData) {
+      if (err) {
+        resolve({ response: "error_cancelling" });
+      }
+      //...
+      if (requestData.length > 0) {
+        //Found something
+        //Add the deleted date
+        requestData[0].date_deleted = chaineDateUTC;
+        //Save in the cancelled collection
+        collection_cancelledRidesDeliveryData.insertOne(
+          requestData[0],
+          function (err2, result) {
+            if (err2) {
+              resolve({ response: "error_cancelling" });
+            }
+            //...
+            //Remove from the active collection!!!!
+            collectionRidesDeliveryData.deleteOne(
+              checkRequest,
+              function (err3, result) {
+                if (err3) {
+                  resolve({ response: "error_cancelling" });
+                }
+                //...DONE
+                resolve({ response: "successully_cancelled" });
+              }
+            );
+          }
+        );
+      } //No records found of the request - very strange -error
+      else {
+        resolve({ response: "error_cancelling" });
+      }
+    });
+}
+
+/**
  * MAIN
  */
 
@@ -1386,6 +1447,9 @@ clientMongo.connect(function (err) {
   const collectionRidesDeliveryData = dbMongo.collection(
     "rides_deliveries_requests"
   ); //Hold all the requests made (rides and deliveries)
+  const collection_cancelledRidesDeliveryData = dbMongo.collection(
+    "cancelled_rides_deliveries_requests"
+  ); //Hold all the cancelled requests made (rides and deliveries)
   const collectionRelativeDistances = dbMongo.collection(
     "relative_distances_riders_drivers"
   ); //Hold the relative distances between rider and the drivers (online, same city, same country) at any given time
@@ -1623,6 +1687,41 @@ clientMongo.connect(function (err) {
         (error) => {
           console.log(error);
           res.sendDate({ response: "error" });
+        }
+      );
+    }
+  });
+
+  /**
+   * CANCEL RIDER REQUESTS
+   * Responsible for cancelling the rider's requests and all it's the related process
+   */
+  app.post("/cancelRiders_request", function (req, res) {
+    req = req.body;
+    console.log(req);
+
+    //Do basic checking
+    if (
+      req.user_fingerprint !== undefined &&
+      req.user_fingerprint !== null &&
+      req.request_fp !== undefined &&
+      req.request_fp !== null
+    ) {
+      //...
+      new Promise((res0) => {
+        cancelRider_request(
+          req,
+          collectionRidesDeliveryData,
+          collection_cancelledRidesDeliveryData,
+          res0
+        );
+      }).then(
+        (result) => {
+          res.send(result);
+        },
+        (error) => {
+          console.log(error);
+          res.sendDate({ response: "error_cancelling" });
         }
       );
     }

@@ -1072,6 +1072,7 @@ function computeRouteDetails_skeleton(
           rideHistory.pickup_location_infos.coordinates.longitude,
           rideHistory.pickup_location_infos.coordinates.latitude,
         ],
+        request_fp: rideHistory.request_fp,
         request_status: "pending",
       });
     }
