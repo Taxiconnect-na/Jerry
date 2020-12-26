@@ -1,3 +1,4 @@
+require("dotenv").config();
 var dash = require("appmetrics-dash");
 var express = require("express");
 const http = require("http");
@@ -25,17 +26,9 @@ var dateObject = null;
 const moment = require("moment");
 const e = require("express");
 
-const URL_MONGODB = "mongodb://localhost:27017";
-const DB_NAME_MONGODB = "Taxiconnect";
-const URL_SEARCH_SERVICES = "http://www.taxiconnectna.com:7007/";
-const URL_ROUTE_SERVICES = "http://www.taxiconnectna.com:7008/route?";
-const URL_NOMINATIM_SERVICES = "http://taxiconnectna.com:9009";
-const EVENTS_GATEWAY_HOST = "localhost";
-const EVENTS_GATEWAY_PORT = 9097;
-const MAP_SERVICE_HOST = "localhost";
-const MAP_SERVICE_PORT = 9090;
-
-const clientMongo = new MongoClient(URL_MONGODB, { useUnifiedTopology: true });
+const clientMongo = new MongoClient(process.env.URL_MONGODB, {
+  useUnifiedTopology: true,
+});
 
 function resolveDate() {
   //Resolve date
@@ -58,8 +51,6 @@ function resolveDate() {
   chaineDateUTC = date;
 }
 resolveDate();
-
-const port = 8989;
 
 /**
  * Schema of the Input meta data of the pricing main operation processor
@@ -430,9 +421,9 @@ function manageAutoCompleteDestinationLocations(
         let promiseParent2 = destinationLocations.map((destination) => {
           return new Promise((res) => {
             let url =
-              MAP_SERVICE_HOST +
+              process.env.LOCAL_URL +
               ":" +
-              MAP_SERVICE_PORT +
+              process.env.MAP_SERVICE_PORT +
               "/identifyPickupLocation?latitude=" +
               destination.coordinates.latitude +
               "&longitude=" +
@@ -664,7 +655,7 @@ function execMongoSearchAutoComplete(
           locationInfos.coordinates.longitude
         );
         let url =
-          URL_NOMINATIM_SERVICES +
+          process.env.URL_NOMINATIM_SERVICES +
           "/reverse?format=json&lat=" +
           locationInfos.coordinates.latitude +
           "&lon=" +
@@ -1667,7 +1658,7 @@ function parsePricingInputData(resolve, inputData) {
 clientMongo.connect(function (err) {
   //if (err) throw err;
   console.log("[+] Pricing service active");
-  const dbMongo = clientMongo.db(DB_NAME_MONGODB);
+  const dbMongo = clientMongo.db(process.env.DB_NAME_MONGODDB);
   const collectionVehiclesInfos = dbMongo.collection(
     "vehicles_collection_infos"
   ); //Collection containing the list of all the vehicles types and all their corresponding infos
@@ -1885,4 +1876,4 @@ clientMongo.connect(function (err) {
   });
 });
 
-server.listen(port);
+server.listen(process.env.PRICING_SERVICE_PORT);

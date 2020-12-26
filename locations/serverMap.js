@@ -1,3 +1,4 @@
+require("dotenv").config();
 var dash = require("appmetrics-dash");
 var express = require("express");
 const http = require("http");
@@ -26,15 +27,9 @@ var dateObject = null;
 const moment = require("moment");
 const e = require("express");
 
-const URL_MONGODB = "mongodb://localhost:27017";
-const localURL = "http://localhost";
-const DB_NAME_MONGODB = "Taxiconnect";
-const URL_SEARCH_SERVICES = "http://www.taxiconnectna.com:7007/";
-const URL_ROUTE_SERVICES = "http://www.taxiconnectna.com:8383/route?";
-//const URL_ROUTE_SERVICES = "localhost:8987/route?";
-const MAP_SERVICE_PORT = 9090;
-
-const clientMongo = new MongoClient(URL_MONGODB, { useUnifiedTopology: true });
+const clientMongo = new MongoClient(process.env.URL_MONGODB, {
+  useUnifiedTopology: true,
+});
 
 function resolveDate() {
   //Resolve date
@@ -75,17 +70,6 @@ client.set(
 );
 //-----------------------------------------------------------------------------------------------------
 
-const port = 9090;
-
-//Database connection
-const dbPool = mysql.createPool({
-  connectionLimit: 1000000000,
-  host: "localhost",
-  database: "taxiconnect",
-  user: "root",
-  password: "",
-});
-
 function logObject(obj) {
   //console.log(inspect(obj, { maxArrayLength: null, depth: null, showHidden: true, colors: true }));
 }
@@ -110,7 +94,7 @@ function getRouteInfosDestination(
   let passengerPosition = coordsInfos.passenger;
   console.log(passengerPosition);
   let url =
-    URL_ROUTE_SERVICES +
+    process.env.URL_ROUTE_SERVICES +
     "point=" +
     passengerPosition.latitude +
     "," +
@@ -119,7 +103,7 @@ function getRouteInfosDestination(
     destinationPosition.latitude +
     "," +
     destinationPosition.longitude +
-    "&heading_penalty=0&avoid=residential&avoid=ferry&ch.disable=true&locale=en&details=street_name&details=time&optimize=true&points_encoded=false&details=max_speed&snap_prevention=ferry&profile=car&pass_through=true&instructions=false&vehicle=car";
+    "&heading_penalty=0&avoid=residential&avoid=ferry&ch.disable=true&locale=en&details=street_name&details=time&optimize=true&points_encoded=false&details=max_speed&snap_prevention=ferry&profile=car&pass_through=true&instructions=false";
   requestAPI(url, function (error, response, body) {
     if (body != undefined) {
       if (body.length > 20) {
@@ -246,7 +230,7 @@ function getRouteInfos(coordsInfos, resolve) {
   }*/
 
   url =
-    URL_ROUTE_SERVICES +
+    process.env.URL_ROUTE_SERVICES +
     "point=" +
     driverPosition.latitude +
     "," +
@@ -1299,9 +1283,9 @@ function computeAndCacheRouteDestination(
       //Get the estimated time TO the destination (from the current's user position)
       new Promise((res4) => {
         let url =
-          localURL +
+          process.env.LOCAL_URL +
           ":" +
-          MAP_SERVICE_PORT +
+          process.env.MAP_SERVICE_PORT +
           "/getRouteToDestinationSnapshot?org_latitude=" +
           rideHistory.pickup_location_infos.coordinates.latitude +
           "&org_longitude=" +
@@ -1315,6 +1299,7 @@ function computeAndCacheRouteDestination(
         requestAPI(url, function (error, response, body) {
           if (error === null) {
             try {
+              console.log(body);
               body = JSON.parse(body);
               res4(body.eta);
             } catch (error) {
@@ -1529,7 +1514,7 @@ function reverseGeocodeUserLocation(resolve, req) {
  */
 function reverseGeocoderExec(resolve, req, updateCache = false) {
   let url =
-    URL_SEARCH_SERVICES +
+    process.env.URL_SEARCH_SERVICES +
     "reverse?lon=" +
     req.longitude +
     "&lat=" +
@@ -1665,10 +1650,12 @@ function findoutPickupLocationNature(resolve, point) {
  * value: [{...}, {...}]
  */
 function findDestinationPathPreview(resolve, pointData) {
+  console.log("entered");
   if (pointData.origin !== undefined && pointData.destination !== undefined) {
     //Check from redis first
     redisGet("pathToDestinationPreview").then(
       (resp) => {
+        console.log(resp);
         if (resp !== null) {
           //Found something cached
           try {
@@ -1807,6 +1794,7 @@ function findRouteSnapshotExec(resolve, pointData) {
                 //Add new record to the array
                 resp = JSON.parse(resp);
                 resp.push(result);
+                resp = [...new Set(resp.map(JSON.stringify))].map(JSON.parse);
                 client.set("pathToDestinationPreview", JSON.stringify(resp));
                 res(true);
               } catch (error) {
@@ -1967,7 +1955,7 @@ function cleanAndAdjustRelativeDistancesList(rawList, list_limit = 5, resolve) {
 clientMongo.connect(function (err) {
   //if (err) throw err;
   console.log("[+] MAP services active.");
-  const dbMongo = clientMongo.db(DB_NAME_MONGODB);
+  const dbMongo = clientMongo.db(process.env.DB_NAME_MONGODDB);
   const collectionRidersData_repr = dbMongo.collection(
     "rides_deliveries_requests"
   ); //Hold all the requests made (rides and deliveries)
@@ -2196,6 +2184,7 @@ clientMongo.connect(function (err) {
   app.get("/getRouteToDestinationSnapshot", function (req, res) {
     let params = urlParser.parse(req.url, true);
     req = params.query;
+    console.log("here");
     //...
     if (
       req.user_fingerprint !== undefined &&
@@ -2773,4 +2762,4 @@ clientMongo.connect(function (err) {
     };
   });*/
 });
-server.listen(port);
+server.listen(process.env.MAP_SERVICE_PORT);

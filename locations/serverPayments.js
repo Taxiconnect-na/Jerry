@@ -1,3 +1,4 @@
+require("dotenv").config();
 var express = require("express");
 const http = require("http");
 const fs = require("fs");
@@ -21,15 +22,9 @@ const moment = require("moment");
 const e = require("express");
 const { response } = require("express");
 
-const URL_MONGODB = "mongodb://localhost:27017";
-const DB_NAME_MONGODB = "Taxiconnect";
-const TOKEN_PAYMENT_CP = "9F416C11-127B-4DE2-AC7F-D5710E4C5E0A";
-const REDIRECT_URL_AFTER_PROCESSES = "https://taxiconnectna.com";
-const COMPANY_DPO_REF = "49FKEOA"; //Company;s ref on DPO
-const DPO_CREATETOKEN_SERVICE_TYPE = "5525"; //Purchase type
-const DPO_PAYMENT_ENDPOINT = "https://secure.3gdirectpay.com/API/v6/";
-
-const clientMongo = new MongoClient(URL_MONGODB, { useUnifiedTopology: true });
+const clientMongo = new MongoClient(process.env.URL_MONGODB, {
+  useUnifiedTopology: true,
+});
 
 function resolveDate() {
   //Resolve date
@@ -78,8 +73,6 @@ function resolveDate() {
   chaineDateUTC = date;
 }
 resolveDate();
-
-const port = 9093;
 
 //Database connection
 const dbPool = mysql.createPool({
@@ -282,7 +275,7 @@ function createPaymentTransaction(
   if (user_fp !== undefined && user_fp !== null) {
     requestAPI.post(
       {
-        url: DPO_PAYMENT_ENDPOINT,
+        url: process.env.DPO_PAYMENT_ENDPOINT,
         method: "POST",
         headers: {
           "Content-Type": "application/xml",
@@ -340,7 +333,7 @@ function executePaymentTransaction(
   if (user_fp !== undefined && user_fp !== null) {
     requestAPI.post(
       {
-        url: DPO_PAYMENT_ENDPOINT,
+        url: process.env.DPO_PAYMENT_ENDPOINT,
         method: "POST",
         headers: {
           "Content-Type": "application/xml",
@@ -585,7 +578,7 @@ function generateUniqueFingerprint(str, resolve) {
 clientMongo.connect(function (err) {
   //if (err) throw err;
   console.log("Connected to Mongodb");
-  const dbMongo = clientMongo.db(DB_NAME_MONGODB);
+  const dbMongo = clientMongo.db(process.env.DB_NAME_MONGODDB);
   const collectionRidersData_repr = dbMongo.collection("passengers_profiles"); //Hold the information about the riders
   const collectionRidersData_repr_topups = dbMongo.collection(
     "wallet_transactions_logs"
@@ -619,7 +612,7 @@ clientMongo.connect(function (err) {
             <?xml version="1.0" encoding="utf-8"?>
             <API3G>
             <CompanyToken>` +
-      TOKEN_PAYMENT_CP +
+      process.env.TOKEN_PAYMENT_CP +
       `</CompanyToken>
             <Request>createToken</Request>
             <Transaction>
@@ -628,13 +621,13 @@ clientMongo.connect(function (err) {
       `</PaymentAmount>
             <PaymentCurrency>NAD</PaymentCurrency>
             <CompanyRef>` +
-      COMPANY_DPO_REF +
+      process.env.COMPANY_DPO_REF +
       `</CompanyRef>
             <RedirectURL>` +
-      REDIRECT_URL_AFTER_PROCESSES +
+      process.env.REDIRECT_URL_AFTER_PROCESSES +
       `</RedirectURL>
             <BackURL>` +
-      REDIRECT_URL_AFTER_PROCESSES +
+      process.env.REDIRECT_URL_AFTER_PROCESSES +
       `</BackURL>
             <CompanyRefUnique>0</CompanyRefUnique>
             <PTL>5</PTL>
@@ -642,7 +635,7 @@ clientMongo.connect(function (err) {
             <Services>
               <Service>
                 <ServiceType>` +
-      DPO_CREATETOKEN_SERVICE_TYPE +
+      process.env.DPO_CREATETOKEN_SERVICE_TYPE +
       `</ServiceType>
                 <ServiceDescription>TaxiConnect wallet top-up</ServiceDescription>
                 <ServiceDate>` +
@@ -700,7 +693,7 @@ clientMongo.connect(function (err) {
                       <?xml version="1.0" encoding="utf-8"?>
                       <API3G>
                         <CompanyToken>` +
-                    TOKEN_PAYMENT_CP +
+                    process.env.TOKEN_PAYMENT_CP +
                     `</CompanyToken>
                         <Request>chargeTokenCreditCard</Request>
                         <TransactionToken>` +
@@ -870,7 +863,7 @@ clientMongo.connect(function (err) {
             <?xml version="1.0" encoding="utf-8"?>
             <API3G>
             <CompanyToken>` +
-              TOKEN_PAYMENT_CP +
+              process.env.TOKEN_PAYMENT_CP +
               `</CompanyToken>
             <Request>createToken</Request>
             <Transaction>
@@ -879,13 +872,13 @@ clientMongo.connect(function (err) {
               `</PaymentAmount>
             <PaymentCurrency>NAD</PaymentCurrency>
             <CompanyRef>` +
-              COMPANY_DPO_REF +
+              process.env.COMPANY_DPO_REF +
               `</CompanyRef>
             <RedirectURL>` +
-              REDIRECT_URL_AFTER_PROCESSES +
+              process.env.REDIRECT_URL_AFTER_PROCESSES +
               `</RedirectURL>
             <BackURL>` +
-              REDIRECT_URL_AFTER_PROCESSES +
+              process.env.REDIRECT_URL_AFTER_PROCESSES +
               `</BackURL>
             <CompanyRefUnique>0</CompanyRefUnique>
             <PTL>5</PTL>
@@ -893,7 +886,7 @@ clientMongo.connect(function (err) {
             <Services>
               <Service>
                 <ServiceType>` +
-              DPO_CREATETOKEN_SERVICE_TYPE +
+              process.env.DPO_CREATETOKEN_SERVICE_TYPE +
               `</ServiceType>
                 <ServiceDescription>TaxiConnect wallet top-up</ServiceDescription>
                 <ServiceDate>` +
@@ -954,7 +947,7 @@ clientMongo.connect(function (err) {
                       <?xml version="1.0" encoding="utf-8"?>
                       <API3G>
                         <CompanyToken>` +
-                            TOKEN_PAYMENT_CP +
+                            process.env.TOKEN_PAYMENT_CP +
                             `</CompanyToken>
                         <Request>chargeTokenCreditCard</Request>
                         <TransactionToken>` +
@@ -1136,4 +1129,4 @@ clientMongo.connect(function (err) {
   });*/
 });
 
-server.listen(port);
+server.listen(process.env.PAYMENT_SERVICE_PORT);

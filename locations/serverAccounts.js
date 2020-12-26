@@ -1,4 +1,4 @@
-var dash = require("appmetrics-dash");
+require("dotenv").config();
 var express = require("express");
 const http = require("http");
 const https = require("https");
@@ -27,15 +27,9 @@ const moment = require("moment");
 var otpGenerator = require("otp-generator");
 const { resolve } = require("path");
 
-const URL_MONGODB = "mongodb://localhost:27017";
-const localURL = "http://localhost";
-const DB_NAME_MONGODB = "Taxiconnect";
-const URL_SEARCH_SERVICES = "http://www.taxiconnectna.com:7007/";
-const URL_ROUTE_SERVICES = "http://www.taxiconnectna.com:7008/route?";
-const PRICING_SERVICE_PORT = 8989;
-const MAP_SERVICE_PORT = 9090;
-
-const clientMongo = new MongoClient(URL_MONGODB, { useUnifiedTopology: true });
+const clientMongo = new MongoClient(process.env.URL_MONGODB, {
+  useUnifiedTopology: true,
+});
 
 function SendSMSTo(phone_number, message) {
   let username = "taxiconnect";
@@ -99,8 +93,6 @@ function resolveDate() {
   chaineDateUTC = date;
 }
 resolveDate();
-
-const port = 9696;
 
 /**
  * Responsible for sending push notification to devices
@@ -769,9 +761,9 @@ function proceedTargeted_requestHistory_fetcher(
         let destinationPoint = request.destinationData[0].coordinates;
         new Promise((res4) => {
           let url =
-            localURL +
+            process.env.LOCAL_URL +
             ":" +
-            MAP_SERVICE_PORT +
+            process.env.MAP_SERVICE_PORT +
             "/getRouteToDestinationSnapshot?org_latitude=" +
             originPoint.latitude +
             "&org_longitude=" +
@@ -844,7 +836,7 @@ function proceedTargeted_requestHistory_fetcher(
 clientMongo.connect(function (err) {
   //if (err) throw err;
   console.log("[+] Account services active.");
-  const dbMongo = clientMongo.db(DB_NAME_MONGODB);
+  const dbMongo = clientMongo.db(process.env.DB_NAME_MONGODDB);
   const collectionPassengers_profiles = dbMongo.collection(
     "passengers_profiles"
   ); //Hold all the passengers profiles
@@ -1203,4 +1195,4 @@ clientMongo.connect(function (err) {
   });
 });
 
-server.listen(port);
+server.listen(process.env.ACCOUNTS_SERVICE_PORT);

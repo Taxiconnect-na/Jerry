@@ -1,3 +1,4 @@
+require("dotenv").config();
 var dash = require("appmetrics-dash");
 var express = require("express");
 const http = require("http");
@@ -25,19 +26,14 @@ var dateObject = null;
 const moment = require("moment");
 const e = require("express");
 
-const URL_MONGODB = "mongodb://localhost:27017";
-const localURL = "http://localhost";
-const DB_NAME_MONGODB = "Taxiconnect";
-const URL_SEARCH_SERVICES = "http://www.taxiconnectna.com:7007/";
-const URL_ROUTE_SERVICES = "http://www.taxiconnectna.com:7008/route?";
-const PRICING_SERVICE_PORT = 8989;
-const MAP_SERVICE_PORT = 9090;
 //CRUCIAL VARIABLES
 var _INTERVAL_PERSISTER_LATE_REQUESTS = null; //Will hold the interval for checking whether or not a requests has takne too long and should be cancelled.
 var _INTERVAL_PERSISTER_LATE_REQUESTS_TIME = 10000; //Will hold the timeout for the late requests watchdog - default: 5 sec
 //...
 
-const clientMongo = new MongoClient(URL_MONGODB, { useUnifiedTopology: true });
+const clientMongo = new MongoClient(process.env.URL_MONGODB, {
+  useUnifiedTopology: true,
+});
 
 function resolveDate() {
   //Resolve date
@@ -60,8 +56,6 @@ function resolveDate() {
   chaineDateUTC = date;
 }
 resolveDate();
-
-const port = 9494;
 
 /**
  * Responsible for sending push notification to devices
@@ -136,7 +130,7 @@ function generateUniqueFingerprint(str, encryption = false, resolve) {
 clientMongo.connect(function (err) {
   //if (err) throw err;
   console.log("[+] Watcher services active.");
-  const dbMongo = clientMongo.db(DB_NAME_MONGODB);
+  const dbMongo = clientMongo.db(process.env.DB_NAME_MONGODDB);
   const collectionRidesDeliveryData = dbMongo.collection(
     "rides_deliveries_requests"
   ); //Hold all the requests made (rides and deliveries)
@@ -166,4 +160,4 @@ clientMongo.connect(function (err) {
   }, _INTERVAL_PERSISTER_LATE_REQUESTS_TIME);
 });
 
-server.listen(port);
+server.listen(process.env.WATCHER_SERVICE_PORT);

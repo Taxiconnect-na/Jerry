@@ -25,7 +25,8 @@ var dateObject = null;
 const moment = require("moment");
 const e = require("express");
 
-const URL_MONGODB = "mongodb+srv://taxiconnect-test-mongo-user:epzcVtEZ39ZvawlM@cluster0.cumod.mongodb.net/<dbname>?retryWrites=true&w=majority"; //Atlas
+const URL_MONGODB =
+  "mongodb+srv://taxiconnect-test-mongo-user:epzcVtEZ39ZvawlM@cluster0.cumod.mongodb.net/<dbname>?retryWrites=true&w=majority"; //Atlas
 const DB_NAME_MONGODB = "riders_data_schemeless";
 const URL_SEARCH_SERVICES = "http://www.taxiconnectna.com:7007/";
 const URL_ROUTE_SERVICES = "http://www.taxiconnectna.com:7008/route?";
@@ -38,21 +39,37 @@ function resolveDate() {
   date = moment(date.getTime()).utcOffset(2);
 
   dateObject = date;
-  date = date.year() + "-" + (date.month() + 1) + "-" + date.date() + " " + date.hour() + ":" + date.minute() + ":" + date.second();
+  date =
+    date.year() +
+    "-" +
+    (date.month() + 1) +
+    "-" +
+    date.date() +
+    " " +
+    date.hour() +
+    ":" +
+    date.minute() +
+    ":" +
+    date.second();
   chaineDateUTC = date;
 }
 resolveDate();
 
 //--------------DRIVER'S DEBUG DATA-------------------------------------------------------------------
 const driverCacheData = {
-  user_fingerprint: "23c9d088e03653169b9c18193a0b8dd329ea1e43eb0626ef9f16b5b979694a429710561a3cb3ddae",
+  user_fingerprint:
+    "23c9d088e03653169b9c18193a0b8dd329ea1e43eb0626ef9f16b5b979694a429710561a3cb3ddae",
   latitude: -22.5704962,
   longitude: 17.0809509,
   date_logged: chaineDateUTC,
 };
 //Cache
 console.log("[1] Initialize debug data in cache");
-client.set(driverCacheData.user_fingerprint, JSON.stringify(driverCacheData), redis.print);
+client.set(
+  driverCacheData.user_fingerprint,
+  JSON.stringify(driverCacheData),
+  redis.print
+);
 //-----------------------------------------------------------------------------------------------------
 
 const port = 9090;
@@ -67,7 +84,14 @@ const dbPool = mysql.createPool({
 });
 
 function logObject(obj) {
-  console.log(inspect(obj, { maxArrayLength: null, depth: null, showHidden: true, colors: true }));
+  console.log(
+    inspect(obj, {
+      maxArrayLength: null,
+      depth: null,
+      showHidden: true,
+      colors: true,
+    })
+  );
 }
 
 function logToSimulator(socket, data) {
@@ -111,7 +135,10 @@ function getRouteInfosDestination(coordsInfos, resolve) {
             resolve({
               routePoints: pointsTravel,
               driverNextPoint: pointsTravel[0],
-              destinationPoint: [destinationPosition.longitude, destinationPosition.latitude],
+              destinationPoint: [
+                destinationPosition.longitude,
+                destinationPosition.latitude,
+              ],
               eta: eta,
               distance: distance,
             });
@@ -142,9 +169,16 @@ function getRouteInfosDestination(coordsInfos, resolve) {
  * @eta : minutes or seconds
  */
 function getRouteInfos(coordsInfos, resolve) {
-  let driverPosition = coordsInfos.driver === undefined ? coordsInfos.passenger_origin : coordsInfos.driver; //CAREFUL COULD BE THE PASSENGER'S ORIGIN POINT, especially useful when a request is still pending.
-  let passengerPosition = coordsInfos.passenger === undefined ? coordsInfos.passenger_destination : coordsInfos.passenger; //CAREFUL COULD BE THE PASSENGER'S PICKUP LOCATION OF DESTINATION (ref. to the app code).
-  let destinationPosition = coordsInfos.destination === undefined ? false : coordsInfos.destination; //Deactive when a request is still in progress as the destination information is already contained in @var passenger_destination.
+  let driverPosition =
+    coordsInfos.driver === undefined
+      ? coordsInfos.passenger_origin
+      : coordsInfos.driver; //CAREFUL COULD BE THE PASSENGER'S ORIGIN POINT, especially useful when a request is still pending.
+  let passengerPosition =
+    coordsInfos.passenger === undefined
+      ? coordsInfos.passenger_destination
+      : coordsInfos.passenger; //CAREFUL COULD BE THE PASSENGER'S PICKUP LOCATION OF DESTINATION (ref. to the app code).
+  let destinationPosition =
+    coordsInfos.destination === undefined ? false : coordsInfos.destination; //Deactive when a request is still in progress as the destination information is already contained in @var passenger_destination.
   /*if (coordsInfos.destination !== undefined) {
     destinationPosition = coordsInfos.destination;
   }*/
@@ -189,14 +223,21 @@ function getRouteInfos(coordsInfos, resolve) {
                 getRouteInfosDestination(bundleData, res);
               }).then(
                 (result) => {
-                  if (result !== false && result !== undefined && result != null) {
+                  if (
+                    result !== false &&
+                    result !== undefined &&
+                    result != null
+                  ) {
                     resolve({
                       routePoints: pointsTravel,
                       destinationData: result,
                       driverNextPoint: pointsTravel[0],
                       pickupPoint:
                         coordsInfos.passenger_origin === undefined
-                          ? [passengerPosition.longitude, passengerPosition.latitude]
+                          ? [
+                              passengerPosition.longitude,
+                              passengerPosition.latitude,
+                            ]
                           : [driverPosition.longitude, driverPosition.latitude],
                       //driverNextPoint: pointsTravel[pointsTravel.length - 1],
                       eta: eta,
@@ -208,7 +249,10 @@ function getRouteInfos(coordsInfos, resolve) {
                       destinationData: null,
                       pickupPoint:
                         coordsInfos.passenger_origin === undefined
-                          ? [passengerPosition.longitude, passengerPosition.latitude]
+                          ? [
+                              passengerPosition.longitude,
+                              passengerPosition.latitude,
+                            ]
                           : [driverPosition.longitude, driverPosition.latitude],
                       driverNextPoint: pointsTravel[0],
                       eta: eta,
@@ -222,7 +266,10 @@ function getRouteInfos(coordsInfos, resolve) {
                     destinationData: null,
                     pickupPoint:
                       coordsInfos.passenger_origin === undefined
-                        ? [passengerPosition.longitude, passengerPosition.latitude]
+                        ? [
+                            passengerPosition.longitude,
+                            passengerPosition.latitude,
+                          ]
                         : [driverPosition.longitude, driverPosition.latitude],
                     driverNextPoint: pointsTravel[0],
                     eta: eta,
@@ -233,13 +280,19 @@ function getRouteInfos(coordsInfos, resolve) {
             } else {
               resolve({
                 routePoints: pointsTravel,
-                destinationData: coordsInfos.passenger_destination === undefined ? "routeTracking" : "requestToDestinationTracking_pending", //Check whether the request is still pending (requestToDest...) or is accepted and is in progress (routeTracking)
+                destinationData:
+                  coordsInfos.passenger_destination === undefined
+                    ? "routeTracking"
+                    : "requestToDestinationTracking_pending", //Check whether the request is still pending (requestToDest...) or is accepted and is in progress (routeTracking)
                 driverNextPoint: pointsTravel[0],
                 pickupPoint:
                   coordsInfos.passenger_origin === undefined
                     ? [passengerPosition.longitude, passengerPosition.latitude]
                     : [driverPosition.longitude, driverPosition.latitude],
-                destinationPoint: [passengerPosition.longitude, passengerPosition.latitude],
+                destinationPoint: [
+                  passengerPosition.longitude,
+                  passengerPosition.latitude,
+                ],
                 eta: eta,
                 distance: distance,
               });
@@ -266,7 +319,12 @@ function getRouteInfos(coordsInfos, resolve) {
  * related to the positioning.
  * Use promises as much as possible.
  */
-function updateRidersRealtimeLocationData(collectionRidersData_repr, collectionRidersLocation_log, locationData, resolve) {
+function updateRidersRealtimeLocationData(
+  collectionRidersData_repr,
+  collectionRidersLocation_log,
+  locationData,
+  resolve
+) {
   resolveDate();
   //Update location log for riders
   let request0 = new Promise((res) => {
@@ -276,33 +334,48 @@ function updateRidersRealtimeLocationData(collectionRidersData_repr, collectionR
     () => {}
   );
   //Check if the rider has already a record
-  collectionRidersData_repr.find({ user_fingerprint: locationData.user_fingerprint }).toArray(function (err, result) {
-    if (err) {
-      resolve(false);
-      throw err;
-    }
-    //...
-    if (result.length > 0) {
-      //Has a record - update one
-      let dataFilter = { user_fingerprint: locationData.user_fingerprint };
-      let updatedDataBundle = {
-        $set: { coordinates: { latitude: locationData.latitude, longitude: locationData.longitude }, date_logged: chaineDateUTC },
-      };
-      collectionRidersData_repr.updateOne(dataFilter, updatedDataBundle, function (err, res) {
-        resolve(true);
-      });
-    } //No records - create one
-    else {
-      let dataBundle = {
-        user_fingerprint: locationData.user_fingerprint,
-        coordinates: { latitude: locationData.latitude, longitude: locationData.longitude },
-        date_logged: chaineDateUTC,
-      };
-      collectionRidersData_repr.insertOne(dataBundle, function (err, res) {
-        resolve(true);
-      });
-    }
-  });
+  collectionRidersData_repr
+    .find({ user_fingerprint: locationData.user_fingerprint })
+    .toArray(function (err, result) {
+      if (err) {
+        resolve(false);
+        throw err;
+      }
+      //...
+      if (result.length > 0) {
+        //Has a record - update one
+        let dataFilter = { user_fingerprint: locationData.user_fingerprint };
+        let updatedDataBundle = {
+          $set: {
+            coordinates: {
+              latitude: locationData.latitude,
+              longitude: locationData.longitude,
+            },
+            date_logged: chaineDateUTC,
+          },
+        };
+        collectionRidersData_repr.updateOne(
+          dataFilter,
+          updatedDataBundle,
+          function (err, res) {
+            resolve(true);
+          }
+        );
+      } //No records - create one
+      else {
+        let dataBundle = {
+          user_fingerprint: locationData.user_fingerprint,
+          coordinates: {
+            latitude: locationData.latitude,
+            longitude: locationData.longitude,
+          },
+          date_logged: chaineDateUTC,
+        };
+        collectionRidersData_repr.insertOne(dataBundle, function (err, res) {
+          resolve(true);
+        });
+      }
+    });
 }
 
 /**
@@ -311,17 +384,30 @@ function updateRidersRealtimeLocationData(collectionRidersData_repr, collectionR
  * Responsible for updating any rider location change received.
  * Avoid duplicates as much as possible.
  */
-function updateRiderLocationsLog(collectionRidersLocation_log, locationData, resolve) {
+function updateRiderLocationsLog(
+  collectionRidersLocation_log,
+  locationData,
+  resolve
+) {
   resolveDate();
   //Check if new
   collectionRidersLocation_log
-    .find({ user_fingerprint: locationData.user_fingerprint, coordinates: { latitude: locationData.latitude, longitude: locationData.longitude } })
+    .find({
+      user_fingerprint: locationData.user_fingerprint,
+      coordinates: {
+        latitude: locationData.latitude,
+        longitude: locationData.longitude,
+      },
+    })
     .toArray(function (err, res) {
       if (res.length == 0) {
         //New record
         let dataBundle = {
           user_fingerprint: locationData.user_fingerprint,
-          coordinates: { latitude: locationData.latitude, longitude: locationData.longitude },
+          coordinates: {
+            latitude: locationData.latitude,
+            longitude: locationData.longitude,
+          },
           date_logged: chaineDateUTC,
         };
         collectionRidersLocation_log.insertOne(dataBundle, function (err, res) {
@@ -347,35 +433,45 @@ function updateRiderLocationsLog(collectionRidersLocation_log, locationData, res
  * @true when the driver confirms that the trip is over from his/her side
  * REQUEST STATUS: pending, inRouteToPickup, inRouteToDropoff, completedDriverConfimed
  */
-function tripChecker_Dispatcher(collectionRidersData_repr, user_fingerprint, user_nature, resolve) {
+function tripChecker_Dispatcher(
+  collectionRidersData_repr,
+  user_fingerprint,
+  user_nature,
+  resolve
+) {
   if (user_nature == "rider") {
     //Check if the user has a pending request
-    collectionRidersData_repr.find({ user_fingerprint: user_fingerprint }).toArray(function (err, userDataRepr) {
-      if (err) {
-        resolve(false);
-        throw err;
-      }
-      if (userDataRepr.length <= 0) {
-        //No data
-        resolve(false);
-      } //Found a user record
-      else {
-        //userDataRepr[0].rides_history = "no_rides"; //DEBUG FOR NO RIDES SIMULATION
-        if (userDataRepr[0].rides_history != "no_rides" && userDataRepr[0].rides_history !== undefined) {
-          //Check if there are any requests cached
-          redisGet(user_fingerprint).then(
-            (respUser) => {
-              if (respUser !== null) {
-                try {
-                  respUser = JSON.parse(respUser);
-                  if (
-                    respUser.rides_history !== undefined &&
-                    respUser.rides_history.request_fp !== undefined &&
-                    respUser.rides_history != "no_rides"
-                  ) {
-                    //Found cached infos
-                    //Launch a precomputation for the next details and cache them of course
-                    /*let request0 = new Promise((reslv) => {
+    collectionRidersData_repr
+      .find({ user_fingerprint: user_fingerprint })
+      .toArray(function (err, userDataRepr) {
+        if (err) {
+          resolve(false);
+          throw err;
+        }
+        if (userDataRepr.length <= 0) {
+          //No data
+          resolve(false);
+        } //Found a user record
+        else {
+          //userDataRepr[0].rides_history = "no_rides"; //DEBUG FOR NO RIDES SIMULATION
+          if (
+            userDataRepr[0].rides_history != "no_rides" &&
+            userDataRepr[0].rides_history !== undefined
+          ) {
+            //Check if there are any requests cached
+            redisGet(user_fingerprint).then(
+              (respUser) => {
+                if (respUser !== null) {
+                  try {
+                    respUser = JSON.parse(respUser);
+                    if (
+                      respUser.rides_history !== undefined &&
+                      respUser.rides_history.request_fp !== undefined &&
+                      respUser.rides_history != "no_rides"
+                    ) {
+                      //Found cached infos
+                      //Launch a precomputation for the next details and cache them of course
+                      /*let request0 = new Promise((reslv) => {
                     getUserRideCachedData_andComputeRoute(collectionRidersData_repr, user_fingerprint, user_nature, respUser, reslv);
                   }).then(
                     (result) => {
@@ -385,67 +481,97 @@ function tripChecker_Dispatcher(collectionRidersData_repr, user_fingerprint, use
                       console.log(error);
                     }
                   );*/
-                    getMongoRecordTrip_cacheLater(collectionRidersData_repr, user_fingerprint, user_nature, resolve);
-                    //Return the cached data if any
-                    redisGet(respUser.rides_history.request_fp).then(
-                      (cachedTripData) => {
-                        if (cachedTripData !== null) {
-                          //FOUND CACHED TRIP DATA
-                          try {
-                            cachedTripData = JSON.parse(cachedTripData);
-                            //DOne
-                            //Isolate pending requests
-                            if (respUser.rides_history.isAccepted !== true) {
-                              resolve(cachedTripData);
+                      getMongoRecordTrip_cacheLater(
+                        collectionRidersData_repr,
+                        user_fingerprint,
+                        user_nature,
+                        resolve
+                      );
+                      //Return the cached data if any
+                      redisGet(respUser.rides_history.request_fp).then(
+                        (cachedTripData) => {
+                          if (cachedTripData !== null) {
+                            //FOUND CACHED TRIP DATA
+                            try {
+                              cachedTripData = JSON.parse(cachedTripData);
+                              //DOne
+                              //Isolate pending requests
+                              if (respUser.rides_history.isAccepted !== true) {
+                                resolve(cachedTripData);
+                              }
+                            } catch (error) {
+                              console.log(error);
+                              //Error precompute from mongo
+                              console.log("Compute route infos from mongo");
+                              getMongoRecordTrip_cacheLater(
+                                collectionRidersData_repr,
+                                user_fingerprint,
+                                user_nature,
+                                resolve
+                              );
                             }
-                          } catch (error) {
-                            console.log(error);
-                            //Error precompute from mongo
+                          } //No cached trip data - precompute from mongo
+                          else {
                             console.log("Compute route infos from mongo");
-                            getMongoRecordTrip_cacheLater(collectionRidersData_repr, user_fingerprint, user_nature, resolve);
+                            getMongoRecordTrip_cacheLater(
+                              collectionRidersData_repr,
+                              user_fingerprint,
+                              user_nature,
+                              resolve
+                            );
                           }
-                        } //No cached trip data - precompute from mongo
-                        else {
+                        },
+                        (errorGet) => {
+                          console.log("No cached trip found");
                           console.log("Compute route infos from mongo");
-                          getMongoRecordTrip_cacheLater(collectionRidersData_repr, user_fingerprint, user_nature, resolve);
+                          getMongoRecordTrip_cacheLater(
+                            collectionRidersData_repr,
+                            user_fingerprint,
+                            user_nature,
+                            resolve
+                          );
                         }
-                      },
-                      (errorGet) => {
-                        console.log("No cached trip found");
-                        console.log("Compute route infos from mongo");
-                        getMongoRecordTrip_cacheLater(collectionRidersData_repr, user_fingerprint, user_nature, resolve);
-                      }
-                    );
-                  } //No cached trip infos - No requests
-                  else {
+                      );
+                    } //No cached trip infos - No requests
+                    else {
+                      console.log("No rides");
+                      resolve("no_rides");
+                    }
+                  } catch (error) {
+                    console.log(error);
                     console.log("No rides");
                     resolve("no_rides");
                   }
-                } catch (error) {
-                  console.log(error);
-                  console.log("No rides");
-                  resolve("no_rides");
+                } //No cached trip infos - get from mongo and cache it at the end
+                else {
+                  console.log("Compute route infos from mongo");
+                  getMongoRecordTrip_cacheLater(
+                    collectionRidersData_repr,
+                    user_fingerprint,
+                    user_nature,
+                    resolve
+                  );
                 }
-              } //No cached trip infos - get from mongo and cache it at the end
-              else {
+              },
+              (errorGet) => {
+                //Get from mongo and cache
+                console.log(errorGet);
                 console.log("Compute route infos from mongo");
-                getMongoRecordTrip_cacheLater(collectionRidersData_repr, user_fingerprint, user_nature, resolve);
+                getMongoRecordTrip_cacheLater(
+                  collectionRidersData_repr,
+                  user_fingerprint,
+                  user_nature,
+                  resolve
+                );
               }
-            },
-            (errorGet) => {
-              //Get from mongo and cache
-              console.log(errorGet);
-              console.log("Compute route infos from mongo");
-              getMongoRecordTrip_cacheLater(collectionRidersData_repr, user_fingerprint, user_nature, resolve);
-            }
-          );
-        } //No rides recorded
-        else {
-          console.log("no rides");
-          resolve("no_rides");
+            );
+          } //No rides recorded
+          else {
+            console.log("no rides");
+            resolve("no_rides");
+          }
         }
-      }
-    });
+      });
   } //Malformed
   else {
     resolve(false);
@@ -458,11 +584,22 @@ function tripChecker_Dispatcher(collectionRidersData_repr, user_fingerprint, use
  * and cache them.
  */
 
-function getUserRideCachedData_andComputeRoute(collectionRidersData_repr, user_fingerprint, user_nature, respUser, resolve) {
+function getUserRideCachedData_andComputeRoute(
+  collectionRidersData_repr,
+  user_fingerprint,
+  user_nature,
+  respUser,
+  resolve
+) {
   //Check if there are any cached user data
   //1. Pre compute and cache next record for later use
   let request0 = new Promise((reslv) => {
-    getMongoRecordTrip_cacheLater(collectionRidersData_repr, user_fingerprint, user_nature, reslv);
+    getMongoRecordTrip_cacheLater(
+      collectionRidersData_repr,
+      user_fingerprint,
+      user_nature,
+      reslv
+    );
   }).then(
     (reslt) => {
       console.log("precomputed for later use done.");
@@ -482,7 +619,12 @@ function getUserRideCachedData_andComputeRoute(collectionRidersData_repr, user_f
  * Responsible for getting user record from mongodb, comnpute route infos, cache it (and cache the user's trip infos for later use).
  * CAN BE USED FOR RIDERS AND DRIVERS
  */
-function getMongoRecordTrip_cacheLater(collectionRidersData_repr, user_fingerprint, user_nature, resolve) {
+function getMongoRecordTrip_cacheLater(
+  collectionRidersData_repr,
+  user_fingerprint,
+  user_nature,
+  resolve
+) {
   //Check if there are any requests in MongoDB
   let queryFilter = {
     user_fingerprint: user_fingerprint,
@@ -514,7 +656,10 @@ function computeRouteDetails_skeleton(result, resolve) {
       //- In route to pickup
       //- In route to drop off
       //- Trip over, confirm drop off rider
-      if (rideHistory.inRideToDestination === false && rideHistory.isRideCompleted_driverSide === false) {
+      if (
+        rideHistory.inRideToDestination === false &&
+        rideHistory.isRideCompleted_driverSide === false
+      ) {
         //In route to pickup
         console.log("In  route to pickup");
         let requestStatusMain = "inRouteToPickup";
@@ -530,7 +675,13 @@ function computeRouteDetails_skeleton(result, resolve) {
                     try {
                       //Compute next route update ---------------------------------------------------
                       let request0 = new Promise((reslv) => {
-                        computeAndCacheRouteDestination(resp, rideHistory, riderCoords, requestStatusMain, reslv);
+                        computeAndCacheRouteDestination(
+                          resp,
+                          rideHistory,
+                          riderCoords,
+                          requestStatusMain,
+                          reslv
+                        );
                       }).then(
                         () => {},
                         () => {}
@@ -548,7 +699,13 @@ function computeRouteDetails_skeleton(result, resolve) {
                   else {
                     //Compute next route update ---------------------------------------------------
                     let request0 = new Promise((reslv) => {
-                      computeAndCacheRouteDestination(resp, rideHistory, riderCoords, requestStatusMain, reslv);
+                      computeAndCacheRouteDestination(
+                        resp,
+                        rideHistory,
+                        riderCoords,
+                        requestStatusMain,
+                        reslv
+                      );
                     }).then(
                       () => {
                         //Get route infos from cache.
@@ -572,7 +729,13 @@ function computeRouteDetails_skeleton(result, resolve) {
                   console.log(err0);
                   //Compute next route update ---------------------------------------------------
                   let request1 = new Promise((reslv) => {
-                    computeAndCacheRouteDestination(resp, rideHistory, riderCoords, requestStatusMain, reslv);
+                    computeAndCacheRouteDestination(
+                      resp,
+                      rideHistory,
+                      riderCoords,
+                      requestStatusMain,
+                      reslv
+                    );
                   }).then(
                     () => {
                       //Get route infos from cache.
@@ -602,7 +765,10 @@ function computeRouteDetails_skeleton(result, resolve) {
             resolve(false);
           }
         );
-      } else if (rideHistory.inRideToDestination === true && rideHistory.isRideCompleted_driverSide === false) {
+      } else if (
+        rideHistory.inRideToDestination === true &&
+        rideHistory.isRideCompleted_driverSide === false
+      ) {
         //In route to drop off
         console.log("In route to drop off");
         let requestStatusMain = "inRouteToDestination";
@@ -618,7 +784,13 @@ function computeRouteDetails_skeleton(result, resolve) {
                     try {
                       //Compute next route update ---------------------------------------------------
                       let request0 = new Promise((reslv) => {
-                        computeAndCacheRouteDestination(resp, rideHistory, riderCoords, requestStatusMain, reslv);
+                        computeAndCacheRouteDestination(
+                          resp,
+                          rideHistory,
+                          riderCoords,
+                          requestStatusMain,
+                          reslv
+                        );
                       }).then(
                         () => {},
                         () => {}
@@ -636,7 +808,13 @@ function computeRouteDetails_skeleton(result, resolve) {
                   else {
                     //Compute next route update ---------------------------------------------------
                     let request0 = new Promise((reslv) => {
-                      computeAndCacheRouteDestination(resp, rideHistory, riderCoords, requestStatusMain, reslv);
+                      computeAndCacheRouteDestination(
+                        resp,
+                        rideHistory,
+                        riderCoords,
+                        requestStatusMain,
+                        reslv
+                      );
                     }).then(
                       () => {
                         //Get route infos from cache.
@@ -660,7 +838,13 @@ function computeRouteDetails_skeleton(result, resolve) {
                   console.log(err0);
                   //Compute next route update ---------------------------------------------------
                   let request1 = new Promise((reslv) => {
-                    computeAndCacheRouteDestination(resp, rideHistory, riderCoords, requestStatusMain, reslv);
+                    computeAndCacheRouteDestination(
+                      resp,
+                      rideHistory,
+                      riderCoords,
+                      requestStatusMain,
+                      reslv
+                    );
                   }).then(
                     () => {
                       //Get route infos from cache.
@@ -690,7 +874,10 @@ function computeRouteDetails_skeleton(result, resolve) {
             resolve(false);
           }
         );
-      } else if (rideHistory.isRideCompleted_driverSide === true && rideHistory.isArrivedToDestination === false) {
+      } else if (
+        rideHistory.isRideCompleted_driverSide === true &&
+        rideHistory.isArrivedToDestination === false
+      ) {
         //Rider's confirmation for the drop off left
         console.log("Riders confirmation of drop off");
         resolve(true);
@@ -730,7 +917,10 @@ function computeRouteDetails_skeleton(result, resolve) {
       //Add request status variable - pending
       resolve({
         pickupLocation_name: rideHistory.rider_pickupLocation.locationName,
-        pickupLocation_point: [rideHistory.rider_pickupLocation.point.longitude, rideHistory.rider_pickupLocation.point.latitude],
+        pickupLocation_point: [
+          rideHistory.rider_pickupLocation.point.longitude,
+          rideHistory.rider_pickupLocation.point.latitude,
+        ],
         request_status: "pending",
       });
     }
@@ -752,7 +942,13 @@ function computeRouteDetails_skeleton(result, resolve) {
  * UPDATE DRIVER AND PASSENGER CACHE RIDE HISTORY.
  * Promisify!
  */
-function computeAndCacheRouteDestination(driverInfos, rideHistory, riderCoords = false, request_status, resolve) {
+function computeAndCacheRouteDestination(
+  driverInfos,
+  rideHistory,
+  riderCoords = false,
+  request_status,
+  resolve
+) {
   //Compute next route update ---------------------------------------------------
   let resp = JSON.parse(driverInfos);
   let bundle = {};
@@ -798,17 +994,29 @@ function computeAndCacheRouteDestination(driverInfos, rideHistory, riderCoords =
         (cachedTripData) => {
           if (cachedTripData !== null) {
             if (cachedTripData != JSON.stringify(result)) {
-              client.set(rideHistory.request_fp, JSON.stringify(result), redis.print);
+              client.set(
+                rideHistory.request_fp,
+                JSON.stringify(result),
+                redis.print
+              );
             }
           } //Update cache anyways
           else {
             console.log("Update cache");
-            client.set(rideHistory.request_fp, JSON.stringify(result), redis.print);
+            client.set(
+              rideHistory.request_fp,
+              JSON.stringify(result),
+              redis.print
+            );
           }
         },
         (errorGet) => {
           console.log("Update cache");
-          client.set(rideHistory.request_fp, JSON.stringify(result), redis.print);
+          client.set(
+            rideHistory.request_fp,
+            JSON.stringify(result),
+            redis.print
+          );
         }
       );
 
@@ -821,7 +1029,11 @@ function computeAndCacheRouteDestination(driverInfos, rideHistory, riderCoords =
               prevDriverCache.rides_history = rideHistory;
               if (res !== JSON.stringify(prevDriverCache)) {
                 console.log("Different data");
-                client.set(resp.user_fingerprint, JSON.stringify(prevDriverCache), redis.print);
+                client.set(
+                  resp.user_fingerprint,
+                  JSON.stringify(prevDriverCache),
+                  redis.print
+                );
               }
               //Update rider old trip cached ride history
               redisGet(rideHistory.client_id).then(
@@ -831,7 +1043,11 @@ function computeAndCacheRouteDestination(driverInfos, rideHistory, riderCoords =
                       let prevRiderCache = JSON.parse(res1);
                       prevRiderCache.rides_history = rideHistory;
                       if (res !== JSON.stringify(prevRiderCache)) {
-                        client.set(rideHistory.client_id, JSON.stringify(prevRiderCache), redis.print);
+                        client.set(
+                          rideHistory.client_id,
+                          JSON.stringify(prevRiderCache),
+                          redis.print
+                        );
                       }
                       resolve(true);
                     } catch (error) {
@@ -886,7 +1102,11 @@ function updateRiderLocationInfosCache(req, resolve) {
           prevCache.latitude = req.latitude;
           prevCache.longitude = req.longitude;
           prevCache.date_logged = req.date_logged; //Updated cache data
-          client.set(req.user_fingerprint.trim(), JSON.stringify(prevCache), redis.print);
+          client.set(
+            req.user_fingerprint.trim(),
+            JSON.stringify(prevCache),
+            redis.print
+          );
           resolve(true);
         } catch (error) {
           resolve(false);
@@ -914,8 +1134,12 @@ dbPool.getConnection(function (err, connection) {
     //if (err) throw err;
     console.log("Connected to Mongodb");
     const dbMongo = clientMongo.db(DB_NAME_MONGODB);
-    const collectionRidersData_repr = dbMongo.collection("riders_data_representation"); //Hold the latest location update from the rider
-    const collectionRidersLocation_log = dbMongo.collection("riders_data_location_log"); //Hold all the location updated from the rider
+    const collectionRidersData_repr = dbMongo.collection(
+      "riders_data_representation"
+    ); //Hold the latest location update from the rider
+    const collectionRidersLocation_log = dbMongo.collection(
+      "riders_data_location_log"
+    ); //Hold all the location updated from the rider
     //-------------
     const bodyParser = require("body-parser");
     app.get("/", function (req, res) {
@@ -977,11 +1201,15 @@ dbPool.getConnection(function (err, connection) {
             },
             (error) => {
               console.log(error);
-              socket.emit("getIteinerayDestinationInfos-response", { response: false });
+              socket.emit("getIteinerayDestinationInfos-response", {
+                response: false,
+              });
             }
           );
         } else {
-          socket.emit("getIteinerayDestinationInfos-response", { response: false });
+          socket.emit("getIteinerayDestinationInfos-response", {
+            response: false,
+          });
         }
       });
 
@@ -1005,12 +1233,23 @@ dbPool.getConnection(function (err, connection) {
           //Check for any existing ride
           let request0 = new Promise((res) => {
             console.log("fetching data");
-            tripChecker_Dispatcher(collectionRidersData_repr, req.user_fingerprint, "rider", res);
+            tripChecker_Dispatcher(
+              collectionRidersData_repr,
+              req.user_fingerprint,
+              "rider",
+              res
+            );
           }).then(
             (result) => {
               let doneTime = new Date();
               timeTaken = doneTime.getTime() - timeTaken;
-              console.log("[" + chaineDateUTC + "] Compute and dispatch time (trip) ------>  " + timeTaken + " ms");
+              console.log(
+                "[" +
+                  chaineDateUTC +
+                  "] Compute and dispatch time (trip) ------>  " +
+                  timeTaken +
+                  " ms"
+              );
               //Update the rider
               if (result !== false) {
                 console.log(result);
@@ -1018,7 +1257,9 @@ dbPool.getConnection(function (err, connection) {
                   socket.emit("trackdriverroute-response", result);
                 } //No rides
                 else {
-                  socket.emit("trackdriverroute-response", { request_status: result });
+                  socket.emit("trackdriverroute-response", {
+                    request_status: result,
+                  });
                 }
               }
             },
@@ -1037,7 +1278,12 @@ dbPool.getConnection(function (err, connection) {
 
           //Update rider's location - promise always
           let request2 = new Promise((resolve) => {
-            updateRidersRealtimeLocationData(collectionRidersData_repr, collectionRidersLocation_log, req, resolve);
+            updateRidersRealtimeLocationData(
+              collectionRidersData_repr,
+              collectionRidersLocation_log,
+              req,
+              resolve
+            );
           }).then(
             () => {
               //console.log("Location updated [rider]");

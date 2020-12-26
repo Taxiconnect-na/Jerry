@@ -1,4 +1,4 @@
-var dash = require("appmetrics-dash");
+require("dotenv").config();
 var express = require("express");
 const http = require("http");
 const fs = require("fs");
@@ -25,16 +25,9 @@ var dateObject = null;
 const moment = require("moment");
 const e = require("express");
 
-const URL_MONGODB = "mongodb://localhost:27017";
-const localURL = "http://localhost";
-const DB_NAME_MONGODB = "Taxiconnect";
-const URL_SEARCH_SERVICES = "http://www.taxiconnectna.com:7007/";
-const URL_ROUTE_SERVICES = "http://www.taxiconnectna.com:7008/route?";
-const PRICING_SERVICE_PORT = 8989;
-const MAP_SERVICE_PORT = 9090;
-//const URL_ROUTE_SERVICES = "localhost:8987/route?";
-
-const clientMongo = new MongoClient(URL_MONGODB, { useUnifiedTopology: true });
+const clientMongo = new MongoClient(process.env.URL_MONGODB, {
+  useUnifiedTopology: true,
+});
 
 function resolveDate() {
   //Resolve date
@@ -57,8 +50,6 @@ function resolveDate() {
   chaineDateUTC = date;
 }
 resolveDate();
-
-const port = 9094;
 
 /**
  * Responsible for sending push notification to devices
@@ -312,9 +303,9 @@ function parseRequestData(inputData, resolve) {
                 //Auto complete the suburb
                 new Promise((res3) => {
                   let url =
-                    localURL +
+                    process.env.LOCAL_URL +
                     ":" +
-                    PRICING_SERVICE_PORT +
+                    process.env.PRICING_SERVICE_PORT +
                     "/getCorrespondingSuburbInfos?location_name=" +
                     inputData.pickupData.location_name +
                     "&street_name=" +
@@ -679,9 +670,9 @@ function parseRequestData(inputData, resolve) {
                       (reslt) => {
                         //DONE
                         let url =
-                          localURL +
+                          process.env.LOCAL_URL +
                           ":" +
-                          PRICING_SERVICE_PORT +
+                          process.env.PRICING_SERVICE_PORT +
                           "/manageAutoCompleteSuburbsAndLocationTypes";
 
                         requestAPI.post(
@@ -757,9 +748,9 @@ function intitiateStagedDispatch(
 ) {
   //Get the list of all the closest drivers
   let url =
-    localURL +
+    process.env.LOCAL_URL +
     ":" +
-    MAP_SERVICE_PORT +
+    process.env.MAP_SERVICE_PORT +
     "/getVitalsETAOrRouteInfos2points?user_fingerprint=" +
     snapshotTripInfos.user_fingerprint +
     "&org_latitude=" +
@@ -1443,7 +1434,7 @@ function cancelRider_request(
 clientMongo.connect(function (err) {
   //if (err) throw err;
   console.log("[+] Dispatch services active.");
-  const dbMongo = clientMongo.db(DB_NAME_MONGODB);
+  const dbMongo = clientMongo.db(process.env.DB_NAME_MONGODDB);
   const collectionRidesDeliveryData = dbMongo.collection(
     "rides_deliveries_requests"
   ); //Hold all the requests made (rides and deliveries)
@@ -1728,4 +1719,4 @@ clientMongo.connect(function (err) {
   });
 });
 
-server.listen(port);
+server.listen(process.env.DISPATCH_SERVICE_PORT);

@@ -1,3 +1,4 @@
+require("dotenv").config();
 var dash = require("appmetrics-dash");
 var express = require("express");
 const http = require("http");
@@ -38,11 +39,7 @@ function resolveDate() {
 }
 resolveDate();
 
-//Crucial urls
-const localURL = "http://localhost";
 //EVENT GATEWAY PORT
-//const port = 9000;
-const port = 9097;
 
 app
   .get("/", function (req, res) {
@@ -63,7 +60,6 @@ io.on("connection", (socket) => {
    */
   socket.on("update-passenger-location", function (req) {
     console.log(req);
-    let servicePort = 9090;
 
     if (
       req !== undefined &&
@@ -75,9 +71,9 @@ io.on("connection", (socket) => {
       req.user_fingerprint !== undefined
     ) {
       let url =
-        localURL +
+        process.env.LOCAL_URL +
         ":" +
-        servicePort +
+        process.env.MAP_SERVICE_PORT +
         "/updatePassengerLocation?latitude=" +
         req.latitude +
         "&longitude=" +
@@ -108,8 +104,6 @@ io.on("connection", (socket) => {
    * Get user location (reverse geocoding)
    */
   socket.on("geocode-this-point", function (req) {
-    let servicePort = 9090;
-
     if (
       req.latitude !== undefined &&
       req.latitude !== null &&
@@ -119,9 +113,9 @@ io.on("connection", (socket) => {
       req.user_fingerprint !== undefined
     ) {
       let url =
-        localURL +
+        process.env.LOCAL_URL +
         ":" +
-        servicePort +
+        process.env.MAP_SERVICE_PORT +
         "/getUserLocationInfos?latitude=" +
         req.latitude +
         "&longitude=" +
@@ -155,7 +149,6 @@ io.on("connection", (socket) => {
    */
   socket.on("getPickupLocationNature", function (req) {
     console.log("identify location...");
-    let servicePort = 9090;
 
     if (
       req.latitude !== undefined &&
@@ -166,9 +159,9 @@ io.on("connection", (socket) => {
       req.user_fingerprint !== undefined
     ) {
       let url =
-        localURL +
+        process.env.LOCAL_URL +
         ":" +
-        servicePort +
+        process.env.MAP_SERVICE_PORT +
         "/identifyPickupLocation?latitude=" +
         req.latitude +
         "&longitude=" +
@@ -205,7 +198,6 @@ io.on("connection", (socket) => {
   socket.on("getRoute_to_destinationSnapshot", function (req) {
     console.log("Finding route snapshot");
     //console.log(req);
-    let servicePort = 9090;
 
     if (
       req.org_latitude !== undefined &&
@@ -220,9 +212,9 @@ io.on("connection", (socket) => {
       req.user_fingerprint !== undefined
     ) {
       let url =
-        localURL +
+        process.env.LOCAL_URL +
         ":" +
-        servicePort +
+        process.env.MAP_SERVICE_PORT +
         "/getRouteToDestinationSnapshot?org_latitude=" +
         req.org_latitude +
         "&org_longitude=" +
@@ -262,7 +254,6 @@ io.on("connection", (socket) => {
   socket.on("get_closest_drivers_to_point", function (req) {
     //console.log("Getting all the closest drivers");
     //console.log(req);
-    let servicePort = 9090;
     let list_limit = 7; //Limited to 7 for all clients requests
 
     if (
@@ -280,9 +271,9 @@ io.on("connection", (socket) => {
       req.ride_type !== undefined
     ) {
       let url =
-        localURL +
+        process.env.LOCAL_URL +
         ":" +
-        servicePort +
+        process.env.MAP_SERVICE_PORT +
         "/getVitalsETAOrRouteInfos2points?user_fingerprint=" +
         req.user_fingerprint +
         "&org_latitude=" +
@@ -324,7 +315,6 @@ io.on("connection", (socket) => {
    */
   socket.on("getLocations", function (req) {
     console.log(req);
-    let servicePort = 9091;
     if (
       req.user_fp !== undefined &&
       req.user_fp !== null &&
@@ -334,9 +324,9 @@ io.on("connection", (socket) => {
       req.city !== null
     ) {
       let url =
-        localURL +
+        process.env.LOCAL_URL +
         ":" +
-        servicePort +
+        process.env.SEARCH_SERVICE_PORT +
         "/getSearchedLocations?user_fp=" +
         req.user_fp +
         "&query=" +
@@ -371,7 +361,6 @@ io.on("connection", (socket) => {
   //socket.emit("getPricingForRideorDelivery");
   socket.on("getPricingForRideorDelivery", function (req) {
     //console.log(req);
-    let servicePort = 8989;
     if (
       req.user_fingerprint !== undefined &&
       req.user_fingerprint !== null &&
@@ -385,9 +374,9 @@ io.on("connection", (socket) => {
       req.destinationData.passenger1Destination !== null
     ) {
       let url =
-        localURL +
+        process.env.LOCAL_URL +
         ":" +
-        servicePort +
+        process.env.process.env.PRICING_SERVICE_PORT +
         "/getOverallPricingAndAvailabilityDetails";
 
       requestAPI.post({ url, form: req }, function (error, response, body) {
@@ -422,10 +411,12 @@ io.on("connection", (socket) => {
    */
   socket.on("requestRideOrDeliveryForThis", function (req) {
     console.log(req);
-    let servicePort = 9094;
     if (req.user_fingerprint !== undefined && req.user_fingerprint !== null) {
       let url =
-        localURL + ":" + servicePort + "/dispatchRidesOrDeliveryRequests";
+        process.env.LOCAL_URL +
+        ":" +
+        process.env.DISPATCH_SERVICE_PORT +
+        "/dispatchRidesOrDeliveryRequests";
 
       requestAPI.post({ url, form: req }, function (error, response, body) {
         console.log(body);
@@ -459,9 +450,12 @@ io.on("connection", (socket) => {
    */
   socket.on("confirmRiderDropoff_requests_io", function (req) {
     console.log(req);
-    let servicePort = 9094;
     if (req.user_fingerprint !== undefined && req.user_fingerprint !== null) {
-      let url = localURL + ":" + servicePort + "/confirmRiderDropoff_requests";
+      let url =
+        process.env.LOCAL_URL +
+        ":" +
+        process.env.DISPATCH_SERVICE_PORT +
+        "/confirmRiderDropoff_requests";
 
       requestAPI.post({ url, form: req }, function (error, response, body) {
         console.log(body);
@@ -495,9 +489,12 @@ io.on("connection", (socket) => {
    */
   socket.on("cancelRiders_request_io", function (req) {
     console.log(req);
-    let servicePort = 9094;
     if (req.user_fingerprint !== undefined && req.user_fingerprint !== null) {
-      let url = localURL + ":" + servicePort + "/cancelRiders_request";
+      let url =
+        process.env.LOCAL_URL +
+        ":" +
+        process.env.DISPATCH_SERVICE_PORT +
+        "/cancelRiders_request";
 
       requestAPI.post({ url, form: req }, function (error, response, body) {
         console.log(body);
@@ -531,12 +528,11 @@ io.on("connection", (socket) => {
    */
   socket.on("sendOtpAndCheckerUserStatusTc", function (req) {
     console.log(req);
-    let servicePort = 9696;
     if (req.phone_number !== undefined && req.phone_number !== null) {
       let url =
-        localURL +
+        process.env.LOCAL_URL +
         ":" +
-        servicePort +
+        process.env.ACCOUNTS_SERVICE_PORT +
         "/sendOTPAndCheckUserStatus?phone_number=" +
         req.phone_number;
 
@@ -572,7 +568,6 @@ io.on("connection", (socket) => {
    */
   socket.on("checkThisOTP_SMS", function (req) {
     console.log(req);
-    let servicePort = 9696;
     if (
       req.phone_number !== undefined &&
       req.phone_number !== null &&
@@ -580,9 +575,9 @@ io.on("connection", (socket) => {
       req.otp !== null
     ) {
       let url =
-        localURL +
+        process.env.LOCAL_URL +
         ":" +
-        servicePort +
+        process.env.ACCOUNTS_SERVICE_PORT +
         "/checkSMSOTPTruly?phone_number=" +
         req.phone_number +
         "&otp=" +
@@ -621,12 +616,11 @@ io.on("connection", (socket) => {
    */
   socket.on("createInitialRider_account", function (req) {
     console.log(req);
-    let servicePort = 9696;
     if (req.phone_number !== undefined && req.phone_number !== null) {
       let url =
-        localURL +
+        process.env.LOCAL_URL +
         ":" +
-        servicePort +
+        process.env.ACCOUNTS_SERVICE_PORT +
         "/createMinimalRiderAccount?phone_number=" +
         req.phone_number +
         "&pushnotif_token=" +
@@ -666,7 +660,6 @@ io.on("connection", (socket) => {
    */
   socket.on("updateAdditionalProfileData", function (req) {
     console.log(req);
-    let servicePort = 9696;
     if (
       req.user_fingerprint !== undefined &&
       req.user_fingerprint !== null &&
@@ -678,9 +671,9 @@ io.on("connection", (socket) => {
       req.email !== null
     ) {
       let url =
-        localURL +
+        process.env.LOCAL_URL +
         ":" +
-        servicePort +
+        process.env.ACCOUNTS_SERVICE_PORT +
         "/updateAdditionalProfileData_newAccount?name=" +
         req.name +
         "&gender=" +
@@ -721,12 +714,11 @@ io.on("connection", (socket) => {
    */
   socket.on("getRides_historyRiders_batchOrNot", function (req) {
     console.log(req);
-    let servicePort = 9696;
     if (req.user_fingerprint !== undefined && req.user_fingerprint !== null) {
       let url =
-        localURL +
+        process.env.LOCAL_URL +
         ":" +
-        servicePort +
+        process.env.ACCOUNTS_SERVICE_PORT +
         "/getRides_historyRiders?user_fingerprint=" +
         req.user_fingerprint;
       //Add a ride_type if any
@@ -769,5 +761,5 @@ io.on("connection", (socket) => {
   });
 });
 
-server.listen(port);
+server.listen(process.env.EVENT_GATEWAY_PORT);
 //dash.monitor({ server: server });

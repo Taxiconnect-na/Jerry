@@ -1,4 +1,4 @@
-//var dash = require('appmetrics-dash');
+require("dotenv").config();
 var express = require("express");
 const http = require("http");
 const fs = require("fs");
@@ -20,11 +20,9 @@ var chaineDateUTC = null;
 var dateObject = null;
 const moment = require("moment");
 
-const URL_SEARCH_SERVICES = "http://www.taxiconnectna.com:7007/";
-const URL_MONGODB = "mongodb://localhost:27017";
-const DB_NAME_MONGODB = "Taxiconnect";
-
-const clientMongo = new MongoClient(URL_MONGODB, { useUnifiedTopology: true });
+const clientMongo = new MongoClient(process.env.URL_MONGODB, {
+  useUnifiedTopology: true,
+});
 
 //INITIALIZE LOCATION CACHE
 //Check if a checkpoint exists
@@ -69,7 +67,18 @@ function resolveDate() {
   date = moment(date.getTime()).utcOffset(2);
 
   dateObject = date;
-  date = date.year() + "-" + (date.month() + 1) + "-" + date.date() + " " + date.hour() + ":" + date.minute() + ":" + date.second();
+  date =
+    date.year() +
+    "-" +
+    (date.month() + 1) +
+    "-" +
+    date.date() +
+    " " +
+    date.hour() +
+    ":" +
+    date.minute() +
+    ":" +
+    date.second();
   chaineDateUTC = date;
 }
 resolveDate();
@@ -87,7 +96,14 @@ const dbPool = mysql.createPool({
 });
 
 function logObject(obj) {
-  console.log(inspect(obj, { maxArrayLength: null, depth: null, showHidden: true, colors: true }));
+  console.log(
+    inspect(obj, {
+      maxArrayLength: null,
+      depth: null,
+      showHidden: true,
+      colors: true,
+    })
+  );
 }
 
 function getCityBbox(city, res) {
@@ -111,9 +127,14 @@ function similarityCheck_locations_search(arrayLocations, query, res) {
   //logObject(arrayLocations);
   if (arrayLocations.length > 0) {
     arrayLocations = fastFilter(arrayLocations, function (element) {
-      if (element.location_name != undefined && element.location_name != false) {
+      if (
+        element.location_name != undefined &&
+        element.location_name != false
+      ) {
         return (
-          element.location_name.toLowerCase().includes(query.toLowerCase().trim()) ||
+          element.location_name
+            .toLowerCase()
+            .includes(query.toLowerCase().trim()) ||
           checkName(element.location_name.toLowerCase(), query.toLowerCase())
         );
       } else {
@@ -133,11 +154,25 @@ function similarityCheck_locations_search(arrayLocations, query, res) {
   }
 }
 
-function newLoaction_search_engine(queryOR, city, bbox, res, timestamp, collectionMongoDb) {
+function newLoaction_search_engine(
+  queryOR,
+  city,
+  bbox,
+  res,
+  timestamp,
+  collectionMongoDb
+) {
   let keyREDIS = "search_locations-" + city.trim().toLowerCase();
   //..
   query = encodeURIComponent(queryOR.toLowerCase().trim());
-  let urlRequest = URL_SEARCH_SERVICES + "api?q=" + query + "&bbox=" + bbox + "&limit=" + _LIMIT_LOCATION_SEARCH_RESULTS;
+  let urlRequest =
+    process.env.URL_SEARCH_SERVICES +
+    "api?q=" +
+    query +
+    "&bbox=" +
+    bbox +
+    "&limit=" +
+    _LIMIT_LOCATION_SEARCH_RESULTS;
   requestAPI(urlRequest, function (err, response, body) {
     try {
       body = JSON.parse(body);
@@ -154,10 +189,16 @@ function newLoaction_search_engine(queryOR, city, bbox, res, timestamp, collecti
                 let averageGeo = null;
                 if (locationPlace.properties.extent == undefined) {
                   //Consider point to find the averge geo
-                  averageGeo = locationPlace.geometry.coordinates.reduce((a, b) => a + b, 0);
+                  averageGeo = locationPlace.geometry.coordinates.reduce(
+                    (a, b) => a + b,
+                    0
+                  );
                 } //Average geo from extent
                 else {
-                  averageGeo = locationPlace.properties.extent.reduce((a, b) => a + b, 0);
+                  averageGeo = locationPlace.properties.extent.reduce(
+                    (a, b) => a + b,
+                    0
+                  );
                 }
 
                 if (locationPlace.properties.street == undefined) {
@@ -210,13 +251,19 @@ function newLoaction_search_engine(queryOR, city, bbox, res, timestamp, collecti
                         if (resp !== null) {
                           let respPrevRedisCache = JSON.parse(resp);
                           //logObject(respPrevRedisCache);
-                          respPrevRedisCache = respPrevRedisCache.map(JSON.stringify);
+                          respPrevRedisCache = respPrevRedisCache.map(
+                            JSON.stringify
+                          );
                           //logObject(respPrevRedisCache);
                           let newSearchRecords = [];
                           //...
                           let request2 = new Promise((resolve) => {
                             result.map((item) => {
-                              if (!respPrevRedisCache.includes(JSON.stringify(item))) {
+                              if (
+                                !respPrevRedisCache.includes(
+                                  JSON.stringify(item)
+                                )
+                              ) {
                                 //New record
                                 respPrevRedisCache.push(JSON.stringify(item));
                                 newSearchRecords.push(item);
@@ -229,35 +276,64 @@ function newLoaction_search_engine(queryOR, city, bbox, res, timestamp, collecti
                             (reslt) => {
                               //Update cache
                               //let cachedString = JSON.stringify(respPrevRedisCache);
-                              let cachedString = JSON.stringify(respPrevRedisCache.map(JSON.parse));
+                              let cachedString = JSON.stringify(
+                                respPrevRedisCache.map(JSON.parse)
+                              );
                               //logObject(newSearchRecords);
                               if (newSearchRecords.length > 0) {
-                                collectionMongoDb.insertMany(newSearchRecords, function (err, res) {
-                                  console.log(res);
-                                });
+                                collectionMongoDb.insertMany(
+                                  newSearchRecords,
+                                  function (err, res) {
+                                    console.log(res);
+                                  }
+                                );
                               }
                               //Update redis local cache
                               client.set(keyREDIS, cachedString, redis.print);
                               //Update mongodb - cache
                               res({
                                 search_timestamp: timestamp,
-                                result: { search_timestamp: timestamp, result: removeResults_duplicates(result).slice(0, 5) },
+                                result: {
+                                  search_timestamp: timestamp,
+                                  result: removeResults_duplicates(
+                                    result
+                                  ).slice(0, 5),
+                                },
                               });
                             },
                             (err) => {
-                              res({ search_timestamp: timestamp, result: removeResults_duplicates(result).slice(0, 5) });
+                              res({
+                                search_timestamp: timestamp,
+                                result: removeResults_duplicates(result).slice(
+                                  0,
+                                  5
+                                ),
+                              });
                             }
                           );
                         } else {
                           console.log("setting redis");
                           //set redis
-                          client.set(keyREDIS, JSON.stringify(result), redis.print);
-                          res({ search_timestamp: timestamp, result: removeResults_duplicates(result).slice(0, 5) });
+                          client.set(
+                            keyREDIS,
+                            JSON.stringify(result),
+                            redis.print
+                          );
+                          res({
+                            search_timestamp: timestamp,
+                            result: removeResults_duplicates(result).slice(
+                              0,
+                              5
+                            ),
+                          });
                         }
                       },
                       (error) => {
                         console.log(error);
-                        res({ search_timestamp: timestamp, result: removeResults_duplicates(result).slice(0, 5) });
+                        res({
+                          search_timestamp: timestamp,
+                          result: removeResults_duplicates(result).slice(0, 5),
+                        });
                       }
                     );
                   } //empty
@@ -292,7 +368,14 @@ function removeResults_duplicates(arrayResults, resolve) {
   let arrayResultsClean = [];
   let arrayIds = [];
   arrayResults.map((location) => {
-    let tmpId = location.location_name + " " + location.city + " " + location.street + " " + location.country;
+    let tmpId =
+      location.location_name +
+      " " +
+      location.city +
+      " " +
+      location.street +
+      " " +
+      location.country;
     if (!arrayIds.includes(tmpId)) {
       //New location
       arrayIds.push(tmpId);
@@ -302,7 +385,14 @@ function removeResults_duplicates(arrayResults, resolve) {
   return arrayResultsClean;
 }
 
-function getLocationList_five(queryOR, city, bbox, res, timestamp, collectionMongoDb) {
+function getLocationList_five(
+  queryOR,
+  city,
+  bbox,
+  res,
+  timestamp,
+  collectionMongoDb
+) {
   //Check if cached results are available
   let keyREDIS = "search_locations-" + city.trim().toLowerCase();
   redisGet(keyREDIS).then(
@@ -312,10 +402,16 @@ function getLocationList_five(queryOR, city, bbox, res, timestamp, collectionMon
         var cachedLocations = JSON.parse(reslt);
         //sort based on the keyword, city and country names
         cachedLocations = fastFilter(cachedLocations, function (element) {
-          if (element.country != undefined && element.city != undefined && element.query != undefined) {
+          if (
+            element.country != undefined &&
+            element.city != undefined &&
+            element.query != undefined
+          ) {
             return (
-              element.query.toLowerCase().trim() == queryOR.toLowerCase().trim() &&
-              element.country.toLowerCase().trim() == _COUNTRY.toLowerCase().trim() &&
+              element.query.toLowerCase().trim() ==
+                queryOR.toLowerCase().trim() &&
+              element.country.toLowerCase().trim() ==
+                _COUNTRY.toLowerCase().trim() &&
               element.city.toLowerCase().trim() == _CITY.toLowerCase().trim()
             );
           } //Invalid element
@@ -330,24 +426,48 @@ function getLocationList_five(queryOR, city, bbox, res, timestamp, collectionMon
           //logObject(removeResults_duplicates(cachedLocations));
           res({
             search_timestamp: timestamp,
-            result: { search_timestamp: timestamp, result: removeResults_duplicates(cachedLocations).slice(0, 5) },
+            result: {
+              search_timestamp: timestamp,
+              result: removeResults_duplicates(cachedLocations).slice(0, 5),
+            },
           });
         } //No results launch new search
         else {
           console.log("Launch new search");
-          newLoaction_search_engine(queryOR, city, bbox, res, timestamp, collectionMongoDb);
+          newLoaction_search_engine(
+            queryOR,
+            city,
+            bbox,
+            res,
+            timestamp,
+            collectionMongoDb
+          );
         }
       } //No cached results
       else {
         //Launch new search
         console.log("Launch new search");
-        newLoaction_search_engine(queryOR, city, bbox, res, timestamp, collectionMongoDb);
+        newLoaction_search_engine(
+          queryOR,
+          city,
+          bbox,
+          res,
+          timestamp,
+          collectionMongoDb
+        );
       }
     },
     (error) => {
       //Launch new search
       console.log("Launch new search");
-      newLoaction_search_engine(queryOR, city, bbox, res, timestamp, collectionMongoDb);
+      newLoaction_search_engine(
+        queryOR,
+        city,
+        bbox,
+        res,
+        timestamp,
+        collectionMongoDb
+      );
     }
   );
 }
@@ -356,7 +476,7 @@ dbPool.getConnection(function (err, connection) {
   clientMongo.connect(function (err) {
     //if (err) throw err;
     console.log("Connected to Mongodb");
-    const dbMongo = clientMongo.db(DB_NAME_MONGODB);
+    const dbMongo = clientMongo.db(process.env.DB_NAME_MONGODDB);
     const collectionMongoDb = dbMongo.collection("searched_locations_persist");
     //-------------
     //Restore searched location cached if any from Mongodb
@@ -398,10 +518,19 @@ dbPool.getConnection(function (err, connection) {
           //Get the location
           let request1 = new Promise((res, rej) => {
             let tmpTimestamp = search_timestamp;
-            getLocationList_five(request.query, request.city, bbox, res, tmpTimestamp, collectionMongoDb);
+            getLocationList_five(
+              request.query,
+              request.city,
+              bbox,
+              res,
+              tmpTimestamp,
+              collectionMongoDb
+            );
           }).then(
             (result) => {
-              if (parseInt(search_timestamp) != parseInt(result.search_timestamp)) {
+              if (
+                parseInt(search_timestamp) != parseInt(result.search_timestamp)
+              ) {
                 //Inconsistent - do not update
                 //console.log('Inconsistent');
                 res.send(false);
