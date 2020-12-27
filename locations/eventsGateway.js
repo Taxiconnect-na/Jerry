@@ -376,7 +376,7 @@ io.on("connection", (socket) => {
       let url =
         process.env.LOCAL_URL +
         ":" +
-        process.env.process.env.PRICING_SERVICE_PORT +
+        process.env.PRICING_SERVICE_PORT +
         "/getOverallPricingAndAvailabilityDetails";
 
       requestAPI.post({ url, form: req }, function (error, response, body) {
