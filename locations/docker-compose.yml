@@ -1,0 +1,21 @@
+version: "3"
+
+services:
+  redis-server:
+    image: redis:latest
+    restart: always
+
+  server_beta_v2:
+    depends_on:
+      - redis-server
+    image: dominiquektt/rider_beta_server:latest
+    ports:
+      - "9097:9097"
+      - "9090:9090"
+      - "9091:9091"
+      - "8989:8989"
+      - "9094:9094"
+      - "9696:9696"
+      - "9494:9494"
+      - "9093:9093"
+    restart: always
