@@ -10,8 +10,6 @@ const MongoClient = require("mongodb").MongoClient;
 
 var app = express();
 var server = http.createServer(app);
-const io = require("socket.io")(server);
-const mysql = require("mysql");
 const requestAPI = require("request");
 const crypto = require("crypto");
 //....

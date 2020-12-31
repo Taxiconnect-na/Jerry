@@ -104,6 +104,7 @@ io.on("connection", (socket) => {
    * Get user location (reverse geocoding)
    */
   socket.on("geocode-this-point", function (req) {
+    console.log(req);
     if (
       req.latitude !== undefined &&
       req.latitude !== null &&

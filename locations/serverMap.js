@@ -435,7 +435,7 @@ function updateRiderLocationsLog(
 /**
  * @func tripChecker_Dispatcher()
  * inputs:
- * collectionRidersData_repr: rider's front metadata
+ * collectionRidesDeliveries_data: rider's front metadata
  * user_fingerprint: fingerprint of the user requesting the information
  * user_nature: rider or driver
  * Responsible for finding out if there is any trip in progress linked to the user fingerprint
@@ -448,19 +448,19 @@ function updateRiderLocationsLog(
  * REQUEST STATUS: pending, inRouteToPickup, inRouteToDropoff, completedDriverConfimed
  */
 function tripChecker_Dispatcher(
-  collectionRidersData_repr,
+  collectionRidesDeliveries_data,
   collectionDrivers_profiles,
   user_fingerprint,
   user_nature,
   resolve
 ) {
-  if (user_nature == "rider") {
+  if (/^rider$/i.test(user_nature)) {
     //Check if the user has a pending request
     let rideChecker = {
       client_id: user_fingerprint,
       "ride_state_vars.isRideCompleted_riderSide": false,
     };
-    collectionRidersData_repr
+    collectionRidesDeliveries_data
       .find(rideChecker)
       .toArray(function (err, userDataRepr) {
         if (err) {
@@ -481,7 +481,7 @@ function tripChecker_Dispatcher(
             let request_fp = userDataRepr[0].request_fp;
             //Check if there are any requests cached
             getMongoRecordTrip_cacheLater(
-              collectionRidersData_repr,
+              collectionRidesDeliveries_data,
               collectionDrivers_profiles,
               user_fingerprint,
               user_nature,
@@ -496,7 +496,137 @@ function tripChecker_Dispatcher(
           }
         }
       });
-  } //Malformed
+  } else if (/^driver$/i.test(user_nature)) {
+    //Check if the driver has an accepted and not completed request already
+    let checkRide0 = {
+      taxi_id: user_fingerprint,
+      "ride_state_vars.isAccepted": true,
+      "ride_state_vars.isRideCompleted_driverSide": false,
+    };
+    collectionRidesDeliveries_data
+      .find(checkRide0)
+      .toArray(function (err, acceptedRidesArray) {
+        if (err) {
+          resolve(false);
+        }
+        //...
+        if (acceptedRidesArray.length > 0) {
+          //Has accepted some rides already
+          //1. Check if he has accepted an unconfirmed driver's side connectMe request or not.
+          //a. If yes, only send the uncompleted connectMe request
+          //b. If not, send the current accepted requests AND add on top additional new allowed see rides.
+          let checkRide1 = {
+            taxi_id: user_fingerprint,
+            connect_type: { $regex: "ConnectMe", $options: "i" },
+            "ride_state_vars.isRideCompleted_driverSide": false,
+          };
+          collectionRidesDeliveries_data
+            .find(checkRide1)
+            .toArray(function (err, result1) {
+              if (err) {
+                resolve(false);
+              }
+              //...
+              if (result1.length > 0) {
+                console.log("PENDING_CONNECTME");
+                //Has an uncompleted connectMe request - only send this connectMe request until it is completed
+                new Promise((res) => {
+                  execGetDrivers_requests_and_provide(
+                    user_fingerprint,
+                    "PENDING_CONNECTME",
+                    result1,
+                    collectionRidesDeliveries_data,
+                    res
+                  );
+                }).then(
+                  (resultFinal) => {
+                    resolve(resultFinal);
+                  },
+                  (error) => {
+                    console.log(error);
+                    resolve(false);
+                  }
+                );
+              } //Has no uncompleted connectMe requests - so, send the accepted requests and add additional virgin allowed to see rides
+              else {
+                console.log("ACCEPTED_AND_ADDITIONAL_REQUESTS");
+                new Promise((res) => {
+                  execGetDrivers_requests_and_provide(
+                    user_fingerprint,
+                    "ACCEPTED_AND_ADDITIONAL_REQUESTS",
+                    acceptedRidesArray,
+                    collectionRidesDeliveries_data,
+                    res
+                  );
+                }).then(
+                  (resultFinal) => {
+                    resolve(resultFinal);
+                  },
+                  (error) => {
+                    console.log(error);
+                    resolve(false);
+                  }
+                );
+              }
+            });
+        } //NO rides already accepted yet - send full list of allowed to see rides
+        else {
+          console.log("FULL_ALLLOWEDTOSEE_REQUESTS");
+          new Promise((res) => {
+            execGetDrivers_requests_and_provide(
+              user_fingerprint,
+              "FULL_ALLLOWEDTOSEE_REQUESTS",
+              false,
+              collectionRidesDeliveries_data,
+              res
+            );
+          }).then(
+            (resultFinal) => {
+              resolve(resultFinal);
+            },
+            (error) => {
+              console.log(error);
+              resolve(false);
+            }
+          );
+        }
+      });
+  }
+  //Malformed
+  else {
+    resolve(false);
+  }
+}
+
+/**
+ * @func execGetDrivers_requests_and_provide
+ * Responsible for getting all driver's requests based on the following 3 scenarios:
+ * ? 1. PENDING_CONNECTME: when the driver has an uncompleted connectMe request in progress.
+ * ? 2. ACCEPTED_AND_ADDITIONAL_REQUESTS: when the driver has already accepted some requests, and add on top of that some new allowed to see requests.
+ * ? 3. FULL_ALLLOWEDTOSEE_REQUESTS: when the driver haven't accepted any requests yet, return a full list of maximum allowed to see requests based on the car capacity.
+ * Limit the number of requests to the maximum capacity of the car + 3
+ * Return requests based on the type of car supported.
+ * Return requests based on the destination type : private location, taxi rank or airport.
+ * @param user_fingerprint: the driver's fingerprint.
+ * @param scenarioString: one of the 3 enumerated scenarios.
+ * @param alreadyFetchedData: the requests already fetched from the @func tripChecker_Dispatcher function to avoid repetition.
+ * @param collectionRidesDeliveries_data: the list of all the requests made
+ * @param resolve
+ */
+function execGetDrivers_requests_and_provide(
+  user_fingerprint,
+  scenarioString,
+  alreadyFetchedData,
+  collectionRidesDeliveries_data,
+  resolve
+) {
+  if (/PENDING_CONNECTME/i.test(scenarioString)) {
+    //Scenario 1
+  } else if (/ACCEPTED_AND_ADDITIONAL_REQUESTS/i.test(scenarioString)) {
+    //Scenario 2
+  } else if (/FULL_ALLLOWEDTOSEE_REQUESTS/i.test(scenarioString)) {
+    //Scenario 3
+  } //Unknown scenario
   else {
     resolve(false);
   }
@@ -509,7 +639,7 @@ function tripChecker_Dispatcher(
  */
 
 function getUserRideCachedData_andComputeRoute(
-  collectionRidersData_repr,
+  collectionRidesDeliveries_data,
   user_fingerprint,
   user_nature,
   respUser,
@@ -519,7 +649,7 @@ function getUserRideCachedData_andComputeRoute(
   //1. Pre compute and cache next record for later use
   new Promise((reslv) => {
     getMongoRecordTrip_cacheLater(
-      collectionRidersData_repr,
+      collectionRidesDeliveries_data,
       user_fingerprint,
       user_nature,
       respUser.request_fp,
@@ -546,7 +676,7 @@ function getUserRideCachedData_andComputeRoute(
  * CAN BE USED FOR RIDERS AND DRIVERS
  */
 function getMongoRecordTrip_cacheLater(
-  collectionRidersData_repr,
+  collectionRidesDeliveries_data,
   collectionDrivers_profiles,
   user_fingerprint,
   user_nature,
@@ -558,14 +688,16 @@ function getMongoRecordTrip_cacheLater(
     client_id: user_fingerprint,
     request_fp: request_fp,
   };
-  collectionRidersData_repr.find(queryFilter).toArray(function (err, result) {
-    if (err) {
-      resolve(false);
-      throw err;
-    }
-    //Compute route via compute skeleton
-    computeRouteDetails_skeleton(result, collectionDrivers_profiles, resolve);
-  });
+  collectionRidesDeliveries_data
+    .find(queryFilter)
+    .toArray(function (err, result) {
+      if (err) {
+        resolve(false);
+        throw err;
+      }
+      //Compute route via compute skeleton
+      computeRouteDetails_skeleton(result, collectionDrivers_profiles, resolve);
+    });
 }
 /**
  * @func computeRouteDetails_skeleton
@@ -1393,6 +1525,7 @@ function computeAndCacheRouteDestination(
 /**
  * @func updateRiderLocationInfosCache()
  * Responsible for updating the cache infos about the rider's trip location.
+ * RIDERS/DRIVERS
  * @param req: contains all the user informations biased to the location aspect
  * @param resolve: resolver for promise
  * IMPORTANT
@@ -1959,7 +2092,7 @@ clientMongo.connect(function (err) {
   //if (err) throw err;
   console.log("[+] MAP services active.");
   const dbMongo = clientMongo.db(process.env.DB_NAME_MONGODDB);
-  const collectionRidersData_repr = dbMongo.collection(
+  const collectionRidesDeliveries_data = dbMongo.collection(
     "rides_deliveries_requests"
   ); //Hold all the requests made (rides and deliveries)
   const collectionRelativeDistances = dbMongo.collection(
@@ -2024,8 +2157,8 @@ clientMongo.connect(function (err) {
   });*/
 
   /**
-   * PASSENGER LOCATION UPDATE MANAGER
-   * Responsible for updating in the databse and other caches new passenger's locations received.
+   * PASSENGER/DRIVER LOCATION UPDATE MANAGER
+   * Responsible for updating in the databse and other caches new passenger's/rider's locations received.
    * Update CACHE -> MONGODB (-> TRIP CHECKER DISPATCHER)
    */
   app.get("/updatePassengerLocation", function (req, res) {
@@ -2048,10 +2181,12 @@ clientMongo.connect(function (err) {
       new Promise((res) => {
         //console.log("fetching data");
         tripChecker_Dispatcher(
-          collectionRidersData_repr,
+          collectionRidesDeliveries_data,
           collectionDrivers_profiles,
           req.user_fingerprint,
-          "rider",
+          req.user_nature !== undefined && req.user_nature !== null
+            ? req.user_nature
+            : "rider",
           res
         );
       }).then(
@@ -2111,8 +2246,8 @@ clientMongo.connect(function (err) {
   /**
    * REVERSE GEOCODER
    * To get the exact approx. location of the user or driver.
-   * //REDIS propertiy
-   * //user_fingerprint -> currentLocationInfos: {...}
+   * REDIS propertiy
+   * user_fingerprint -> currentLocationInfos: {...}
    */
   app.get("/getUserLocationInfos", function (req, res) {
     let params = urlParser.parse(req.url, true);
@@ -2146,7 +2281,7 @@ clientMongo.connect(function (err) {
    * Route name: identifyPickupLocation
    * Responsible for finding out the nature of places (ge. Private locations, taxi ranks or other specific plcaes of interest)
    * This one will only focus on Pvate locations AND taxi ranks.
-   * //False means : not a taxirank -> private location AND another object means taxirank
+   * False means : not a taxirank -> private location AND another object means taxirank
    */
   app.get("/identifyPickupLocation", function (req, res) {
     let params = urlParser.parse(req.url, true);
