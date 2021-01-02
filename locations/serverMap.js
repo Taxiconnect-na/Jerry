@@ -444,6 +444,7 @@ function updateRiderLocationsLog(
  * @true when the passenger confirms his/her drop off
  * @var isRideCompleted_driverSide
  * @param collectionDrivers_profiles: list of all the drivers
+ * @param requestType: ONLY FOR DRIVERS - ride, delivery or scheduled
  * @true when the driver confirms that the trip is over from his/her side
  * REQUEST STATUS: pending, inRouteToPickup, inRouteToDropoff, completedDriverConfimed
  */
@@ -452,6 +453,7 @@ function tripChecker_Dispatcher(
   collectionDrivers_profiles,
   user_fingerprint,
   user_nature,
+  requestType = "ride",
   resolve
 ) {
   if (/^rider$/i.test(user_nature)) {
@@ -497,99 +499,119 @@ function tripChecker_Dispatcher(
         }
       });
   } else if (/^driver$/i.test(user_nature)) {
-    //Check if the driver has an accepted and not completed request already
-    let checkRide0 = {
-      taxi_id: user_fingerprint,
-      "ride_state_vars.isAccepted": true,
-      "ride_state_vars.isRideCompleted_driverSide": false,
-    };
-    collectionRidesDeliveries_data
-      .find(checkRide0)
-      .toArray(function (err, acceptedRidesArray) {
+    //Get the driver's details
+    collectionDrivers_profiles
+      .find({
+        driver_fingerprint: user_fingerprint,
+        "operational_state.status": { $regex: /online/i },
+      })
+      .toArray(function (err, driverData) {
         if (err) {
           resolve(false);
         }
+        //
+        if (driverData.length <= 0) {
+          resolve(false);
+        }
+        driverData = driverData[0];
         //...
-        if (acceptedRidesArray.length > 0) {
-          //Has accepted some rides already
-          //1. Check if he has accepted an unconfirmed driver's side connectMe request or not.
-          //a. If yes, only send the uncompleted connectMe request
-          //b. If not, send the current accepted requests AND add on top additional new allowed see rides.
-          let checkRide1 = {
-            taxi_id: user_fingerprint,
-            connect_type: { $regex: "ConnectMe", $options: "i" },
-            "ride_state_vars.isRideCompleted_driverSide": false,
-          };
-          collectionRidesDeliveries_data
-            .find(checkRide1)
-            .toArray(function (err, result1) {
-              if (err) {
-                resolve(false);
-              }
-              //...
-              if (result1.length > 0) {
-                console.log("PENDING_CONNECTME");
-                //Has an uncompleted connectMe request - only send this connectMe request until it is completed
-                new Promise((res) => {
-                  execGetDrivers_requests_and_provide(
-                    user_fingerprint,
-                    "PENDING_CONNECTME",
-                    result1,
-                    collectionRidesDeliveries_data,
-                    res
-                  );
-                }).then(
-                  (resultFinal) => {
-                    resolve(resultFinal);
-                  },
-                  (error) => {
-                    console.log(error);
-                    resolve(false);
-                  }
-                );
-              } //Has no uncompleted connectMe requests - so, send the accepted requests and add additional virgin allowed to see rides
-              else {
-                console.log("ACCEPTED_AND_ADDITIONAL_REQUESTS");
-                new Promise((res) => {
-                  execGetDrivers_requests_and_provide(
-                    user_fingerprint,
-                    "ACCEPTED_AND_ADDITIONAL_REQUESTS",
-                    acceptedRidesArray,
-                    collectionRidesDeliveries_data,
-                    res
-                  );
-                }).then(
-                  (resultFinal) => {
-                    resolve(resultFinal);
-                  },
-                  (error) => {
-                    console.log(error);
-                    resolve(false);
-                  }
-                );
-              }
-            });
-        } //NO rides already accepted yet - send full list of allowed to see rides
-        else {
-          console.log("FULL_ALLLOWEDTOSEE_REQUESTS");
-          new Promise((res) => {
-            execGetDrivers_requests_and_provide(
-              user_fingerprint,
-              "FULL_ALLLOWEDTOSEE_REQUESTS",
-              false,
-              collectionRidesDeliveries_data,
-              res
-            );
-          }).then(
-            (resultFinal) => {
-              resolve(resultFinal);
-            },
-            (error) => {
-              console.log(error);
+        //Check if the driver has an accepted and not completed request already
+        let checkRide0 = {
+          taxi_id: user_fingerprint,
+          "ride_state_vars.isAccepted": true,
+          "ride_state_vars.isRideCompleted_driverSide": false,
+        };
+        collectionRidesDeliveries_data
+          .find(checkRide0)
+          .toArray(function (err, acceptedRidesArray) {
+            if (err) {
               resolve(false);
             }
-          );
-        }
+            //...
+            if (acceptedRidesArray.length > 0) {
+              //Has accepted some rides already
+              //1. Check if he has accepted an unconfirmed driver's side connectMe request or not.
+              //a. If yes, only send the uncompleted connectMe request
+              //b. If not, send the current accepted requests AND add on top additional new allowed see rides.
+              let checkRide1 = {
+                taxi_id: user_fingerprint,
+                connect_type: { $regex: "ConnectMe", $options: "i" },
+                "ride_state_vars.isRideCompleted_driverSide": false,
+              };
+              collectionRidesDeliveries_data
+                .find(checkRide1)
+                .toArray(function (err, result1) {
+                  if (err) {
+                    resolve(false);
+                  }
+                  //...
+                  if (result1.length > 0) {
+                    console.log("PENDING_CONNECTME");
+                    //Has an uncompleted connectMe request - only send this connectMe request until it is completed
+                    new Promise((res) => {
+                      execGetDrivers_requests_and_provide(
+                        driverData,
+                        requestType,
+                        "PENDING_CONNECTME",
+                        result1,
+                        collectionRidesDeliveries_data,
+                        res
+                      );
+                    }).then(
+                      (resultFinal) => {
+                        resolve(resultFinal);
+                      },
+                      (error) => {
+                        console.log(error);
+                        resolve(false);
+                      }
+                    );
+                  } //Has no uncompleted connectMe requests - so, send the accepted requests and add additional virgin allowed to see rides
+                  else {
+                    console.log("ACCEPTED_AND_ADDITIONAL_REQUESTS");
+                    new Promise((res) => {
+                      execGetDrivers_requests_and_provide(
+                        driverData,
+                        requestType,
+                        "ACCEPTED_AND_ADDITIONAL_REQUESTS",
+                        acceptedRidesArray,
+                        collectionRidesDeliveries_data,
+                        res
+                      );
+                    }).then(
+                      (resultFinal) => {
+                        resolve(resultFinal);
+                      },
+                      (error) => {
+                        console.log(error);
+                        resolve(false);
+                      }
+                    );
+                  }
+                });
+            } //NO rides already accepted yet - send full list of allowed to see rides
+            else {
+              console.log("FULL_ALLLOWEDTOSEE_REQUESTS");
+              new Promise((res) => {
+                execGetDrivers_requests_and_provide(
+                  driverData,
+                  requestType,
+                  "FULL_ALLLOWEDTOSEE_REQUESTS",
+                  false,
+                  collectionRidesDeliveries_data,
+                  res
+                );
+              }).then(
+                (resultFinal) => {
+                  resolve(resultFinal);
+                },
+                (error) => {
+                  console.log(error);
+                  resolve(false);
+                }
+              );
+            }
+          });
       });
   }
   //Malformed
@@ -607,14 +629,16 @@ function tripChecker_Dispatcher(
  * Limit the number of requests to the maximum capacity of the car + 3
  * Return requests based on the type of car supported.
  * Return requests based on the destination type : private location, taxi rank or airport.
- * @param user_fingerprint: the driver's fingerprint.
+ * @param driverData: the driver's complete information.
+ * @param requestType: the type of request to get - ride, delivery or scheduled - default: rides
  * @param scenarioString: one of the 3 enumerated scenarios.
  * @param alreadyFetchedData: the requests already fetched from the @func tripChecker_Dispatcher function to avoid repetition.
  * @param collectionRidesDeliveries_data: the list of all the requests made
  * @param resolve
  */
 function execGetDrivers_requests_and_provide(
-  user_fingerprint,
+  driverData,
+  requestType,
   scenarioString,
   alreadyFetchedData,
   collectionRidesDeliveries_data,
@@ -624,8 +648,109 @@ function execGetDrivers_requests_and_provide(
     //Scenario 1
   } else if (/ACCEPTED_AND_ADDITIONAL_REQUESTS/i.test(scenarioString)) {
     //Scenario 2
+    let request_type_regex = /scheduled/i.test(requestType)
+      ? "scheduled"
+      : "now"; //For scheduled requests display or not.
+    let requestFilter = {
+      taxi_id: false,
+      "ride_state_vars.isAccepted": false,
+      carTypeSelected: {
+        $regex: driverData.operational_state.default_selected_car.vehicle_type,
+        $options: "i",
+      },
+      country: {
+        $regex: driverData.operational_state.last_location.country,
+        $options: "i",
+      },
+      "pickup_location_infos.city": {
+        $regex: driverData.operational_state.last_location.city,
+        $options: "i",
+      },
+      ride_mode: { $regex: requestType, $options: "i" }, //ride, delivery
+      request_type: { $regex: request_type_regex, $options: "i" }, //Shceduled or now rides/deliveries
+    };
+    //...
+    collectionRidesDeliveries_data
+      .find(requestFilter)
+      .toArray(function (err, requestsData) {
+        if (err) {
+          resolve(false);
+        }
+        //...
+        if (requestsData.length > 0) {
+          //Found some data
+          //1. Filter the requests based on the clearances of the driver - ride/delivery
+          let clearancesString = driverData.operation_clearances.join(",");
+          let max_passengers_capacity =
+            driverData.operational_state.default_selected_car.max_passengers;
+          //...
+          let refinedRequests = requestsData.filter((request) => {
+            let tmpReg = new RegExp(request.ride_mode, "i");
+            return tmpReg.test(clearancesString);
+          });
+          //2. ADD THE ALREADY ACCEPTED REQUESTS IN FRONT
+          refinedRequests = [...alreadyFetchedData, ...refinedRequests];
+          //Slice based on the max capacity
+          refinedRequests = refinedRequests.slice(0, max_passengers_capacity);
+          //...
+          resolve(refinedRequests);
+        } //No requests - send the already accepted requests.
+        else {
+          resolve(alreadyFetchedData);
+        }
+      });
   } else if (/FULL_ALLLOWEDTOSEE_REQUESTS/i.test(scenarioString)) {
     //Scenario 3
+    //default_selected_car.[max_passengers, vehicle_type]
+    let request_type_regex = /scheduled/i.test(requestType)
+      ? "scheduled"
+      : "now"; //For scheduled requests display or not.
+    let requestFilter = {
+      taxi_id: false,
+      "ride_state_vars.isAccepted": false,
+      carTypeSelected: {
+        $regex: driverData.operational_state.default_selected_car.vehicle_type,
+        $options: "i",
+      },
+      country: {
+        $regex: driverData.operational_state.last_location.country,
+        $options: "i",
+      },
+      "pickup_location_infos.city": {
+        $regex: driverData.operational_state.last_location.city,
+        $options: "i",
+      },
+      ride_mode: { $regex: requestType, $options: "i" }, //ride, delivery
+      request_type: { $regex: request_type_regex, $options: "i" }, //Shceduled or now rides/deliveries
+    };
+    //...
+    collectionRidesDeliveries_data
+      .find(requestFilter)
+      .toArray(function (err, requestsData) {
+        if (err) {
+          resolve(false);
+        }
+        //...
+        if (requestsData.length > 0) {
+          //Found some data
+          //1. Filter the requests based on the clearances of the driver - ride/delivery
+          let clearancesString = driverData.operation_clearances.join(",");
+          let max_passengers_capacity =
+            driverData.operational_state.default_selected_car.max_passengers;
+          //...
+          let refinedRequests = requestsData.filter((request) => {
+            let tmpReg = new RegExp(request.ride_mode, "i");
+            return tmpReg.test(clearancesString);
+          });
+          //Slice based on the max capacity
+          refinedRequests = refinedRequests.slice(0, max_passengers_capacity);
+          //...
+          resolve(refinedRequests);
+        } //No requests
+        else {
+          resolve({ response: "no_requests" });
+        }
+      });
   } //Unknown scenario
   else {
     resolve(false);
@@ -2187,6 +2312,9 @@ clientMongo.connect(function (err) {
           req.user_nature !== undefined && req.user_nature !== null
             ? req.user_nature
             : "rider",
+          req.requestType !== undefined && req.requestType !== null
+            ? req.requestType
+            : "rides",
           res
         );
       }).then(

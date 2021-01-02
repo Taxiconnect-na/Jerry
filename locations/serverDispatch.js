@@ -870,14 +870,14 @@ function intitiateStagedDispatch(
  * Responsible for EXECUTING the staged sending of notifications and adding correspoding drivers to
  * the allowed_drivers_see list of the request so that they can access the trip from their app if not
  * yet accepted.
- * * Closest first (1 driver)
+ * ? Closest first (1 driver)
  * after 1min30'' of not accepting
- * * increase the radius (3 drivers)
+ * ? increase the radius (3 drivers)
  * after 1 min of not accepting
- * * increase the radius (5 drivers)
+ * ? increase the radius (5 drivers)
  * after 1 min of not accepting
- * * increase the radius (all the rest)
- * * after 20 min of not accepting - AUTO cancel request
+ * ? increase the radius (all the rest)
+ * ! after 20 min of not accepting - AUTO cancel request
  */
 function sendStagedNotificationsDrivers(
   closestDriversList,
