@@ -80,6 +80,18 @@ io.on("connection", (socket) => {
         req.longitude +
         "&user_fingerprint=" +
         req.user_fingerprint;
+      //Supplement or not the request string based on if the user is a driver or rider
+      if (req.user_nature !== undefined && req.user_nature !== null) {
+        url +=
+          req.user_nature !== undefined && req.user_nature !== null
+            ? "&user_nature=" + req.user_nature
+            : "&user_nature=rider";
+        url +=
+          req.requestType !== undefined && req.requestType !== null
+            ? "&requestType=" + req.requestType
+            : "&requestType=rides";
+      }
+      //...
       requestAPI(url, function (error, response, body) {
         console.log("RESPONSE HEREE ", body);
         if (error === null) {

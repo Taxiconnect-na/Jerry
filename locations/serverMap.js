@@ -520,6 +520,7 @@ function tripChecker_Dispatcher(
           taxi_id: user_fingerprint,
           "ride_state_vars.isAccepted": true,
           "ride_state_vars.isRideCompleted_driverSide": false,
+          isArrivedToDestination: false,
         };
         collectionRidesDeliveries_data
           .find(checkRide0)
@@ -537,6 +538,7 @@ function tripChecker_Dispatcher(
                 taxi_id: user_fingerprint,
                 connect_type: { $regex: "ConnectMe", $options: "i" },
                 "ride_state_vars.isRideCompleted_driverSide": false,
+                allowed_drivers_see: user_fingerprint,
               };
               collectionRidesDeliveries_data
                 .find(checkRide1)
@@ -656,6 +658,9 @@ function execGetDrivers_requests_and_provide(
     let requestFilter = {
       taxi_id: false,
       "ride_state_vars.isAccepted": false,
+      "ride_state_vars.isRideCompleted_driverSide": false,
+      isArrivedToDestination: false,
+      allowed_drivers_see: driverData.driver_fingerprint,
       carTypeSelected: {
         $regex: driverData.operational_state.default_selected_car.vehicle_type,
         $options: "i",
@@ -710,6 +715,9 @@ function execGetDrivers_requests_and_provide(
     let requestFilter = {
       taxi_id: false,
       "ride_state_vars.isAccepted": false,
+      "ride_state_vars.isRideCompleted_driverSide": false,
+      allowed_drivers_see: driverData.driver_fingerprint,
+      isArrivedToDestination: false,
       carTypeSelected: {
         $regex: driverData.operational_state.default_selected_car.vehicle_type,
         $options: "i",
