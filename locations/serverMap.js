@@ -646,6 +646,8 @@ function execGetDrivers_requests_and_provide(
 ) {
   if (/PENDING_CONNECTME/i.test(scenarioString)) {
     //Scenario 1
+    //Just send the alreadyFetchedData for the connectMe
+    resolve(alreadyFetchedData);
   } else if (/ACCEPTED_AND_ADDITIONAL_REQUESTS/i.test(scenarioString)) {
     //Scenario 2
     let request_type_regex = /scheduled/i.test(requestType)
