@@ -852,6 +852,134 @@ function parseRequests_forDrivers_view(
   driverData,
   resolve
 ) {
+  let batchRequestProcessing = requestsArray.map((request) => {
+    return new Promise((res) => {
+      //Build the redis key unique template
+      let redisKey = request.request_fp + "cached_tempo-parsed-request";
+      //CHECK for any previous parsing
+      redisGet(redisKey).then(
+        (resp) => {
+          if (resp !== null) {
+            console.log("Found single request cached stored!");
+            //Has a previous record
+            try {
+              resp = JSON.parse(resp);
+              //Make a background update request
+              new Promise((resFresh) => {
+                execDriver_requests_parsing(
+                  request,
+                  collectionPassengers_profiles,
+                  driverData,
+                  redisKey,
+                  resFresh
+                );
+              }).then(
+                () => {},
+                () => {}
+              );
+              //...
+              //Quickly return the cached result
+              res(resp);
+            } catch (error) {
+              console.log(error);
+              //Error make a fresh request
+              new Promise((resFresh) => {
+                execDriver_requests_parsing(
+                  request,
+                  collectionPassengers_profiles,
+                  driverData,
+                  redisKey,
+                  resFresh
+                );
+              }).then(
+                (resultParsed) => {
+                  res(resultParsed);
+                },
+                (error) => {
+                  console.log(error);
+                  res(false);
+                }
+              );
+            }
+          } //No previous record - make a fresh request
+          else {
+            new Promise((resFresh) => {
+              execDriver_requests_parsing(
+                request,
+                collectionPassengers_profiles,
+                driverData,
+                redisKey,
+                resFresh
+              );
+            }).then(
+              (resultParsed) => {
+                res(resultParsed);
+              },
+              (error) => {
+                console.log(error);
+                res(false);
+              }
+            );
+          }
+        },
+        (error) => {
+          console.log(error);
+          //Error make a fresh request
+          new Promise((resFresh) => {
+            execDriver_requests_parsing(
+              request,
+              collectionPassengers_profiles,
+              driverData,
+              redisKey,
+              resFresh
+            );
+          }).then(
+            (resultParsed) => {
+              res(resultParsed);
+            },
+            (error) => {
+              console.log(error);
+              res(false);
+            }
+          );
+        }
+      );
+    });
+  });
+  //...
+  Promise.all(batchRequestProcessing).then(
+    (batchRequestsResults) => {
+      //Remove any false values
+      batchRequestsResults = batchRequestsResults.filter(
+        (request) => request !== false
+      );
+      //DONE WITH BATCH REQUESTS
+      resolve(batchRequestsResults);
+    },
+    (error) => {
+      console.log(error);
+      resolve(false);
+    }
+  );
+}
+
+/**
+ * @func execDriver_requests_parsing
+ * Responsible for executing the parsing for the individual requests fetched by the drivers
+ * @param request: raw single request straight from Mongo
+ * @param collectionPassengers_profiles: the list of all the passengers profiles.
+ * @param driverData: the full drivers profile data
+ * @param redisKey: the redis key to cache the result after computing
+ * @param resolve
+ */
+function execDriver_requests_parsing(
+  request,
+  collectionPassengers_profiles,
+  driverData,
+  redisKey,
+  resolve
+) {
+  let res = resolve;
   let parsedRequestsArray = {
     request_fp: null,
     passenger_infos: {
@@ -886,151 +1014,157 @@ function parseRequests_forDrivers_view(
     },
   };
   //...
-  requestsArray.map((request) => {
-    return new Promise((res) => {
-      //Start the individual parsing
-      //1. Add the passenger infos
-      collectionPassengers_profiles
-        .find({ user_fingerprint: request.client_id })
-        .toArray(function (err, passengerData) {
-          if (err) {
-            res(false);
-          }
-          //...
-          parsedRequestsArray.passenger_infos.name = request.ride_state_vars
-            .isAccepted
-            ? passengerData.name
-            : null;
-          parsedRequestsArray.passenger_infos.phone_number = request
-            .ride_state_vars.isAccepted
-            ? passengerData.phone_number
-            : null;
-          //2. Add the basic trip infos
-          parsedRequestsArray.ride_basic_infos.payment_method =
-            request.payment_method;
-          parsedRequestsArray.ride_basic_infos.fare_amount = request.fare;
-          parsedRequestsArray.ride_basic_infos.passengers_number =
-            request.passengers_number;
-          parsedRequestsArray.ride_basic_infos.connect_type =
-            request.connect_type;
-          parsedRequestsArray.ride_basic_infos.isAccepted =
-            request.ride_state_vars.isAccepted;
-          parsedRequestsArray.ride_basic_infos.inRideToDestination =
-            request.ride_state_vars.inRideToDestination;
-          parsedRequestsArray.ride_basic_infos.isRideCompleted_driverSide =
-            request.ride_state_vars.isRideCompleted_driverSide;
-          //3. Compute the ETA to passenger
-          new Promise((res0) => {
-            getRouteInfosDestination(
-              {
-                destination: {
-                  latitude: parseFloat(
-                    driverData.operational_state.last_location.coordinates
-                      .latitude
-                  ),
-                  longitude: parseFloat(
-                    driverData.operational_state.last_location.coordinates
-                      .longitude
-                  ),
-                },
-                passenger: {
-                  latitude: parseFloat(
-                    request.pickup_location_infos.coordinates.latitude
-                  ),
-                  longitude: parseFloat(
-                    request.pickup_location_infos.coordinates.longitude
-                  ),
-                },
-              },
-              res0,
-              true,
-              request.request_fp + "-cached-etaToPassenger-requests"
-            );
-          }).then(
-            (resultEtaToPassenger) => {
-              if (resultEtaToPassenger !== false) {
-                //Save the eta and distancee
-                parsedRequestsArray.eta_to_passenger_infos.eta =
-                  resultEtaToPassenger.eta;
-                parsedRequestsArray.eta_to_passenger_infos.distance =
-                  resultEtaToPassenger.distance;
-                //4. Add the destination informations
-                parsedRequestsArray.origin_destination_infos.pickup_infos.location_name =
-                  request.pickup_location_infos.location_name !== undefined &&
-                  request.pickup_location_infos.location_name !== false
-                    ? request.pickup_location_infos.location_name
-                    : request.pickup_location_infos.street_name;
-                parsedRequestsArray.origin_destination_infos.pickup_infos.street_name =
-                  request.pickup_location_infos.street_name;
-                parsedRequestsArray.origin_destination_infos.pickup_infos.suburb =
-                  request.pickup_location_infos.suburb;
-                parsedRequestsArray.origin_destination_infos.pickup_infos.coordinates =
-                  request.pickup_location_infos.coordinates;
+  //Start the individual parsing
+  //1. Add the passenger infos
+  collectionPassengers_profiles
+    .find({ user_fingerprint: request.client_id })
+    .toArray(function (err, passengerData) {
+      if (err) {
+        res(false);
+      }
+      //...
+      parsedRequestsArray.passenger_infos.name = request.ride_state_vars
+        .isAccepted
+        ? passengerData.name
+        : null;
+      parsedRequestsArray.passenger_infos.phone_number = request.ride_state_vars
+        .isAccepted
+        ? passengerData.phone_number
+        : null;
+      //2. Add the basic trip infos
+      parsedRequestsArray.ride_basic_infos.payment_method =
+        request.payment_method;
+      parsedRequestsArray.ride_basic_infos.fare_amount = parseFloat(
+        request.fare
+      );
+      parsedRequestsArray.ride_basic_infos.passengers_number = parseInt(
+        request.passengers_number
+      );
+      parsedRequestsArray.ride_basic_infos.connect_type = request.connect_type;
+      parsedRequestsArray.ride_basic_infos.isAccepted =
+        request.ride_state_vars.isAccepted;
+      parsedRequestsArray.ride_basic_infos.inRideToDestination =
+        request.ride_state_vars.inRideToDestination;
+      parsedRequestsArray.ride_basic_infos.isRideCompleted_driverSide =
+        request.ride_state_vars.isRideCompleted_driverSide;
+      //3. Compute the ETA to passenger
+      new Promise((res0) => {
+        getRouteInfosDestination(
+          {
+            destination: {
+              latitude: parseFloat(
+                driverData.operational_state.last_location.coordinates.latitude
+              ),
+              longitude: parseFloat(
+                driverData.operational_state.last_location.coordinates.longitude
+              ),
+            },
+            passenger: {
+              latitude: parseFloat(
+                request.pickup_location_infos.coordinates.latitude
+              ),
+              longitude: parseFloat(
+                request.pickup_location_infos.coordinates.longitude
+              ),
+            },
+          },
+          res0,
+          true,
+          request.request_fp + "-cached-etaToPassenger-requests"
+        );
+      }).then(
+        (resultEtaToPassenger) => {
+          if (resultEtaToPassenger !== false) {
+            //Save the eta and distancee
+            parsedRequestsArray.eta_to_passenger_infos.eta =
+              resultEtaToPassenger.eta;
+            parsedRequestsArray.eta_to_passenger_infos.distance =
+              resultEtaToPassenger.distance;
+            //4. Add the destination informations
+            parsedRequestsArray.origin_destination_infos.pickup_infos.location_name =
+              request.pickup_location_infos.location_name !== undefined &&
+              request.pickup_location_infos.location_name !== false
+                ? request.pickup_location_infos.location_name
+                : request.pickup_location_infos.street_name;
+            parsedRequestsArray.origin_destination_infos.pickup_infos.street_name =
+              request.pickup_location_infos.street_name;
+            parsedRequestsArray.origin_destination_infos.pickup_infos.suburb =
+              request.pickup_location_infos.suburb;
+            parsedRequestsArray.origin_destination_infos.pickup_infos.coordinates =
+              request.pickup_location_infos.coordinates;
 
-                //Compute the ETA to destination details
-                new Promise((res1) => {
-                  getRouteInfosDestination(
-                    {
-                      destination: {
-                        latitude: parseFloat(
-                          request.destinationData[0].coordinates.longitude
-                        ),
-                        longitude: parseFloat(
-                          request.destinationData[0].coordinates.latitude
-                        ),
-                      },
-                      passenger: {
-                        latitude: parseFloat(
-                          request.pickup_location_infos.coordinates.latitude
-                        ),
-                        longitude: parseFloat(
-                          request.pickup_location_infos.coordinates.longitude
-                        ),
-                      },
-                    },
-                    res1,
-                    true,
-                    request.request_fp + "-cached-etaToDestination-requests"
-                  );
-                }).then(
-                  (resultETAToDestination) => {
-                    if (resultETAToDestination !== false) {
-                      //Save the ETA to destination data
-                      parsedRequestsArray.origin_destination_infos.eta_to_destination_infos.eta =
-                        resultETAToDestination.eta;
-                      parsedRequestsArray.origin_destination_infos.eta_to_destination_infos.distance =
-                        resultETAToDestination.distance;
-                      //4. Save the destination data
-                      parsedRequestsArray.origin_destination_infos.destination_infos =
-                        request.destinationData;
-                      //Add the request fingerprint
-                      parsedRequestsArray.request_fp = request.request_fp;
-                      //DONE
-                      console.log(parsedRequestsArray);
-                      res(parsedRequestsArray);
-                    } //Error
-                    else {
-                      res(false);
-                    }
+            //Compute the ETA to destination details
+            new Promise((res1) => {
+              getRouteInfosDestination(
+                {
+                  destination: {
+                    latitude: parseFloat(
+                      request.destinationData[0].coordinates.longitude
+                    ),
+                    longitude: parseFloat(
+                      request.destinationData[0].coordinates.latitude
+                    ),
                   },
-                  (error) => {
-                    console.log(error);
-                    res(false);
-                  }
-                );
-              } //EError
-              else {
+                  passenger: {
+                    latitude: parseFloat(
+                      request.pickup_location_infos.coordinates.latitude
+                    ),
+                    longitude: parseFloat(
+                      request.pickup_location_infos.coordinates.longitude
+                    ),
+                  },
+                },
+                res1,
+                true,
+                request.request_fp + "-cached-etaToDestination-requests"
+              );
+            }).then(
+              (resultETAToDestination) => {
+                if (resultETAToDestination !== false) {
+                  //Save the ETA to destination data
+                  parsedRequestsArray.origin_destination_infos.eta_to_destination_infos.eta =
+                    resultETAToDestination.eta;
+                  parsedRequestsArray.origin_destination_infos.eta_to_destination_infos.distance =
+                    resultETAToDestination.distance;
+                  //4. Save the destination data
+                  parsedRequestsArray.origin_destination_infos.destination_infos =
+                    request.destinationData;
+                  //Add the request fingerprint
+                  parsedRequestsArray.request_fp = request.request_fp;
+                  //DONE
+                  //CACHE
+                  new Promise((resCache) => {
+                    client.set(redisKey, JSON.stringify(parsedRequestsArray));
+                    resCache(true);
+                  }).then(
+                    () => {
+                      console.log("Single processing cached!");
+                    },
+                    () => {}
+                  );
+                  //Return the answer
+                  res(parsedRequestsArray);
+                } //Error
+                else {
+                  res(false);
+                }
+              },
+              (error) => {
+                console.log(error);
                 res(false);
               }
-            },
-            (error) => {
-              console.log(error);
-              res(false);
-            }
-          );
-        });
+            );
+          } //EError
+          else {
+            res(false);
+          }
+        },
+        (error) => {
+          console.log(error);
+          res(false);
+        }
+      );
     });
-  });
 }
 
 /**
