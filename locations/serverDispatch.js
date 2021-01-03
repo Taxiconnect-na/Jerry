@@ -1431,6 +1431,229 @@ function cancelRider_request(
 }
 
 /**
+ * @func declineRequest_driver
+ * Responsible for declining any requests from the driver side, thus placing the corresponding driver's fingerprint
+ * on the "intentional_request_decline" array making him/her unable to ever see the request again.
+ * @param collectionRidesDeliveryData: list of all the requests made.
+ * @param collectionGlobalEvents: hold all the random events that happened somewhere.
+ * @param bundleWorkingData: contains the driver_fp and the request_fp.
+ * @param resolve
+ */
+function declineRequest_driver(
+  bundleWorkingData,
+  collectionRidesDeliveryData,
+  collectionGlobalEvents,
+  resolve
+) {
+  resolveDate();
+  //Only decline if not yet accepted by the driver
+  collectionRidesDeliveryData
+    .find({
+      request_fp: bundleWorkingData.request_fp,
+      taxi_id: bundleWorkingData.driver_fingerprint,
+    })
+    .toArray(function (err, result) {
+      if (err) {
+        resolve({ response: "unable_to_decline_request_error" });
+      }
+      //...
+      if (result.length <= 0) {
+        //Wasn't accepted by this driver - proceed to the declining
+        //Save the declining event
+        new Promise((res) => {
+          collectionGlobalEvents.insertOne({
+            event_name: "driver_declining_request",
+            request_fp: bundleWorkingData.request_fp,
+            driver_fingerprint: bundleWorkingData.driver_fingerprint,
+            date: chaineDateUTC,
+          });
+        }).then(
+          () => {},
+          () => {}
+        );
+        //...Get the request
+        collectionRidesDeliveryData
+          .find({ request_fp: bundleWorkingData.request_fp })
+          .toArray(function (err, trueRequest) {
+            if (err) {
+              resolve({ response: "unable_to_decline_request_error" });
+            }
+            //...
+            if (trueRequest.length > 0) {
+              //Request still exists - proceed
+              let oldItDeclineList =
+                trueRequest.intentional_request_decline !== undefined &&
+                trueRequest.intentional_request_decline !== null
+                  ? trueRequest.intentional_request_decline
+                  : [];
+              //Update the old list
+              oldItDeclineList.push(bundleWorkingData.driver_fingerprint);
+              //..
+              collectionRidesDeliveryData.updateOne(
+                { request_fp: bundleWorkingData.request_fp },
+                { $set: { intentional_request_decline: oldItDeclineList } },
+                function (err, res) {
+                  if (err) {
+                    resolve({ response: "unable_to_decline_request_error" });
+                  }
+                  //DONE
+                  resolve({ response: "successfully_declined" });
+                }
+              );
+            } //Request not existing anymore - error
+            else {
+              resolve({ response: "unable_to_decline_request_error_notExist" });
+            }
+          });
+      } //Ride accepted by this driver previously - abort the declining
+      else {
+        resolve({ response: "unable_to_decline_request_prev_accepted" });
+      }
+    });
+}
+
+/**
+ * @func acceptRequest_driver
+ * Responsible for accepting any request from the driver app, If and only if the request was not declined by the driver and if it's
+ * not already accepted by another driver.
+ * @param collectionRidesDeliveryData: list of all the requests made.
+ * @param collectionGlobalEvents: hold all the random events that happened somewhere.
+ * @param bundleWorkingData: contains the driver_fp and the request_fp.
+ * @param resolve
+ */
+function acceptRequest_driver(
+  bundleWorkingData,
+  collectionRidesDeliveryData,
+  collectionGlobalEvents,
+  resolve
+) {
+  resolveDate();
+  //Only decline if not yet accepted by the driver
+  collectionRidesDeliveryData
+    .find({
+      request_fp: bundleWorkingData.request_fp,
+      taxi_id: false,
+      intentional_request_decline: {
+        $not: { $regex: bundleWorkingData.driver_fingerprint },
+      },
+    })
+    .toArray(function (err, result) {
+      if (err) {
+        resolve({ response: "unable_to_accept_request_error" });
+      }
+      //...
+      if (result.length > 0) {
+        //Wasn't accepted by a driver yet - proceed to the accepting
+        //Save the accepting event
+        new Promise((res) => {
+          collectionGlobalEvents.insertOne({
+            event_name: "driver_accepting_request",
+            request_fp: bundleWorkingData.request_fp,
+            driver_fingerprint: bundleWorkingData.driver_fingerprint,
+            date: chaineDateUTC,
+          });
+        }).then(
+          () => {},
+          () => {}
+        );
+        //Update the true request
+        collectionRidesDeliveryData.updateOne(
+          {
+            request_fp: bundleWorkingData.request_fp,
+            taxi_id: false,
+            intentional_request_decline: {
+              $not: { $regex: bundleWorkingData.driver_fingerprint },
+            },
+          },
+          {
+            $set: {
+              taxi_id: bundleWorkingData.driver_fingerprint,
+              "ride_state_vars.isAccepted": true,
+            },
+          },
+          function (err, res) {
+            if (err) {
+              resolve({ response: "unable_to_accept_request_error" });
+            }
+            //DONE
+            resolve({ response: "successfully_accepted" });
+          }
+        );
+      } //abort the accepting
+      else {
+        resolve({ response: "unable_to_accept_request_already_taken" });
+      }
+    });
+}
+
+/**
+ * @func cancelRequest_driver
+ * Responsible for cancelling any request from the driver app, If and only if the request was accepted by the driver who's requesting for the cancellation.
+ * @param collectionRidesDeliveryData: list of all the requests made.
+ * @param collectionGlobalEvents: hold all the random events that happened somewhere.
+ * @param bundleWorkingData: contains the driver_fp and the request_fp.
+ * @param resolve
+ */
+function cancelRequest_driver(
+  bundleWorkingData,
+  collectionRidesDeliveryData,
+  collectionGlobalEvents,
+  resolve
+) {
+  resolveDate();
+  //Only decline if not yet accepted by the driver
+  collectionRidesDeliveryData
+    .find({
+      request_fp: bundleWorkingData.request_fp,
+      taxi_id: bundleWorkingData.driver_fingerprint,
+    })
+    .toArray(function (err, result) {
+      if (err) {
+        resolve({ response: "unable_to_cancel_request_error" });
+      }
+      //...
+      if (result.length > 0) {
+        //The driver requesting for the cancellation is the one who's currently associated to the request - proceed to the cancellation
+        //Save the cancellation event
+        new Promise((res) => {
+          collectionGlobalEvents.insertOne({
+            event_name: "driver_cancelling_request",
+            request_fp: bundleWorkingData.request_fp,
+            driver_fingerprint: bundleWorkingData.driver_fingerprint,
+            date: chaineDateUTC,
+          });
+        }).then(
+          () => {},
+          () => {}
+        );
+        //Update the true request
+        collectionRidesDeliveryData.updateOne(
+          {
+            request_fp: bundleWorkingData.request_fp,
+            taxi_id: bundleWorkingData.driver_fingerprint,
+          },
+          {
+            $set: {
+              taxi_id: false,
+              "ride_state_vars.isAccepted": false,
+            },
+          },
+          function (err, res) {
+            if (err) {
+              resolve({ response: "unable_to_cancel_request_error" });
+            }
+            //DONE
+            resolve({ response: "successfully_cancelled" });
+          }
+        );
+      } //abort the cancelling
+      else {
+        resolve({ response: "unable_to_cancel_request_not_owned" });
+      }
+    });
+}
+
+/**
  * MAIN
  */
 
@@ -1451,6 +1674,7 @@ clientMongo.connect(function (err) {
     "historical_positioning_logs"
   ); //Hold all the location updated from the rider
   const collectionDrivers_profiles = dbMongo.collection("drivers_profiles"); //Hold all the drivers profiles
+  const collectionGlobalEvents = dbMongo.collection("global_events"); //Hold all the random events that happened somewhere.
   //-------------
   const bodyParser = require("body-parser");
   app
@@ -1680,7 +1904,7 @@ clientMongo.connect(function (err) {
         },
         (error) => {
           console.log(error);
-          res.sendDate({ response: "error" });
+          res.send({ response: "error" });
         }
       );
     }
@@ -1715,7 +1939,93 @@ clientMongo.connect(function (err) {
         },
         (error) => {
           console.log(error);
-          res.sendDate({ response: "error_cancelling" });
+          res.send({ response: "error_cancelling" });
+        }
+      );
+    }
+  });
+
+  /**
+   * DECLINE REQUESTS - DRIVERS
+   * Responsible for handling the declining of requests from the drivers side.
+   */
+  app.post("/decline_request", function (req, res) {
+    //DEBUG
+    /*req.body = {
+      driver_fingerprint:
+        "23c9d088e03653169b9c18193a0b8dd329ea1e43eb0626ef9f16b5b979694a429710561a3cb3ddae",
+      request_fp:
+        "999999f5c51c380ef9dee9680872a6538cc9708ef079a8e42de4d762bfa7d49efdcde41c6009cbdd9cdf6f0ae0544f74cb52caa84439cbcda40ce264f90825e8",
+    };*/
+    //...
+    req = req.body;
+    console.log(req);
+
+    //Do basic checking
+    if (
+      req.driver_fingerprint !== undefined &&
+      req.driver_fingerprint !== null &&
+      req.request_fp !== undefined &&
+      req.request_fp !== null
+    ) {
+      //...
+      new Promise((res0) => {
+        declineRequest_driver(
+          req,
+          collectionRidesDeliveryData,
+          collectionGlobalEvents,
+          res0
+        );
+      }).then(
+        (result) => {
+          res.send(result);
+        },
+        (error) => {
+          console.log(error);
+          res.send({ response: "unable_to_decline_request_error" });
+        }
+      );
+    }
+  });
+
+  /**
+   * ACCEPT REQUESTS - DRIVERS
+   * Responsible for handling the accepting of requests from the drivers side.
+   */
+  app.post("/accept_request", function (req, res) {
+    //DEBUG
+    /*req.body = {
+      driver_fingerprint:
+        "23c9d088e03653169b9c18193a0b8dd329ea1e43eb0626ef9f16b5b979694a429710561a3cb3ddae",
+      request_fp:
+        "999999f5c51c380ef9dee9680872a6538cc9708ef079a8e42de4d762bfa7d49efdcde41c6009cbdd9cdf6f0ae0544f74cb52caa84439cbcda40ce264f90825e8",
+    };*/
+    //...
+    req = req.body;
+    console.log(req);
+
+    //Do basic checking
+    if (
+      req.driver_fingerprint !== undefined &&
+      req.driver_fingerprint !== null &&
+      req.request_fp !== undefined &&
+      req.request_fp !== null
+    ) {
+      //...
+      new Promise((res0) => {
+        acceptRequest_driver(
+          req,
+          collectionRidesDeliveryData,
+          collectionGlobalEvents,
+          res0
+        );
+      }).then(
+        (result) => {
+          res.send(result);
+        },
+        (error) => {
+          console.log(error);
+          res.send({ response: "unable_to_accept_request_error" });
         }
       );
     }

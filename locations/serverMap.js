@@ -523,6 +523,8 @@ function tripChecker_Dispatcher(
           "ride_state_vars.isAccepted": true,
           "ride_state_vars.isRideCompleted_driverSide": false,
           isArrivedToDestination: false,
+          allowed_drivers_see: user_fingerprint,
+          intentional_request_decline: { $not: { $regex: user_fingerprint } },
         };
         collectionRidesDeliveries_data
           .find(checkRide0)
@@ -531,7 +533,10 @@ function tripChecker_Dispatcher(
               resolve(false);
             }
             //...
-            if (acceptedRidesArray.length > 0) {
+            if (
+              acceptedRidesArray !== undefined &&
+              acceptedRidesArray.length > 0
+            ) {
               //Has accepted some rides already
               //1. Check if he has accepted an unconfirmed driver's side connectMe request or not.
               //a. If yes, only send the uncompleted connectMe request
@@ -541,6 +546,9 @@ function tripChecker_Dispatcher(
                 connect_type: { $regex: "ConnectMe", $options: "i" },
                 "ride_state_vars.isRideCompleted_driverSide": false,
                 allowed_drivers_see: user_fingerprint,
+                intentional_request_decline: {
+                  $not: { $regex: user_fingerprint },
+                },
               };
               collectionRidesDeliveries_data
                 .find(checkRide1)
@@ -684,6 +692,9 @@ function execGetDrivers_requests_and_provide(
       "ride_state_vars.isRideCompleted_driverSide": false,
       isArrivedToDestination: false,
       allowed_drivers_see: driverData.driver_fingerprint,
+      intentional_request_decline: {
+        $not: { $regex: driverData.driver_fingerprint },
+      },
       carTypeSelected: {
         $regex: driverData.operational_state.default_selected_car.vehicle_type,
         $options: "i",
@@ -771,6 +782,9 @@ function execGetDrivers_requests_and_provide(
       "ride_state_vars.isAccepted": false,
       "ride_state_vars.isRideCompleted_driverSide": false,
       allowed_drivers_see: driverData.driver_fingerprint,
+      intentional_request_decline: {
+        $not: { $regex: driverData.driver_fingerprint },
+      },
       isArrivedToDestination: false,
       carTypeSelected: {
         $regex: driverData.operational_state.default_selected_car.vehicle_type,
@@ -795,7 +809,7 @@ function execGetDrivers_requests_and_provide(
           resolve(false);
         }
         //...
-        if (requestsData.length > 0) {
+        if (requestsData !== undefined && requestsData.length > 0) {
           //Found some data
           //1. Filter the requests based on the clearances of the driver - ride/delivery
           let clearancesString = driverData.operation_clearances.join(",");
@@ -998,6 +1012,10 @@ function execDriver_requests_parsing(
       isAccepted: null,
       inRideToDestination: null,
       isRideCompleted_driverSide: null,
+      ride_mode: null, //ride or delivery
+      request_type: null, //now or scheduled
+      delivery_infos: null, //If not delivery - null
+      rider_infos: null,
     },
     origin_destination_infos: {
       pickup_infos: {
@@ -1023,6 +1041,8 @@ function execDriver_requests_parsing(
         res(false);
       }
       //...
+      passengerData = passengerData[0];
+      //...
       parsedRequestsArray.passenger_infos.name = request.ride_state_vars
         .isAccepted
         ? passengerData.name
@@ -1040,6 +1060,8 @@ function execDriver_requests_parsing(
       parsedRequestsArray.ride_basic_infos.passengers_number = parseInt(
         request.passengers_number
       );
+      parsedRequestsArray.ride_basic_infos.request_type = request.request_type;
+      parsedRequestsArray.ride_basic_infos.ride_mode = request.ride_mode;
       parsedRequestsArray.ride_basic_infos.connect_type = request.connect_type;
       parsedRequestsArray.ride_basic_infos.isAccepted =
         request.ride_state_vars.isAccepted;
@@ -1047,6 +1069,13 @@ function execDriver_requests_parsing(
         request.ride_state_vars.inRideToDestination;
       parsedRequestsArray.ride_basic_infos.isRideCompleted_driverSide =
         request.ride_state_vars.isRideCompleted_driverSide;
+      //...
+      parsedRequestsArray.ride_basic_infos.rider_infos = request.rider_infos;
+      parsedRequestsArray.ride_basic_infos.delivery_infos = /delivery/i.test(
+        request.ride_mode
+      )
+        ? request.delivery_infos
+        : null;
       //3. Compute the ETA to passenger
       new Promise((res0) => {
         getRouteInfosDestination(
