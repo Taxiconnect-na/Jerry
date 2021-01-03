@@ -115,9 +115,9 @@ function getRouteInfosDestination(
           if (body.paths[0].distance != undefined) {
             let distance = body.paths[0].distance;
             let eta =
-              body.paths[0].time / 600 >= 60
-                ? Math.round(body.paths[0].time / 36000) + " min away"
-                : Math.round(body.paths[0].time / 600) + " sec away"; //Sec
+              body.paths[0].time / 1000 >= 60
+                ? Math.round(body.paths[0].time / 60000) + " min away"
+                : Math.round(body.paths[0].time / 1000) + " sec away"; //Sec
             //...
             if (cache !== false) {
               //Update the cache
@@ -253,9 +253,9 @@ function getRouteInfos(coordsInfos, resolve) {
             console.log("HERRRERE-----------");
             let distance = body.paths[0].distance;
             let eta =
-              body.paths[0].time / 600 >= 60
-                ? Math.round(body.paths[0].time / 36000) + " min away"
-                : Math.round(body.paths[0].time / 600) + " sec away"; //Sec
+              body.paths[0].time / 1000 >= 60
+                ? Math.round(body.paths[0].time / 60000) + " min away"
+                : Math.round(body.paths[0].time / 1000) + " sec away"; //Sec
 
             let rawPoints = body.paths[0].points.coordinates;
             let pointsTravel = rawPoints;
@@ -444,6 +444,7 @@ function updateRiderLocationsLog(
  * @true when the passenger confirms his/her drop off
  * @var isRideCompleted_driverSide
  * @param collectionDrivers_profiles: list of all the drivers
+ * @param collectionPassengers_profiles: the list of all the passengers profiles.
  * @param requestType: ONLY FOR DRIVERS - ride, delivery or scheduled
  * @true when the driver confirms that the trip is over from his/her side
  * REQUEST STATUS: pending, inRouteToPickup, inRouteToDropoff, completedDriverConfimed
@@ -451,6 +452,7 @@ function updateRiderLocationsLog(
 function tripChecker_Dispatcher(
   collectionRidesDeliveries_data,
   collectionDrivers_profiles,
+  collectionPassengers_profiles,
   user_fingerprint,
   user_nature,
   requestType = "ride",
@@ -557,6 +559,7 @@ function tripChecker_Dispatcher(
                         "PENDING_CONNECTME",
                         result1,
                         collectionRidesDeliveries_data,
+                        collectionPassengers_profiles,
                         res
                       );
                     }).then(
@@ -578,6 +581,7 @@ function tripChecker_Dispatcher(
                         "ACCEPTED_AND_ADDITIONAL_REQUESTS",
                         acceptedRidesArray,
                         collectionRidesDeliveries_data,
+                        collectionPassengers_profiles,
                         res
                       );
                     }).then(
@@ -601,6 +605,7 @@ function tripChecker_Dispatcher(
                   "FULL_ALLLOWEDTOSEE_REQUESTS",
                   false,
                   collectionRidesDeliveries_data,
+                  collectionPassengers_profiles,
                   res
                 );
               }).then(
@@ -636,6 +641,7 @@ function tripChecker_Dispatcher(
  * @param scenarioString: one of the 3 enumerated scenarios.
  * @param alreadyFetchedData: the requests already fetched from the @func tripChecker_Dispatcher function to avoid repetition.
  * @param collectionRidesDeliveries_data: the list of all the requests made
+ * @param collectionPassengers_profiles: the list of all the passengers profiles.
  * @param resolve
  */
 function execGetDrivers_requests_and_provide(
@@ -644,12 +650,29 @@ function execGetDrivers_requests_and_provide(
   scenarioString,
   alreadyFetchedData,
   collectionRidesDeliveries_data,
+  collectionPassengers_profiles,
   resolve
 ) {
   if (/PENDING_CONNECTME/i.test(scenarioString)) {
     //Scenario 1
     //Just send the alreadyFetchedData for the connectMe
-    resolve(alreadyFetchedData);
+    //PARSE THE FINAL REQUESTS
+    new Promise((res) => {
+      parseRequests_forDrivers_view(
+        alreadyFetchedData,
+        collectionPassengers_profiles,
+        driverData,
+        res
+      );
+    }).then(
+      (resultFinal) => {
+        resolve(resultFinal);
+      },
+      (error) => {
+        console.log(error);
+        resolve(false);
+      }
+    );
   } else if (/ACCEPTED_AND_ADDITIONAL_REQUESTS/i.test(scenarioString)) {
     //Scenario 2
     let request_type_regex = /scheduled/i.test(requestType)
@@ -700,10 +723,41 @@ function execGetDrivers_requests_and_provide(
           //Slice based on the max capacity
           refinedRequests = refinedRequests.slice(0, max_passengers_capacity);
           //...
-          resolve(refinedRequests);
+          //PARSE THE FINAL REQUESTS
+          new Promise((res) => {
+            parseRequests_forDrivers_view(
+              refinedRequests,
+              collectionPassengers_profiles,
+              res
+            );
+          }).then(
+            (resultFinal) => {
+              resolve(resultFinal);
+            },
+            (error) => {
+              console.log(error);
+              resolve(false);
+            }
+          );
         } //No requests - send the already accepted requests.
         else {
-          resolve(alreadyFetchedData);
+          //PARSE THE FINAL REQUESTS
+          new Promise((res) => {
+            parseRequests_forDrivers_view(
+              alreadyFetchedData,
+              collectionPassengers_profiles,
+              driverData,
+              res
+            );
+          }).then(
+            (resultFinal) => {
+              resolve(resultFinal);
+            },
+            (error) => {
+              console.log(error);
+              resolve(false);
+            }
+          );
         }
       });
   } else if (/FULL_ALLLOWEDTOSEE_REQUESTS/i.test(scenarioString)) {
@@ -754,8 +808,23 @@ function execGetDrivers_requests_and_provide(
           });
           //Slice based on the max capacity
           refinedRequests = refinedRequests.slice(0, max_passengers_capacity);
-          //...
-          resolve(refinedRequests);
+          //PARSE THE FINAL REQUESTS
+          new Promise((res) => {
+            parseRequests_forDrivers_view(
+              refinedRequests,
+              collectionPassengers_profiles,
+              driverData,
+              res
+            );
+          }).then(
+            (resultFinal) => {
+              resolve(resultFinal);
+            },
+            (error) => {
+              console.log(error);
+              resolve(false);
+            }
+          );
         } //No requests
         else {
           resolve({ response: "no_requests" });
@@ -765,6 +834,203 @@ function execGetDrivers_requests_and_provide(
   else {
     resolve(false);
   }
+}
+
+/**
+ * @func parseRequests_forDrivers_view
+ * Responsible for  parsing the raw requests data into an app friendly format, limiting the data
+ * to ONLY the needed ones.
+ * @param requestsArray: the array containing all the found requests.
+ * @param collectionPassengers_profiles: the list of all the passengers profiles.
+ * @param driverData: the full drivers profile data
+ * @param resolve
+ * CACHE EVERY SINGLE PROCCESSED REQUESTS: redisKey: request_fp+cached_tempo-parsed-request
+ */
+function parseRequests_forDrivers_view(
+  requestsArray,
+  collectionPassengers_profiles,
+  driverData,
+  resolve
+) {
+  let parsedRequestsArray = {
+    request_fp: null,
+    passenger_infos: {
+      name: null,
+      phone_number: null,
+    },
+    eta_to_passenger_infos: {
+      eta: null,
+      distance: null,
+    },
+    ride_basic_infos: {
+      payment_method: null,
+      fare_amount: null,
+      passengers_number: null,
+      connect_type: null,
+      isAccepted: null,
+      inRideToDestination: null,
+      isRideCompleted_driverSide: null,
+    },
+    origin_destination_infos: {
+      pickup_infos: {
+        location_name: null,
+        street_name: null,
+        suburb: null,
+        coordinates: null,
+      },
+      eta_to_destination_infos: {
+        eta: null,
+        distance: null,
+      },
+      destination_infos: null, //Array of n destination(s) - location_name, street_name, suburb, passenger_id
+    },
+  };
+  //...
+  requestsArray.map((request) => {
+    return new Promise((res) => {
+      //Start the individual parsing
+      //1. Add the passenger infos
+      collectionPassengers_profiles
+        .find({ user_fingerprint: request.client_id })
+        .toArray(function (err, passengerData) {
+          if (err) {
+            res(false);
+          }
+          //...
+          parsedRequestsArray.passenger_infos.name = request.ride_state_vars
+            .isAccepted
+            ? passengerData.name
+            : null;
+          parsedRequestsArray.passenger_infos.phone_number = request
+            .ride_state_vars.isAccepted
+            ? passengerData.phone_number
+            : null;
+          //2. Add the basic trip infos
+          parsedRequestsArray.ride_basic_infos.payment_method =
+            request.payment_method;
+          parsedRequestsArray.ride_basic_infos.fare_amount = request.fare;
+          parsedRequestsArray.ride_basic_infos.passengers_number =
+            request.passengers_number;
+          parsedRequestsArray.ride_basic_infos.connect_type =
+            request.connect_type;
+          parsedRequestsArray.ride_basic_infos.isAccepted =
+            request.ride_state_vars.isAccepted;
+          parsedRequestsArray.ride_basic_infos.inRideToDestination =
+            request.ride_state_vars.inRideToDestination;
+          parsedRequestsArray.ride_basic_infos.isRideCompleted_driverSide =
+            request.ride_state_vars.isRideCompleted_driverSide;
+          //3. Compute the ETA to passenger
+          new Promise((res0) => {
+            getRouteInfosDestination(
+              {
+                destination: {
+                  latitude: parseFloat(
+                    driverData.operational_state.last_location.coordinates
+                      .latitude
+                  ),
+                  longitude: parseFloat(
+                    driverData.operational_state.last_location.coordinates
+                      .longitude
+                  ),
+                },
+                passenger: {
+                  latitude: parseFloat(
+                    request.pickup_location_infos.coordinates.latitude
+                  ),
+                  longitude: parseFloat(
+                    request.pickup_location_infos.coordinates.longitude
+                  ),
+                },
+              },
+              res0,
+              true,
+              request.request_fp + "-cached-etaToPassenger-requests"
+            );
+          }).then(
+            (resultEtaToPassenger) => {
+              if (resultEtaToPassenger !== false) {
+                //Save the eta and distancee
+                parsedRequestsArray.eta_to_passenger_infos.eta =
+                  resultEtaToPassenger.eta;
+                parsedRequestsArray.eta_to_passenger_infos.distance =
+                  resultEtaToPassenger.distance;
+                //4. Add the destination informations
+                parsedRequestsArray.origin_destination_infos.pickup_infos.location_name =
+                  request.pickup_location_infos.location_name !== undefined &&
+                  request.pickup_location_infos.location_name !== false
+                    ? request.pickup_location_infos.location_name
+                    : request.pickup_location_infos.street_name;
+                parsedRequestsArray.origin_destination_infos.pickup_infos.street_name =
+                  request.pickup_location_infos.street_name;
+                parsedRequestsArray.origin_destination_infos.pickup_infos.suburb =
+                  request.pickup_location_infos.suburb;
+                parsedRequestsArray.origin_destination_infos.pickup_infos.coordinates =
+                  request.pickup_location_infos.coordinates;
+
+                //Compute the ETA to destination details
+                new Promise((res1) => {
+                  getRouteInfosDestination(
+                    {
+                      destination: {
+                        latitude: parseFloat(
+                          request.destinationData[0].coordinates.longitude
+                        ),
+                        longitude: parseFloat(
+                          request.destinationData[0].coordinates.latitude
+                        ),
+                      },
+                      passenger: {
+                        latitude: parseFloat(
+                          request.pickup_location_infos.coordinates.latitude
+                        ),
+                        longitude: parseFloat(
+                          request.pickup_location_infos.coordinates.longitude
+                        ),
+                      },
+                    },
+                    res1,
+                    true,
+                    request.request_fp + "-cached-etaToDestination-requests"
+                  );
+                }).then(
+                  (resultETAToDestination) => {
+                    if (resultETAToDestination !== false) {
+                      //Save the ETA to destination data
+                      parsedRequestsArray.origin_destination_infos.eta_to_destination_infos.eta =
+                        resultETAToDestination.eta;
+                      parsedRequestsArray.origin_destination_infos.eta_to_destination_infos.distance =
+                        resultETAToDestination.distance;
+                      //4. Save the destination data
+                      parsedRequestsArray.origin_destination_infos.destination_infos =
+                        request.destinationData;
+                      //Add the request fingerprint
+                      parsedRequestsArray.request_fp = request.request_fp;
+                      //DONE
+                      console.log(parsedRequestsArray);
+                      res(parsedRequestsArray);
+                    } //Error
+                    else {
+                      res(false);
+                    }
+                  },
+                  (error) => {
+                    console.log(error);
+                    res(false);
+                  }
+                );
+              } //EError
+              else {
+                res(false);
+              }
+            },
+            (error) => {
+              console.log(error);
+              res(false);
+            }
+          );
+        });
+    });
+  });
 }
 
 /**
@@ -2237,6 +2503,9 @@ clientMongo.connect(function (err) {
     "historical_positioning_logs"
   ); //Hold all the location updated from the rider
   const collectionDrivers_profiles = dbMongo.collection("drivers_profiles"); //Hold all the drivers profiles
+  const collectionPassengers_profiles = dbMongo.collection(
+    "passengers_profiles"
+  ); //Hold all the passengers profiles.
   //-------------
   const bodyParser = require("body-parser");
   app
@@ -2318,6 +2587,7 @@ clientMongo.connect(function (err) {
         tripChecker_Dispatcher(
           collectionRidesDeliveries_data,
           collectionDrivers_profiles,
+          collectionPassengers_profiles,
           req.user_fingerprint,
           req.user_nature !== undefined && req.user_nature !== null
             ? req.user_nature
