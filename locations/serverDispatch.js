@@ -1654,6 +1654,74 @@ function cancelRequest_driver(
 }
 
 /**
+ * @func confirmPickupRequest_driver
+ * Responsible for confirming pickup for any request from the driver app, If and only if the request was accepted by the driver who's requesting for the the pickup confirmation.
+ * @param collectionRidesDeliveryData: list of all the requests made.
+ * @param collectionGlobalEvents: hold all the random events that happened somewhere.
+ * @param bundleWorkingData: contains the driver_fp and the request_fp.
+ * @param resolve
+ */
+function confirmPickupRequest_driver(
+  bundleWorkingData,
+  collectionRidesDeliveryData,
+  collectionGlobalEvents,
+  resolve
+) {
+  resolveDate();
+  //Only confirm pickup if not yet accepted by the driver
+  collectionRidesDeliveryData
+    .find({
+      request_fp: bundleWorkingData.request_fp,
+      taxi_id: bundleWorkingData.driver_fingerprint,
+    })
+    .toArray(function (err, result) {
+      if (err) {
+        resolve({ response: "unable_to_confirm_pickup_request_error" });
+      }
+      //...
+      if (result.length > 0) {
+        //The driver requesting for the confirm pickup is the one who's currently associated to the request - proceed to the pickup confirmation.
+        //Save the pickup confirmation event
+        new Promise((res) => {
+          collectionGlobalEvents.insertOne({
+            event_name: "driver_confirm_pickup_request",
+            request_fp: bundleWorkingData.request_fp,
+            driver_fingerprint: bundleWorkingData.driver_fingerprint,
+            date: chaineDateUTC,
+          });
+        }).then(
+          () => {},
+          () => {}
+        );
+        //Update the true request
+        collectionRidesDeliveryData.updateOne(
+          {
+            request_fp: bundleWorkingData.request_fp,
+            taxi_id: bundleWorkingData.driver_fingerprint,
+          },
+          {
+            $set: {
+              taxi_id: bundleWorkingData.driver_fingerprint,
+              "ride_state_vars.isAccepted": true,
+              "ride_state_vars.inRideToDestination": true,
+            },
+          },
+          function (err, res) {
+            if (err) {
+              resolve({ response: "unable_to_confirm_pickup_request_error" });
+            }
+            //DONE
+            resolve({ response: "successfully_confirmed_pickup" });
+          }
+        );
+      } //abort the pickup confirmation
+      else {
+        resolve({ response: "unable_to_confirm_pickup_request_not_owned" });
+      }
+    });
+}
+
+/**
  * MAIN
  */
 
@@ -2026,6 +2094,92 @@ clientMongo.connect(function (err) {
         (error) => {
           console.log(error);
           res.send({ response: "unable_to_accept_request_error" });
+        }
+      );
+    }
+  });
+
+  /**
+   * CANCEL REQUESTS - DRIVERS
+   * Responsible for handling the cancelling of requests from the drivers side.
+   */
+  app.post("/cancel_request_driver", function (req, res) {
+    //DEBUG
+    req.body = {
+      driver_fingerprint:
+        "23c9d088e03653169b9c18193a0b8dd329ea1e43eb0626ef9f16b5b979694a429710561a3cb3ddae",
+      request_fp:
+        "999999f5c51c380ef9dee9680872a6538cc9708ef079a8e42de4d762bfa7d49efdcde41c6009cbdd9cdf6f0ae0544f74cb52caa84439cbcda40ce264f90825e8",
+    };
+    //...
+    req = req.body;
+    console.log(req);
+
+    //Do basic checking
+    if (
+      req.driver_fingerprint !== undefined &&
+      req.driver_fingerprint !== null &&
+      req.request_fp !== undefined &&
+      req.request_fp !== null
+    ) {
+      //...
+      new Promise((res0) => {
+        cancelRequest_driver(
+          req,
+          collectionRidesDeliveryData,
+          collectionGlobalEvents,
+          res0
+        );
+      }).then(
+        (result) => {
+          res.send(result);
+        },
+        (error) => {
+          console.log(error);
+          res.send({ response: "unable_to_cancel_request_error" });
+        }
+      );
+    }
+  });
+
+  /**
+   * CONFIRM PICKUP REQUESTS - DRIVERS
+   * Responsible for handling the pickup confirmation of requests from the drivers side.
+   */
+  app.post("/confirm_pickup_request_driver", function (req, res) {
+    //DEBUG
+    req.body = {
+      driver_fingerprint:
+        "23c9d088e03653169b9c18193a0b8dd329ea1e43eb0626ef9f16b5b979694a429710561a3cb3ddae",
+      request_fp:
+        "999999f5c51c380ef9dee9680872a6538cc9708ef079a8e42de4d762bfa7d49efdcde41c6009cbdd9cdf6f0ae0544f74cb52caa84439cbcda40ce264f90825e8",
+    };
+    //...
+    req = req.body;
+    console.log(req);
+
+    //Do basic checking
+    if (
+      req.driver_fingerprint !== undefined &&
+      req.driver_fingerprint !== null &&
+      req.request_fp !== undefined &&
+      req.request_fp !== null
+    ) {
+      //...
+      new Promise((res0) => {
+        confirmPickupRequest_driver(
+          req,
+          collectionRidesDeliveryData,
+          collectionGlobalEvents,
+          res0
+        );
+      }).then(
+        (result) => {
+          res.send(result);
+        },
+        (error) => {
+          console.log(error);
+          res.send({ response: "unable_to_confirm_pickup_request_error" });
         }
       );
     }
