@@ -106,7 +106,18 @@ function getRouteInfosDestination(
     destinationPosition.latitude +
     "," +
     destinationPosition.longitude +
-    "&heading_penalty=0&avoid=residential&avoid=ferry&ch.disable=true&locale=en&details=street_name&details=time&optimize=true&points_encoded=false&details=max_speed&snap_prevention=ferry&profile=car&pass_through=true&instructions=false";
+    "&heading_penalty=0&avoid=residential&avoid=ferry&ch.disable=true&locale=en&details=street_name&details=time&optimize=true&points_encoded=false&details=max_speed&snap_prevention=ferry&profile=car&pass_through=true";
+  //Add instructions if specified so
+  if (
+    coordsInfos.setIntructions !== undefined &&
+    coordsInfos.setIntructions !== null &&
+    coordsInfos.setIntructions
+  ) {
+    url += "&instructions=true";
+  } //Remove instructions details
+  else {
+    url += "&instructions=false";
+  }
   requestAPI(url, function (error, response, body) {
     if (body != undefined) {
       if (body.length > 20) {
@@ -180,6 +191,11 @@ function getRouteInfosDestination(
                   destinationPosition.longitude,
                   destinationPosition.latitude,
                 ],
+                instructions:
+                  coordsInfos.setIntructions !== undefined &&
+                  coordsInfos.setIntructions !== null
+                    ? body.paths[0].instructions
+                    : null,
                 eta: eta,
                 distance: distance,
               });
@@ -2346,14 +2362,22 @@ function findoutPickupLocationNature(resolve, point) {
  * @param pointData: origin and destination of the user selected from the app.
  * Responsible for getting the polyline and eta to destination based on the selected destination location.
  * REDIS
- * key: pathToDestinationPreview
+ * key: pathToDestinationPreview+user_fingerprint
  * value: [{...}, {...}]
  */
 function findDestinationPathPreview(resolve, pointData) {
   console.log("entered");
   if (pointData.origin !== undefined && pointData.destination !== undefined) {
+    //Create the redis key
+    let redisKey =
+      pointData.request_fp !== undefined && pointData.request_fp !== null
+        ? "pathToDestinationPreview-" + pointData.request_fp
+        : "pathToDestinationPreview-" + pointData.user_fingerprint;
+    //Add redis key to pointData
+    pointData.redisKey = null;
+    pointData.redisKey = redisKey;
     //Check from redis first
-    redisGet("pathToDestinationPreview").then(
+    redisGet(redisKey).then(
       (resp) => {
         console.log(resp);
         if (resp !== null) {
@@ -2486,7 +2510,7 @@ function findRouteSnapshotExec(resolve, pointData) {
       //Save in cache
       new Promise((res) => {
         //Check if there was a previous redis record
-        redisGet("pathToDestinationPreview").then(
+        redisGet(pointData.redisKey).then(
           (resp) => {
             if (resp !== null) {
               //Contains something
@@ -2495,25 +2519,22 @@ function findRouteSnapshotExec(resolve, pointData) {
                 resp = JSON.parse(resp);
                 resp.push(result);
                 resp = [...new Set(resp.map(JSON.stringify))].map(JSON.parse);
-                client.set("pathToDestinationPreview", JSON.stringify(resp));
+                client.set(pointData.redisKey, JSON.stringify(resp));
                 res(true);
               } catch (error) {
                 //Create a fresh one
-                client.set(
-                  "pathToDestinationPreview",
-                  JSON.stringify([result])
-                );
+                client.set(pointData.redisKey, JSON.stringify([result]));
                 res(false);
               }
             } //No records -create a fresh one
             else {
-              client.set("pathToDestinationPreview", JSON.stringify([result]));
+              client.set(pointData.redisKey, JSON.stringify([result]));
               res(true);
             }
           },
           (error) => {
             //create fresh record
-            client.set("pathToDestinationPreview", JSON.stringify([result]));
+            client.set(pointData.redisKey, JSON.stringify([result]));
             res(false);
           }
         );
@@ -2910,6 +2931,11 @@ clientMongo.connect(function (err) {
             latitude: req.dest_latitude,
             longitude: req.dest_longitude,
           },
+          user_fingerprint: req.user_fingerprint,
+          request_fp:
+            req.request_fp !== undefined && req.request_fp !== null
+              ? req.request_fp
+              : false,
         };
         findDestinationPathPreview(res, tmp);
       }).then(
@@ -3434,6 +3460,205 @@ clientMongo.connect(function (err) {
           }
         });
     } else {
+      res.send(false);
+    }
+  });
+
+  /**
+   * PROVIDE REALTIME ROUTE TRACKING DATA
+   * Responsible for computing, caching and delivering real-time tracking information from  point A to a point B.
+   * Include the direction intructions.
+   * @param user_fingerprint: the user's fingerprint.
+   * @param request_fp: the request fingerprint or unique identifiyer of the operation that requires the active tracking.
+   * @param org_latitude: latitude of the origin point
+   * @param org_longitude: longitude of the origin point
+   * @param dest_latitude: latitude of the destination point.
+   * @param dest_longitude: longitude of the destination point.
+   * Redis key format: realtime-tracking-operation-user_fingerprint-request_fp
+   */
+  app.get("/getRealtimeTrackingRoute_forTHIS", function (req, res) {
+    let params = urlParser.parse(req.url, true);
+    req = params.query;
+
+    if (
+      req.user_fingerprint !== undefined &&
+      req.user_fingerprint !== null &&
+      req.request_fp !== undefined &&
+      req.request_fp !== null &&
+      req.org_latitude !== undefined &&
+      req.org_latitude !== null &&
+      req.org_longitude !== undefined &&
+      req.org_longitude !== null &&
+      req.dest_latitude !== undefined &&
+      req.dest_latitude !== null
+    ) {
+      //Valid format
+      //Create the redis key
+      let redisKey =
+        "realtime-tracking-operation-" +
+        req.user_fingerprint +
+        "-" +
+        req.request_fp;
+      //Get the cached data first if any
+      redisGet(redisKey).then(
+        (resp) => {
+          if (resp !== null) {
+            //Has a previous recordd
+            try {
+              //Update the old cache
+              new Promise((res0) => {
+                getRouteInfosDestination(
+                  {
+                    passenger: {
+                      latitude: req.org_latitude,
+                      longitude: req.org_longitude,
+                    },
+                    destination: {
+                      latitude: req.dest_latitude,
+                      longitude: req.dest_longitude,
+                    },
+                    setIntructions: true,
+                  },
+                  res0,
+                  false,
+                  false
+                );
+              }).then(
+                (result) => {
+                  //Update cache if the result is not fallsee
+                  if (result !== false) {
+                    client.set(redisKey, JSON.stringify(result));
+                  }
+                },
+                (error) => {
+                  console.log(error);
+                }
+              );
+              //.....
+              resp = JSON.parse(resp);
+              console.log("Found realtime REDIS record!");
+              //Quickly return data
+              res.send(resp);
+            } catch (error) {
+              console.log(error);
+              //Error - make a fresh search
+              new Promise((res0) => {
+                getRouteInfosDestination(
+                  {
+                    passenger: {
+                      latitude: req.org_latitude,
+                      longitude: req.org_longitude,
+                    },
+                    destination: {
+                      latitude: req.dest_latitude,
+                      longitude: req.dest_longitude,
+                    },
+                    setIntructions: true,
+                  },
+                  res0,
+                  false,
+                  false
+                );
+              }).then(
+                (result) => {
+                  //Update cache if the result is not fallsee
+                  if (result !== false) {
+                    client.set(redisKey, JSON.stringify(result));
+                    //...
+                    res.send(result);
+                  } //Error
+                  else {
+                    res.send(false);
+                  }
+                },
+                (error) => {
+                  console.log(error);
+                  //...
+                  res.send(false);
+                }
+              );
+            }
+          } //No previous record - make a fresh search
+          else {
+            new Promise((res0) => {
+              getRouteInfosDestination(
+                {
+                  passenger: {
+                    latitude: req.org_latitude,
+                    longitude: req.org_longitude,
+                  },
+                  destination: {
+                    latitude: req.dest_latitude,
+                    longitude: req.dest_longitude,
+                  },
+                  setIntructions: true,
+                },
+                res0,
+                false,
+                false
+              );
+            }).then(
+              (result) => {
+                //Update cache if the result is not fallsee
+                if (result !== false) {
+                  client.set(redisKey, JSON.stringify(result));
+                  //...
+                  res.send(result);
+                } //Error
+                else {
+                  res.send(false);
+                }
+              },
+              (error) => {
+                console.log(error);
+                //...
+                res.send(false);
+              }
+            );
+          }
+        },
+        (error) => {
+          console.log(error);
+          //Error - make a fresh search
+          new Promise((res0) => {
+            getRouteInfosDestination(
+              {
+                passenger: {
+                  latitude: req.org_latitude,
+                  longitude: req.org_longitude,
+                },
+                destination: {
+                  latitude: req.dest_latitude,
+                  longitude: req.dest_longitude,
+                },
+                setIntructions: true,
+              },
+              res0,
+              false,
+              false
+            );
+          }).then(
+            (result) => {
+              //Update cache if the result is not fallsee
+              if (result !== false) {
+                client.set(redisKey, JSON.stringify(result));
+                //...
+                res.send(result);
+              } //Error
+              else {
+                res.send(false);
+              }
+            },
+            (error) => {
+              console.log(error);
+              //...
+              res.send(false);
+            }
+          );
+        }
+      );
+    } //Invalid data
+    else {
       res.send(false);
     }
   });

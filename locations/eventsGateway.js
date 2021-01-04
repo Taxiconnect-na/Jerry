@@ -238,6 +238,11 @@ io.on("connection", (socket) => {
         req.dest_longitude +
         "&user_fingerprint=" +
         req.user_fingerprint;
+      //Add request fingerprint if any
+      if (req.request_fp !== undefined && req.request_fp !== null) {
+        url += "&request_fp=" + req.request_fp;
+      }
+
       requestAPI(url, function (error, response, body) {
         console.log(body);
         if (error === null) {
@@ -317,6 +322,61 @@ io.on("connection", (socket) => {
     } //Invalid params
     else {
       socket.emit("get_closest_drivers_to_point-response", false);
+    }
+  });
+
+  /**
+   * MAP SERVICE
+   * route name: getRealtimeTrackingRoute_forTHIS
+   * event: getRealtimeTrackingRoute_forTHIS_io
+   * params: origin/destination latitude, origin/destination longitude, user fingerprint, request fingerprint
+   * Responsible for getting the route infos during a realtime navigation from a point A to a point B.
+   */
+  socket.on("getRealtimeTrackingRoute_forTHIS_io", function (req) {
+    if (
+      req.user_fingerprint !== undefined &&
+      req.user_fingerprint !== null &&
+      req.request_fp !== undefined &&
+      req.request_fp !== null &&
+      req.org_latitude !== undefined &&
+      req.org_latitude !== null &&
+      req.org_longitude !== undefined &&
+      req.org_longitude !== null &&
+      req.dest_latitude !== undefined &&
+      req.dest_latitude !== null
+    ) {
+      let url =
+        process.env.LOCAL_URL +
+        ":" +
+        process.env.MAP_SERVICE_PORT +
+        "/getRealtimeTrackingRoute_forTHIS?user_fingerprint=" +
+        req.user_fingerprint +
+        "&org_latitude=" +
+        req.org_latitude +
+        "&org_longitude=" +
+        req.org_longitude +
+        "&dest_latitude=" +
+        req.dest_latitude +
+        "&dest_longitude=" +
+        req.dest_longitude +
+        "&request_fp=" +
+        req.request_fp;
+      requestAPI(url, function (error, response, body) {
+        //console.log(body);
+        if (error === null) {
+          try {
+            body = JSON.parse(body);
+            socket.emit("getRealtimeTrackingRoute_forTHIS_io-response", body);
+          } catch (error) {
+            socket.emit("getRealtimeTrackingRoute_forTHIS_io-response", false);
+          }
+        } else {
+          socket.emit("getRealtimeTrackingRoute_forTHIS_io-response", false);
+        }
+      });
+    } //Invalid params
+    else {
+      socket.emit("getRealtimeTrackingRoute_forTHIS_io-response", false);
     }
   });
 
