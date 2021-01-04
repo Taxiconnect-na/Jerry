@@ -1467,6 +1467,7 @@ function declineRequest_driver(
             driver_fingerprint: bundleWorkingData.driver_fingerprint,
             date: chaineDateUTC,
           });
+          res(true);
         }).then(
           () => {},
           () => {}
@@ -1552,6 +1553,7 @@ function acceptRequest_driver(
             driver_fingerprint: bundleWorkingData.driver_fingerprint,
             date: chaineDateUTC,
           });
+          res(true);
         }).then(
           () => {},
           () => {}
@@ -1569,6 +1571,7 @@ function acceptRequest_driver(
             $set: {
               taxi_id: bundleWorkingData.driver_fingerprint,
               "ride_state_vars.isAccepted": true,
+              date_accepted: chaineDateUTC,
             },
           },
           function (err, res) {
@@ -1622,6 +1625,7 @@ function cancelRequest_driver(
             driver_fingerprint: bundleWorkingData.driver_fingerprint,
             date: chaineDateUTC,
           });
+          res(true);
         }).then(
           () => {},
           () => {}
@@ -1689,6 +1693,7 @@ function confirmPickupRequest_driver(
             driver_fingerprint: bundleWorkingData.driver_fingerprint,
             date: chaineDateUTC,
           });
+          res(true);
         }).then(
           () => {},
           () => {}
@@ -1702,6 +1707,7 @@ function confirmPickupRequest_driver(
           {
             $set: {
               taxi_id: bundleWorkingData.driver_fingerprint,
+              date_pickup: chaineDateUTC,
               "ride_state_vars.isAccepted": true,
               "ride_state_vars.inRideToDestination": true,
             },
@@ -1717,6 +1723,77 @@ function confirmPickupRequest_driver(
       } //abort the pickup confirmation
       else {
         resolve({ response: "unable_to_confirm_pickup_request_not_owned" });
+      }
+    });
+}
+
+/**
+ * @func confirmDropoffRequest_driver
+ * Responsible for confirming dropoff for any request from the driver app, If and only if the request was accepted by the driver who's requesting for the the dropoff confirmation.
+ * @param collectionRidesDeliveryData: list of all the requests made.
+ * @param collectionGlobalEvents: hold all the random events that happened somewhere.
+ * @param bundleWorkingData: contains the driver_fp and the request_fp.
+ * @param resolve
+ */
+function confirmDropoffRequest_driver(
+  bundleWorkingData,
+  collectionRidesDeliveryData,
+  collectionGlobalEvents,
+  resolve
+) {
+  resolveDate();
+  //Only confirm pickup if not yet accepted by the driver
+  collectionRidesDeliveryData
+    .find({
+      request_fp: bundleWorkingData.request_fp,
+      taxi_id: bundleWorkingData.driver_fingerprint,
+    })
+    .toArray(function (err, result) {
+      if (err) {
+        resolve({ response: "unable_to_confirm_dropoff_request_error" });
+      }
+      //...
+      if (result.length > 0) {
+        //The driver requesting for the confirm dropoff is the one who's currently associated to the request - proceed to the dropoff confirmation.
+        //Save the dropoff confirmation event
+        new Promise((res) => {
+          collectionGlobalEvents.insertOne({
+            event_name: "driver_confirm_dropoff_request",
+            request_fp: bundleWorkingData.request_fp,
+            driver_fingerprint: bundleWorkingData.driver_fingerprint,
+            date: chaineDateUTC,
+          });
+          res(true);
+        }).then(
+          () => {},
+          () => {}
+        );
+        //Update the true request
+        collectionRidesDeliveryData.updateOne(
+          {
+            request_fp: bundleWorkingData.request_fp,
+            taxi_id: bundleWorkingData.driver_fingerprint,
+          },
+          {
+            $set: {
+              taxi_id: bundleWorkingData.driver_fingerprint,
+              date_dropoff: chaineDateUTC,
+              "ride_state_vars.isAccepted": true,
+              "ride_state_vars.inRideToDestination": true,
+              "ride_state_vars.isRideCompleted_driverSide": true,
+            },
+          },
+          function (err, res) {
+            if (err) {
+              resolve({ response: "unable_to_confirm_dropoff_request_error" });
+            }
+            //DONE
+            resolve({ response: "successfully_confirmed_dropoff" });
+          }
+        );
+      } //abort the pickup confirmation
+      else {
+        resolve({ response: "unable_to_confirm_dropoff_request_not_owned" });
       }
     });
 }
@@ -2180,6 +2257,49 @@ clientMongo.connect(function (err) {
         (error) => {
           console.log(error);
           res.send({ response: "unable_to_confirm_pickup_request_error" });
+        }
+      );
+    }
+  });
+
+  /**
+   * CONFIRM DROPOFF REQUESTS - DRIVERS
+   * Responsible for handling the dropoff confirmation of requests from the drivers side.
+   */
+  app.post("/confirm_dropoff_request_driver", function (req, res) {
+    //DEBUG
+    req.body = {
+      driver_fingerprint:
+        "23c9d088e03653169b9c18193a0b8dd329ea1e43eb0626ef9f16b5b979694a429710561a3cb3ddae",
+      request_fp:
+        "999999f5c51c380ef9dee9680872a6538cc9708ef079a8e42de4d762bfa7d49efdcde41c6009cbdd9cdf6f0ae0544f74cb52caa84439cbcda40ce264f90825e8",
+    };
+    //...
+    req = req.body;
+    console.log(req);
+
+    //Do basic checking
+    if (
+      req.driver_fingerprint !== undefined &&
+      req.driver_fingerprint !== null &&
+      req.request_fp !== undefined &&
+      req.request_fp !== null
+    ) {
+      //...
+      new Promise((res0) => {
+        confirmDropoffRequest_driver(
+          req,
+          collectionRidesDeliveryData,
+          collectionGlobalEvents,
+          res0
+        );
+      }).then(
+        (result) => {
+          res.send(result);
+        },
+        (error) => {
+          console.log(error);
+          res.send({ response: "unable_to_confirm_dropoff_request_error" });
         }
       );
     }

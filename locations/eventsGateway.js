@@ -633,6 +633,50 @@ io.on("connection", (socket) => {
 
   /**
    * DISPATCH SERVICE, port 9094
+   * Route: confirm_dropoff_request_driver
+   * event: confirm_dropoff_request_driver_io
+   * Confirm dropoff for any request from the driver's side.
+   */
+  socket.on("confirm_dropoff_request_driver_io", function (req) {
+    console.log(req);
+    if (
+      req.driver_fingerprint !== undefined &&
+      req.driver_fingerprint !== null &&
+      req.request_fp !== undefined &&
+      req.request_fp !== null
+    ) {
+      let url =
+        process.env.LOCAL_URL +
+        ":" +
+        process.env.DISPATCH_SERVICE_PORT +
+        "/confirm_dropoff_request_driver";
+
+      requestAPI.post({ url, form: req }, function (error, response, body) {
+        console.log(body);
+        if (error === null) {
+          try {
+            body = JSON.parse(body);
+            socket.emit("confirm_dropoff_request_driver_io-response", body);
+          } catch (error) {
+            socket.emit("confirm_dropoff_request_driver_io-response", {
+              response: "unable_to_confirm_dropoff_request_error",
+            });
+          }
+        } else {
+          socket.emit("confirm_dropoff_request_driver_io-response", {
+            response: "unable_to_confirm_dropoff_request_error",
+          });
+        }
+      });
+    } else {
+      socket.emit("confirm_dropoff_request_driver_io-response", {
+        response: "unable_to_confirm_dropoff_request_error",
+      });
+    }
+  });
+
+  /**
+   * DISPATCH SERVICE, port 9094
    * Route: confirmRiderDropoff_requests
    * event: confirmRiderDropoff_requests_io
    * Confirm rider's drop off and handle all the related proccesses linked to it.
