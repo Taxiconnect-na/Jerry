@@ -855,6 +855,58 @@ io.on("connection", (socket) => {
 
   /**
    * ACCOUNTS SERVICE, port 9696
+   * Route: computeDaily_amountMadeSoFar
+   * event: computeDaily_amountMadeSoFar_io
+   * Responsible for getting the daily amount made so far by the driver for exactly all the completed requests.
+   */
+  socket.on("computeDaily_amountMadeSoFar_io", function (req) {
+    console.log(req);
+    if (
+      req.driver_fingerprint !== undefined &&
+      req.driver_fingerprint !== null
+    ) {
+      let url =
+        process.env.LOCAL_URL +
+        ":" +
+        process.env.ACCOUNTS_SERVICE_PORT +
+        "/computeDaily_amountMadeSoFar?driver_fingerprint=" +
+        req.driver_fingerprint;
+
+      requestAPI(url, function (error, response, body) {
+        console.log(body);
+        if (error === null) {
+          try {
+            body = JSON.parse(body);
+            socket.emit("computeDaily_amountMadeSoFar_io-response", body);
+          } catch (error) {
+            socket.emit("computeDaily_amountMadeSoFar_io-response", {
+              amount: 0,
+              currency: "NAD",
+              currency_symbol: "N$",
+              response: "error",
+            });
+          }
+        } else {
+          socket.emit("computeDaily_amountMadeSoFar_io-response", {
+            amount: 0,
+            currency: "NAD",
+            currency_symbol: "N$",
+            response: "error",
+          });
+        }
+      });
+    } else {
+      socket.emit("computeDaily_amountMadeSoFar_io-response", {
+        amount: 0,
+        currency: "NAD",
+        currency_symbol: "N$",
+        response: "error",
+      });
+    }
+  });
+
+  /**
+   * ACCOUNTS SERVICE, port 9696
    * Route: checkSMSOTPTruly
    * event: checkThisOTP_SMS
    * Check that the inputed otp by the user is true (return true, false, or error_checking_otp)

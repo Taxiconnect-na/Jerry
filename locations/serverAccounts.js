@@ -12,6 +12,7 @@ var app = express();
 var server = http.createServer(app);
 const requestAPI = require("request");
 const crypto = require("crypto");
+const escapeStringRegexp = require("escape-string-regexp");
 //....
 const { promisify, inspect } = require("util");
 const urlParser = require("url");
@@ -831,6 +832,176 @@ function proceedTargeted_requestHistory_fetcher(
 }
 
 /**
+ * @func getDaily_requestAmount_driver
+ * Responsible for getting the daily amount made so far for the driver at any given time.
+ * CACHED.
+ * @param collectionRidesDeliveryData: the list of all the rides/deliveries
+ * @param resolve
+ */
+function getDaily_requestAmount_driver(
+  collectionRidesDeliveryData,
+  driver_fingerprint,
+  resolve
+) {
+  resolveDate();
+  //Form the redis key
+  let redisKey = "dailyAmount-" + driver_fingerprint;
+  //..
+  redisGet(redisKey).then(
+    (resp) => {
+      if (resp !== null) {
+        //Has a previous record
+        try {
+          resp = JSON.parse(resp);
+          //Rehydrate the cached results
+          new Promise((res) => {
+            exec_computeDaily_amountMade(
+              collectionRidesDeliveryData,
+              driver_fingerprint,
+              res
+            );
+          }).then(
+            (result) => {
+              //Cache as well
+              client.set(redisKey, JSON.stringify(result));
+            },
+            (error) => {
+              console.log(error);
+            }
+          );
+          //...
+          resolve(resp);
+        } catch (error) {
+          console.log(error);
+          //Errror - make a fresh request
+          new Promise((res) => {
+            exec_computeDaily_amountMade(
+              collectionRidesDeliveryData,
+              driver_fingerprint,
+              res
+            );
+          }).then(
+            (result) => {
+              console.log(result);
+              //Cache as well
+              client.set(redisKey, JSON.stringify(result));
+              resolve(result);
+            },
+            (error) => {
+              resolve({
+                amount: 0,
+                currency: "NAD",
+                currency_symbol: "N$",
+                response: "error",
+              });
+            }
+          );
+        }
+      } //No computed amount yet - make a fresh request
+      else {
+        new Promise((res) => {
+          exec_computeDaily_amountMade(
+            collectionRidesDeliveryData,
+            driver_fingerprint,
+            res
+          );
+        }).then(
+          (result) => {
+            console.log(result);
+            //Cache as well
+            client.set(redisKey, JSON.stringify(result));
+            resolve(result);
+          },
+          (error) => {
+            resolve({
+              amount: 0,
+              currency: "NAD",
+              currency_symbol: "N$",
+              response: "error",
+            });
+          }
+        );
+      }
+    },
+    (error) => {
+      console.log(error);
+      //Errror - make a fresh request
+      new Promise((res) => {
+        exec_computeDaily_amountMade(
+          collectionRidesDeliveryData,
+          driver_fingerprint,
+          res
+        );
+      }).then(
+        (result) => {
+          console.log(result);
+          //Cache as well
+          client.set(redisKey, JSON.stringify(result));
+          resolve(result);
+        },
+        (error) => {
+          resolve({
+            amount: 0,
+            currency: "NAD",
+            currency_symbol: "N$",
+            response: "error",
+          });
+        }
+      );
+    }
+  );
+}
+
+/**
+ * @func exec_computeDaily_amountMade
+ * Responsible for executing all the operations related to the computation of the driver's daily amount.
+ * @param collectionRidesDeliveryData: the list of all the rides/deliveries
+ * @param resolve
+ */
+function exec_computeDaily_amountMade(
+  collectionRidesDeliveryData,
+  driver_fingerprint,
+  resolve
+) {
+  resolveDate();
+  //...
+  let filterRequest = {
+    taxi_id: driver_fingerprint,
+    "ride_state_vars.isRideCompleted_driverSide": true,
+    "ride_state_vars.isRideCompleted_riderSide": true,
+    date_requested: {
+      $regex: escapeStringRegexp(chaineDateUTC.split(" ")[0]),
+      $options: "i",
+    },
+  };
+
+  collectionRidesDeliveryData
+    .find(filterRequest)
+    .toArray(function (err, requestsArray) {
+      if (err) {
+        resolve({
+          amount: 0,
+          currency: "NAD",
+          currency_symbol: "N$",
+          response: "error",
+        });
+      }
+      //...
+      let amount = 0;
+      requestsArray.map((request) => {
+        let tmpFare = parseFloat(request.fare);
+        amount += tmpFare;
+      });
+      resolve({
+        amount: amount,
+        currency: "NAD",
+        currency_symbol: "N$",
+        response: "success",
+      });
+    });
+}
+
+/**
  * MAIN
  */
 
@@ -1192,6 +1363,51 @@ clientMongo.connect(function (err) {
     } //Invalid data
     else {
       res.send({ response: "error_authentication_failed" });
+    }
+  });
+
+  /**
+   * COMPUTE DAILY REQUESTS AMMOUNT FOR DRIVERS
+   * Responsible for getting the daily amount made so far by the driver for exactly all the completed requests.
+   */
+  app.get("/computeDaily_amountMadeSoFar", function (req, res) {
+    resolveDate();
+    let params = urlParser.parse(req.url, true);
+    req = params.query;
+    console.log(req);
+
+    if (
+      req.driver_fingerprint !== undefined &&
+      req.driver_fingerprint !== null
+    ) {
+      new Promise((res0) => {
+        getDaily_requestAmount_driver(
+          collectionRidesDeliveryData,
+          req.driver_fingerprint,
+          res0
+        );
+      }).then(
+        (result) => {
+          res.send(result);
+        },
+        (error) => {
+          console.log(error);
+          res.send({
+            amount: 0,
+            currency: "NAD",
+            currency_symbol: "N$",
+            response: "error",
+          });
+        }
+      );
+    } //Error
+    else {
+      res.send({
+        amount: 0,
+        currency: "NAD",
+        currency_symbol: "N$",
+        response: "error",
+      });
     }
   });
 });
