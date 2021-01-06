@@ -539,6 +539,7 @@ function tripChecker_Dispatcher(
           "ride_state_vars.isAccepted": true,
           "ride_state_vars.isRideCompleted_driverSide": false,
           isArrivedToDestination: false,
+          ride_mode: { $regex: requestType, $options: "i" },
           allowed_drivers_see: user_fingerprint,
           intentional_request_decline: { $not: { $regex: user_fingerprint } },
         };
@@ -561,6 +562,7 @@ function tripChecker_Dispatcher(
                 taxi_id: user_fingerprint,
                 connect_type: { $regex: "ConnectMe", $options: "i" },
                 "ride_state_vars.isRideCompleted_driverSide": false,
+                ride_mode: { $regex: requestType, $options: "i" },
                 allowed_drivers_see: user_fingerprint,
                 intentional_request_decline: {
                   $not: { $regex: user_fingerprint },
@@ -1012,6 +1014,7 @@ function execDriver_requests_parsing(
   let res = resolve;
   let parsedRequestsArray = {
     request_fp: null,
+    request_type: null, //RIDE, DELIVERY OR SCHEDULED
     passenger_infos: {
       name: null,
       phone_number: null,
@@ -1137,6 +1140,11 @@ function execDriver_requests_parsing(
               request.pickup_location_infos.suburb;
             parsedRequestsArray.origin_destination_infos.pickup_infos.coordinates =
               request.pickup_location_infos.coordinates;
+
+            //ADD THE REQUEST TYPE
+            parsedRequestsArray.request_type = /now/i.test(request.request_type)
+              ? request.ride_mode
+              : "scheduled";
 
             //Compute the ETA to destination details
             new Promise((res1) => {

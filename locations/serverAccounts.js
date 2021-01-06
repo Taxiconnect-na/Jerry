@@ -836,10 +836,12 @@ function proceedTargeted_requestHistory_fetcher(
  * Responsible for getting the daily amount made so far for the driver at any given time.
  * CACHED.
  * @param collectionRidesDeliveryData: the list of all the rides/deliveries
+ * @param collectionDrivers_profiles: the list of all the drivers profiles
  * @param resolve
  */
 function getDaily_requestAmount_driver(
   collectionRidesDeliveryData,
+  collectionDrivers_profiles,
   driver_fingerprint,
   resolve
 ) {
@@ -857,6 +859,7 @@ function getDaily_requestAmount_driver(
           new Promise((res) => {
             exec_computeDaily_amountMade(
               collectionRidesDeliveryData,
+              collectionDrivers_profiles,
               driver_fingerprint,
               res
             );
@@ -877,6 +880,7 @@ function getDaily_requestAmount_driver(
           new Promise((res) => {
             exec_computeDaily_amountMade(
               collectionRidesDeliveryData,
+              collectionDrivers_profiles,
               driver_fingerprint,
               res
             );
@@ -892,6 +896,7 @@ function getDaily_requestAmount_driver(
                 amount: 0,
                 currency: "NAD",
                 currency_symbol: "N$",
+                supported_requests_types: "none",
                 response: "error",
               });
             }
@@ -902,6 +907,7 @@ function getDaily_requestAmount_driver(
         new Promise((res) => {
           exec_computeDaily_amountMade(
             collectionRidesDeliveryData,
+            collectionDrivers_profiles,
             driver_fingerprint,
             res
           );
@@ -917,6 +923,7 @@ function getDaily_requestAmount_driver(
               amount: 0,
               currency: "NAD",
               currency_symbol: "N$",
+              supported_requests_types: "none",
               response: "error",
             });
           }
@@ -929,6 +936,7 @@ function getDaily_requestAmount_driver(
       new Promise((res) => {
         exec_computeDaily_amountMade(
           collectionRidesDeliveryData,
+          collectionDrivers_profiles,
           driver_fingerprint,
           res
         );
@@ -944,6 +952,7 @@ function getDaily_requestAmount_driver(
             amount: 0,
             currency: "NAD",
             currency_symbol: "N$",
+            supported_requests_types: "none",
             response: "error",
           });
         }
@@ -956,48 +965,72 @@ function getDaily_requestAmount_driver(
  * @func exec_computeDaily_amountMade
  * Responsible for executing all the operations related to the computation of the driver's daily amount.
  * @param collectionRidesDeliveryData: the list of all the rides/deliveries
+ * @param collectionDrivers_profiles: the list of all the drivers profiles.
  * @param resolve
  */
 function exec_computeDaily_amountMade(
   collectionRidesDeliveryData,
+  collectionDrivers_profiles,
   driver_fingerprint,
   resolve
 ) {
   resolveDate();
   //...
-  let filterRequest = {
-    taxi_id: driver_fingerprint,
-    "ride_state_vars.isRideCompleted_driverSide": true,
-    "ride_state_vars.isRideCompleted_riderSide": true,
-    date_requested: {
-      $regex: escapeStringRegexp(chaineDateUTC.split(" ")[0]),
-      $options: "i",
-    },
-  };
-
-  collectionRidesDeliveryData
-    .find(filterRequest)
-    .toArray(function (err, requestsArray) {
-      if (err) {
+  //Get the driver's requests operation clearances
+  collectionDrivers_profiles
+    .find({ driver_fingerprint: driver_fingerprint })
+    .toArray(function (error, driverProfile) {
+      if (error) {
         resolve({
           amount: 0,
           currency: "NAD",
           currency_symbol: "N$",
+          supported_requests_types: "none",
           response: "error",
         });
       }
+      driverProfile = driverProfile[0];
       //...
-      let amount = 0;
-      requestsArray.map((request) => {
-        let tmpFare = parseFloat(request.fare);
-        amount += tmpFare;
-      });
-      resolve({
-        amount: amount,
-        currency: "NAD",
-        currency_symbol: "N$",
-        response: "success",
-      });
+      let filterRequest = {
+        taxi_id: driver_fingerprint,
+        "ride_state_vars.isRideCompleted_driverSide": true,
+        "ride_state_vars.isRideCompleted_riderSide": true,
+        date_requested: {
+          $regex: escapeStringRegexp(chaineDateUTC.split(" ")[0]),
+          $options: "i",
+        },
+      };
+
+      collectionRidesDeliveryData
+        .find(filterRequest)
+        .toArray(function (err, requestsArray) {
+          if (err) {
+            resolve({
+              amount: 0,
+              currency: "NAD",
+              currency_symbol: "N$",
+              supported_requests_types: driverProfile.operation_clearances.join(
+                "-"
+              ),
+              response: "error",
+            });
+          }
+          //...
+          let amount = 0;
+          requestsArray.map((request) => {
+            let tmpFare = parseFloat(request.fare);
+            amount += tmpFare;
+          });
+          resolve({
+            amount: amount,
+            currency: "NAD",
+            currency_symbol: "N$",
+            supported_requests_types: driverProfile.operation_clearances.join(
+              "-"
+            ),
+            response: "success",
+          });
+        });
     });
 }
 
@@ -1017,6 +1050,7 @@ clientMongo.connect(function (err) {
   ); //Hold all the requests made (rides and deliveries)
   const collection_OTP_dispatch_map = dbMongo.collection("OTP_dispatch_map");
   const collectionDrivers_profiles = dbMongo.collection("drivers_profiles"); //Hold all the drivers profiles
+  const collectionGlobalEvents = dbMongo.collection("global_events"); //Hold all the random events that happened somewhere.
   //-------------
   const bodyParser = require("body-parser");
   app
@@ -1383,6 +1417,7 @@ clientMongo.connect(function (err) {
       new Promise((res0) => {
         getDaily_requestAmount_driver(
           collectionRidesDeliveryData,
+          collectionDrivers_profiles,
           req.driver_fingerprint,
           res0
         );
@@ -1396,6 +1431,7 @@ clientMongo.connect(function (err) {
             amount: 0,
             currency: "NAD",
             currency_symbol: "N$",
+            supported_requests_types: "none",
             response: "error",
           });
         }
@@ -1406,8 +1442,195 @@ clientMongo.connect(function (err) {
         amount: 0,
         currency: "NAD",
         currency_symbol: "N$",
+        supported_requests_types: "none",
         response: "error",
       });
+    }
+  });
+
+  /**
+   * Go ONLINE/OFFLINE FOR DRIVERS
+   * Responsible for going online or offline for drivers / or getting the operational status of drivers (online/offline).
+   * @param driver_fingerprint
+   * @param state: online or offline
+   */
+  app.get("/goOnline_offlineDrivers", function (req, res) {
+    resolveDate();
+    let params = urlParser.parse(req.url, true);
+    req = params.query;
+    console.log(req);
+
+    if (
+      req.driver_fingerprint !== undefined &&
+      req.driver_fingerprint !== null &&
+      req.action !== undefined &&
+      req.action !== null &&
+      req.state !== undefined &&
+      req.state !== null
+    ) {
+      if (/make/i.test(req.action)) {
+        //Make a modification
+        //Valid data received
+        new Promise((res0) => {
+          //Check the driver
+          collectionDrivers_profiles
+            .find({ driver_fingerprint: req.driver_fingerprint })
+            .toArray(function (err, driverData) {
+              if (err) {
+                res0({ response: "error_invalid_request" });
+              }
+              //...
+              if (driverData.length > 0) {
+                //Check if the driver has an active request - NOT LOG OUT WITH AN ACTIVE REQUEST
+                let checkActiveRequests = {
+                  taxi_id: req.driver_fingerprint,
+                  "ride_state_vars.isAccepted": true,
+                  "ride_state_vars.isRideCompleted_driverSide": false,
+                };
+                //check
+                collectionRidesDeliveryData
+                  .find(checkActiveRequests)
+                  .toArray(function (err, currentActiveRequests) {
+                    if (err) {
+                      res0({ response: "error_invalid_request" });
+                    }
+                    //...
+                    if (/offline/i.test(req.state)) {
+                      //Only if the driver wants to go out
+                      if (currentActiveRequests.length <= 0) {
+                        //No active requests - proceed
+                        collectionDrivers_profiles.updateOne(
+                          { driver_fingerprint: req.driver_fingerprint },
+                          updateData,
+                          function (err, reslt) {
+                            if (err) {
+                              res0({ response: "error_invalid_request" });
+                            }
+                            //...
+                            //Save the going offline event
+                            new Promise((res) => {
+                              collectionGlobalEvents.insertOne({
+                                event_name: "driver_switching_status_request",
+                                status: /online/i.test(req.state)
+                                  ? "online"
+                                  : "offline",
+                                driver_fingerprint: req.driver_fingerprint,
+                                date: chaineDateUTC,
+                              });
+                              res(true);
+                            }).then(
+                              () => {},
+                              () => {}
+                            );
+                            //Done
+                            res0({
+                              response: "successfully_done",
+                              flag: /online/i.test(req.state)
+                                ? "online"
+                                : "offline",
+                            });
+                          }
+                        );
+                      } //Has an active request - abort going offline
+                      else {
+                        res0({
+                          response:
+                            "error_going_offline_activeRequest_inProgress",
+                        });
+                      }
+                    } //If the driver want to go online - proceed
+                    else {
+                      collectionDrivers_profiles.updateOne(
+                        { driver_fingerprint: req.driver_fingerprint },
+                        updateData,
+                        function (err, reslt) {
+                          if (err) {
+                            res0({ response: "error_invalid_request" });
+                          }
+                          //...
+                          //Save the going offline event
+                          new Promise((res) => {
+                            collectionGlobalEvents.insertOne({
+                              event_name: "driver_switching_status_request",
+                              status: /online/i.test(req.state)
+                                ? "online"
+                                : "offline",
+                              driver_fingerprint: req.driver_fingerprint,
+                              date: chaineDateUTC,
+                            });
+                            res(true);
+                          }).then(
+                            () => {},
+                            () => {}
+                          );
+                          //Done
+                          res0({
+                            response: "successfully_done",
+                            flag: /online/i.test(req.state)
+                              ? "online"
+                              : "offline",
+                          });
+                        }
+                      );
+                    }
+                  });
+                //Found a driver
+                let updateData = {
+                  $set: {
+                    "operational_state.status": /online/i.test(req.state)
+                      ? "online"
+                      : "offline",
+                  },
+                };
+              } //Error - unknown driver
+              else {
+                res0({ response: "error_invalid_request" });
+              }
+            });
+        }).then(
+          (result) => {
+            res.send(result);
+          },
+          (error) => {
+            console.log(error);
+            res.send({ response: "error_invalid_request" });
+          }
+        );
+      } else if (/get/i.test(req.action)) {
+        //Get information about the state
+        new Promise((res0) => {
+          collectionDrivers_profiles
+            .find({ driver_fingerprint: req.driver_fingerprint })
+            .toArray(function (err, driverData) {
+              if (err) {
+                res0({ response: "error_invalid_request" });
+              }
+              //...
+              if (driverData.length > 0) {
+                driverData = driverData[0];
+                //Valid driver
+                res0({
+                  response: "successfully_got",
+                  flag: driverData.operational_state.status,
+                });
+              } //Unknown driver
+              else {
+                res0({ response: "error_invalid_request" });
+              }
+            });
+        }).then(
+          (result) => {
+            res.send(result);
+          },
+          (error) => {
+            console.log(error);
+            res.send({ response: "error_invalid_request" });
+          }
+        );
+      }
+    } //Invalid data
+    else {
+      res.send({ response: "error_invalid_request" });
     }
   });
 });

@@ -907,6 +907,60 @@ io.on("connection", (socket) => {
 
   /**
    * ACCOUNTS SERVICE, port 9696
+   * Route: goOnline_offlineDrivers
+   * event: goOnline_offlineDrivers_io
+   * Responsible for going online or offline for drivers / or getting the operational status of drivers (online/offline).
+   */
+  socket.on("goOnline_offlineDrivers_io", function (req) {
+    console.log(req);
+    if (
+      req.driver_fingerprint !== undefined &&
+      req.driver_fingerprint !== null &&
+      req.action !== undefined &&
+      req.action !== null
+    ) {
+      let url =
+        process.env.LOCAL_URL +
+        ":" +
+        process.env.ACCOUNTS_SERVICE_PORT +
+        "/goOnline_offlineDrivers?driver_fingerprint=" +
+        req.driver_fingerprint +
+        "&action=" +
+        req.action;
+
+      //Add the state if found
+      if (req.state !== undefined && req.state !== null) {
+        url += "&state=" + req.state;
+      } else {
+        url += "&state=false";
+      }
+
+      requestAPI(url, function (error, response, body) {
+        console.log(body);
+        if (error === null) {
+          try {
+            body = JSON.parse(body);
+            socket.emit("goOnline_offlineDrivers_io-response", body);
+          } catch (error) {
+            socket.emit("goOnline_offlineDrivers_io-response", {
+              response: "error_invalid_request",
+            });
+          }
+        } else {
+          socket.emit("goOnline_offlineDrivers_io-response", {
+            response: "error_invalid_request",
+          });
+        }
+      });
+    } else {
+      socket.emit("goOnline_offlineDrivers_io-response", {
+        response: "error_invalid_request",
+      });
+    }
+  });
+
+  /**
+   * ACCOUNTS SERVICE, port 9696
    * Route: checkSMSOTPTruly
    * event: checkThisOTP_SMS
    * Check that the inputed otp by the user is true (return true, false, or error_checking_otp)
