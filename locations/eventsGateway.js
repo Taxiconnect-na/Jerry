@@ -830,7 +830,7 @@ io.on("connection", (socket) => {
         req.phone_number;
 
       requestAPI(url, function (error, response, body) {
-        console.log(body);
+        console.log("ANSWER HERE -> ", body);
         if (error === null) {
           try {
             body = JSON.parse(body);

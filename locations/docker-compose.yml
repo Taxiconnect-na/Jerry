@@ -8,7 +8,7 @@ services:
   server_beta_v2:
     depends_on:
       - redis-server
-    image: dominiquektt/rider_beta_server:latest
+    image: taxiconnect/rider_beta_server:latest
     ports:
       - "9097:9097"
       - "9090:9090"
