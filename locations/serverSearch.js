@@ -157,15 +157,27 @@ function similarityCheck_locations_search(arrayLocations, query, res) {
   }
 }
 
+/**
+ * @func newLoaction_search_engine
+ * Responsible for performing new location seearches based on some specific keywords.
+ * @param {*} queryOR
+ * @param {*} city
+ * @param {*} bbox
+ * @param {*} res
+ * @param {*} timestamp
+ * @param {*} collectionMongoDb
+ * @param {*} keyREDIS
+ */
+
 function newLoaction_search_engine(
   queryOR,
   city,
   bbox,
   res,
   timestamp,
-  collectionMongoDb
+  collectionMongoDb,
+  keyREDIS
 ) {
-  let keyREDIS = "search_locations-" + city.trim().toLowerCase();
   //..
   query = encodeURIComponent(queryOR.toLowerCase().trim());
   let urlRequest =
@@ -262,19 +274,13 @@ function newLoaction_search_engine(
                           //...
                           let request2 = new Promise((resolve) => {
                             result.map((item) => {
-                              if (
-                                !respPrevRedisCache.includes(
-                                  JSON.stringify(item)
-                                )
-                              ) {
-                                //New record
-                                respPrevRedisCache.push(JSON.stringify(item));
-                                newSearchRecords.push(item);
-                                resolve("success");
-                              } else {
-                                resolve("already_existing_record");
-                              }
+                              //New record
+                              respPrevRedisCache.push(JSON.stringify(item));
+                              newSearchRecords.push(item);
                             });
+                            //Remove duplicates from new search
+                            newSearchRecords = [...new Set(newSearchRecords)];
+                            resolve(newSearchRecords);
                           }).then(
                             (reslt) => {
                               //Update cache
@@ -284,11 +290,19 @@ function newLoaction_search_engine(
                               );
                               //logObject(newSearchRecords);
                               if (newSearchRecords.length > 0) {
-                                collectionMongoDb.insertMany(
-                                  newSearchRecords,
-                                  function (err, res) {
-                                    console.log(res);
-                                  }
+                                new Promise((resUpdate) => {
+                                  collectionMongoDb.insertMany(
+                                    newSearchRecords,
+                                    function (err, res) {
+                                      console.log(res);
+                                      resUpdate(
+                                        "Updated mongo with new search results from autocomplete"
+                                      );
+                                    }
+                                  );
+                                }).then(
+                                  () => {},
+                                  () => {}
                                 );
                               }
                               //Update redis local cache
@@ -361,6 +375,7 @@ function newLoaction_search_engine(
         res(false);
       }
     } catch (error) {
+      console.log(error);
       res(false);
     }
   });
@@ -388,34 +403,54 @@ function removeResults_duplicates(arrayResults, resolve) {
   return arrayResultsClean;
 }
 
+/**
+ * @func getLocationList_five
+ * Responsible for getting the list of the 5 most accurate locations based on some keywords.
+ * It should consider the city and country from where the search was made.
+ * @param {*} queryOR
+ * @param {*} city
+ * @param {*} country
+ * @param {*} bbox
+ * @param {*} res
+ * @param {*} timestamp
+ * @param {*} collectionMongoDb
+ */
+
 function getLocationList_five(
   queryOR,
   city,
+  country,
   bbox,
   res,
   timestamp,
   collectionMongoDb
 ) {
   //Check if cached results are available
-  let keyREDIS = "search_locations-" + city.trim().toLowerCase();
+  let keyREDIS =
+    "search_locations-" +
+    city.trim().toLowerCase() +
+    "-" +
+    country.trim().toLowerCase();
+  //-------------------------------------
   redisGet(keyREDIS).then(
     (reslt) => {
       if (reslt != null && reslt !== undefined) {
         //logObject(JSON.parse(reslt));
         var cachedLocations = JSON.parse(reslt);
         //sort based on the keyword, city and country names
-        cachedLocations = fastFilter(cachedLocations, function (element) {
+        cachedLocations = cachedLocations.filter((element) => {
           if (
             element.country != undefined &&
             element.city != undefined &&
             element.query != undefined
           ) {
+            let regCheckerQuery = new RegExp(queryOR.toLowerCase().trim(), "i");
             return (
-              element.query.toLowerCase().trim() ==
-                queryOR.toLowerCase().trim() &&
+              (regCheckerQuery.test(element.query) ||
+                regCheckerQuery.test(element.location_name)) &&
               element.country.toLowerCase().trim() ==
-                _COUNTRY.toLowerCase().trim() &&
-              element.city.toLowerCase().trim() == _CITY.toLowerCase().trim()
+                country.toLowerCase().trim() &&
+              element.city.toLowerCase().trim() == city.toLowerCase().trim()
             );
           } //Invalid element
           else {
@@ -443,7 +478,8 @@ function getLocationList_five(
             bbox,
             res,
             timestamp,
-            collectionMongoDb
+            collectionMongoDb,
+            keyREDIS
           );
         }
       } //No cached results
@@ -456,12 +492,14 @@ function getLocationList_five(
           bbox,
           res,
           timestamp,
-          collectionMongoDb
+          collectionMongoDb,
+          keyREDIS
         );
       }
     },
     (error) => {
       //Launch new search
+      console.log(error);
       console.log("Launch new search");
       newLoaction_search_engine(
         queryOR,
@@ -469,7 +507,8 @@ function getLocationList_five(
         bbox,
         res,
         timestamp,
-        collectionMongoDb
+        collectionMongoDb,
+        keyREDIS
       );
     }
   );
@@ -519,11 +558,12 @@ dbPool.getConnection(function (err, connection) {
         (result) => {
           let bbox = result;
           //Get the location
-          let request1 = new Promise((res, rej) => {
+          new Promise((res, rej) => {
             let tmpTimestamp = search_timestamp;
             getLocationList_five(
               request.query,
               request.city,
+              request.country,
               bbox,
               res,
               tmpTimestamp,
