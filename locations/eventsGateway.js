@@ -405,7 +405,9 @@ io.on("connection", (socket) => {
         "&query=" +
         req.query +
         "&city=" +
-        req.city;
+        req.city +
+        "&country=" +
+        req.country;
 
       requestAPI(url, function (error, response, body) {
         //console.log(body);

@@ -262,7 +262,7 @@ function newLoaction_search_engine(
                     //Update search cache - redis
                     redisGet(keyREDIS).then(
                       (resp) => {
-                        console.log(resp);
+                        //console.log(resp);
                         if (resp !== null) {
                           let respPrevRedisCache = JSON.parse(resp);
                           //logObject(respPrevRedisCache);
@@ -425,6 +425,7 @@ function getLocationList_five(
   timestamp,
   collectionMongoDb
 ) {
+  console.log(city, country);
   //Check if cached results are available
   let keyREDIS =
     "search_locations-" +
@@ -446,8 +447,7 @@ function getLocationList_five(
           ) {
             let regCheckerQuery = new RegExp(queryOR.toLowerCase().trim(), "i");
             return (
-              (regCheckerQuery.test(element.query) ||
-                regCheckerQuery.test(element.location_name)) &&
+              regCheckerQuery.test(element.query) &&
               element.country.toLowerCase().trim() ==
                 country.toLowerCase().trim() &&
               element.city.toLowerCase().trim() == city.toLowerCase().trim()
@@ -571,12 +571,14 @@ dbPool.getConnection(function (err, connection) {
             );
           }).then(
             (result) => {
+              console.log(result);
               if (
                 parseInt(search_timestamp) != parseInt(result.search_timestamp)
               ) {
                 //Inconsistent - do not update
                 //console.log('Inconsistent');
-                res.send(false);
+                //res.send(false);
+                res.send(result);
               } //Consistent - update
               else {
                 //console.log('Consistent');
