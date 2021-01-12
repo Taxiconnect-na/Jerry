@@ -95,7 +95,6 @@ function getRouteInfosDestination(
 ) {
   let destinationPosition = coordsInfos.destination;
   let passengerPosition = coordsInfos.passenger;
-  console.log(passengerPosition);
   let url =
     process.env.URL_ROUTE_SERVICES +
     "point=" +
@@ -258,7 +257,7 @@ function getRouteInfos(coordsInfos, resolve) {
     passengerPosition.latitude +
     "," +
     passengerPosition.longitude +
-    "&heading_penalty=0&avoid=residential&avoid=ferry&ch.disable=true&locale=en&details=street_name&details=time&optimize=true&points_encoded=false&details=max_speed&snap_prevention=ferry&profile=car&pass_through=true&instructions=false&vehicle=car";
+    "&heading_penalty=0&avoid=residential&avoid=ferry&ch.disable=true&locale=en&details=street_name&details=time&optimize=true&points_encoded=false&details=max_speed&snap_prevention=ferry&profile=car&pass_through=true&instructions=false";
 
   requestAPI(url, function (error, response, body) {
     if (body != undefined) {
@@ -266,7 +265,6 @@ function getRouteInfos(coordsInfos, resolve) {
         try {
           body = JSON.parse(body);
           if (body.paths[0].distance != undefined) {
-            console.log("HERRRERE-----------");
             let distance = body.paths[0].distance;
             let eta =
               body.paths[0].time / 1000 >= 60
@@ -291,7 +289,7 @@ function getRouteInfos(coordsInfos, resolve) {
                 );
               }).then(
                 (result) => {
-                  console.log(result);
+                  console.log("Ready to place");
                   if (
                     result !== false &&
                     result !== undefined &&
@@ -508,10 +506,8 @@ function tripChecker_Dispatcher(
               request_fp,
               resolve
             );
-            //console.log(userDataRepr);
           } //No rides recorded
           else {
-            //console.log("no rides");
             resolve("no_rides");
           }
         }
@@ -1300,7 +1296,6 @@ function computeRouteDetails_skeleton(
   resolve
 ) {
   if (result.length > 0 && result[0].request_fp !== undefined) {
-    //console.log("[Runninf] COMPUTE SKELETON CALLED.");
     //There is a ride
     let rideHistory = result[0];
     let riderCoords = rideHistory.pickup_location_infos.coordinates;
@@ -1903,11 +1898,13 @@ function computeAndCacheRouteDestination(
         () => {},
         () => {}
       );
+      console.log("HEEEEEEEE->", result);
       //console.log(rideHistory.destinationData);
       //Add request status variable - inRouteToPickup, inRouteToDestination
       result["request_status"] = request_status;
       let additionalInfos = {
         ETA_toDestination: null,
+        request_status: null, //inRouteToPickup, inRouteToDestination, pending
         driverDetails: {
           name: null,
           profile_picture: null,
@@ -2022,7 +2019,6 @@ function computeAndCacheRouteDestination(
         requestAPI(url, function (error, response, body) {
           if (error === null) {
             try {
-              console.log(body);
               body = JSON.parse(body);
               res4(body.eta);
             } catch (error) {
@@ -2036,6 +2032,7 @@ function computeAndCacheRouteDestination(
         (estimated_travel_time) => {
           //Add the eta to destination
           additionalInfos.ETA_toDestination = estimated_travel_time;
+          additionalInfos.request_status = request_status;
           result = { ...result, ...additionalInfos }; //Merge all the data
           //Cache-
           //Cache computed result
@@ -2148,6 +2145,7 @@ function updateRiderLocationInfosCache(req, resolve) {
       }
     },
     (error) => {
+      console.log(error);
       //Create or update the current cache entry
       client.set(req.user_fingerprint.trim(), JSON.stringify(req));
       resolve(true);
@@ -2796,7 +2794,6 @@ clientMongo.connect(function (err) {
           //console.log("[" + chaineDateUTC + "] Compute and dispatch time (trip) ------>  " + timeTaken + " ms");
           //Update the rider
           if (result !== false) {
-            console.log(result);
             if (result != "no_rides") {
               res.send(result);
               //socket.emit("trackdriverroute-response", result);
