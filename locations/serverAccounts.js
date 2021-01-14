@@ -320,6 +320,7 @@ function getBachRidesHistory(
           });
       } //invalid data
       else {
+        console.log("Invalid");
         resolve({ response: "error_authentication_failed" });
       }
     },
@@ -378,6 +379,7 @@ function shrinkDataSchema_forBatchRidesHistory(
   resolve,
   shrink_for_targeted = false
 ) {
+  console.log("is targeted -> ", shrink_for_targeted);
   if (shrink_for_targeted === false) {
     //Batch requests
     let light_request_schema = {
@@ -390,7 +392,7 @@ function shrinkDataSchema_forBatchRidesHistory(
     let dateRequest = new Date(request.date_requested);
     dateRequest = moment(dateRequest.getTime());
     dateRequest =
-      (String(dateRequest).date().length > 1
+      (String(dateRequest.date()).length > 1
         ? dateRequest.date()
         : "0" + dateRequest.date()) +
       "/" +
@@ -419,6 +421,7 @@ function shrinkDataSchema_forBatchRidesHistory(
           res(false);
         }
         //...
+        console.log(result);
         if (result.length > 0) {
           //FOund something
           let car_brand = false;
