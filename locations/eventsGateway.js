@@ -433,7 +433,6 @@ io.on("connection", (socket) => {
    * event: getPricingForRideorDelivery
    * Get fare estimations for any ride or delivery booking
    */
-  //socket.emit("getPricingForRideorDelivery");
   socket.on("getPricingForRideorDelivery", function (req) {
     //console.log(req);
     if (

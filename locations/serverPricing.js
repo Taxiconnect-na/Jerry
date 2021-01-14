@@ -518,12 +518,18 @@ function manageAutoCompleteDestinationLocations(
           }
         );
       } else {
-        resolve(false);
+        destinationLocations.map((location, index) => {
+          destinationLocations[index].dropoff_type = "PrivateLocation";
+        });
+        resolve(destinationLocations);
       }
     },
     (error) => {
       console.log(error);
-      resolve(false);
+      destinationLocations.map((location, index) => {
+        destinationLocations[index].dropoff_type = "PrivateLocation";
+      });
+      resolve(destinationLocations);
     }
   );
 }
@@ -767,7 +773,6 @@ function estimateFullVehiclesCatPrices(
   //completedInputData.destination_location_infos[3].dropoff_type = "PrivateLocation";
   //DEBUG
   //Check for the input data
-  console.log(completedInputData);
   if (
     completedInputData.pickup_location_infos.suburb !== undefined &&
     completedInputData.pickup_location_infos.suburb !== false &&
@@ -911,6 +916,7 @@ function estimateFullVehiclesCatPrices(
  * @param genericRidesInfos: generic vehicles categories
  * @param collectionNotFoundSubursPricesMap: collection of all not found suburbs from the global prices map.
  * Responsible for performing all the operations of header prices, multipliers (time and passengers) and outputing the final price map
+ * ! DO NOT CACHE.
  */
 function computeInDepthPricesMap(
   resolve,
@@ -1691,7 +1697,7 @@ clientMongo.connect(function (err) {
   app.post("/getOverallPricingAndAvailabilityDetails", function (req, res) {
     resolveDate();
     //DELIVERY TEST DATA - DEBUG
-    /*let deliveryPricingInputDataRaw = {
+    let deliveryPricingInputDataRaw = {
       user_fingerprint:
         "7c57cb6c9471fd33fd265d5441f253eced2a6307c0207dea57c987035b496e6e8dfa7105b86915da",
       connectType: "ConnectUs",
@@ -1719,8 +1725,7 @@ clientMongo.connect(function (err) {
         passenger4Destination: false,
       },
     };
-    req.body = deliveryPricingInputDataRaw;*/
-    console.log(req.body);
+    req.body = deliveryPricingInputDataRaw;
     //...
 
     try {
@@ -1736,7 +1741,6 @@ clientMongo.connect(function (err) {
             if (checkInputIntegrity(parsedData)) {
               //Check inetgrity
               console.log("Passenged the integrity test.");
-              console.log(parsedData);
               //Valid input
               //Autocomplete the input data
               new Promise((res) => {

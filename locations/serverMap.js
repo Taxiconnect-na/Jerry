@@ -2158,19 +2158,21 @@ function updateRiderLocationInfosCache(req, resolve) {
  * @param resolve
  * @param req: user coordinates, and fingerprint
  * Responsible for finding out the current user (passenger, driver, etc) location details
- * //REDIS propertiy
- * //user_fingerprint -> currentLocationInfos: {...}
+ * REDIS propertiy
+ * user_fingerprint+reverseGeocodeKey -> currentLocationInfos: {...}
  */
 function reverseGeocodeUserLocation(resolve, req) {
+  //Form the redis key
+  let redisKey = req.user_fingerprint + "-reverseGeocodeKey";
   //Check if redis has some informations already
-  redisGet(req.user_fingerprint).then(
+  redisGet(redisKey).then(
     (resp) => {
       if (resp !== null) {
         //Do a fresh request to update the cache
         //Make a new reseach
         new Promise((res) => {
           //console.log("Fresh geocpding launched");
-          reverseGeocoderExec(res, req, JSON.parse(resp));
+          reverseGeocoderExec(res, req, JSON.parse(resp), redisKey);
         }).then(
           (result) => {},
           (error) => {}
@@ -2180,20 +2182,35 @@ function reverseGeocodeUserLocation(resolve, req) {
         //Check if an old current location is present
         resp = JSON.parse(resp);
         if (resp.currentLocationInfos !== undefined) {
-          //Present
+          //Make a rehydration request
+          new Promise((res) => {
+            reverseGeocoderExec(res, req, false, redisKey);
+          }).then(
+            (result) => {
+              //Updating cache and replying to the main thread
+              let currentLocationEntry = { currentLocationInfos: result };
+              client.setex(
+                redisKey,
+                process.env.REDIS_EXPIRATION_5MIN,
+                JSON.stringify(currentLocationEntry)
+              );
+            },
+            (error) => {}
+          );
           //Send
           resolve(resp.currentLocationInfos);
         } //No previously cached current location
         else {
           //Make a new reseach
           new Promise((res) => {
-            reverseGeocoderExec(res, req);
+            reverseGeocoderExec(res, req, false, redisKey);
           }).then(
             (result) => {
               //Updating cache and replying to the main thread
               let currentLocationEntry = { currentLocationInfos: result };
-              client.set(
-                req.user_fingerprint.trim(),
+              client.setex(
+                redisKey,
+                process.env.REDIS_EXPIRATION_5MIN,
                 JSON.stringify(currentLocationEntry)
               );
               resolve(result);
@@ -2207,13 +2224,14 @@ function reverseGeocodeUserLocation(resolve, req) {
       else {
         //Make a new reseach
         new Promise((res) => {
-          reverseGeocoderExec(res, req);
+          reverseGeocoderExec(res, req, false, redisKey);
         }).then(
           (result) => {
             //Updating cache and replying to the main thread
             let currentLocationEntry = { currentLocationInfos: result };
-            client.set(
-              req.user_fingerprint.trim(),
+            client.setex(
+              redisKey,
+              process.env.REDIS_EXPIRATION_5MIN,
               JSON.stringify(currentLocationEntry)
             );
             resolve(result);
@@ -2232,9 +2250,11 @@ function reverseGeocodeUserLocation(resolve, req) {
 /**
  * @func reverseGeocoderExec
  * @param updateCache: to known whether to update the cache or not if yes, will have the value of the hold cache.
+ * @param req: the user basic data (fingerprint, etc)
+ * @param redisKey: the redis key to cache the data to
  * Responsible for executing the geocoding new fresh requests
  */
-function reverseGeocoderExec(resolve, req, updateCache = false) {
+function reverseGeocoderExec(resolve, req, updateCache = false, redisKey) {
   let url =
     process.env.URL_SEARCH_SERVICES +
     "reverse?lon=" +
@@ -2252,10 +2272,7 @@ function reverseGeocoderExec(resolve, req, updateCache = false) {
             if (updateCache !== false) {
               //Update cache
               updateCache.currentLocationInfos = body.features[0].properties;
-              client.set(
-                req.user_fingerprint.trim(),
-                JSON.stringify(updateCache)
-              );
+              client.set(redisKey, JSON.stringify(updateCache));
             }
             //...
             resolve(body.features[0].properties);
@@ -2265,10 +2282,7 @@ function reverseGeocoderExec(resolve, req, updateCache = false) {
             if (updateCache !== false) {
               //Update cache
               updateCache.currentLocationInfos = body.features[0].properties;
-              client.set(
-                req.user_fingerprint.trim(),
-                JSON.stringify(updateCache)
-              );
+              client.set(redisKey, JSON.stringify(updateCache));
             }
             //...
             resolve(body.features[0].properties);
@@ -2876,13 +2890,12 @@ clientMongo.connect(function (err) {
   /**
    * PLACES IDENTIFIER
    * Route name: identifyPickupLocation
-   * Responsible for finding out the nature of places (ge. Private locations, taxi ranks or other specific plcaes of interest)
+   * ? Responsible for finding out the nature of places (ge. Private locations, taxi ranks or other specific plcaes of interest)
    * This one will only focus on Pvate locations AND taxi ranks.
    * False means : not a taxirank -> private location AND another object means taxirank
    */
   app.get("/identifyPickupLocation", function (req, res) {
     let params = urlParser.parse(req.url, true);
-    //console.log(params.query);
     req = params.query;
     //...
     if (
@@ -2893,12 +2906,10 @@ clientMongo.connect(function (err) {
       req.user_fingerprint !== undefined &&
       req.user_fingerprint !== null
     ) {
-      //console.log("Identify pickup location request launch...");
       new Promise((res) => {
         findoutPickupLocationNature(res, req);
       }).then(
         (result) => {
-          //console.log(result);
           res.send(result);
         },
         (error) => {
