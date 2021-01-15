@@ -1697,7 +1697,7 @@ clientMongo.connect(function (err) {
   app.post("/getOverallPricingAndAvailabilityDetails", function (req, res) {
     resolveDate();
     //DELIVERY TEST DATA - DEBUG
-    let deliveryPricingInputDataRaw = {
+    /*let deliveryPricingInputDataRaw = {
       user_fingerprint:
         "7c57cb6c9471fd33fd265d5441f253eced2a6307c0207dea57c987035b496e6e8dfa7105b86915da",
       connectType: "ConnectUs",
@@ -1725,7 +1725,7 @@ clientMongo.connect(function (err) {
         passenger4Destination: false,
       },
     };
-    req.body = deliveryPricingInputDataRaw;
+    req.body = deliveryPricingInputDataRaw;*/
     //...
 
     try {
