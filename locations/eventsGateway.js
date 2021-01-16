@@ -856,6 +856,58 @@ io.on("connection", (socket) => {
 
   /**
    * ACCOUNTS SERVICE, port 9696
+   * Route: getRiders_walletInfos
+   * event: getRiders_walletInfos_io
+   * Responsible for computing the wallet summary (total and details) for the riders.
+   */
+  socket.on("getRiders_walletInfos_io", function (req) {
+    console.log(req);
+    if (
+      req.user_fingerprint !== undefined &&
+      req.user_fingerprint !== null &&
+      req.mode !== undefined &&
+      req.mode !== null
+    ) {
+      let url =
+        process.env.LOCAL_URL +
+        ":" +
+        process.env.ACCOUNTS_SERVICE_PORT +
+        "/getRiders_walletInfos?user_fingerprint=" +
+        req.user_fingerprint +
+        "&mode=" +
+        req.mode;
+
+      requestAPI(url, function (error, response, body) {
+        if (error === null) {
+          try {
+            body = JSON.parse(body);
+            socket.emit("getRiders_walletInfos_io-response", body);
+          } catch (error) {
+            socket.emit("getRiders_walletInfos_io-response", {
+              total: 0,
+              response: "error",
+              tag: "invalid_parameters",
+            });
+          }
+        } else {
+          socket.emit("getRiders_walletInfos_io-response", {
+            total: 0,
+            response: "error",
+            tag: "invalid_parameters",
+          });
+        }
+      });
+    } else {
+      socket.emit("getRiders_walletInfos_io-response", {
+        total: 0,
+        response: "error",
+        tag: "invalid_parameters",
+      });
+    }
+  });
+
+  /**
+   * ACCOUNTS SERVICE, port 9696
    * Route: computeDaily_amountMadeSoFar
    * event: computeDaily_amountMadeSoFar_io
    * Responsible for getting the daily amount made so far by the driver for exactly all the completed requests.
