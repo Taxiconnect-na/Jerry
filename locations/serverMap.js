@@ -485,6 +485,7 @@ function tripChecker_Dispatcher(
           resolve(false);
           throw err;
         }
+        console.log(userDataRepr);
         if (userDataRepr.length <= 0) {
           //No data
           resolve(false);
@@ -2807,6 +2808,7 @@ clientMongo.connect(function (err) {
           timeTaken = doneTime.getTime() - timeTaken;
           //console.log("[" + chaineDateUTC + "] Compute and dispatch time (trip) ------>  " + timeTaken + " ms");
           //Update the rider
+          console.log(result);
           if (result !== false) {
             if (result != "no_rides") {
               res.send(result);

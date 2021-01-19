@@ -93,7 +93,7 @@ io.on("connection", (socket) => {
       }
       //...
       requestAPI(url, function (error, response, body) {
-        console.log("RESPONSE HEREE ", body);
+        console.log("RESPONSE HEREE ", error);
         if (error === null) {
           try {
             body = JSON.parse(body);
