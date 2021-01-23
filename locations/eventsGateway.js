@@ -1061,6 +1061,56 @@ io.on("connection", (socket) => {
 
   /**
    * ACCOUNTS SERVICE, port 9696
+   * Route: updateRiders_profileInfos
+   * event: updateRiders_profileInfos_io
+   * Responsible for updating ANY information related to the passengers profile.
+   * Informations that can be updated: name, surname, picture, email, phone number, gender.
+   */
+  socket.on("updateRiders_profileInfos_io", function (req) {
+    console.log(req);
+    if (
+      req.user_fingerprint !== undefined &&
+      req.user_fingerprint !== null &&
+      req.infoToUpdate !== undefined &&
+      req.infoToUpdate !== null &&
+      req.dataToUpdate !== undefined &&
+      req.dataToUpdate !== null
+    ) {
+      let url =
+        process.env.LOCAL_URL +
+        ":" +
+        process.env.ACCOUNTS_SERVICE_PORT +
+        "/updateRiders_profileInfos";
+
+      requestAPI.post({ url, form: req }, function (error, response, body) {
+        console.log(body);
+        if (error === null) {
+          try {
+            body = JSON.parse(body);
+            socket.emit("updateRiders_profileInfos_io-response", body);
+          } catch (error) {
+            socket.emit("updateRiders_profileInfos_io-response", {
+              response: "error",
+              flag: "invalid_data",
+            });
+          }
+        } else {
+          socket.emit("updateRiders_profileInfos_io-response", {
+            response: "error",
+            flag: "invalid_data",
+          });
+        }
+      });
+    } else {
+      socket.emit("updateRiders_profileInfos_io-response", {
+        response: "error",
+        flag: "invalid_data",
+      });
+    }
+  });
+
+  /**
+   * ACCOUNTS SERVICE, port 9696
    * Route: createMinimalRiderAccount
    * event: createInitialRider_account
    * Create a minimal rider account with only the phone number as crucial param, and return the status

@@ -1376,6 +1376,436 @@ function execGet_riders_walletSummary(
 }
 
 /**
+ * @func ucFirst
+ * Responsible to uppercase only the first character and lowercase the rest.
+ * @param stringData: the string to be processed.
+ */
+function ucFirst(stringData) {
+  try {
+    return `${stringData[0].toUpperCase()}${stringData
+      .substr(1)
+      .toLowerCase()}`;
+  } catch (error) {
+    console.log(error);
+    return stringData;
+  }
+}
+
+/**
+ * @func EmailValidator
+ * Responsible for performing a shallow syntaxic validation of an email string.
+ * @param emailString: the email string to be checked.
+ */
+function EmailValidator(emailString) {
+  let reg = /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/;
+  if (reg.test(emailString) === false) {
+    return false;
+  } else {
+    return true;
+  }
+}
+
+/**
+ * @func updateRiders_generalProfileInfos
+ * Responsible for dealing with the updates of all the riders profile information,
+ * and can log all the changes to the general events log.
+ * @param collectionPassengers_profiles: passengers profiles.
+ * @param collectionGlobalEvents: contains all the events.
+ * @param collection_OTP_dispatch_map: contains all the OTPs, useful for numbers change.
+ * @param requestData: contains the user fingerprint, the wanted info to be changed and the relevant data -name, surname, picture, email, phone number, gender - (SHOULD BE CHECKED)
+ */
+function updateRiders_generalProfileInfos(
+  collectionPassengers_profiles,
+  collection_OTP_dispatch_map,
+  collectionGlobalEvents,
+  requestData,
+  resolve
+) {
+  resolveDate();
+  //...
+  if (requestData.infoToUpdate === "name") {
+    //Modify the name
+    if (requestData.dataToUpdate.length > 2) {
+      //Acceptable
+      let filter = {
+        user_fingerprint: requestData.user_fingerprint,
+      };
+      let updateData = {
+        $set: {
+          name: ucFirst(requestData.dataToUpdate),
+          last_updated: chaineDateUTC,
+        },
+      };
+      //..
+      //1. Get the old data
+      collectionPassengers_profiles
+        .find(filter)
+        .toArray(function (err, riderProfile) {
+          if (err) {
+            res.send({ response: "error", flag: "unexpected_error" });
+          }
+          //2. Update the new data
+          collectionPassengers_profiles.updateOne(
+            filter,
+            updateData,
+            function (err, result) {
+              if (err) {
+                res.send({ response: "error", flag: "unexpected_error" });
+              }
+              //...Update the general event log
+              new Promise((res) => {
+                let dataEvent = {
+                  event_name: "rider_name_update",
+                  user_fingerprint: requestData.user_fingerprint,
+                  old_data: riderProfile[0].name,
+                  new_data: requestData.dataToUpdate,
+                  date: chaineDateUTC,
+                };
+                collectionGlobalEvents.insertOne(
+                  dataEvent,
+                  function (err, reslt) {
+                    res(true);
+                  }
+                );
+              }).then(
+                () => {},
+                () => {}
+              );
+              //...
+              resolve({ response: "success", flag: "operation successful" });
+            }
+          );
+        });
+    } //Name too short
+    else {
+      resolve({ response: "error", flag: "The name's too short." });
+    }
+  } else if (requestData.infoToUpdate === "surname") {
+    //Modify the surname
+    if (requestData.dataToUpdate.length > 2) {
+      //Acceptable
+      let filter = {
+        user_fingerprint: requestData.user_fingerprint,
+      };
+      let updateData = {
+        $set: {
+          surname: ucFirst(requestData.dataToUpdate),
+          last_updated: chaineDateUTC,
+        },
+      };
+      //..
+      //1. Get the old data
+      collectionPassengers_profiles
+        .find(filter)
+        .toArray(function (err, riderProfile) {
+          if (err) {
+            res.send({ response: "error", flag: "unexpected_error" });
+          }
+          //2. Update the new data
+          collectionPassengers_profiles.updateOne(
+            filter,
+            updateData,
+            function (err, result) {
+              if (err) {
+                res.send({ response: "error", flag: "unexpected_error" });
+              }
+              //...Update the general event log
+              new Promise((res) => {
+                let dataEvent = {
+                  event_name: "rider_surname_update",
+                  user_fingerprint: requestData.user_fingerprint,
+                  old_data: riderProfile[0].surname,
+                  new_data: requestData.dataToUpdate,
+                  date: chaineDateUTC,
+                };
+                collectionGlobalEvents.insertOne(
+                  dataEvent,
+                  function (err, reslt) {
+                    res(true);
+                  }
+                );
+              }).then(
+                () => {},
+                () => {}
+              );
+              //...
+              resolve({ response: "success", flag: "operation successful" });
+            }
+          );
+        });
+    } //Name too short
+    else {
+      resolve({ response: "error", flag: "The surname's too short." });
+    }
+  } else if (requestData.infoToUpdate === "gender") {
+    //Modify the gender
+    if (
+      requestData.dataToUpdate.length > 0 &&
+      ["M", "F", "unknown"].includes(requestData.dataToUpdate)
+    ) {
+      //Acceptable
+      let filter = {
+        user_fingerprint: requestData.user_fingerprint,
+      };
+      let updateData = {
+        $set: {
+          gender: requestData.dataToUpdate.toUpperCase(),
+          last_updated: chaineDateUTC,
+        },
+      };
+      //..
+      //1. Get the old data
+      collectionPassengers_profiles
+        .find(filter)
+        .toArray(function (err, riderProfile) {
+          if (err) {
+            res.send({ response: "error", flag: "unexpected_error" });
+          }
+          //2. Update the new data
+          collectionPassengers_profiles.updateOne(
+            filter,
+            updateData,
+            function (err, result) {
+              if (err) {
+                res.send({ response: "error", flag: "unexpected_error" });
+              }
+              //...Update the general event log
+              new Promise((res) => {
+                let dataEvent = {
+                  event_name: "rider_gender_update",
+                  user_fingerprint: requestData.user_fingerprint,
+                  old_data: riderProfile[0].gender,
+                  new_data: requestData.dataToUpdate,
+                  date: chaineDateUTC,
+                };
+                collectionGlobalEvents.insertOne(
+                  dataEvent,
+                  function (err, reslt) {
+                    res(true);
+                  }
+                );
+              }).then(
+                () => {},
+                () => {}
+              );
+              //...
+              resolve({ response: "success", flag: "operation successful" });
+            }
+          );
+        });
+    } //Invalid gender
+    else {
+      resolve({ response: "error", flag: "Invalid gender" });
+    }
+  } else if (requestData.infoToUpdate === "email") {
+    //Modify the email
+    if (
+      requestData.dataToUpdate.length > 1 &&
+      EmailValidator(requestData.dataToUpdate)
+    ) {
+      //Acceptable
+      let filter = {
+        user_fingerprint: requestData.user_fingerprint,
+      };
+      let updateData = {
+        $set: {
+          email: requestData.dataToUpdate.trim().toLowerCase(),
+          last_updated: chaineDateUTC,
+        },
+      };
+      //..
+      //1. Get the old data
+      collectionPassengers_profiles
+        .find(filter)
+        .toArray(function (err, riderProfile) {
+          if (err) {
+            res.send({ response: "error", flag: "unexpected_error" });
+          }
+          //2. Update the new data
+          collectionPassengers_profiles.updateOne(
+            filter,
+            updateData,
+            function (err, result) {
+              if (err) {
+                res.send({ response: "error", flag: "unexpected_error" });
+              }
+              //...Update the general event log
+              new Promise((res) => {
+                let dataEvent = {
+                  event_name: "rider_email_update",
+                  user_fingerprint: requestData.user_fingerprint,
+                  old_data: riderProfile[0].email.trim().toLowerCase(),
+                  new_data: requestData.dataToUpdate,
+                  date: chaineDateUTC,
+                };
+                collectionGlobalEvents.insertOne(
+                  dataEvent,
+                  function (err, reslt) {
+                    res(true);
+                  }
+                );
+              }).then(
+                () => {},
+                () => {}
+              );
+              //...
+              resolve({ response: "success", flag: "operation successful" });
+            }
+          );
+        });
+    } //Invalid email
+    else {
+      resolve({ response: "error", flag: "The email looks wrong." });
+    }
+  } else if (requestData.infoToUpdate === "phone") {
+    if (requestData.direction === "initChange") {
+      console.log("Initialize the phone number change");
+      //Modify the surname
+      if (requestData.dataToUpdate.length > 7) {
+        //Check the phone number by sending an OTP
+        let url =
+          process.env.LOCAL_URL +
+          ":" +
+          process.env.ACCOUNTS_SERVICE_PORT +
+          "/sendOTPAndCheckUserStatus?phone_number=" +
+          requestData.dataToUpdate;
+
+        requestAPI(url, function (error, response, body) {
+          if (error === null) {
+            try {
+              body = JSON.parse(body);
+              resolve(body);
+            } catch (error) {
+              resolve({
+                response: "error",
+                flag: "error_checking_user",
+              });
+            }
+          } else {
+            resolve({
+              response: "error",
+              flag: "error_checking_user",
+            });
+          }
+        });
+      } //Phonw too short
+      else {
+        resolve({ response: "error", flag: "The phone number looks wrong." });
+      }
+    } else if (requestData.direction === "confirmChange") {
+      let url =
+        process.env.LOCAL_URL +
+        ":" +
+        process.env.ACCOUNTS_SERVICE_PORT +
+        "/checkSMSOTPTruly?phone_number=" +
+        requestData.dataToUpdate +
+        "&otp=" +
+        requestData.otp +
+        "&userType=registered&user_fingerprint=" +
+        requestData.user_fingerprint;
+
+      requestAPI(url, function (error, response, body) {
+        console.log(body);
+        if (error === null) {
+          try {
+            body = JSON.parse(body);
+            if (
+              body.response !== undefined &&
+              body.response !== null &&
+              body.response
+            ) {
+              //Verified
+              console.log("NUMBER VERIFIEDD!");
+              //Acceptable
+              let filter = {
+                user_fingerprint: requestData.user_fingerprint,
+              };
+              let updateData = {
+                $set: {
+                  phone_number: /^\+/i.test(requestData.dataToUpdate.trim())
+                    ? requestData.dataToUpdate.trim()
+                    : `+${requestData.dataToUpdate.trim()}`,
+                  last_updated: chaineDateUTC,
+                },
+              };
+              //..
+              //1. Get the old data
+              collectionPassengers_profiles
+                .find(filter)
+                .toArray(function (err, riderProfile) {
+                  if (err) {
+                    res.send({ response: "error", flag: "unexpected_error" });
+                  }
+                  //2. Update the new data
+                  collectionPassengers_profiles.updateOne(
+                    filter,
+                    updateData,
+                    function (err, result) {
+                      if (err) {
+                        res.send({
+                          response: "error",
+                          flag: "unexpected_error",
+                        });
+                      }
+                      //...Update the general event log
+                      new Promise((res) => {
+                        let dataEvent = {
+                          event_name: "rider_phone_update",
+                          user_fingerprint: requestData.user_fingerprint,
+                          old_data: riderProfile[0].phone_number,
+                          new_data: requestData.dataToUpdate,
+                          date: chaineDateUTC,
+                        };
+                        collectionGlobalEvents.insertOne(
+                          dataEvent,
+                          function (err, reslt) {
+                            res(true);
+                          }
+                        );
+                      }).then(
+                        () => {},
+                        () => {}
+                      );
+                      //...
+                      resolve({
+                        response: "success",
+                        flag: "operation successful",
+                      });
+                    }
+                  );
+                });
+            } //Error
+            else {
+              resolve({
+                response: "error",
+                flag: "error_checking_otp",
+              });
+            }
+          } catch (error) {
+            resolve({
+              response: "error",
+              flag: "error_checking_otp",
+            });
+          }
+        } else {
+          resolve({
+            response: "error",
+            flag: "error_checking_otp",
+          });
+        }
+      });
+    } //Invalid data
+    else {
+      resolve({ response: "error", flag: "invalid_data_direction" });
+    }
+  }
+  //Error - invalid data
+  else {
+    resolve({ response: "error", flag: "invalid_data" });
+  }
+}
+
+/**
  * MAIN
  */
 
@@ -1399,7 +1829,7 @@ clientMongo.connect(function (err) {
   const bodyParser = require("body-parser");
   app
     .get("/", function (req, res) {
-      res.send("Watcher services up");
+      res.send("Account services up");
     })
     .use(bodyParser.json())
     .use(bodyParser.urlencoded({ extended: true }));
@@ -1455,6 +1885,38 @@ clientMongo.connect(function (err) {
         );
       }).then(
         (result) => {
+          //Save otp in profile if the user was already registered
+          if (
+            result.response !== undefined &&
+            /registered/i.test(result.response)
+          ) {
+            console.log(
+              `OTP secret saved in rider's profile - ${result.user_fingerprint}`
+            );
+            //Registered user
+            new Promise((res2) => {
+              let secretData = {
+                $set: {
+                  "account_verifications.phone_verification_secrets": {
+                    otp: otp,
+                    date_sent: chaineDateUTC,
+                  },
+                },
+              };
+              //.
+              collectionPassengers_profiles.updateOne(
+                { user_fingerprint: result.user_fp },
+                secretData,
+                function (err, reslt) {
+                  res2(true);
+                }
+              );
+            }).then(
+              () => {},
+              () => {}
+            );
+          }
+          //...
           res.send(result);
         },
         (error) => {
@@ -1485,26 +1947,56 @@ clientMongo.connect(function (err) {
     ) {
       req.phone_number = req.phone_number.replace("+", "").trim(); //Critical, should only contain digits
       new Promise((res0) => {
-        let checkOTP = {
-          phone_number: req.phone_number,
-          otp: req.otp,
-        };
-        //Check if it exists for this number
-        collection_OTP_dispatch_map
-          .find(checkOTP)
-          .toArray(function (error, result) {
-            if (error) {
-              res0({ response: "error_checking_otp" });
-            }
-            //...
-            if (result.length > 0) {
-              //True OTP
-              res0({ response: true });
-            } //Wrong otp
-            else {
-              res0({ response: false });
-            }
-          });
+        if (
+          req.userType === undefined ||
+          req.userType === null ||
+          /^unregistered$/i.test(req.userType.trim())
+        ) {
+          //Checking for unregistered users
+          let checkOTP = {
+            phone_number: req.phone_number,
+            otp: req.otp,
+          };
+          //Check if it exists for this number
+          collection_OTP_dispatch_map
+            .find(checkOTP)
+            .toArray(function (error, result) {
+              if (error) {
+                res0({ response: "error_checking_otp" });
+              }
+              //...
+              if (result.length > 0) {
+                //True OTP
+                res0({ response: true });
+              } //Wrong otp
+              else {
+                res0({ response: false });
+              }
+            });
+        } //Checking for registered user - check the OTP secrets binded to the profile
+        else {
+          //! Will need the user_fingerprint to be provided.
+          let checkOTP = {
+            user_fingerprint: req.user_fingerprint,
+            "account_verifications.phone_verification_secrets.otp": req.otp,
+          };
+          //Check if it exists for this number
+          collectionPassengers_profiles
+            .find(checkOTP)
+            .toArray(function (error, result) {
+              if (error) {
+                res0({ response: "error_checking_otp" });
+              }
+              //...
+              if (result.length > 0) {
+                //True OTP
+                res0({ response: true });
+              } //Wrong otp
+              else {
+                res0({ response: false });
+              }
+            });
+        }
       }).then(
         (reslt) => {
           res.send(reslt);
@@ -2035,6 +2527,46 @@ clientMongo.connect(function (err) {
             }
           : { total: 0, response: "error", tag: "invalid_parameters" }
       );
+    }
+  });
+
+  /**
+   * MODIFY PASSENGERS PROFILE DETAILS
+   * Responsible for updating ANY information related to the passengers profile.
+   * Informations that can be updated: name, surname, picture, email, phone number, gender.
+   */
+  app.post("/updateRiders_profileInfos", function (req, res) {
+    resolveDate();
+    req = req.body;
+    console.log(req);
+
+    if (
+      req.user_fingerprint !== undefined &&
+      req.user_fingerprint !== null &&
+      req.infoToUpdate !== undefined &&
+      req.infoToUpdate !== null &&
+      req.dataToUpdate !== undefined &&
+      req.dataToUpdate !== null
+    ) {
+      new Promise((resolve) => {
+        updateRiders_generalProfileInfos(
+          collectionPassengers_profiles,
+          collection_OTP_dispatch_map,
+          collectionGlobalEvents,
+          req,
+          resolve
+        );
+      }).then(
+        (result) => {
+          res.send(result);
+        },
+        (error) => {
+          res.send({ response: "error", flag: "invalid_data" });
+        }
+      );
+    } //Invalid data
+    else {
+      res.send({ response: "error", flag: "invalid_data" });
     }
   });
 });
