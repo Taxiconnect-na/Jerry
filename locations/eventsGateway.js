@@ -10,12 +10,10 @@ const io = require("socket.io").listen(server);
 const requestAPI = require("request");
 const bodyParser = require("body-parser");
 //....
-var fastFilter = require("fast-filter");
 
 var chaineDateUTC = null;
 var dateObject = null;
 const moment = require("moment");
-const request = require("request");
 
 function resolveDate() {
   //Resolve date

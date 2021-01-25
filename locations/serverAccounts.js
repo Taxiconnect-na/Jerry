@@ -152,7 +152,7 @@ function generateUniqueFingerprint(str, encryption = false, resolve) {
       .update(str)
       .digest("hex");
     resolve(fingerprint);
-  } //Other - default
+  } //Other - default - for creating accounts.
   else {
     fingerprint = crypto
       .createHmac(
@@ -1668,7 +1668,11 @@ function updateRiders_generalProfileInfos(
           ":" +
           process.env.ACCOUNTS_SERVICE_PORT +
           "/sendOTPAndCheckUserStatus?phone_number=" +
-          requestData.dataToUpdate;
+          requestData.dataToUpdate +
+          "&user_fingerprint=" +
+          requestData.user_fingerprint +
+          "&smsHashLinker=" +
+          requestData.smsHashLinker;
 
         requestAPI(url, function (error, response, body) {
           if (error === null) {
@@ -1862,7 +1866,13 @@ clientMongo.connect(function (err) {
       //1. Generate and SMS the OTP
       new Promise((res0) => {
         let message =
-          `<#> ` + otp + ` is your TaxiConnect Verification Code. QEg7axwB9km`;
+          `<#> ` +
+          otp +
+          ` is your TaxiConnect Verification Code. ${
+            req.smsHashLinker !== undefined && req.smsHashLinker !== null
+              ? req.smsHashLinker
+              : "QEg7axwB9km"
+          }`;
         SendSMSTo(req.phone_number, message);
         res0(true);
         //SMS
@@ -1888,10 +1898,11 @@ clientMongo.connect(function (err) {
           //Save otp in profile if the user was already registered
           if (
             result.response !== undefined &&
-            /registered/i.test(result.response)
+            req.user_fingerprint !== undefined &&
+            req.user_fingerprint !== null
           ) {
             console.log(
-              `OTP secret saved in rider's profile - ${result.user_fingerprint}`
+              `OTP secret saved in rider's profile - ${req.user_fingerprint}`
             );
             //Registered user
             new Promise((res2) => {
@@ -1905,7 +1916,7 @@ clientMongo.connect(function (err) {
               };
               //.
               collectionPassengers_profiles.updateOne(
-                { user_fingerprint: result.user_fp },
+                { user_fingerprint: req.user_fingerprint },
                 secretData,
                 function (err, reslt) {
                   res2(true);
