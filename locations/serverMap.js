@@ -475,7 +475,7 @@ function tripChecker_Dispatcher(
   if (/^rider$/i.test(user_nature)) {
     //Check if the user has a pending request
     let rideChecker = {
-      client_id: user_fingerprint,
+      client_id: { $regex: user_fingerprint },
       "ride_state_vars.isRideCompleted_riderSide": false,
     };
     collectionRidesDeliveries_data
