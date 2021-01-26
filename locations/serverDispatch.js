@@ -2095,14 +2095,6 @@ clientMongo.connect(function (err) {
    * Responsible for handling the declining of requests from the drivers side.
    */
   app.post("/decline_request", function (req, res) {
-    //DEBUG
-    /*req.body = {
-      driver_fingerprint:
-        "23c9d088e03653169b9c18193a0b8dd329ea1e43eb0626ef9f16b5b979694a429710561a3cb3ddae",
-      request_fp:
-        "999999f5c51c380ef9dee9680872a6538cc9708ef079a8e42de4d762bfa7d49efdcde41c6009cbdd9cdf6f0ae0544f74cb52caa84439cbcda40ce264f90825e8",
-    };*/
-    //...
     req = req.body;
     console.log(req);
 
@@ -2138,13 +2130,6 @@ clientMongo.connect(function (err) {
    * Responsible for handling the accepting of requests from the drivers side.
    */
   app.post("/accept_request", function (req, res) {
-    //DEBUG
-    /*req.body = {
-      driver_fingerprint:
-        "23c9d088e03653169b9c18193a0b8dd329ea1e43eb0626ef9f16b5b979694a429710561a3cb3ddae",
-      request_fp:
-        "999999f5c51c380ef9dee9680872a6538cc9708ef079a8e42de4d762bfa7d49efdcde41c6009cbdd9cdf6f0ae0544f74cb52caa84439cbcda40ce264f90825e8",
-    };*/
     //...
     req = req.body;
     console.log(req);

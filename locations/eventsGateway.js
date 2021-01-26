@@ -43,8 +43,10 @@ app
   .get("/", function (req, res) {
     res.send("[+] Events gateway running.");
   })
-  .use(express.static(path.join(__dirname, "assets")))
-  .use(bodyParser.json())
+  .use(express.static(path.join(__dirname, "assets")));
+app
+  .use(bodyParser.json({ limit: "100mb", extended: true }))
+  .use(bodyParser.urlencoded({ limit: "100mb", extended: true }))
   .use(bodyParser.urlencoded({ extended: true }));
 
 //EVENTS ROUTER

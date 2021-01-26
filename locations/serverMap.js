@@ -651,6 +651,35 @@ function tripChecker_Dispatcher(
 }
 
 /**
+ * @func sharedTripChecker_Dispatcher
+ * inputs:
+ * collectionRidesDeliveries_data: rider's front metadata
+ * user_fingerprint: fingerprint of the user requesting the information
+ * user_nature: rider or driver
+ * Responsible for finding out if there is any shared trip in progress linked to the user fingerprint
+ * and dispatch accordingly the information to only rider to which the link was shared to.
+ * @var isArrivedToDestination
+ * @true when the passenger confirms his/her drop off
+ * @var isRideCompleted_driverSide
+ * @param collectionDrivers_profiles: list of all the drivers
+ * @param collectionPassengers_profiles: the list of all the passengers profiles.
+ * @param requestType: ONLY FOR DRIVERS - ride, delivery or scheduled
+ * @true when the driver confirms that the trip is over from his/her side
+ * REQUEST STATUS: pending, inRouteToPickup, inRouteToDropoff, completedDriverConfimed
+ */
+function sharedTripChecker_Dispatcher(
+  collectionRidesDeliveries_data,
+  collectionDrivers_profiles,
+  collectionPassengers_profiles,
+  user_fingerprint,
+  user_nature,
+  requestType = "ride",
+  resolve
+) {
+  console.log("share the trip action");
+}
+
+/**
  * @func execGetDrivers_requests_and_provide
  * Responsible for getting all driver's requests based on the following 3 scenarios:
  * ? 1. PENDING_CONNECTME: when the driver has an uncompleted connectMe request in progress.
@@ -2711,6 +2740,7 @@ clientMongo.connect(function (err) {
   const collectionPassengers_profiles = dbMongo.collection(
     "passengers_profiles"
   ); //Hold all the passengers profiles.
+  const collectionGlobalEvents = dbMongo.collection("global_events"); //Hold all the random events that happened somewhere.
   //-------------
   const bodyParser = require("body-parser");
   app
@@ -3678,6 +3708,108 @@ clientMongo.connect(function (err) {
     } //Invalid data
     else {
       res.send(false);
+    }
+  });
+
+  /**
+   * GET THE NECESSARY INFOS FOR ONLY THE SHARED TRIPS.
+   * Responsible for retrieving data about any shared trips from one user to one or many others.
+   * @param sharedTo_user_fingerprint: the fingerprint of the user to which the request was shared to.
+   * @param trip_simplified_id: the simplified request fp of the ride.
+   * ! Can only share rides for now.
+   */
+  app.get("/getSharedTrip_information", function (req, res) {
+    resolveDate();
+    let params = urlParser.parse(req.url, true);
+    req = params.query;
+
+    if (
+      req.sharedTo_user_fingerprint !== undefined &&
+      req.sharedTo_user_fingerprint !== null &&
+      req.trip_simplified_id !== undefined &&
+      req.trip_simplified_id !== null
+    ) {
+      let timeTaken = new Date();
+      timeTaken = timeTaken.getTime();
+      //Get the user fingerprint of the owner of this ride as long as it is still active
+      collectionRidesDeliveries_data
+        .find({ trip_simplified_id: req.trip_simplified_id })
+        .toArray(function (err, parentTripDetails) {
+          if (err) {
+            res.send({ request_status: "no_rides" });
+          }
+          //...
+          if (parentTripDetails.length > 0) {
+            //There's a trip in progress
+            //Save the event of an external user getting the trip infos and all the corresponding data
+            let eventBundle = {
+              sharedTo_user_fingerprint: req.sharedTo_user_fingerprint,
+              trip_simplified_id: req.trip_simplified_id,
+              owner_rider_fingerprint: parentTripDetails[0].client_id,
+              request_fp: parentTripDetails[0].request_fp,
+              response_got: null, //The response of the request.
+              date_captured: chaineDateUTC,
+            };
+            //Check for any existing ride
+            new Promise((res) => {
+              //console.log("fetching data");
+              tripChecker_Dispatcher(
+                collectionRidesDeliveries_data,
+                collectionDrivers_profiles,
+                collectionPassengers_profiles,
+                parentTripDetails[0].client_id,
+                "rider",
+                "rides",
+                res
+              );
+            }).then(
+              (result) => {
+                let doneTime = new Date();
+                timeTaken = doneTime.getTime() - timeTaken;
+                //console.log("[" + chaineDateUTC + "] Compute and dispatch time (trip) ------>  " + timeTaken + " ms");
+                //Save the shared result event
+                new Promise((resSharedEvent) => {
+                  //Complete the event bundle with the response of the request
+                  eventBundle.response_got = result;
+                  collectionGlobalEvents.insertOne(
+                    eventBundle,
+                    function (err, reslt) {
+                      resSharedEvent(true);
+                    }
+                  );
+                }).then(
+                  () => {
+                    console.log("Save the shared ride event");
+                  },
+                  () => {}
+                );
+                //Update the rider
+                if (result !== false) {
+                  if (result != "no_rides") {
+                    res.send(result);
+                  } //No rides
+                  else {
+                    res.send({ request_status: "no_rides" });
+                  }
+                } //No rides
+                else {
+                  res.send({ request_status: "no_rides" });
+                }
+              },
+              (error) => {
+                console.log(error);
+                res.send({ request_status: "no_rides" });
+                //console.log(error);
+              }
+            );
+          } //No rides in progress
+          else {
+            res.send({ request_status: "no_rides" });
+          }
+        });
+    } //Invalid data
+    else {
+      res.send({ response: "error", flag: false });
     }
   });
 

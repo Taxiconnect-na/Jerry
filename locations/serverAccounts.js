@@ -23,6 +23,7 @@ const client = redis.createClient({
 });
 const redisGet = promisify(client.get).bind(client);
 
+var isBase64 = require("is-base64");
 var chaineDateUTC = null;
 var dateObject = null;
 const moment = require("moment");
@@ -1802,6 +1803,109 @@ function updateRiders_generalProfileInfos(
     else {
       resolve({ response: "error", flag: "invalid_data_direction" });
     }
+  } else if (requestData.infoToUpdate === "picture") {
+    try {
+      if (isBase64(requestData.dataToUpdate, { mimeRequired: true })) {
+        //Valid base64
+        //? The @param dataToUpdate MUST contain the base64 of the profille picture.
+        //? picture name format: user_fingerprint +_+ timestamp + format
+        let buffer = Buffer.from(requestData.dataToUpdate, "base64");
+        let tmpDate = new Date();
+        //!get the image format from the base64 code
+        let formatImg = requestData.dataToUpdate
+          .split(";")[0]
+          .split(`/`)[1]
+          .trim()
+          .toLowerCase();
+        let tmpPicture_name = `${requestData.user_fingerprint}_${Math.round(
+          tmpDate.getTime()
+        )}.${formatImg}`;
+        //...
+        let regCleaner = new RegExp(`data:image/${formatImg};base64,`, "i");
+        requestData.dataToUpdate = requestData.dataToUpdate.replace(
+          regCleaner,
+          ""
+        );
+        //Save the image
+        fs.writeFile(
+          `${process.env.RIDERS_PROFILE_PICTURES_PATH}/${tmpPicture_name}`,
+          requestData.dataToUpdate,
+          "base64",
+          function (err) {
+            if (err) {
+              resolve({
+                response: "error",
+                flag: "unexpected_conversion_error",
+              });
+            }
+            //Done - update mongodb
+            let updatedData = {
+              $set: {
+                "media.profile_picture": tmpPicture_name,
+              },
+            };
+            //...
+            collectionPassengers_profiles.updateOne(
+              { user_fingerprint: requestData.user_fingerprint },
+              updatedData,
+              function (err, reslt) {
+                if (err) {
+                  resolve({
+                    response: "error",
+                    flag: "unexpected_conversion_error_",
+                  });
+                }
+                //...Update the general event log
+                new Promise((res) => {
+                  collectionPassengers_profiles
+                    .find({ user_fingerprint: requestData.user_fingerprint })
+                    .toArray(function (error, riderData) {
+                      if (error) {
+                        res(false);
+                      }
+                      //...
+                      if (riderData.length > 0) {
+                        //Valid
+                        let dataEvent = {
+                          event_name: "rider_profile_picture_update",
+                          user_fingerprint: requestData.user_fingerprint,
+                          old_data: riderData[0].media.profile_picture,
+                          new_data: tmpPicture_name,
+                          date: chaineDateUTC,
+                        };
+                        collectionGlobalEvents.insertOne(
+                          dataEvent,
+                          function (err, reslt) {
+                            res(true);
+                          }
+                        );
+                      } //No riders with the providedd fingerprint
+                      else {
+                        res(false);
+                      }
+                    });
+                }).then(
+                  () => {},
+                  () => {}
+                );
+                //...
+                //DONE
+                resolve({ response: "success", flag: "operation successful" });
+              }
+            );
+          }
+        );
+      } //No mime found
+      else {
+        resolve({
+          response: "error",
+          flag: "unexpected_conversion_error_no_mime",
+        });
+      }
+    } catch (error) {
+      console.log(error);
+      resolve({ response: "error", flag: "unexpected_conversion_error" });
+    }
   }
   //Error - invalid data
   else {
@@ -1835,7 +1939,8 @@ clientMongo.connect(function (err) {
     .get("/", function (req, res) {
       res.send("Account services up");
     })
-    .use(bodyParser.json())
+    .use(bodyParser.json({ limit: "100mb", extended: true }))
+    .use(bodyParser.urlencoded({ limit: "100mb", extended: true }))
     .use(bodyParser.urlencoded({ extended: true }));
 
   /**
@@ -1877,12 +1982,8 @@ clientMongo.connect(function (err) {
         res0(true);
         //SMS
       }).then(
-        () => {
-          console.log("OTP sent");
-        },
-        (error) => {
-          console.log(error);
-        }
+        () => {},
+        (error) => {}
       );
       //2. Check the user's status
       new Promise((res1) => {
@@ -2547,6 +2648,13 @@ clientMongo.connect(function (err) {
    * Informations that can be updated: name, surname, picture, email, phone number, gender.
    */
   app.post("/updateRiders_profileInfos", function (req, res) {
+    //DEBUG DATA
+    /*req.user_fingerprint =
+      "7c57cb6c9471fd33fd265d5441f253eced2a6307c0207dea57c987035b496e6e8dfa7105b86915da";
+    req.infoToUpdate = "picture";
+    req.dataToUpdate = `data:image/jpeg;base64,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`;
+    */
+    //DEBUG DATA---
     resolveDate();
     req = req.body;
     console.log(req);
