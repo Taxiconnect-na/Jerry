@@ -47,7 +47,8 @@ app
 app
   .use(bodyParser.json({ limit: "100mb", extended: true }))
   .use(bodyParser.urlencoded({ limit: "100mb", extended: true }))
-  .use(bodyParser.urlencoded({ extended: true }));
+  .use(bodyParser.urlencoded({ extended: true }))
+  .use(express.static(__dirname + process.env.RIDERS_PROFILE_PICTURES_PATH));
 
 //EVENTS ROUTER
 io.on("connection", (socket) => {
