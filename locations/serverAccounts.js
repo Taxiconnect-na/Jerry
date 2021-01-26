@@ -215,6 +215,18 @@ function checkUserStatus(
         resolve({
           response: "registered",
           user_fp: result[0].user_fingerprint,
+          name: result[0].name,
+          surname: result[0].surname,
+          gender: result[0].gender,
+          phone_number: result[0].phone_number,
+          email: result[0].email,
+          profile_picture: result[0].media.profile_picture,
+          account_state:
+            result[0].account_state !== undefined &&
+            result[0].account_state !== null
+              ? result[0].account_state
+              : "full",
+          pushnotif_token: result[0].pushnotif_token,
         });
       } //Not yet registeredd
       else {
@@ -1944,7 +1956,7 @@ clientMongo.connect(function (err) {
   const bodyParser = require("body-parser");
   app
     .get("/", function (req, res) {
-      res.send("Account services up");
+      console.log("Account services up");
     })
     .use(bodyParser.json({ limit: "100mb", extended: true }))
     .use(bodyParser.urlencoded({ limit: "100mb", extended: true }))
@@ -2009,9 +2021,6 @@ clientMongo.connect(function (err) {
             req.user_fingerprint !== undefined &&
             req.user_fingerprint !== null
           ) {
-            console.log(
-              `OTP secret saved in rider's profile - ${req.user_fingerprint}`
-            );
             //Registered user
             new Promise((res2) => {
               let secretData = {
@@ -2160,8 +2169,9 @@ clientMongo.connect(function (err) {
                 : "+" + req.phone_number.trim(),
               email: false,
               password: false,
+              account_state: "minimal", //The state of the account in terms of it's creation: minimal or full
               media: {
-                profile_picture: "default_male.jpg",
+                profile_picture: "user.png",
               },
               account_verifications: {
                 is_accountVerified: true, //Account already checked
@@ -2258,12 +2268,40 @@ clientMongo.connect(function (err) {
                 response: "error_adding_additional_profile_details_new_account",
               });
             }
-            res0({
-              response: "updated",
-              name: req.name,
-              email: req.email,
-              gender: req.gender,
-            });
+            //Get the profile details
+            collectionPassengers_profiles.find(
+              findProfile,
+              function (err, riderProfile) {
+                if (err) {
+                  res0({
+                    response:
+                      "error_adding_additional_profile_details_new_account",
+                  });
+                }
+                //...
+                if (riderProfile.length > 0) {
+                  //Found something
+                  res0({
+                    response: "updated",
+                    user_fp: riderProfile[0].user_fingerprint,
+                    name: riderProfile[0].name,
+                    surname: riderProfile[0].surname,
+                    gender: riderProfile[0].gender,
+                    phone_number: riderProfile[0].phone_number,
+                    email: riderProfile[0].email,
+                    account_state: "full", //!VERY IMPORTANT - MARK ACCOUNT CREATION STATE AS FULL - to avoid redirection to complete details screen.
+                    profile_picture: riderProfile[0].media.profile_picture,
+                    pushnotif_token: riderProfile[0].pushnotif_token,
+                  });
+                } //Error finding profile
+                else {
+                  res0({
+                    response:
+                      "error_adding_additional_profile_details_new_account",
+                  });
+                }
+              }
+            );
           }
         );
       }).then(
