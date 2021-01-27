@@ -230,14 +230,13 @@ function executePaymentTransaction(
           () => {}
         );
         ///...
-        if (response.statusCode === 200) {
-          //Good
-          if (error === null) {
-            resolve(body);
-          } //Error
-          else {
-            resolve(false);
-          }
+        if (
+          /xml/i.test(new String(body)) ||
+          response.statusCode === 200 ||
+          error === null
+        ) {
+          //Received an XML response
+          resolve(body);
         } //Error
         else {
           //Save the log, status code and error
@@ -272,8 +271,8 @@ function saveLogForTopups(
   };
   collectionWalletTransactions_logs.insertOne(dataBundle, function (err, res) {
     if (err) {
+      console.log(err);
       resolve(false);
-      throw err;
     }
     resolve(true);
   });
@@ -281,37 +280,174 @@ function saveLogForTopups(
 
 /**
  * @func saveLogForTopupsSuccess
- * Update rider profile with latest successful topup information
+ * Update the transaction log with latest successful topup information.
+ * @param user_fp: the rider's fingerprint.
+ * @param amount: the amount toped up.
+ * @param transactionToken: the unique transaction token of the operation.
+ * @param transactionRef: the company's reference for this transaction: check the .env for more.
+ * @param collectionWalletTransactions_logs: the colletion of all the wallet transactions.
  */
 function saveLogForTopupsSuccess(
   user_fp,
   amount,
   transactionToken,
   transactionRef,
-  collectionPassengers_profiles,
+  collectionWalletTransactions_logs,
   resolve
 ) {
   resolveDate();
   let dataBundle = {
+    user_fingerprint: user_fp,
     amount: amount,
+    transaction_nature: "topup",
     transactionToken: transactionToken,
     transactionRef: transactionRef,
     date_captured: chaineDateUTC,
   };
-  let FinderQuery = {
-    user_fingerprint: user_fp,
-  };
-  let updateQuery = { $set: { latestTopup_history: dataBundle } };
-  collectionPassengers_profiles.updateOne(
-    FinderQuery,
-    updateQuery,
-    function (err, res) {
-      if (err) {
-        resolve(false);
-      }
-      resolve(true);
+  //...
+  collectionWalletTransactions_logs.insertOne(dataBundle, function (err, res) {
+    if (err) {
+      console.log("error");
+      resolve(false);
     }
-  );
+    resolve(true);
+  });
+}
+
+/**
+ * @func processExecute_paymentCardWallet_topup
+ * Responsible for parsing the create token deducted response and continue the wallet top-up process for the riders.
+ * @param dataBundle: the input data received from the rider.
+ * @param createToken_deductedResponse: the create token process XML parsed to JSON.
+ * @param collectionWalletTransactions_logs: the collection of all the transaction logs.
+ * @param collectionPassengers_profiles: the collection of all the riders.
+ * @param resolve
+ */
+function processExecute_paymentCardWallet_topup(
+  dataBundle,
+  createToken_deductedResponse,
+  collectionWalletTransactions_logs,
+  collectionPassengers_profiles,
+  resolve
+) {
+  try {
+    createToken_deductedResponse = JSON.parse(createToken_deductedResponse);
+    if (
+      createToken_deductedResponse.API3G.Result === "000" ||
+      createToken_deductedResponse.API3G.Result == "000"
+    ) {
+      console.log("Executing payment");
+      let transactionToken = createToken_deductedResponse.API3G.TransToken;
+      let transRef = createToken_deductedResponse.API3G.TransRef;
+      dataBundle.number = dataBundle.number.replace(/ /g, "");
+      dataBundle.expiry = dataBundle.expiry.replace("/", "");
+      //DEBUG CARD-------------------------------------------------------------------------------
+      dataBundle.number = "5436886269848367";
+      dataBundle.expiry = "1222";
+      dataBundle.cvv = "123";
+      //....-------------------------------------------------------------------------------------
+
+      //...
+      //MAKE PAYMENT
+      //? XML TOKEN responsible for making the payment.
+      let xmlMakePayment = `
+          <?xml version="1.0" encoding="utf-8"?>
+          <API3G>
+            <CompanyToken>${process.env.TOKEN_PAYMENT_CP}</CompanyToken>
+            <Request>chargeTokenCreditCard</Request>
+            <TransactionToken>${transactionToken}</TransactionToken>
+            <CreditCardNumber>${dataBundle.number}</CreditCardNumber>
+            <CreditCardExpiry>${dataBundle.expiry}</CreditCardExpiry>
+            <CreditCardCVV>${dataBundle.cvv}</CreditCardCVV>
+            <CardHolderName>${dataBundle.name}</CardHolderName>
+            <ChargeType></ChargeType>
+          </API3G>
+          `;
+      console.log(xmlMakePayment);
+      //Execute payment
+      new Promise((res0) => {
+        executePaymentTransaction(
+          xmlMakePayment,
+          dataBundle.user_fp,
+          collectionWalletTransactions_logs,
+          res0
+        );
+      }).then(
+        (result_paymentExec) => {
+          console.log(result_paymentExec);
+          new Promise((res1) => {
+            deductXML_responses(
+              result_paymentExec,
+              "chargeTokenCreditCard",
+              res1
+            );
+          }).then(
+            (result_paymentExecDeducted) => {
+              if (result_paymentExecDeducted !== false) {
+                try {
+                  result_paymentExecDeducted = JSON.parse(
+                    result_paymentExecDeducted
+                  );
+                  console.log(result_paymentExecDeducted);
+                  if (
+                    result_paymentExecDeducted.API3G.Result === "000" ||
+                    result_paymentExecDeducted.API3G.Result == "000"
+                  ) {
+                    //SUCCESS
+                    //Update topup success mongo log
+                    new Promise((res2) => {
+                      saveLogForTopupsSuccess(
+                        dataBundle.user_fp,
+                        dataBundle.amount,
+                        transactionToken,
+                        transRef,
+                        collectionWalletTransactions_logs,
+                        res2
+                      );
+                    }).then(
+                      () => {},
+                      () => {}
+                    );
+                    //...
+                    //DONE - SUCCESSFULLY PAID
+                    resolve({ response: "success" });
+                  }
+                } catch (error) {
+                  resolve({
+                    response: false,
+                    message: "payment_error",
+                  });
+                }
+              } //Error
+              else {
+                resolve({
+                  response: false,
+                  message: "payment_error",
+                });
+              }
+            },
+            (error) => {
+              console.log(error);
+              resolve({
+                response: false,
+                message: "payment_error",
+              });
+            }
+          );
+        },
+        (error) => {
+          console.log(error);
+          resolve({ response: false, message: "payment_error" });
+        }
+      );
+    } //Error transaction could not be create
+    else {
+      resolve({ response: false, message: "transaction_error" });
+    }
+  } catch (error) {
+    console.log(error);
+    resolve({ response: false, message: "transaction_error" });
+  }
 }
 
 /**
@@ -403,147 +539,24 @@ clientMongo.connect(function (err) {
           (result) => {
             console.log(result);
             if (result !== false) {
-              try {
-                result = JSON.parse(result);
-                if (
-                  result.API3G.Result === "000" ||
-                  result.API3G.Result == "000"
-                ) {
-                  console.log("Executing payment");
-                  let transactionToken = result.API3G.TransToken;
-                  let transRef = result.API3G.TransRef;
-                  dataBundle.number = dataBundle.number
-                    .replace(" ", "")
-                    .replace(" ", "")
-                    .replace(" ", "");
-                  dataBundle.expiry = dataBundle.expiry.replace("/", "");
-                  //DEBUG CARD-------------------------------------------------------------------------------
-                  dataBundle.number = "5436886269848367";
-                  dataBundle.expiry = "1222";
-                  dataBundle.cvv = "123";
-                  //....-------------------------------------------------------------------------------------
-
-                  //...
-                  //MAKE PAYMENT
-                  //? XML TOKEN responsible for making the payment.
-                  let xmlMakePayment = `
-                      <?xml version="1.0" encoding="utf-8"?>
-                      <API3G>
-                        <CompanyToken>${process.env.TOKEN_PAYMENT_CP}</CompanyToken>
-                        <Request>chargeTokenCreditCard</Request>
-                        <TransactionToken>${transactionToken}</TransactionToken>
-                        <CreditCardNumber>${dataBundle.number}</CreditCardNumber>
-                        <CreditCardExpiry>${dataBundle.expiry}</CreditCardExpiry>
-                        <CreditCardCVV>${dataBundle.cvv}</CreditCardCVV>
-                        <CardHolderName>${dataBundle.name}</CardHolderName>
-                        <ChargeType></ChargeType>
-                      </API3G>
-                      `;
-                  console.log(xmlMakePayment);
-                  //Execute payment
-                  new Promise((resolve) => {
-                    executePaymentTransaction(
-                      xmlMakePayment,
-                      dataBundle.user_fp,
-                      collectionWalletTransactions_logs,
-                      resolve
-                    );
-                  }).then(
-                    (result) => {
-                      console.log(result);
-                      new Promise((resolve) => {
-                        deductXML_responses(
-                          result,
-                          "chargeTokenCreditCard",
-                          resolve
-                        );
-                      }).then(
-                        (result) => {
-                          if (result !== false) {
-                            try {
-                              result = JSON.parse(result);
-                              console.log(result);
-                              if (
-                                result.API3G.Result === "000" ||
-                                result.API3G.Result == "000"
-                              ) {
-                                //SUCCESS
-                                //Update topup success mongo log
-                                new Promise((resolve) => {
-                                  saveLogForTopupsSuccess(
-                                    dataBundle.user_fp,
-                                    dataBundle.amount,
-                                    transactionToken,
-                                    transRef,
-                                    collectionPassengers_profiles,
-                                    resolve
-                                  );
-                                }).then(
-                                  (result) => {
-                                    console.log(result);
-                                  },
-                                  (error) => {
-                                    console.log(error);
-                                  }
-                                );
-
-                                //Update mongo rider profile
-                                new Promise((resolve) => {
-                                  saveLogForTopupsSuccess(
-                                    dataBundle.user_fp,
-                                    dataBundle.amount,
-                                    transactionToken,
-                                    transRef,
-                                    collectionPassengers_profiles,
-                                    resolve
-                                  );
-                                }).then(
-                                  (result) => {
-                                    console.log(result);
-                                  },
-                                  (error) => {
-                                    console.log(error);
-                                  }
-                                );
-                                //...
-                                //DONE - SUCCESSFULLY PAID
-                                res.send({ response: "success" });
-                              }
-                            } catch (error) {
-                              res.send({
-                                response: false,
-                                message: "payment_error",
-                              });
-                            }
-                          } //Error
-                          else {
-                            res.send({
-                              response: false,
-                              message: "payment_error",
-                            });
-                          }
-                        },
-                        (error) => {
-                          console.log(error);
-                          res.send({
-                            response: false,
-                            message: "payment_error",
-                          });
-                        }
-                      );
-                    },
-                    (error) => {
-                      console.log(error);
-                      res.send({ response: false, message: "payment_error" });
-                    }
-                  );
-                } //Error transaction could not be create
-                else {
+              //? Continue the top-up process
+              new Promise((resFollower) => {
+                processExecute_paymentCardWallet_topup(
+                  dataBundle,
+                  createToken_deductedResponse,
+                  collectionWalletTransactions_logs,
+                  collectionPassengers_profiles,
+                  resFollower
+                );
+              }).then(
+                (result) => {
+                  res.send(result);
+                },
+                (error) => {
+                  console.log(error);
                   res.send({ response: false, message: "transaction_error" });
                 }
-              } catch (error) {
-                res.send({ response: false, message: "transaction_error" });
-              }
+              );
             } //Error
             else {
               res.send({ response: false, message: "transaction_error" });
