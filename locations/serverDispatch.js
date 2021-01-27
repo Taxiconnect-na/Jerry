@@ -1799,6 +1799,68 @@ function confirmDropoffRequest_driver(
 }
 
 /**
+ * @func INIT_RIDE_DELIVERY_DISPATCH_ENTRY
+ * Responsible for launching the ride/delivery dispath after all preliminary checks have passed.
+ * ? Some checks can be: making sure that the rider has enough funds in his/her wallet.
+ * @param parsedReqest_data: clean parsed request data.
+ * @param collectionDrivers_profiles: driver's collection.
+ * @param collectionRidesDeliveries_data: collection of all rides/deliveries
+ * @param resolve
+ */
+function INIT_RIDE_DELIVERY_DISPATCH_ENTRY(
+  parsedReqest_data,
+  collectionDrivers_profiles,
+  collectionRidesDeliveryData,
+  resolve
+) {
+  //? Save the request in mongodb - EXTREMELY IMPORTANT
+  collectionRidesDeliveryData.insertOne(
+    parsedReqest_data,
+    function (err, requestDt) {
+      if (err) {
+        res.send({ response: "Unable_to_make_the_request" });
+      }
+
+      //2. INITIATE STAGED toDrivers DISPATCH
+      new Promise((resStaged) => {
+        //FORM THE REQUEST SNAPSHOT
+        let snapshotTripInfos = {
+          user_fingerprint: parsedReqest_data.client_id,
+          city: parsedReqest_data.pickup_location_infos.city,
+          country: parsedReqest_data.country,
+          ride_type: parsedReqest_data.ride_mode,
+          vehicle_type: parsedReqest_data.carTypeSelected,
+          org_latitude:
+            parsedReqest_data.pickup_location_infos.coordinates.latitude,
+          org_longitude:
+            parsedReqest_data.pickup_location_infos.coordinates.longitude,
+          request_fp: parsedReqest_data.request_fp,
+          pickup_suburb: parsedReqest_data.pickup_location_infos.suburb,
+          destination_suburb: parsedReqest_data.destinationData[0].suburb,
+          fare: parsedReqest_data.fare,
+        };
+        intitiateStagedDispatch(
+          snapshotTripInfos,
+          collectionDrivers_profiles,
+          collectionRidesDeliveryData,
+          resStaged
+        );
+      }).then(
+        (result) => {
+          console.log(result);
+        },
+        (error) => {
+          console.log(error);
+        }
+      );
+
+      //..Success - respond to the user
+      resolve({ response: "successfully_requested" });
+    }
+  );
+}
+
+/**
  * MAIN
  */
 
@@ -1815,11 +1877,14 @@ clientMongo.connect(function (err) {
   const collectionRelativeDistances = dbMongo.collection(
     "relative_distances_riders_drivers"
   ); //Hold the relative distances between rider and the drivers (online, same city, same country) at any given time
-  const collectionRidersLocation_log = dbMongo.collection(
+  const collectionRidersDriversLocation_log = dbMongo.collection(
     "historical_positioning_logs"
   ); //Hold all the location updated from the rider
   const collectionDrivers_profiles = dbMongo.collection("drivers_profiles"); //Hold all the drivers profiles
   const collectionGlobalEvents = dbMongo.collection("global_events"); //Hold all the random events that happened somewhere.
+  const collectionWalletTransactions_logs = dbMongo.collection(
+    "wallet_transactions_logs"
+  ); //Hold the latest information about the riders topups
   //-------------
   const bodyParser = require("body-parser");
   app
@@ -1838,7 +1903,7 @@ clientMongo.connect(function (err) {
   app.post("/dispatchRidesOrDeliveryRequests", function (req, res) {
     req = req.body;
     //TEST DATA
-    /*let testData = {
+    let testData = {
       actualRider: "someonelese",
       actualRiderPhone_number: "0817563369",
       carTypeSelected: "comfortNormalRide",
@@ -1894,7 +1959,7 @@ clientMongo.connect(function (err) {
           street: "Mandume Ndemufayo Avenue",
         },
       },
-      fareAmount: 280,
+      fareAmount: 80,
       isAllGoingToSameDestination: false,
       naturePickup: "PrivateLocation",
       passengersNo: 4,
@@ -1909,10 +1974,11 @@ clientMongo.connect(function (err) {
       receiverPhone_delivery: false,
       rideType: "RIDE",
       timeScheduled: "now",
-      paymentMethod: "CASH",
-      user_fingerprint: "7c57cb6c9471fd33fd265d5441f253eced2a6307c0207dea57c987035b496e6e8dfa7105b86915da",
+      paymentMethod: "WALLET",
+      user_fingerprint:
+        "7c57cb6c9471fd33fd265d5441f253eced2a6307c0207dea57c987035b496e6e8dfa7105b86915da",
     };
-    req = testData;*/
+    req = testData;
     //...
     if (req.user_fingerprint !== undefined && req.user_fingerprint !== null) {
       //1. CHECK THAT THIS RIDER DOESN'T ALREADY HAVE AN ACTIVE RIDE/DELIVERY
@@ -1934,51 +2000,137 @@ clientMongo.connect(function (err) {
               (result) => {
                 if (result !== false) {
                   console.log(result);
-                  //Save the request in mongodb
-                  collectionRidesDeliveryData.insertOne(
-                    result,
-                    function (err, requestDt) {
-                      if (err) {
+                  //! IF WALLET SELECTED - CHECK THE BALANCE, it should be >= to the trip fare, else ERROR_UNSIFFICIENT_FUNDS
+                  if (/wallet/i.test(result.payment_method)) {
+                    //? WALLET PAYMENT METHOD
+                    let url = `
+                    ${process.env.LOCAL_URL}:${process.env.ACCOUNTS_SERVICE_PORT}/getRiders_walletInfos?user_fingerprint=${req.user_fingerprint}&mode=total&avoidCached_data=true
+                    `;
+                    requestAPI(url, function (error, response, body) {
+                      console.log(error, body);
+                      if (error === null) {
+                        try {
+                          body = JSON.parse(body);
+                          if (body.total !== undefined) {
+                            console.log(
+                              parseFloat(result.fare),
+                              parseFloat(body.total)
+                            );
+                            if (
+                              parseFloat(result.fare) <= parseFloat(body.total)
+                            ) {
+                              //? HAS ENOUGH MONEY IN THE WALLET
+                              console.log("Has enough funds in the wallet");
+                              new Promise((resInit) => {
+                                INIT_RIDE_DELIVERY_DISPATCH_ENTRY(
+                                  result,
+                                  collectionDrivers_profiles,
+                                  collectionRidesDeliveryData,
+                                  resInit
+                                );
+                              }).then(
+                                (resultDispatch) => {
+                                  if (
+                                    /successfully_requested/i.test(
+                                      resultDispatch.response
+                                    )
+                                  ) {
+                                    //! SAVE WALLET TRANSACTION ----------------------
+                                    new Promise((resolveWalletTrans) => {
+                                      let tmpDate = new Date();
+                                      //...
+                                      let dataBundle = {
+                                        user_fingerprint: req.user_fingerprint,
+                                        request_fp: result.request_fp,
+                                        amount: result.fare,
+                                        payment_currency:
+                                          process.env.PAYMENT_CURRENCY,
+                                        transaction_nature: "paidDriver",
+                                        date_captured: chaineDateUTC,
+                                        timestamp: tmpDate.getTime(),
+                                      };
+                                      //...
+                                      collectionWalletTransactions_logs.insertOne(
+                                        dataBundle,
+                                        function (err, res) {
+                                          if (err) {
+                                            console.log(err);
+                                            resolveWalletTrans(false);
+                                          }
+                                          resolveWalletTrans(true);
+                                        }
+                                      );
+                                    }).then(
+                                      () => {
+                                        console.log(
+                                          "Ride wallet transaction saved."
+                                        );
+                                      },
+                                      (error) => {
+                                        console.log(error);
+                                      }
+                                    );
+                                    //! -----------------------------------------------
+                                  }
+                                  //...
+                                  res.send(resultDispatch);
+                                },
+                                (error) => {
+                                  console.log(error);
+                                  res.send({
+                                    response: "Unable_to_make_the_request",
+                                  });
+                                }
+                              );
+                            } //Not enough money in the wallet
+                            else {
+                              console.log("Has NOT enough funds in the wallet");
+                              res.send({
+                                response:
+                                  "Unable_to_make_the_request_unsufficient_funds",
+                              });
+                            }
+                          } //Error getting wallet amount
+                          else {
+                            res.send({
+                              response:
+                                "Unable_to_make_the_request_error_wallet_check",
+                            });
+                          }
+                        } catch (error) {
+                          console.log(error);
+                          res.send({
+                            response:
+                              "Unable_to_make_the_request_error_wallet_check",
+                          });
+                        }
+                      } else {
+                        res.send({
+                          response:
+                            "Unable_to_make_the_request_error_wallet_check",
+                        });
+                      }
+                    });
+                  } //? CASH PAYMENT METHOD
+                  else {
+                    //Do as usual without a wallet balance check
+                    new Promise((resInit) => {
+                      INIT_RIDE_DELIVERY_DISPATCH_ENTRY(
+                        result,
+                        collectionDrivers_profiles,
+                        collectionRidesDeliveryData,
+                        resInit
+                      );
+                    }).then(
+                      (resultDispatch) => {
+                        res.send(resultDispatch);
+                      },
+                      (error) => {
+                        console.log(error);
                         res.send({ response: "Unable_to_make_the_request" });
                       }
-
-                      //2. INITIATE STAGED toDrivers DISPATCH
-                      new Promise((resStaged) => {
-                        //FORM THE REQUEST SNAPSHOT
-                        let snapshotTripInfos = {
-                          user_fingerprint: result.client_id,
-                          city: result.pickup_location_infos.city,
-                          country: result.country,
-                          ride_type: result.ride_mode,
-                          vehicle_type: result.carTypeSelected,
-                          org_latitude:
-                            result.pickup_location_infos.coordinates.latitude,
-                          org_longitude:
-                            result.pickup_location_infos.coordinates.longitude,
-                          request_fp: result.request_fp,
-                          pickup_suburb: result.pickup_location_infos.suburb,
-                          destination_suburb: result.destinationData[0].suburb,
-                          fare: result.fare,
-                        };
-                        intitiateStagedDispatch(
-                          snapshotTripInfos,
-                          collectionDrivers_profiles,
-                          collectionRidesDeliveryData,
-                          resStaged
-                        );
-                      }).then(
-                        (result) => {
-                          console.log(result);
-                        },
-                        (error) => {
-                          console.log(error);
-                        }
-                      );
-
-                      //..Success - respond to the user
-                      res.send({ response: "successfully_requested" });
-                    }
-                  );
+                    );
+                  }
                 } //Error
                 else {
                   res.send({ response: "Unable_to_make_the_request" });

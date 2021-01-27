@@ -106,6 +106,22 @@ resolveDate();
  * 950 Request missing mandatory fields – fieldname
  * 999 Transaction Declined - Explanation
  *
+ * VERIFY PAYMENT
+ * 000 Transaction Paid
+ * 001 Authorized
+ * 002 Transaction overpaid/underpaid
+ * 007	Pending Split Payment (Part Payment Transactions not fully paid)
+ * 801 Request missing company token
+ * 802 Company token does not exist
+ * 803 No request or error in Request type name
+ * 804 Error in XML
+ * 900 Transaction not paid yet
+ * 901 Transaction declined
+ * 902	Data mismatch in one of the fields - field (explanation)
+ * 903 The transaction passed the Payment Time Limit
+ * 904 Transaction cancelled
+ * 950 Request missing transaction level mandatory fields – field (explanation)
+ *
  */
 
 function deductXML_responses(contentResponse, stepProcess, resolve) {
@@ -119,6 +135,8 @@ function deductXML_responses(contentResponse, stepProcess, resolve) {
       if (stepProcess == "createToken") {
         resolve(contentResponse);
       } else if (stepProcess == "chargeTokenCreditCard") {
+        resolve(contentResponse);
+      } else if (stepProcess === "verifyToken") {
         resolve(contentResponse);
       } else {
         resolve(false);
@@ -165,6 +183,8 @@ function createPaymentTransaction(
             error,
             response.statusCode,
             collectionWalletTransactions_logs,
+            process.env.PAYMENT_CURRENCY,
+            "payment_token_creation",
             reslv
           );
         }).then(
@@ -195,12 +215,17 @@ function createPaymentTransaction(
 /**
  * @func executePaymentTransaction
  * Responsible for making the true payment using the transaction token previously generated
+ * @param xmlBody: the XML body request for making a payment request.
+ * @param user_fp: the rider's fingerprint.
+ * @param collectionWalletTransactions_logs: the collection of all the wallet transactions.
+ * @param additionalData: any kind of additional data: can be a transaction token (only for exec payment cases)?
  */
 
 function executePaymentTransaction(
   xmlBody,
   user_fp,
   collectionWalletTransactions_logs,
+  additionalData = false,
   resolve
 ) {
   if (user_fp !== undefined && user_fp !== null) {
@@ -223,7 +248,75 @@ function executePaymentTransaction(
             error,
             response.statusCode,
             collectionWalletTransactions_logs,
-            reslv
+            process.env.PAYMENT_CURRENCY,
+            "payment_making_exec",
+            reslv,
+            additionalData
+          );
+        }).then(
+          () => {},
+          () => {}
+        );
+        ///...
+        if (
+          /xml/i.test(new String(body)) ||
+          response.statusCode === 200 ||
+          error === null
+        ) {
+          //Received an XML response
+          resolve(body);
+        } //Error
+        else {
+          //Save the log, status code and error
+          resolve(false);
+        }
+      }
+    );
+  } else {
+    resolve(false);
+  }
+}
+
+/**
+ * @func verifyPaymentTransaction
+ * Responsible for verifying any transaction made, which are marked as "transaction charged".
+ * @param xmlBody: the XML body request for verifying a payment transaction.
+ * @param user_fp: the rider's fingerprint.
+ * @param collectionWalletTransactions_logs: the collection of all the wallet transactions.
+ * @param additionalData: any kind of additional data: can be a transaction token (only for exec payment cases)?
+ */
+
+function verifyPaymentTransaction(
+  xmlBody,
+  user_fp,
+  collectionWalletTransactions_logs,
+  additionalData = false,
+  resolve
+) {
+  if (user_fp !== undefined && user_fp !== null) {
+    requestAPI.post(
+      {
+        url: process.env.DPO_PAYMENT_ENDPOINT,
+        method: "POST",
+        headers: {
+          "Content-Type": "application/xml",
+        },
+        body: xmlBody,
+      },
+      function (error, response, body) {
+        console.log(body, response.statusCode);
+        //Save the general log, status code and error
+        new Promise((reslv) => {
+          saveLogForTopups(
+            user_fp,
+            body,
+            error,
+            response.statusCode,
+            collectionWalletTransactions_logs,
+            process.env.PAYMENT_CURRENCY,
+            "verify_payment_made",
+            reslv,
+            additionalData //! Transaction token
           );
         }).then(
           () => {},
@@ -252,6 +345,16 @@ function executePaymentTransaction(
 /**
  * @func saveLogForTopups
  * Save logs related to transactions for logs linked to user fingerprints
+ * @param user_fp: the rider's fingerprint.
+ * @param responseBody: the response from any API or major processes.
+ * @param responseError: the resulted error from any API or major processes.
+ * @param responseStatusCode: the status code resulted from any API or major processes.
+ * @param collectionWalletTransactions_logs: the collection of all the wallet transactions.
+ * @param payment_currency: the currency considered for this transation.
+ * @param log_label: the name of the process step which want some data to be logged.
+ * @param additionalData: any kind of additional data: can be a transaction token (only for exec payment cases)?
+ * ! Example of log labels: payment_token_creation, payment_making_exec, etc..
+ * @param resolve
  */
 function saveLogForTopups(
   user_fp,
@@ -259,15 +362,24 @@ function saveLogForTopups(
   responseError,
   responseStatusCode,
   collectionWalletTransactions_logs,
-  resolve
+  payment_currency,
+  log_label,
+  resolve,
+  additionalData = false
 ) {
   resolveDate();
+  let tmpDate = new Date();
+  //...
   let dataBundle = {
     user_fingerprint: user_fp,
+    log_label: log_label,
     responseBody: responseBody,
     responseError: responseError,
     responseStatusCode: responseStatusCode,
+    payment_currency: payment_currency,
+    transactionToken: additionalData,
     date_captured: chaineDateUTC,
+    timestamp: tmpDate.getTime(),
   };
   collectionWalletTransactions_logs.insertOne(dataBundle, function (err, res) {
     if (err) {
@@ -285,24 +397,31 @@ function saveLogForTopups(
  * @param amount: the amount toped up.
  * @param transactionToken: the unique transaction token of the operation.
  * @param transactionRef: the company's reference for this transaction: check the .env for more.
+ * @param payment_currency: the currency considered for this transation.
  * @param collectionWalletTransactions_logs: the colletion of all the wallet transactions.
+ * ! EXTREMELY IMMPORTANT.
  */
 function saveLogForTopupsSuccess(
   user_fp,
   amount,
   transactionToken,
   transactionRef,
+  payment_currency,
   collectionWalletTransactions_logs,
   resolve
 ) {
   resolveDate();
+  let tmpDate = new Date();
+  //...
   let dataBundle = {
     user_fingerprint: user_fp,
     amount: amount,
+    payment_currency: payment_currency,
     transaction_nature: "topup",
     transactionToken: transactionToken,
     transactionRef: transactionRef,
     date_captured: chaineDateUTC,
+    timestamp: tmpDate.getTime(),
   };
   //...
   collectionWalletTransactions_logs.insertOne(dataBundle, function (err, res) {
@@ -339,8 +458,8 @@ function processExecute_paymentCardWallet_topup(
       console.log("Executing payment");
       let transactionToken = createToken_deductedResponse.API3G.TransToken;
       let transRef = createToken_deductedResponse.API3G.TransRef;
-      dataBundle.number = dataBundle.number.replace(/ /g, "");
-      dataBundle.expiry = dataBundle.expiry.replace("/", "");
+      dataBundle.number = String(dataBundle.number).replace(/ /g, "");
+      dataBundle.expiry = String(dataBundle.expiry).replace("/", "");
       //DEBUG CARD-------------------------------------------------------------------------------
       dataBundle.number = "5436886269848367";
       dataBundle.expiry = "1222";
@@ -370,6 +489,7 @@ function processExecute_paymentCardWallet_topup(
           xmlMakePayment,
           dataBundle.user_fp,
           collectionWalletTransactions_logs,
+          transactionToken,
           res0
         );
       }).then(
@@ -391,26 +511,98 @@ function processExecute_paymentCardWallet_topup(
                   console.log(result_paymentExecDeducted);
                   if (
                     result_paymentExecDeducted.API3G.Result === "000" ||
-                    result_paymentExecDeducted.API3G.Result == "000"
+                    /^000$/i.test(result_paymentExecDeducted.API3G.Result)
                   ) {
                     //SUCCESS
-                    //Update topup success mongo log
-                    new Promise((res2) => {
-                      saveLogForTopupsSuccess(
+                    //! VERIFY THE TOKEN PAYMENT
+                    new Promise((verifyTransaction) => {
+                      let xmlVerifyTransaction = `
+                        <?xml version="1.0" encoding="utf-8"?>
+                        <API3G>
+                          <CompanyToken>${process.env.TOKEN_PAYMENT_CP}</CompanyToken>
+                          <Request>verifyToken</Request>
+                          <TransactionToken>${transactionToken}</TransactionToken>
+                        </API3G>
+                        `;
+                      verifyPaymentTransaction(
+                        xmlVerifyTransaction,
                         dataBundle.user_fp,
-                        dataBundle.amount,
-                        transactionToken,
-                        transRef,
                         collectionWalletTransactions_logs,
-                        res2
+                        transactionToken,
+                        verifyTransaction
                       );
                     }).then(
-                      () => {},
-                      () => {}
+                      (resultVerify_transaction) => {
+                        //PARSE VERIFY TRANSACTION RESULTS
+                        new Promise((res15) => {
+                          deductXML_responses(
+                            resultVerify_transaction,
+                            "verifyToken",
+                            res15
+                          );
+                        }).then(
+                          (result_verifyPaymentDeducted) => {
+                            try {
+                              result_verifyPaymentDeducted = JSON.parse(
+                                result_verifyPaymentDeducted
+                              );
+                              console.log(result_verifyPaymentDeducted);
+                              //! ONLY ALLOW: TRANSACTION PAID (000), AUTHORIZED (001), TRANSACTION NOT PAID YET (900), consider the rest as faild charge.
+                              if (
+                                /(000|001|900)/i.test(
+                                  result_verifyPaymentDeducted.API3G.Result
+                                )
+                              ) {
+                                //Update topup success mongo log
+                                new Promise((res2) => {
+                                  saveLogForTopupsSuccess(
+                                    dataBundle.user_fp,
+                                    dataBundle.amount,
+                                    transactionToken,
+                                    transRef,
+                                    process.env.PAYMENT_CURRENCY,
+                                    collectionWalletTransactions_logs,
+                                    res2
+                                  );
+                                }).then(
+                                  () => {},
+                                  () => {}
+                                );
+                                //...
+                                //DONE - SUCCESSFULLY PAID
+                                resolve({ response: "success" });
+                              } //Creddit card charging failed
+                              else {
+                                resolve({
+                                  response: false,
+                                  message: "payment_error",
+                                });
+                              }
+                            } catch (error) {
+                              console.log(error);
+                              esolve({
+                                response: false,
+                                message: "payment_error",
+                              });
+                            }
+                          },
+                          (error) => {
+                            console.log(error);
+                            resolve({
+                              response: false,
+                              message: "payment_error",
+                            });
+                          }
+                        );
+                      },
+                      (error) => {
+                        console.log(error);
+                        resolve({
+                          response: false,
+                          message: "payment_error",
+                        });
+                      }
                     );
-                    //...
-                    //DONE - SUCCESSFULLY PAID
-                    resolve({ response: "success" });
                   }
                 } catch (error) {
                   resolve({
@@ -486,7 +678,8 @@ clientMongo.connect(function (err) {
     resolveDate();
     //...
     let dataBundle = {
-      user_fp: "funnyfingerprint",
+      user_fp:
+        "7c57cb6c9471fd33fd265d5441f253eced2a6307c0207dea57c987035b496e6e8dfa7105b86915da",
       amount: 45,
       number: 1,
       expiry: 1,
@@ -505,10 +698,10 @@ clientMongo.connect(function (err) {
       <Request>createToken</Request>
       <Transaction>
       <PaymentAmount>${dataBundle.amount}</PaymentAmount>
-      <PaymentCurrency>NAD</PaymentCurrency>
+      <PaymentCurrency>${process.env.PAYMENT_CURRENCY}</PaymentCurrency>
       <CompanyRef>${process.env.COMPANY_DPO_REF}</CompanyRef>
       <RedirectURL>${process.env.REDIRECT_URL_AFTER_PROCESSES}</RedirectURL>
-      <BackURL>$${process.env.REDIRECT_URL_AFTER_PROCESSES}</BackURL>
+      <BackURL>${process.env.REDIRECT_URL_AFTER_PROCESSES}</BackURL>
       <CompanyRefUnique>0</CompanyRefUnique>
       <PTL>5</PTL>
       </Transaction>
@@ -536,21 +729,21 @@ clientMongo.connect(function (err) {
         new Promise((resolve) => {
           deductXML_responses(reslt, "createToken", resolve);
         }).then(
-          (result) => {
-            console.log(result);
-            if (result !== false) {
+          (result_createTokenDeducted) => {
+            console.log(result_createTokenDeducted);
+            if (result_createTokenDeducted !== false) {
               //? Continue the top-up process
               new Promise((resFollower) => {
                 processExecute_paymentCardWallet_topup(
                   dataBundle,
-                  createToken_deductedResponse,
+                  result_createTokenDeducted,
                   collectionWalletTransactions_logs,
                   collectionPassengers_profiles,
                   resFollower
                 );
               }).then(
-                (result) => {
-                  res.send(result);
+                (result_final) => {
+                  res.send(result_final);
                 },
                 (error) => {
                   console.log(error);

@@ -1192,6 +1192,7 @@ io.on("connection", (socket) => {
             body = JSON.parse(body);
             socket.emit("updateAdditionalProfileData-response", body);
           } catch (error) {
+            console.log(error);
             socket.emit("updateAdditionalProfileData-response", {
               response: "error_adding_additional_profile_details_new_account",
             });

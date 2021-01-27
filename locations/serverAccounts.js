@@ -220,7 +220,7 @@ function checkUserStatus(
           gender: result[0].gender,
           phone_number: result[0].phone_number,
           email: result[0].email,
-          profile_picture: result[0].media.profile_picture,
+          profile_picture: `http://192.168.43.44:${process.env.EVENT_GATEWAY_PORT}/${result[0].media.profile_picture}`,
           account_state:
             result[0].account_state !== undefined &&
             result[0].account_state !== null
@@ -1058,6 +1058,7 @@ function exec_computeDaily_amountMade(
  * @param collectionWalletTransactions_logs: the collection of all the possible wallet transactions.
  * @param collectionDrivers_profiles: collection of all the drivers
  * @param resolve
+ * @param avoidCached_data: false (will return cached data first) or true (will not return the cached data);
  * Cache for 5 min only
  * Redis Key: user_fingerprint+wallet-summaryInfos
  */
@@ -1066,7 +1067,8 @@ function getRiders_wallet_summary(
   collectionRidesDeliveryData,
   collectionWalletTransactions_logs,
   collectionDrivers_profiles,
-  resolve
+  resolve,
+  avoidCached_data = false
 ) {
   //Form the redis key
   let redisKey = requestObj.user_fingerprint + "wallet-summary";
@@ -1087,12 +1089,25 @@ function getRiders_wallet_summary(
               res
             );
           }).then(
-            () => {},
-            () => {}
+            (result) => {
+              if (avoidCached_data) {
+                //Avoid cache
+                resolve(result);
+              }
+            },
+            (error) => {
+              if (avoidCached_data) {
+                //Avoid cache
+                console.log(error);
+                resolve({ total: 0, transactions_data: null });
+              }
+            }
           );
           //...Immediatly reply
-          resp = JSON.parse(resp);
-          resolve(resp);
+          if (avoidCached_data === false) {
+            resp = JSON.parse(resp);
+            resolve(resp);
+          }
         } catch (error) {
           console.log(error);
           //Error - make a fresh request
@@ -1172,7 +1187,7 @@ function getRiders_wallet_summary(
  * @param collectionDrivers_profiles: collection of all the drivers
  * @param resolve
  *
- * ? transaction_nature types: topup, paidDriver, sentToFriend.
+ * ? transaction_nature types: topup, paidDriver, sentToDriver, sentToFriend.
  * ? The wallet payments for rides are stored in the rides/deliveries collection.
  */
 function execGet_riders_walletSummary(
@@ -1195,10 +1210,11 @@ function execGet_riders_walletSummary(
     let filterTopups = {
       user_fingerprint: requestObj.user_fingerprint,
       transaction_nature: {
-        $regex: /(topup|paidDriver|sentToFriend)/,
+        $regex: /(topup|paidDriver|sentToDriver|sentToFriend)/,
         $options: "i",
       },
     };
+    console.log(filterTopups);
     //...
     collectionWalletTransactions_logs
       .find(filterTopups)
@@ -1207,6 +1223,7 @@ function execGet_riders_walletSummary(
           console.log(err);
           res({ total: 0, transactions_data: null });
         }
+        console.log(resultTransactions);
         //..
         if (resultTransactions.length > 0) {
           //Found some records
@@ -1979,7 +1996,6 @@ clientMongo.connect(function (err) {
       req.phone_number.length > 8
     ) {
       req.phone_number = req.phone_number.replace("+", "").trim(); //Critical, should only contain digits
-      console.log(req.phone_number);
       //Ok
       //Send the message then check the passenger's status
       let otp = otpGenerator.generate(5, {
@@ -2233,6 +2249,8 @@ clientMongo.connect(function (err) {
     let params = urlParser.parse(req.url, true);
     req = params.query;
 
+    console.log(req);
+
     if (
       req.user_fingerprint !== undefined &&
       req.user_fingerprint !== null &&
@@ -2246,77 +2264,90 @@ clientMongo.connect(function (err) {
       req.email = req.email.toLowerCase().trim();
       req.name = req.name.trim();
       //..
-      new Promise((res0) => {
-        let findProfile = {
-          user_fingerprint: req.user_fingerprint,
-        };
-        let updateProfile = {
-          $set: {
-            name: req.name,
-            email: req.email,
-            gender: req.gender,
-            last_updated: chaineDateUTC,
-          },
-        };
-        //Update
-        collectionPassengers_profiles.updateOne(
-          findProfile,
-          updateProfile,
-          function (error, result) {
-            if (error) {
-              res0({
-                response: "error_adding_additional_profile_details_new_account",
-              });
-            }
-            //Get the profile details
-            collectionPassengers_profiles.find(
-              findProfile,
-              function (err, riderProfile) {
-                if (err) {
-                  res0({
-                    response:
-                      "error_adding_additional_profile_details_new_account",
-                  });
-                }
-                //...
-                if (riderProfile.length > 0) {
-                  //Found something
-                  res0({
-                    response: "updated",
-                    user_fp: riderProfile[0].user_fingerprint,
-                    name: riderProfile[0].name,
-                    surname: riderProfile[0].surname,
-                    gender: riderProfile[0].gender,
-                    phone_number: riderProfile[0].phone_number,
-                    email: riderProfile[0].email,
-                    account_state: "full", //!VERY IMPORTANT - MARK ACCOUNT CREATION STATE AS FULL - to avoid redirection to complete details screen.
-                    profile_picture: riderProfile[0].media.profile_picture,
-                    pushnotif_token: riderProfile[0].pushnotif_token,
-                  });
-                } //Error finding profile
-                else {
-                  res0({
-                    response:
-                      "error_adding_additional_profile_details_new_account",
-                  });
-                }
+      try {
+        new Promise((res0) => {
+          let findProfile = {
+            user_fingerprint: req.user_fingerprint,
+          };
+          let updateProfile = {
+            $set: {
+              name: req.name,
+              email: req.email,
+              gender: req.gender,
+              //! ADDD ACCOUNT STATE - full
+              last_updated: chaineDateUTC,
+            },
+          };
+          //Update
+          collectionPassengers_profiles.updateOne(
+            findProfile,
+            updateProfile,
+            function (error, result) {
+              if (error) {
+                console.log(error);
+                res0({
+                  response:
+                    "error_adding_additional_profile_details_new_account",
+                });
               }
-            );
+              //Get the profile details
+              collectionPassengers_profiles
+                .find(findProfile)
+                .toArray(function (err, riderProfile) {
+                  if (err) {
+                    console.log(err);
+                    res0({
+                      response:
+                        "error_adding_additional_profile_details_new_account",
+                    });
+                  }
+                  console.log(riderProfile);
+                  //...
+                  if (riderProfile.length > 0) {
+                    //Found something
+                    res0({
+                      response: "updated",
+                      user_fp: riderProfile[0].user_fingerprint,
+                      name: riderProfile[0].name,
+                      surname: riderProfile[0].surname,
+                      gender: riderProfile[0].gender,
+                      phone_number: riderProfile[0].phone_number,
+                      email: riderProfile[0].email,
+                      account_state: "full", //!VERY IMPORTANT - MARK ACCOUNT CREATION STATE AS FULL - to avoid redirection to complete details screen.
+                      profile_picture: `http://192.168.43.44:${process.env.EVENT_GATEWAY_PORT}/${riderProfile[0].media.profile_picture}`,
+                      pushnotif_token: riderProfile[0].pushnotif_token,
+                    });
+                  } //Error finding profile
+                  else {
+                    res0({
+                      response:
+                        "error_adding_additional_profile_details_new_account",
+                    });
+                  }
+                });
+            }
+          );
+        }).then(
+          (result) => {
+            res.send(result);
+          },
+          (error) => {
+            console.log(error);
+            res.send({
+              response: "error_adding_additional_profile_details_new_account",
+            });
           }
         );
-      }).then(
-        (result) => {
-          res.send(result);
-        },
-        (error) => {
-          res.send({
-            response: "error_adding_additional_profile_details_new_account",
-          });
-        }
-      );
+      } catch (error) {
+        console.log(error);
+        res.send({
+          response: "error_adding_additional_profile_details_new_account",
+        });
+      }
     }
     //Error - missing details
     else {
+      console.log("missing details");
       res.send({
         response: "error_adding_additional_profile_details_new_account",
       });
@@ -2651,7 +2682,10 @@ clientMongo.connect(function (err) {
           collectionRidesDeliveryData,
           collectionWalletTransactions_logs,
           collectionDrivers_profiles,
-          resolve
+          resolve,
+          req.avoidCached_data !== undefined && req.avoidCached_data !== null
+            ? true
+            : false
         );
       }).then(
         (result) => {
