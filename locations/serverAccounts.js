@@ -1908,7 +1908,7 @@ function updateRiders_generalProfileInfos(
                 resolve({
                   response: "success",
                   flag: "operation successful",
-                  picture_name: `http://192.168.8.145:${process.env.EVENT_GATEWAY_PORT}/${tmpPicture_name}`,
+                  picture_name: `http://192.168.43.44:${process.env.EVENT_GATEWAY_PORT}/${tmpPicture_name}`,
                 });
               }
             );

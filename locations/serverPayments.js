@@ -74,137 +74,6 @@ function resolveDate() {
 }
 resolveDate();
 
-//Database connection
-const dbPool = mysql.createPool({
-  connectionLimit: 1000000000,
-  host: "localhost",
-  database: "taxiconnect",
-  user: "root",
-  password: "",
-});
-
-/**
- * @func isUser_authenticated()
- * Check whether the user is authentic or not
- * Check from mongoDB first, if record not present check from mySQL (not recommended!)
- * - Fingerprint checking
- */
-
-function isUser_authenticated(
-  user_fp = false,
-  collectionRidersData_repr,
-  dbMysqlConnection,
-  resolve
-) {
-  resolveDate();
-  //...
-  if (user_fp !== false) {
-    collectionRidersData_repr
-      .find({ user_fingerprint: user_fp })
-      .toArray(function (err, result) {
-        if (result === null || result.length === 0) {
-          //NO records found in mongo, check mySQL
-          new Promise((reslv) => {
-            getUserProfile_RecordMysql(user_fp, dbMysqlConnection, reslv);
-          }).then(
-            (reslt) => {
-              //Update mongo record
-              let riderProfile = {
-                user_fingerprint: reslt.fingerprint,
-                name: reslt.name,
-                surname: reslt.surname,
-                gender: reslt.gender,
-                phone: reslt.phone_number,
-                profile_pic: reslt.profile_pic,
-                isAccount_verified: reslt.isAccount_verified,
-                pushnotif_token: reslt.pushnotif_token,
-                password: reslt.password,
-                date_logged: chaineDateUTC,
-              };
-              collectionRidersData_repr.insertOne(
-                riderProfile,
-                function (err, res) {
-                  if (err) {
-                    resolve(false);
-                    throw err;
-                  }
-                  //...
-                  resolve(true);
-                }
-              );
-            },
-            (error) => {
-              console.log(error);
-              resolve(false);
-            }
-          );
-        } //Record found, check fps
-        else {
-          if (result[0].user_fingerprint.trim() == user_fp) {
-            //Auth
-            resolve(true);
-          } //Not auth
-          else {
-            resolve(false);
-          }
-        }
-      });
-  } else {
-    resolve(false);
-  }
-}
-
-/**
- * @func getUserProfile_RecordMysql()
- * Getting the user record from mysql and save it in mongo as well.
- */
-function getUserProfile_RecordMysql(
-  user_fp = false,
-  dbMysqlConnection,
-  resolve
-) {
-  if (user_fp !== false) {
-    dbMysqlConnection.query(
-      "SELECT * FROM central_passengers_profiles WHERE fingerprint=" +
-        mysql.escape(user_fp),
-      function (err, rows, fields) {
-        if (
-          rows !== undefined &&
-          rows[0] !== undefined &&
-          rows[0].fingerprint !== undefined
-        ) {
-          //Found a record
-          resolve(rows[0]);
-        } //Not found
-        else {
-          resolve(false);
-        }
-      }
-    );
-  } //Not found
-  else {
-    resolve(false);
-  }
-}
-
-/**
- * @func dispatchMessageDone_process()
- * Used to dispatch responses based on the state of the request
- */
-
-function dispatchMessageDone_process(response, message = "error", socket) {
-  console.log(response);
-  if (response === false) {
-    //Error somewhere
-    socket.emit("paymentCreditTopup-response", {
-      response: false,
-      message: message,
-    });
-  } else {
-    socket.emit("paymentCreditTopup-response", { response: "success" });
-  }
-}
-
 /**
  * @func deductXML_responses()
  * @params XML content, step (createToken, chargeTokenCreditCard)
@@ -264,12 +133,16 @@ function deductXML_responses(contentResponse, stepProcess, resolve) {
  * @func createPaymentTransaction
  * Responsible for creating transaction preliminary to the payment
  * and save in mongo a record, BUT  up date mySQL for stronghold keep.
+ * @param xmlBody: the DPO specific XML to create a transaction token.
+ * @param user_fp: the rider's fingerprint.
+ * @param collectionWalletTransactions_logs: the collection holding all the riders.
+ * @param resolve
  */
 
 function createPaymentTransaction(
   xmlBody,
   user_fp,
-  collectionRidersData_repr_topups,
+  collectionWalletTransactions_logs,
   resolve
 ) {
   if (user_fp !== undefined && user_fp !== null) {
@@ -291,7 +164,7 @@ function createPaymentTransaction(
             body,
             error,
             response.statusCode,
-            collectionRidersData_repr_topups,
+            collectionWalletTransactions_logs,
             reslv
           );
         }).then(
@@ -299,15 +172,15 @@ function createPaymentTransaction(
           () => {}
         );
         ///...
-        if (response.statusCode === 200) {
-          //Good
-          if (error === null) {
-            resolve(body);
-          } //Error
-          else {
-            resolve(false);
-          }
-        } //Error
+        if (
+          /xml/i.test(new String(body)) ||
+          response.statusCode === 200 ||
+          error === null
+        ) {
+          //Received an XML response
+          resolve(body);
+        }
+        //Error
         else {
           //Save the log, status code and error
           resolve(false);
@@ -327,7 +200,7 @@ function createPaymentTransaction(
 function executePaymentTransaction(
   xmlBody,
   user_fp,
-  collectionRidersData_repr_topups,
+  collectionWalletTransactions_logs,
   resolve
 ) {
   if (user_fp !== undefined && user_fp !== null) {
@@ -349,7 +222,7 @@ function executePaymentTransaction(
             body,
             error,
             response.statusCode,
-            collectionRidersData_repr_topups,
+            collectionWalletTransactions_logs,
             reslv
           );
         }).then(
@@ -386,7 +259,7 @@ function saveLogForTopups(
   responseBody,
   responseError,
   responseStatusCode,
-  collectionRidersData_repr_topups,
+  collectionWalletTransactions_logs,
   resolve
 ) {
   resolveDate();
@@ -397,7 +270,7 @@ function saveLogForTopups(
     responseStatusCode: responseStatusCode,
     date_captured: chaineDateUTC,
   };
-  collectionRidersData_repr_topups.insertOne(dataBundle, function (err, res) {
+  collectionWalletTransactions_logs.insertOne(dataBundle, function (err, res) {
     if (err) {
       resolve(false);
       throw err;
@@ -415,7 +288,7 @@ function saveLogForTopupsSuccess(
   amount,
   transactionToken,
   transactionRef,
-  collectionRidersData_repr,
+  collectionPassengers_profiles,
   resolve
 ) {
   resolveDate();
@@ -429,146 +302,16 @@ function saveLogForTopupsSuccess(
     user_fingerprint: user_fp,
   };
   let updateQuery = { $set: { latestTopup_history: dataBundle } };
-  collectionRidersData_repr.updateOne(
+  collectionPassengers_profiles.updateOne(
     FinderQuery,
     updateQuery,
     function (err, res) {
       if (err) {
         resolve(false);
-        throw err;
       }
       resolve(true);
     }
   );
-}
-
-/**
- * @func updateRecordStrongholdVouchers()
- * Very important: responsible for updating the mySQL database stronghold.
- */
-function updateRecordStrongholdVouchers(
-  user_fp,
-  amount,
-  transactionToken,
-  transactionRef,
-  dbMysqlConnection,
-  resolve
-) {
-  resolveDate();
-  if (user_fp !== undefined && user_fp !== null) {
-    //Update central vouchers and credit rides recharges in mysql
-    new Promise((reslv) => {}).then(
-      (result) => {
-        console.log(result);
-      },
-      (error) => {
-        console.log(error);
-        resolve(false);
-      }
-    );
-  } else {
-    resolve(false);
-  }
-}
-
-/**
- * @func updateMySQLStronghold()
- * Update voucher part of the main stronghold, based on the predefined schema in place.
- */
-function updateMySQLStronghold(
-  user_fp,
-  amount,
-  transactionToken,
-  transactionRef,
-  dbMysqlConnection,
-  resolve
-) {
-  //Get unique fingerprint
-  new Promise((reslv) => {
-    generateUniqueFingerprint(
-      user_fp +
-        "" +
-        transactionToken +
-        "" +
-        transactionRef +
-        "" +
-        chaineDateUTC,
-      reslv
-    );
-  }).then(
-    (result) => {
-      let fingerprint = result;
-      //Update central vouchers
-      let queryUpdate_centralVouchers =
-        "INSERT INTO central_vouchers(voucher_number, unique_fingerprint, value, date_generated) VALUES(" +
-        mysql.escape(fingerprint) +
-        "," +
-        mysql.escape(fingerprint) +
-        "," +
-        mysql.escape(amount) +
-        "," +
-        mysql.escape(chaineDateUTC) +
-        ")";
-      dbMysqlConnection.query(queryUpdate_centralVouchers, function () {
-        //Update credit rides recharges
-        let queryUpdate_ridesRecharges =
-          "INSERT INTO credit_rides_recharges(user_id, voucher_used, date_recharged) VALUES(" +
-          mysql.escape(user_fp) +
-          "," +
-          mysql.escape(fingerprint) +
-          "," +
-          mysql.escape(chaineDateUTC) +
-          ")";
-        dbMysqlConnection.query(queryUpdate_ridesRecharges, function () {
-          //Done
-          resolve(true);
-        });
-      });
-    },
-    (error) => {
-      //Use the transaction token + transactionRef as fingerprint
-      let fingerprint = transactionToken + "" + transactionRef;
-      //Update central vouchers
-      let queryUpdate_centralVouchers =
-        "INSERT INTO central_vouchers(voucher_number, unique_fingerprint, value, date_generated) VALUES(" +
-        mysql.escape(fingerprint) +
-        "," +
-        mysql.escape(fingerprint) +
-        "," +
-        mysql.escape(amount) +
-        "," +
-        mysql.escape(chaineDateUTC) +
-        ")";
-      dbMysqlConnection.query(queryUpdate_centralVouchers, function () {
-        //Update credit rides recharges
-        let queryUpdate_ridesRecharges =
-          "INSERT INTO credit_rides_recharges(user_id, voucher_used, date_recharged) VALUES(" +
-          mysql.escape(user_fp) +
-          "," +
-          mysql.escape(fingerprint) +
-          "," +
-          mysql.escape(chaineDateUTC) +
-          ")";
-        dbMysqlConnection.query(queryUpdate_ridesRecharges, function () {
-          //Done
-          resolve(true);
-        });
-      });
-    }
-  );
-}
-
-/**
- * @func generateUniqueFingerprint()
- * Generate unique fingerprint for any string size.
- */
-function generateUniqueFingerprint(str, resolve) {
-  str = str.trim();
-  let fingerprint = crypto
-    .createHmac("sha256", "TAXICONNECTBASICKEYFINGERPRINTS")
-    .update(str)
-    .digest("hex");
-  resolve(fingerprint);
 }
 
 /**
@@ -577,26 +320,35 @@ function generateUniqueFingerprint(str, resolve) {
 
 clientMongo.connect(function (err) {
   //if (err) throw err;
-  console.log("Connected to Mongodb");
+  console.log("[*] Payments services up");
   const dbMongo = clientMongo.db(process.env.DB_NAME_MONGODDB);
-  const collectionRidersData_repr = dbMongo.collection("passengers_profiles"); //Hold the information about the riders
-  const collectionRidersData_repr_topups = dbMongo.collection(
+  const collectionPassengers_profiles = dbMongo.collection(
+    "passengers_profiles"
+  ); //Hold the information about the riders
+  const collectionDrivers_profiles = dbMongo.collection("drivers_profiles"); //Hold all the drivers profiles
+  const collectionWalletTransactions_logs = dbMongo.collection(
     "wallet_transactions_logs"
   ); //Hold the latest information about the riders topups
+  const collectionRidesDeliveryData = dbMongo.collection(
+    "rides_deliveries_requests"
+  ); //Hold all the requests made (rides and deliveries)
+  const collectionGlobalEvents = dbMongo.collection("global_events"); //Hold all the random events that happened somewhere.
   //-------------
   const bodyParser = require("body-parser");
   app
     .get("/", function (req, res) {
-      res.send("Dispatch services up");
+      console.log("Payments services up");
     })
-    .use(bodyParser.json())
-    .use(bodyParser.urlencoded({ extended: true }));
+    .use(bodyParser.json({ limit: "100mb", extended: true }))
+    .use(bodyParser.urlencoded({ limit: "100mb", extended: true }));
 
   /**
    * WALLET TOP-UP
    * Responsible for topping up wallets and securing the all process
    */
   app.post("/topUPThisWalletTaxiconnect", function (req, res) {
+    resolveDate();
+    //...
     let dataBundle = {
       user_fp: "funnyfingerprint",
       amount: 45,
@@ -607,53 +359,38 @@ clientMongo.connect(function (err) {
       type: "VISA",
     };
 
-    let xmlCreateToken =
-      `
-            <?xml version="1.0" encoding="utf-8"?>
-            <API3G>
-            <CompanyToken>` +
-      process.env.TOKEN_PAYMENT_CP +
-      `</CompanyToken>
-            <Request>createToken</Request>
-            <Transaction>
-            <PaymentAmount>` +
-      dataBundle.amount +
-      `</PaymentAmount>
-            <PaymentCurrency>NAD</PaymentCurrency>
-            <CompanyRef>` +
-      process.env.COMPANY_DPO_REF +
-      `</CompanyRef>
-            <RedirectURL>` +
-      process.env.REDIRECT_URL_AFTER_PROCESSES +
-      `</RedirectURL>
-            <BackURL>` +
-      process.env.REDIRECT_URL_AFTER_PROCESSES +
-      `</BackURL>
-            <CompanyRefUnique>0</CompanyRefUnique>
-            <PTL>5</PTL>
-            </Transaction>
-            <Services>
-              <Service>
-                <ServiceType>` +
-      process.env.DPO_CREATETOKEN_SERVICE_TYPE +
-      `</ServiceType>
-                <ServiceDescription>TaxiConnect wallet top-up</ServiceDescription>
-                <ServiceDate>` +
-      dateObjectImute +
-      `</ServiceDate>
-              </Service>
-            </Services>
-            </API3G>
-            `;
-
-    console.log(xmlCreateToken);
-
     //CREATE TOKEN
     new Promise((resolve) => {
+      //? XML TOKEN responsible for creating a transaction token before any payment.
+      let xmlCreateToken = `
+      <?xml version="1.0" encoding="utf-8"?>
+      <API3G>
+      <CompanyToken>${process.env.TOKEN_PAYMENT_CP}</CompanyToken>
+      <Request>createToken</Request>
+      <Transaction>
+      <PaymentAmount>${dataBundle.amount}</PaymentAmount>
+      <PaymentCurrency>NAD</PaymentCurrency>
+      <CompanyRef>${process.env.COMPANY_DPO_REF}</CompanyRef>
+      <RedirectURL>${process.env.REDIRECT_URL_AFTER_PROCESSES}</RedirectURL>
+      <BackURL>$${process.env.REDIRECT_URL_AFTER_PROCESSES}</BackURL>
+      <CompanyRefUnique>0</CompanyRefUnique>
+      <PTL>5</PTL>
+      </Transaction>
+      <Services>
+        <Service>
+          <ServiceType>${process.env.DPO_CREATETOKEN_SERVICE_TYPE}</ServiceType>
+          <ServiceDescription>TaxiConnect wallet top-up</ServiceDescription>
+          <ServiceDate>${dateObjectImute}</ServiceDate>
+        </Service>
+      </Services>
+      </API3G>
+      `;
+
+      console.log(xmlCreateToken);
       createPaymentTransaction(
         xmlCreateToken,
         dataBundle.user_fp,
-        collectionRidersData_repr_topups,
+        collectionWalletTransactions_logs,
         resolve
       );
     }).then(
@@ -688,29 +425,17 @@ clientMongo.connect(function (err) {
 
                   //...
                   //MAKE PAYMENT
-                  let xmlMakePayment =
-                    `
+                  //? XML TOKEN responsible for making the payment.
+                  let xmlMakePayment = `
                       <?xml version="1.0" encoding="utf-8"?>
                       <API3G>
-                        <CompanyToken>` +
-                    process.env.TOKEN_PAYMENT_CP +
-                    `</CompanyToken>
+                        <CompanyToken>${process.env.TOKEN_PAYMENT_CP}</CompanyToken>
                         <Request>chargeTokenCreditCard</Request>
-                        <TransactionToken>` +
-                    transactionToken +
-                    `</TransactionToken>
-                        <CreditCardNumber>` +
-                    dataBundle.number +
-                    `</CreditCardNumber>
-                        <CreditCardExpiry>` +
-                    dataBundle.expiry +
-                    `</CreditCardExpiry>
-                        <CreditCardCVV>` +
-                    dataBundle.cvv +
-                    `</CreditCardCVV>
-                        <CardHolderName>` +
-                    dataBundle.name +
-                    `</CardHolderName>
+                        <TransactionToken>${transactionToken}</TransactionToken>
+                        <CreditCardNumber>${dataBundle.number}</CreditCardNumber>
+                        <CreditCardExpiry>${dataBundle.expiry}</CreditCardExpiry>
+                        <CreditCardCVV>${dataBundle.cvv}</CreditCardCVV>
+                        <CardHolderName>${dataBundle.name}</CardHolderName>
                         <ChargeType></ChargeType>
                       </API3G>
                       `;
@@ -720,7 +445,7 @@ clientMongo.connect(function (err) {
                     executePaymentTransaction(
                       xmlMakePayment,
                       dataBundle.user_fp,
-                      collectionRidersData_repr_topups,
+                      collectionWalletTransactions_logs,
                       resolve
                     );
                   }).then(
@@ -750,7 +475,7 @@ clientMongo.connect(function (err) {
                                     dataBundle.amount,
                                     transactionToken,
                                     transRef,
-                                    collectionRidersData_repr,
+                                    collectionPassengers_profiles,
                                     resolve
                                   );
                                 }).then(
@@ -769,23 +494,20 @@ clientMongo.connect(function (err) {
                                     dataBundle.amount,
                                     transactionToken,
                                     transRef,
-                                    collectionRidersData_repr,
+                                    collectionPassengers_profiles,
                                     resolve
                                   );
                                 }).then(
                                   (result) => {
                                     console.log(result);
-                                    //DONE - SUCCESSFULLY PAID
-                                    res.send({ response: "success" });
                                   },
                                   (error) => {
                                     console.log(error);
-                                    res.send({
-                                      response: false,
-                                      message: "payment_error",
-                                    });
                                   }
                                 );
+                                //...
+                                //DONE - SUCCESSFULLY PAID
+                                res.send({ response: "success" });
                               }
                             } catch (error) {
                               res.send({
@@ -838,295 +560,6 @@ clientMongo.connect(function (err) {
       }
     );
   });
-  /*io.sockets.on("connection", function (socket) {
-    console.log("client connected");
-
-    socket.on("paymentCreditTopup", function (dataBundle) {
-      console.log(dataBundle);
-      //Check the user
-      new Promise((resolve) => {
-        isUser_authenticated(
-          dataBundle.user_fp,
-          collectionRidersData_repr,
-          connection,
-          resolve
-        );
-      }).then(
-        (result) => {
-          console.log(result);
-          //Proceed to payment
-          if (result === true) {
-            console.log("user authenticated");
-            //...
-            let xmlCreateToken =
-              `
-            <?xml version="1.0" encoding="utf-8"?>
-            <API3G>
-            <CompanyToken>` +
-              process.env.TOKEN_PAYMENT_CP +
-              `</CompanyToken>
-            <Request>createToken</Request>
-            <Transaction>
-            <PaymentAmount>` +
-              dataBundle.amount +
-              `</PaymentAmount>
-            <PaymentCurrency>NAD</PaymentCurrency>
-            <CompanyRef>` +
-              process.env.COMPANY_DPO_REF +
-              `</CompanyRef>
-            <RedirectURL>` +
-              process.env.REDIRECT_URL_AFTER_PROCESSES +
-              `</RedirectURL>
-            <BackURL>` +
-              process.env.REDIRECT_URL_AFTER_PROCESSES +
-              `</BackURL>
-            <CompanyRefUnique>0</CompanyRefUnique>
-            <PTL>5</PTL>
-            </Transaction>
-            <Services>
-              <Service>
-                <ServiceType>` +
-              process.env.DPO_CREATETOKEN_SERVICE_TYPE +
-              `</ServiceType>
-                <ServiceDescription>TaxiConnect wallet top-up</ServiceDescription>
-                <ServiceDate>` +
-              dateObjectImute +
-              `</ServiceDate>
-              </Service>
-            </Services>
-            </API3G>
-            `;
-
-            console.log(xmlCreateToken);
-
-            //CREATE TOKEN
-            new Promise((resolve) => {
-              createPaymentTransaction(
-                xmlCreateToken,
-                dataBundle.user_fp,
-                collectionRidersData_repr_topups,
-                resolve
-              );
-            }).then(
-              (reslt) => {
-                console.log(reslt);
-                //Deduct XML response
-                new Promise((resolve) => {
-                  deductXML_responses(reslt, "createToken", resolve);
-                }).then(
-                  (result) => {
-                    console.log(result);
-                    if (result !== false) {
-                      try {
-                        result = JSON.parse(result);
-                        if (
-                          result.API3G.Result === "000" ||
-                          result.API3G.Result == "000"
-                        ) {
-                          console.log("Executing payment");
-                          let transactionToken = result.API3G.TransToken;
-                          let transRef = result.API3G.TransRef;
-                          dataBundle.number = dataBundle.number
-                            .replace(" ", "")
-                            .replace(" ", "")
-                            .replace(" ", "");
-                          dataBundle.expiry = dataBundle.expiry.replace(
-                            "/",
-                            ""
-                          );
-                          //DEBUG CARD-------------------------------------------------------------------------------
-                          dataBundle.number = "5436886269848367";
-                          dataBundle.expiry = "1222";
-                          dataBundle.cvv = "123";
-                          //....-------------------------------------------------------------------------------------
-
-                          //...
-                          //MAKE PAYMENT
-                          let xmlMakePayment =
-                            `
-                      <?xml version="1.0" encoding="utf-8"?>
-                      <API3G>
-                        <CompanyToken>` +
-                            process.env.TOKEN_PAYMENT_CP +
-                            `</CompanyToken>
-                        <Request>chargeTokenCreditCard</Request>
-                        <TransactionToken>` +
-                            transactionToken +
-                            `</TransactionToken>
-                        <CreditCardNumber>` +
-                            dataBundle.number +
-                            `</CreditCardNumber>
-                        <CreditCardExpiry>` +
-                            dataBundle.expiry +
-                            `</CreditCardExpiry>
-                        <CreditCardCVV>` +
-                            dataBundle.cvv +
-                            `</CreditCardCVV>
-                        <CardHolderName>` +
-                            dataBundle.name +
-                            `</CardHolderName>
-                        <ChargeType></ChargeType>
-                      </API3G>
-                      `;
-                          console.log(xmlMakePayment);
-                          //Execute payment
-                          new Promise((resolve) => {
-                            executePaymentTransaction(
-                              xmlMakePayment,
-                              dataBundle.user_fp,
-                              collectionRidersData_repr_topups,
-                              resolve
-                            );
-                          }).then(
-                            (result) => {
-                              console.log(result);
-                              new Promise((resolve) => {
-                                deductXML_responses(
-                                  result,
-                                  "chargeTokenCreditCard",
-                                  resolve
-                                );
-                              }).then(
-                                (result) => {
-                                  if (result !== false) {
-                                    try {
-                                      result = JSON.parse(result);
-                                      console.log(result);
-                                      if (
-                                        result.API3G.Result === "000" ||
-                                        result.API3G.Result == "000"
-                                      ) {
-                                        //SUCCESS
-                                        //Update topup success mongo log
-                                        new Promise((resolve) => {
-                                          saveLogForTopupsSuccess(
-                                            dataBundle.user_fp,
-                                            dataBundle.amount,
-                                            transactionToken,
-                                            transRef,
-                                            collectionRidersData_repr,
-                                            resolve
-                                          );
-                                        }).then(
-                                          (result) => {
-                                            console.log(result);
-                                          },
-                                          (error) => {
-                                            console.log(error);
-                                          }
-                                        );
-
-                                        //Update mongo rider profile
-                                        new Promise((resolve) => {
-                                          saveLogForTopupsSuccess(
-                                            dataBundle.user_fp,
-                                            dataBundle.amount,
-                                            transactionToken,
-                                            transRef,
-                                            collectionRidersData_repr,
-                                            resolve
-                                          );
-                                        }).then(
-                                          (result) => {
-                                            console.log(result);
-                                            //DONE - SUCCESSFULLY PAID
-                                            dispatchMessageDone_process(
-                                              true,
-                                              false,
-                                              socket
-                                            );
-                                          },
-                                          (error) => {
-                                            console.log(error);
-                                            dispatchMessageDone_process(
-                                              false,
-                                              "payment_error",
-                                              socket
-                                            );
-                                          }
-                                        );
-                                      }
-                                    } catch (error) {
-                                      dispatchMessageDone_process(
-                                        false,
-                                        "payment_error",
-                                        socket
-                                      );
-                                    }
-                                  } //Error
-                                  else {
-                                    dispatchMessageDone_process(
-                                      false,
-                                      "payment_error",
-                                      socket
-                                    );
-                                  }
-                                },
-                                (error) => {
-                                  console.log(error);
-                                  dispatchMessageDone_process(
-                                    false,
-                                    "payment_error",
-                                    socket
-                                  );
-                                }
-                              );
-                            },
-                            (error) => {
-                              console.log(error);
-                              dispatchMessageDone_process(
-                                false,
-                                "payment_error",
-                                socket
-                              );
-                            }
-                          );
-                        } //Error transaction could not be create
-                        else {
-                          dispatchMessageDone_process(
-                            false,
-                            "transaction_error",
-                            socket
-                          );
-                        }
-                      } catch (error) {
-                        dispatchMessageDone_process(
-                          false,
-                          "transaction_error",
-                          socket
-                        );
-                      }
-                    } //Error
-                    else {
-                      dispatchMessageDone_process(
-                        false,
-                        "transaction_error",
-                        socket
-                      );
-                    }
-                  },
-                  (error) => {
-                    console.log(error);
-                    dispatchMessageDone_process(false, "token_error", socket);
-                  }
-                );
-              },
-              (error) => {
-                dispatchMessageDone_process(false, "token_error", socket);
-              }
-            );
-          } //Error
-          else {
-            dispatchMessageDone_process(false, "auth_error", socket);
-          }
-        },
-        (error) => {
-          console.log(error);
-          dispatchMessageDone_process(false, "auth_error", socket);
-        }
-      );
-    });
-  });*/
 });
 
 server.listen(process.env.PAYMENT_SERVICE_PORT);
