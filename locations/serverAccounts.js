@@ -220,12 +220,12 @@ function checkUserStatus(
           gender: result[0].gender,
           phone_number: result[0].phone_number,
           email: result[0].email,
-          profile_picture: `http://192.168.43.44:${process.env.EVENT_GATEWAY_PORT}/${result[0].media.profile_picture}`,
+          profile_picture: `${process.env.SERVER_IP}:${process.env.EVENT_GATEWAY_PORT}/${result[0].media.profile_picture}`,
           account_state:
             result[0].account_state !== undefined &&
             result[0].account_state !== null
               ? result[0].account_state
-              : "full",
+              : "minimal",
           pushnotif_token: result[0].pushnotif_token,
         });
       } //Not yet registeredd
@@ -255,16 +255,19 @@ function getBachRidesHistory(
       if (/past/i.test(req.ride_type)) {
         //Past requests
         res0({
+          client_id: req.user_fingerprint,
           "ride_state_vars.isRideCompleted_riderSide": true,
         });
       } else if (/scheduled/i.test(req.ride_type)) {
         //Scheduled
         res0({
+          client_id: req.user_fingerprint,
           request_type: { $regex: /^scheduled$/, $options: "i" },
         });
       } else if (/business/i.test(req.ride_type)) {
         //Business
         res0({
+          client_id: req.user_fingerprint,
           ride_flag: { $regex: /business/, $options: "i" },
         });
       } //Invalid data
@@ -275,6 +278,7 @@ function getBachRidesHistory(
     else {
       console.log("Targeted request detected!");
       res0({
+        client_id: req.user_fingerprint,
         request_fp: req.request_fp,
       });
     }
@@ -305,6 +309,7 @@ function getBachRidesHistory(
               //Done
               Promise.all(parentPromises).then(
                 (batchResults) => {
+                  console.log(batchResults);
                   resolve({
                     response: "success",
                     ride_type:
@@ -1214,7 +1219,6 @@ function execGet_riders_walletSummary(
         $options: "i",
       },
     };
-    console.log(filterTopups);
     //...
     collectionWalletTransactions_logs
       .find(filterTopups)
@@ -1223,7 +1227,6 @@ function execGet_riders_walletSummary(
           console.log(err);
           res({ total: 0, transactions_data: null });
         }
-        console.log(resultTransactions);
         //..
         if (resultTransactions.length > 0) {
           //Found some records
@@ -1925,7 +1928,7 @@ function updateRiders_generalProfileInfos(
                 resolve({
                   response: "success",
                   flag: "operation successful",
-                  picture_name: `http://192.168.43.44:${process.env.EVENT_GATEWAY_PORT}/${tmpPicture_name}`,
+                  picture_name: `${process.env.SERVER_IP}:${process.env.EVENT_GATEWAY_PORT}/${tmpPicture_name}`,
                 });
               }
             );
@@ -2274,7 +2277,7 @@ clientMongo.connect(function (err) {
               name: req.name,
               email: req.email,
               gender: req.gender,
-              //! ADDD ACCOUNT STATE - full
+              account_state: "full", //! ADDD ACCOUNT STATE - full
               last_updated: chaineDateUTC,
             },
           };
@@ -2314,7 +2317,7 @@ clientMongo.connect(function (err) {
                       phone_number: riderProfile[0].phone_number,
                       email: riderProfile[0].email,
                       account_state: "full", //!VERY IMPORTANT - MARK ACCOUNT CREATION STATE AS FULL - to avoid redirection to complete details screen.
-                      profile_picture: `http://192.168.43.44:${process.env.EVENT_GATEWAY_PORT}/${riderProfile[0].media.profile_picture}`,
+                      profile_picture: `${process.env.SERVER_IP}:${process.env.EVENT_GATEWAY_PORT}/${riderProfile[0].media.profile_picture}`,
                       pushnotif_token: riderProfile[0].pushnotif_token,
                     });
                   } //Error finding profile

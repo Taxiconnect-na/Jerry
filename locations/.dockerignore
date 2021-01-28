@@ -11,3 +11,5 @@ whiteboard2.js
 config_mod.yml
 test2.js
 test2.json
+.env_dev
+.env_live

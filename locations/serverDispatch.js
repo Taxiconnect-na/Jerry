@@ -1903,7 +1903,7 @@ clientMongo.connect(function (err) {
   app.post("/dispatchRidesOrDeliveryRequests", function (req, res) {
     req = req.body;
     //TEST DATA
-    let testData = {
+    /*let testData = {
       actualRider: "someonelese",
       actualRiderPhone_number: "0817563369",
       carTypeSelected: "comfortNormalRide",
@@ -1978,7 +1978,7 @@ clientMongo.connect(function (err) {
       user_fingerprint:
         "7c57cb6c9471fd33fd265d5441f253eced2a6307c0207dea57c987035b496e6e8dfa7105b86915da",
     };
-    req = testData;
+    req = testData;*/
     //...
     if (req.user_fingerprint !== undefined && req.user_fingerprint !== null) {
       //1. CHECK THAT THIS RIDER DOESN'T ALREADY HAVE AN ACTIVE RIDE/DELIVERY

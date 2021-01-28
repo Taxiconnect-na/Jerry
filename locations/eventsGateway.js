@@ -831,6 +831,11 @@ io.on("connection", (socket) => {
         "/sendOTPAndCheckUserStatus?phone_number=" +
         req.phone_number;
 
+      if (req.smsHashLinker !== undefined && req.smsHashLinker !== null) {
+        //Attach an hash linker for auto verification
+        url += `&smsHashLinker=${req.smsHashLinker}`;
+      }
+
       requestAPI(url, function (error, response, body) {
         console.log("ANSWER HERE -> ", body);
         if (error === null) {
