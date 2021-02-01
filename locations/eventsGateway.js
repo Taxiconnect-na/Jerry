@@ -834,7 +834,7 @@ io.on("connection", (socket) => {
 
       if (req.smsHashLinker !== undefined && req.smsHashLinker !== null) {
         //Attach an hash linker for auto verification
-        url += `&smsHashLinker=${req.smsHashLinker}`;
+        url += `&smsHashLinker=${encodeURIComponent(req.smsHashLinker)}`;
       }
       //Attach user nature
       if (req.user_nature !== undefined && req.user_nature !== null) {

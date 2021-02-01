@@ -185,6 +185,7 @@ function checkUserStatus(
   collectionDrivers_profiles,
   resolve
 ) {
+  console.log(userData);
   //Save the dispatch map for this user
   new Promise((res) => {
     let dispatchMap = {
@@ -2536,6 +2537,7 @@ clientMongo.connect(function (err) {
     resolveDate();
     let params = urlParser.parse(req.url, true);
     req = params.query;
+    console.log(`DAILY AMMOUNT STUFF ->`);
     console.log(req);
 
     if (
