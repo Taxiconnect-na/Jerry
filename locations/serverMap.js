@@ -57,7 +57,7 @@ function resolveDate() {
 resolveDate();
 
 //--------------DRIVER'S DEBUG DATA-------------------------------------------------------------------
-const driverCacheData = {
+/*const driverCacheData = {
   user_fingerprint:
     "23c9d088e03653169b9c18193a0b8dd329ea1e43eb0626ef9f16b5b979694a429710561a3cb3ddae",
   latitude: -22.567989,
@@ -70,7 +70,7 @@ client.set(
   driverCacheData.user_fingerprint,
   JSON.stringify(driverCacheData),
   redis.print
-);
+);*/
 //-----------------------------------------------------------------------------------------------------
 
 function logObject(obj) {
