@@ -3827,11 +3827,11 @@ clientMongo.connect(function (err) {
   //Origin coords - driver
   //const blon = 17.099327;
   //const blat = -22.579195;
-  const blon = 17.060507;
-  const blat = -22.514987;
+  //const blon = 17.060507;
+  //const blat = -22.514987;
   //Destination coords
-  const destinationLat = -22.577673;
-  const destinationLon = 17.086427;
+  //const destinationLat = -22.577673;
+  //const destinationLon = 17.086427;
 
   //1. Pickup simulation
   /*socket.on("startPickupSim", function (req) {
