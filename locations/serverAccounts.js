@@ -168,25 +168,27 @@ function generateUniqueFingerprint(str, encryption = false, resolve) {
 
 /**
  * @func checkUserStatus
- * @param phone_number: the user's phone number
+ * @param userData: the user's bundled data (phone_number, user_nature,...)
  * @param otp: the otp generated for this user
  * @param collection_OTP_dispatch_map: the collection holding all the OTP dispatch
  * @param collectionPassengers_profiles: the collection of all the passengers
+ * @param collectionDrivers_profiles: the collection of all the drivers
  * @param resolve
  * Responsible for checking whether the user is registeredd or not, if yes send back
  * the user fingerprint.
  */
 function checkUserStatus(
-  phone_number,
+  userData,
   otp,
   collection_OTP_dispatch_map,
   collectionPassengers_profiles,
+  collectionDrivers_profiles,
   resolve
 ) {
   //Save the dispatch map for this user
   new Promise((res) => {
     let dispatchMap = {
-      phone_number: phone_number,
+      phone_number: userData.phone_number,
       otp: otp,
       date_sent: chaineDateUTC,
     };
@@ -199,40 +201,85 @@ function checkUserStatus(
   );
   //...Check the user's status
   let checkUser = {
-    phone_number: { $regex: phone_number, $options: "i" },
+    phone_number: { $regex: userData.phone_number, $options: "i" },
   };
 
-  collectionPassengers_profiles
-    .find(checkUser)
-    .toArray(function (error, result) {
-      if (error) {
-        resolve({ response: "error_checking_user" });
-      }
-      //..
-      if (result.length > 0) {
-        //User already registered
-        //Send the fingerprint
-        resolve({
-          response: "registered",
-          user_fp: result[0].user_fingerprint,
-          name: result[0].name,
-          surname: result[0].surname,
-          gender: result[0].gender,
-          phone_number: result[0].phone_number,
-          email: result[0].email,
-          profile_picture: `${process.env.SERVER_IP}:${process.env.EVENT_GATEWAY_PORT}/${result[0].media.profile_picture}`,
-          account_state:
-            result[0].account_state !== undefined &&
-            result[0].account_state !== null
-              ? result[0].account_state
-              : "minimal",
-          pushnotif_token: result[0].pushnotif_token,
-        });
-      } //Not yet registeredd
-      else {
-        resolve({ response: "not_yet_registered" });
-      }
-    });
+  //1. Passengers
+  if (
+    userData.user_nature === undefined ||
+    userData.user_nature === null ||
+    /passenger/i.test(userData.user_nature)
+  ) {
+    collectionPassengers_profiles
+      .find(checkUser)
+      .toArray(function (error, result) {
+        if (error) {
+          resolve({ response: "error_checking_user" });
+        }
+        //..
+        if (result.length > 0) {
+          //User already registered
+          //Send the fingerprint
+          resolve({
+            response: "registered",
+            user_fp: result[0].user_fingerprint,
+            name: result[0].name,
+            surname: result[0].surname,
+            gender: result[0].gender,
+            phone_number: result[0].phone_number,
+            email: result[0].email,
+            profile_picture: `${process.env.SERVER_IP}:${process.env.EVENT_GATEWAY_PORT}/${result[0].media.profile_picture}`,
+            account_state:
+              result[0].account_state !== undefined &&
+              result[0].account_state !== null
+                ? result[0].account_state
+                : "minimal",
+            pushnotif_token: result[0].pushnotif_token,
+          });
+        } //Not yet registeredd
+        else {
+          resolve({ response: "not_yet_registered" });
+        }
+      });
+  } else if (
+    userData.user_nature !== undefined &&
+    userData.user_nature !== null &&
+    /driver/i.test(userData.user_nature)
+  ) {
+    //2. Drivers
+    collectionDrivers_profiles
+      .find(checkUser)
+      .toArray(function (error, result) {
+        if (error) {
+          resolve({ response: "error_checking_user" });
+        }
+        //..
+        if (result.length > 0) {
+          //User already registered
+          //Send the fingerprint
+          resolve({
+            response: "registered",
+            user_fp: result[0].driver_fingerprint,
+            name: result[0].name,
+            surname: result[0].surname,
+            gender: result[0].gender,
+            phone_number: result[0].phone_number,
+            email: result[0].email,
+            profile_picture: `${process.env.SERVER_IP}:${process.env.EVENT_GATEWAY_PORT}/${result[0].identification_data.profile_picture}`,
+            account_state:
+              result[0].isDriverSuspended !== undefined &&
+              result[0].isDriverSuspended !== null
+                ? result[0].isDriverSuspended
+                : "suspended",
+            pushnotif_token: result[0].pushnotif_token,
+            suspension_message: result[0].suspension_message,
+          });
+        } //Not yet registeredd
+        else {
+          resolve({ response: "not_yet_registered" });
+        }
+      });
+  }
 }
 
 /**
@@ -2026,10 +2073,11 @@ clientMongo.connect(function (err) {
       //2. Check the user's status
       new Promise((res1) => {
         checkUserStatus(
-          req.phone_number,
+          req,
           otp,
           collection_OTP_dispatch_map,
           collectionPassengers_profiles,
+          collectionDrivers_profiles,
           res1
         );
       }).then(
@@ -2051,13 +2099,33 @@ clientMongo.connect(function (err) {
                 },
               };
               //.
-              collectionPassengers_profiles.updateOne(
-                { user_fingerprint: req.user_fingerprint },
-                secretData,
-                function (err, reslt) {
-                  res2(true);
-                }
-              );
+              //1. Passengers
+              if (
+                req.user_nature === undefined ||
+                req.user_nature === null ||
+                /passenger/i.test(req.user_nature)
+              ) {
+                collectionPassengers_profiles.updateOne(
+                  { user_fingerprint: req.user_fingerprint },
+                  secretData,
+                  function (err, reslt) {
+                    res2(true);
+                  }
+                );
+              } else if (
+                req.user_nature !== undefined &&
+                req.user_nature !== null &&
+                /driver/i.test(req.user_nature)
+              ) {
+                //2. Drivers
+                collectionDrivers_profiles.updateOne(
+                  { user_fingerprint: req.user_fingerprint },
+                  secretData,
+                  function (err, reslt) {
+                    res2(true);
+                  }
+                );
+              }
             }).then(
               () => {},
               () => {}
@@ -2123,26 +2191,59 @@ clientMongo.connect(function (err) {
         } //Checking for registered user - check the OTP secrets binded to the profile
         else {
           //! Will need the user_fingerprint to be provided.
-          let checkOTP = {
-            user_fingerprint: req.user_fingerprint,
-            "account_verifications.phone_verification_secrets.otp": req.otp,
-          };
-          //Check if it exists for this number
-          collectionPassengers_profiles
-            .find(checkOTP)
-            .toArray(function (error, result) {
-              if (error) {
-                res0({ response: "error_checking_otp" });
-              }
-              //...
-              if (result.length > 0) {
-                //True OTP
-                res0({ response: true });
-              } //Wrong otp
-              else {
-                res0({ response: false });
-              }
-            });
+          //1. Passengers
+          if (
+            req.user_nature === undefined ||
+            req.user_nature === null ||
+            /passenger/i.test(req.user_nature)
+          ) {
+            let checkOTP = {
+              user_fingerprint: req.user_fingerprint,
+              "account_verifications.phone_verification_secrets.otp": req.otp,
+            };
+            //Check if it exists for this number
+            collectionPassengers_profiles
+              .find(checkOTP)
+              .toArray(function (error, result) {
+                if (error) {
+                  res0({ response: "error_checking_otp" });
+                }
+                //...
+                if (result.length > 0) {
+                  //True OTP
+                  res0({ response: true });
+                } //Wrong otp
+                else {
+                  res0({ response: false });
+                }
+              });
+          } else if (
+            req.user_nature !== undefined &&
+            req.user_nature !== null &&
+            /driver/i.test(req.user_nature)
+          ) {
+            //2. Drivers
+            let checkOTP = {
+              driver_fingerprint: req.user_fingerprint,
+              "account_verifications.phone_verification_secrets.otp": req.otp,
+            };
+            //Check if it exists for this number
+            collectionDrivers_profiles
+              .find(checkOTP)
+              .toArray(function (error, result) {
+                if (error) {
+                  res0({ response: "error_checking_otp" });
+                }
+                //...
+                if (result.length > 0) {
+                  //True OTP
+                  res0({ response: true });
+                } //Wrong otp
+                else {
+                  res0({ response: false });
+                }
+              });
+          }
         }
       }).then(
         (reslt) => {

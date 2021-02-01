@@ -729,7 +729,7 @@ function execGetDrivers_requests_and_provide(
     //Scenario 2
     let request_type_regex = /scheduled/i.test(requestType)
       ? "scheduled"
-      : "now"; //For scheduled requests display or not.
+      : "immediate"; //For scheduled requests display or not.
     let requestFilter = {
       taxi_id: false,
       "ride_state_vars.isAccepted": false,
@@ -820,7 +820,7 @@ function execGetDrivers_requests_and_provide(
     //default_selected_car.[max_passengers, vehicle_type]
     let request_type_regex = /scheduled/i.test(requestType)
       ? "scheduled"
-      : "now"; //For scheduled requests display or not.
+      : "immediate"; //For scheduled requests display or not.
     let requestFilter = {
       taxi_id: false,
       "ride_state_vars.isAccepted": false,
@@ -852,6 +852,7 @@ function execGetDrivers_requests_and_provide(
         if (err) {
           resolve(false);
         }
+        console.log(requestsData);
         //...
         if (requestsData !== undefined && requestsData.length > 0) {
           //Found some data
@@ -896,7 +897,7 @@ function execGetDrivers_requests_and_provide(
 
 /**
  * @func parseRequests_forDrivers_view
- * Responsible for  parsing the raw requests data into an app friendly format, limiting the data
+ * Responsible for parsing the raw requests data into an app friendly format, limiting the data
  * to ONLY the needed ones.
  * @param requestsArray: the array containing all the found requests.
  * @param collectionPassengers_profiles: the list of all the passengers profiles.
@@ -1040,7 +1041,7 @@ function execDriver_requests_parsing(
   let res = resolve;
   let parsedRequestsArray = {
     request_fp: null,
-    request_type: null, //RIDE, DELIVERY OR SCHEDULED
+    request_type: null, //! RIDE, DELIVERY OR SCHEDULED
     passenger_infos: {
       name: null,
       phone_number: null,
@@ -1058,7 +1059,7 @@ function execDriver_requests_parsing(
       inRideToDestination: null,
       isRideCompleted_driverSide: null,
       ride_mode: null, //ride or delivery
-      request_type: null, //now or scheduled
+      request_type: null, //immediate or scheduled
       delivery_infos: null, //If not delivery - null
       rider_infos: null,
     },
@@ -1168,7 +1169,9 @@ function execDriver_requests_parsing(
               request.pickup_location_infos.coordinates;
 
             //ADD THE REQUEST TYPE
-            parsedRequestsArray.request_type = /now/i.test(request.request_type)
+            parsedRequestsArray.request_type = /(now|immediate)/i.test(
+              request.request_type
+            )
               ? request.ride_mode
               : "scheduled";
 

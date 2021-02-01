@@ -1517,15 +1517,17 @@ function declineRequest_driver(
  * @func acceptRequest_driver
  * Responsible for accepting any request from the driver app, If and only if the request was not declined by the driver and if it's
  * not already accepted by another driver.
+ * @param bundleWorkingData: contains the driver_fp and the request_fp.
  * @param collectionRidesDeliveryData: list of all the requests made.
  * @param collectionGlobalEvents: hold all the random events that happened somewhere.
- * @param bundleWorkingData: contains the driver_fp and the request_fp.
+ * @param collectionDrivers_profiles: list of all the drivers.
  * @param resolve
  */
 function acceptRequest_driver(
   bundleWorkingData,
   collectionRidesDeliveryData,
   collectionGlobalEvents,
+  collectionDrivers_profiles,
   resolve
 ) {
   resolveDate();
@@ -1558,30 +1560,48 @@ function acceptRequest_driver(
           () => {},
           () => {}
         );
-        //Update the true request
-        collectionRidesDeliveryData.updateOne(
-          {
-            request_fp: bundleWorkingData.request_fp,
-            taxi_id: false,
-            intentional_request_decline: {
-              $not: { $regex: bundleWorkingData.driver_fingerprint },
-            },
-          },
-          {
-            $set: {
-              taxi_id: bundleWorkingData.driver_fingerprint,
-              "ride_state_vars.isAccepted": true,
-              date_accepted: chaineDateUTC,
-            },
-          },
-          function (err, res) {
+        //! Get the driver's details - to fetch the car's fingerprint
+        collectionDrivers_profiles
+          .find({ driver_fingerprint: bundleWorkingData.driver_fingerprint })
+          .toArray(function (err, driverData) {
             if (err) {
               resolve({ response: "unable_to_accept_request_error" });
             }
-            //DONE
-            resolve({ response: "successfully_accepted" });
-          }
-        );
+            //...
+            if (driverData.length > 0) {
+              //Found driver's data
+              //Update the true request
+              collectionRidesDeliveryData.updateOne(
+                {
+                  request_fp: bundleWorkingData.request_fp,
+                  taxi_id: false,
+                  intentional_request_decline: {
+                    $not: { $regex: bundleWorkingData.driver_fingerprint },
+                  },
+                },
+                {
+                  $set: {
+                    taxi_id: bundleWorkingData.driver_fingerprint,
+                    "ride_state_vars.isAccepted": true,
+                    date_accepted: chaineDateUTC,
+                    car_fingerprint:
+                      driverData[0].operational_state.default_selected_car
+                        .car_fingerprint,
+                  },
+                },
+                function (err, res) {
+                  if (err) {
+                    resolve({ response: "unable_to_accept_request_error" });
+                  }
+                  //DONE
+                  resolve({ response: "successfully_accepted" });
+                }
+              );
+            } //?Very strange, could not find the driver's information
+            else {
+              resolve({ response: "unable_to_accept_request_error" });
+            }
+          });
       } //abort the accepting
       else {
         resolve({ response: "unable_to_accept_request_already_taken" });
@@ -1640,6 +1660,7 @@ function cancelRequest_driver(
             $set: {
               taxi_id: false,
               "ride_state_vars.isAccepted": false,
+              car_fingerprint: null,
             },
           },
           function (err, res) {
@@ -2299,6 +2320,7 @@ clientMongo.connect(function (err) {
           req,
           collectionRidesDeliveryData,
           collectionGlobalEvents,
+          collectionDrivers_profiles,
           res0
         );
       }).then(
@@ -2319,12 +2341,12 @@ clientMongo.connect(function (err) {
    */
   app.post("/cancel_request_driver", function (req, res) {
     //DEBUG
-    req.body = {
+    /*req.body = {
       driver_fingerprint:
         "23c9d088e03653169b9c18193a0b8dd329ea1e43eb0626ef9f16b5b979694a429710561a3cb3ddae",
       request_fp:
         "999999f5c51c380ef9dee9680872a6538cc9708ef079a8e42de4d762bfa7d49efdcde41c6009cbdd9cdf6f0ae0544f74cb52caa84439cbcda40ce264f90825e8",
-    };
+    };*/
     //...
     req = req.body;
     console.log(req);
@@ -2362,12 +2384,12 @@ clientMongo.connect(function (err) {
    */
   app.post("/confirm_pickup_request_driver", function (req, res) {
     //DEBUG
-    req.body = {
+    /*req.body = {
       driver_fingerprint:
         "23c9d088e03653169b9c18193a0b8dd329ea1e43eb0626ef9f16b5b979694a429710561a3cb3ddae",
       request_fp:
         "999999f5c51c380ef9dee9680872a6538cc9708ef079a8e42de4d762bfa7d49efdcde41c6009cbdd9cdf6f0ae0544f74cb52caa84439cbcda40ce264f90825e8",
-    };
+    };*/
     //...
     req = req.body;
     console.log(req);
@@ -2405,12 +2427,12 @@ clientMongo.connect(function (err) {
    */
   app.post("/confirm_dropoff_request_driver", function (req, res) {
     //DEBUG
-    req.body = {
+    /*req.body = {
       driver_fingerprint:
         "23c9d088e03653169b9c18193a0b8dd329ea1e43eb0626ef9f16b5b979694a429710561a3cb3ddae",
       request_fp:
         "999999f5c51c380ef9dee9680872a6538cc9708ef079a8e42de4d762bfa7d49efdcde41c6009cbdd9cdf6f0ae0544f74cb52caa84439cbcda40ce264f90825e8",
-    };
+    };*/
     //...
     req = req.body;
     console.log(req);

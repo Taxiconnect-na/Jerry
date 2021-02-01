@@ -48,7 +48,8 @@ app
   .use(bodyParser.json({ limit: "100mb", extended: true }))
   .use(bodyParser.urlencoded({ limit: "100mb", extended: true }))
   .use(bodyParser.urlencoded({ extended: true }))
-  .use(express.static(__dirname + process.env.RIDERS_PROFILE_PICTURES_PATH));
+  .use(express.static(__dirname + process.env.RIDERS_PROFILE_PICTURES_PATH)) //Riders profiles
+  .use(express.static(__dirname + process.env.DRIVERS_PROFILE_PICTURES_PATH)); //Drivers profiles.
 
 //EVENTS ROUTER
 io.on("connection", (socket) => {
@@ -835,6 +836,10 @@ io.on("connection", (socket) => {
         //Attach an hash linker for auto verification
         url += `&smsHashLinker=${req.smsHashLinker}`;
       }
+      //Attach user nature
+      if (req.user_nature !== undefined && req.user_nature !== null) {
+        url += `&user_nature=${req.user_nature}`;
+      }
 
       requestAPI(url, function (error, response, body) {
         console.log("ANSWER HERE -> ", body);
@@ -1040,6 +1045,11 @@ io.on("connection", (socket) => {
         req.phone_number +
         "&otp=" +
         req.otp;
+
+      //Add the user nature : passengers (undefined) or drivers
+      if (req.user_nature !== undefined && req.user_nature !== null) {
+        url += `&user_nature=${req.user_nature}`;
+      }
 
       requestAPI(url, function (error, response, body) {
         console.log(body);
