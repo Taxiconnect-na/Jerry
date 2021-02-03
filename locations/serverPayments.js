@@ -9,18 +9,15 @@ var parser = require("xml2json");
 var app = express();
 var server = http.createServer(app);
 const io = require("socket.io")(server);
-const mysql = require("mysql");
 const requestAPI = require("request");
 const crypto = require("crypto");
 //....
-var fastFilter = require("fast-filter");
 const { promisify, inspect, isRegExp } = require("util");
+const urlParser = require("url");
 var chaineDateUTC = null;
 var dateObject = null;
 var dateObjectImute = null;
 const moment = require("moment");
-const e = require("express");
-const { response } = require("express");
 
 const clientMongo = new MongoClient(process.env.URL_MONGODB, {
   useUnifiedTopology: true,
@@ -440,6 +437,7 @@ function saveLogForTopupsSuccess(
  * @param createToken_deductedResponse: the create token process XML parsed to JSON.
  * @param collectionWalletTransactions_logs: the collection of all the transaction logs.
  * @param collectionPassengers_profiles: the collection of all the riders.
+ * @param collectionGlobalEvents: the collection of all the events
  * @param resolve
  */
 function processExecute_paymentCardWallet_topup(
@@ -447,6 +445,7 @@ function processExecute_paymentCardWallet_topup(
   createToken_deductedResponse,
   collectionWalletTransactions_logs,
   collectionPassengers_profiles,
+  collectionGlobalEvents,
   resolve
 ) {
   try {
@@ -482,7 +481,6 @@ function processExecute_paymentCardWallet_topup(
             <ChargeType></ChargeType>
           </API3G>
           `;
-      console.log(xmlMakePayment);
       //Execute payment
       new Promise((res0) => {
         executePaymentTransaction(
@@ -494,7 +492,6 @@ function processExecute_paymentCardWallet_topup(
         );
       }).then(
         (result_paymentExec) => {
-          console.log(result_paymentExec);
           new Promise((res1) => {
             deductXML_responses(
               result_paymentExec,
@@ -603,6 +600,44 @@ function processExecute_paymentCardWallet_topup(
                         });
                       }
                     );
+                  } //!ERROR - SAVE LOG
+                  else {
+                    new Promise((resFailedTransaction) => {
+                      let faildTransObj = {
+                        event_name: "Failed_top_up_creddit_card_transaction",
+                        user_fingerprint: dataBundle.user_fp,
+                        transactionToken: transactionToken,
+                        amount: dataBundle.amount,
+                        transactionRef: transRef,
+                        responseBody: result_paymentExecDeducted,
+                        date_captured: chaineDateUTC,
+                      };
+                      //...
+                      collectionGlobalEvents.insertOne(
+                        faildTransObj,
+                        function (err, resltx) {
+                          resFailedTransaction(true);
+                        }
+                      );
+                    }).then(
+                      () => {},
+                      () => {}
+                    );
+                    //Done
+                    resolve({
+                      response: false,
+                      message:
+                        result_paymentExecDeducted.API3G.ResultExplanation !==
+                        undefined
+                          ? result_paymentExecDeducted.API3G.ResultExplanation.split(
+                              "-"
+                            )[0] !== undefined
+                            ? result_paymentExecDeducted.API3G.ResultExplanation.split(
+                                "-"
+                              )[0].trim()
+                            : "payment_error"
+                          : "payment_error",
+                    });
                   }
                 } catch (error) {
                   resolve({
@@ -639,6 +674,194 @@ function processExecute_paymentCardWallet_topup(
   } catch (error) {
     console.log(error);
     resolve({ response: false, message: "transaction_error" });
+  }
+}
+
+/**
+ * @func checkReceipient_walletTransaction
+ * Responsible for executing the checking the details of the receipient during a wallet transaction,
+ * ? can only send to active Taxiconnect riders/drivers.
+ * ? User nature: friend or driver ONLY
+ * @param dataBundle: the receiver's phone number (friend) or payment number (drivers)
+ * @param collectionPassengers_profiles: the collection of all the riders.
+ * @param collectionDrivers_profiles: the collection of all the drivers.
+ * @param collectionGlobalEvents: the collection of all the events
+ * @param resolve
+ *
+ * ! If valid user, get the name only.
+ */
+function checkReceipient_walletTransaction(
+  dataBundle,
+  collectionPassengers_profiles,
+  collectionDrivers_profiles,
+  collectionGlobalEvents,
+  resolve
+) {
+  resolveDate();
+  //...
+  if (/friend/i.test(dataBundle.user_nature)) {
+    //To friends/family - check the phone number
+    dataBundle.payNumberOrPhoneNumber = dataBundle.payNumberOrPhoneNumber
+      .replace("+", "")
+      .trim(); //? Critical, should only contain digits
+    let regFiler = {
+      phone_number: {
+        $regex: dataBundle.payNumberOrPhoneNumber,
+        $options: "i",
+      },
+    };
+    //...
+    collectionPassengers_profiles
+      .find(regFiler)
+      .toArray(function (err, riderProfile) {
+        if (err) {
+          resolve({ response: "error", flag: "transaction_error" });
+        }
+        //...
+        if (
+          riderProfile.length > 0 &&
+          riderProfile[0].user_fingerprint !== undefined &&
+          riderProfile[0].user_fingerprint !== null
+        ) {
+          //Found the receipient
+          new Promise((resEventSave) => {
+            //Save the event
+            let eventSaverObj = {
+              event_name: "checking_receipient_walletTransaction",
+              receipient_category: "friendOrFamily",
+              user_fingerprint: dataBundle.user_fingerprint,
+              receiver_fingerprint: riderProfile[0].user_fingerprint,
+              date_captured: chaineDateUTC,
+            };
+            //...
+            collectionGlobalEvents.insertOne(
+              eventSaverObj,
+              function (err, reslt) {
+                resEventSave(true);
+              }
+            );
+          }).then(
+            () => {},
+            () => {}
+          );
+          //...DONE
+          resolve({
+            response: "verified",
+            user_nature: "friend",
+            receipient_name: riderProfile[0].name,
+          });
+        } //Strange - no active account foundd
+        else {
+          resolve({
+            response: "error",
+            flag: "transaction_error_unregistered",
+          });
+        }
+      });
+  } else if (/driver/i.test(dataBundle.user_nature)) {
+    //To drivers
+    let regFiler = {
+      "identification_data.paymentNumber": parseInt(
+        dataBundle.payNumberOrPhoneNumber
+      ),
+    };
+    //...
+    collectionDrivers_profiles
+      .find(regFiler)
+      .toArray(function (err, driverProfile) {
+        if (err) {
+          resolve({ response: "error", flag: "transaction_error" });
+        }
+        //...
+        if (
+          driverProfile.length !== undefined &&
+          driverProfile.length > 0 &&
+          driverProfile[0].driver_fingerprint !== undefined &&
+          driverProfile[0].driver_fingerprint !== null
+        ) {
+          //Found the receipient
+          new Promise((resEventSave) => {
+            //Save the event
+            let eventSaverObj = {
+              event_name: "checking_receipient_walletTransaction",
+              receipient_category: "driver",
+              user_fingerprint: dataBundle.user_fingerprint,
+              receiver_fingerprint: driverProfile[0].driver_fingerprint,
+              date_captured: chaineDateUTC,
+            };
+            //...
+            collectionGlobalEvents.insertOne(
+              eventSaverObj,
+              function (err, reslt) {
+                resEventSave(true);
+              }
+            );
+          }).then(
+            () => {},
+            () => {}
+          );
+          //...DONE
+          resolve({
+            response: "verified",
+            user_nature: "driver",
+            receipient_name: driverProfile[0].name,
+          });
+        } //? Check for a potential taxi number reference
+        else {
+          let regFiler = {
+            "cars_data.taxi_number": dataBundle.payNumberOrPhoneNumber.toUpperCase(),
+          };
+          //...
+          collectionDrivers_profiles
+            .find(regFiler)
+            .toArray(function (err, driverProfile) {
+              if (err) {
+                resolve({ response: "error", flag: "transaction_error" });
+              }
+              //...
+              if (
+                driverProfile.length !== undefined &&
+                driverProfile.length > 0 &&
+                driverProfile[0].driver_fingerprint !== undefined &&
+                driverProfile[0].driver_fingerprint !== null
+              ) {
+                //Found the receipient
+                new Promise((resEventSave) => {
+                  //Save the event
+                  let eventSaverObj = {
+                    event_name: "checking_receipient_walletTransaction",
+                    receipient_category: "driver",
+                    user_fingerprint: dataBundle.user_fingerprint,
+                    receiver_fingerprint: driverProfile[0].driver_fingerprint,
+                    date_captured: chaineDateUTC,
+                  };
+                  //...
+                  collectionGlobalEvents.insertOne(
+                    eventSaverObj,
+                    function (err, reslt) {
+                      resEventSave(true);
+                    }
+                  );
+                }).then(
+                  () => {},
+                  () => {}
+                );
+                //...DONE
+                resolve({
+                  response: "verified",
+                  user_nature: "driver",
+                  receipient_name: driverProfile[0].name,
+                });
+              } //! Strange - no active account foundd
+              else {
+                resolve({
+                  response: "error",
+                  flag: "transaction_error_unregistered",
+                });
+              }
+            });
+        }
+      });
   }
 }
 
@@ -684,87 +907,215 @@ clientMongo.connect(function (err) {
       number: 1,
       expiry: 1,
       cvv: 1,
-      name: "Dominique",
+      name: "Dominique", //? Optional
       type: "VISA",
     };
 
-    //CREATE TOKEN
-    new Promise((resolve) => {
-      //? XML TOKEN responsible for creating a transaction token before any payment.
-      let xmlCreateToken = `
-      <?xml version="1.0" encoding="utf-8"?>
-      <API3G>
-      <CompanyToken>${process.env.TOKEN_PAYMENT_CP}</CompanyToken>
-      <Request>createToken</Request>
-      <Transaction>
-      <PaymentAmount>${dataBundle.amount}</PaymentAmount>
-      <PaymentCurrency>${process.env.PAYMENT_CURRENCY}</PaymentCurrency>
-      <CompanyRef>${process.env.COMPANY_DPO_REF}</CompanyRef>
-      <RedirectURL>${process.env.REDIRECT_URL_AFTER_PROCESSES}</RedirectURL>
-      <BackURL>${process.env.REDIRECT_URL_AFTER_PROCESSES}</BackURL>
-      <CompanyRefUnique>0</CompanyRefUnique>
-      <PTL>5</PTL>
-      </Transaction>
-      <Services>
-        <Service>
-          <ServiceType>${process.env.DPO_CREATETOKEN_SERVICE_TYPE}</ServiceType>
-          <ServiceDescription>TaxiConnect wallet top-up</ServiceDescription>
-          <ServiceDate>${dateObjectImute}</ServiceDate>
-        </Service>
-      </Services>
-      </API3G>
-      `;
+    //! CHECK INPUTS
+    if (
+      dataBundle.user_fp !== undefined &&
+      dataBundle.user_fp !== null &&
+      dataBundle.amount !== undefined &&
+      dataBundle.amount !== null &&
+      dataBundle.number !== undefined &&
+      dataBundle.number !== null &&
+      dataBundle.expiry !== undefined &&
+      dataBundle.expiry !== null &&
+      dataBundle.cvv !== undefined &&
+      dataBundle.cvv !== null &&
+      dataBundle.type !== undefined &&
+      dataBundle.type !== null
+    ) {
+      //?PASSED
+      //Get user's details
+      collectionPassengers_profiles
+        .find({ user_fingerprint: dataBundle.user_fp })
+        .toArray(function (error, usersDetails) {
+          if (error) {
+            res.send({ response: false, message: "transaction_error" });
+          }
+          //...
+          if (
+            usersDetails.length > 0 &&
+            usersDetails[0].user_fingerprint !== undefined &&
+            usersDetails[0].user_fingerprint !== null
+          ) {
+            //?Found some valid details
+            //Complete the user details with his/her username
+            dataBundle.name = usersDetails[0].username;
+            //...
+            //! LIMIT THE TRANSACTION AMOUNT TO N$1000
+            if (parseFloat(dataBundle.amount) <= 1000) {
+              //CREATE TOKEN
+              new Promise((resolve) => {
+                //? XML TOKEN responsible for creating a transaction token before any payment.
+                let xmlCreateToken = `
+                <?xml version="1.0" encoding="utf-8"?>
+                <API3G>
+                <CompanyToken>${process.env.TOKEN_PAYMENT_CP}</CompanyToken>
+                <Request>createToken</Request>
+                <Transaction>
+                <PaymentAmount>${dataBundle.amount}</PaymentAmount>
+                <PaymentCurrency>${process.env.PAYMENT_CURRENCY}</PaymentCurrency>
+                <CompanyRef>${process.env.COMPANY_DPO_REF}</CompanyRef>
+                <RedirectURL>${process.env.REDIRECT_URL_AFTER_PROCESSES}</RedirectURL>
+                <BackURL>${process.env.REDIRECT_URL_AFTER_PROCESSES}</BackURL>
+                <CompanyRefUnique>0</CompanyRefUnique>
+                <PTL>5</PTL>
+                </Transaction>
+                <Services>
+                  <Service>
+                    <ServiceType>${process.env.DPO_CREATETOKEN_SERVICE_TYPE}</ServiceType>
+                    <ServiceDescription>TaxiConnect wallet top-up</ServiceDescription>
+                    <ServiceDate>${dateObjectImute}</ServiceDate>
+                  </Service>
+                </Services>
+                </API3G>
+                `;
 
-      console.log(xmlCreateToken);
-      createPaymentTransaction(
-        xmlCreateToken,
-        dataBundle.user_fp,
-        collectionWalletTransactions_logs,
-        resolve
-      );
-    }).then(
-      (reslt) => {
-        console.log(reslt);
-        //Deduct XML response
-        new Promise((resolve) => {
-          deductXML_responses(reslt, "createToken", resolve);
-        }).then(
-          (result_createTokenDeducted) => {
-            console.log(result_createTokenDeducted);
-            if (result_createTokenDeducted !== false) {
-              //? Continue the top-up process
-              new Promise((resFollower) => {
-                processExecute_paymentCardWallet_topup(
-                  dataBundle,
-                  result_createTokenDeducted,
+                createPaymentTransaction(
+                  xmlCreateToken,
+                  dataBundle.user_fp,
                   collectionWalletTransactions_logs,
-                  collectionPassengers_profiles,
-                  resFollower
+                  resolve
                 );
               }).then(
-                (result_final) => {
-                  res.send(result_final);
+                (reslt) => {
+                  //Deduct XML response
+                  new Promise((resolve) => {
+                    deductXML_responses(reslt, "createToken", resolve);
+                  }).then(
+                    (result_createTokenDeducted) => {
+                      console.log(result_createTokenDeducted);
+                      if (result_createTokenDeducted !== false) {
+                        //? Continue the top-up process
+                        new Promise((resFollower) => {
+                          processExecute_paymentCardWallet_topup(
+                            dataBundle,
+                            result_createTokenDeducted,
+                            collectionWalletTransactions_logs,
+                            collectionPassengers_profiles,
+                            collectionGlobalEvents,
+                            resFollower
+                          );
+                        }).then(
+                          (result_final) => {
+                            res.send(result_final);
+                          },
+                          (error) => {
+                            console.log(error);
+                            res.send({
+                              response: false,
+                              message: "transaction_error",
+                            });
+                          }
+                        );
+                      } //Error
+                      else {
+                        res.send({
+                          response: false,
+                          message: "transaction_error",
+                        });
+                      }
+                    },
+                    (error) => {
+                      console.log(error);
+                      res.send({ response: false, message: "token_error" });
+                    }
+                  );
                 },
                 (error) => {
                   console.log(error);
-                  res.send({ response: false, message: "transaction_error" });
+                  res.send({ response: false, message: "token_error" });
                 }
               );
-            } //Error
+            } //! AMOUNT TOO LARGE - DECLINE
             else {
-              res.send({ response: false, message: "transaction_error" });
+              res.send({
+                response: false,
+                message: "transaction_error_exceeded_limit",
+              });
             }
-          },
-          (error) => {
-            console.log(error);
-            res.send({ response: false, message: "token_error" });
+          } //?Strange - did not find a rider account linked to this request
+          else {
+            //Save error event log
+            new Promise((resFailedTransaction) => {
+              let faildTransObj = {
+                event_name: "unlinked_rider_account_topup_failed_trial",
+                user_fingerprint: dataBundle.user_fp,
+                inputData: dataBundle,
+                date_captured: chaineDateUTC,
+              };
+              //...
+              collectionGlobalEvents.insertOne(
+                faildTransObj,
+                function (err, reslt) {
+                  resFailedTransaction(true);
+                }
+              );
+            }).then(
+              () => {},
+              () => {}
+            );
+            //...
+            res.send({ response: false, message: "transaction_error" });
           }
+        });
+    } //Invalid input data
+    else {
+      res.send({
+        response: false,
+        message: "transaction_error_missing_details",
+      });
+    }
+  });
+
+  /**
+   * CHECK RECEIVER'S DETAIL
+   * Responsible for checking the receiver's details while making a wallet transaction.
+   * ? Friends/Family: Phone number (Check if it's an active TaxiConnect number).
+   * ? Drivers: Check the payment number (or Taxi number) - 5 digits number.
+   * ? User nature: friend or driver ONLY.
+   */
+  app.get("/checkReceiverDetails_walletTransaction", function (req, res) {
+    resolveDate();
+    let params = urlParser.parse(req.url, true);
+    req = params.query;
+    console.log(req);
+
+    if (
+      req.user_fingerprint !== undefined &&
+      req.user_fingerprint !== null &&
+      req.user_nature !== undefined &&
+      req.user_nature !== null &&
+      req.payNumberOrPhoneNumber !== undefined &&
+      req.payNumberOrPhoneNumber !== null
+    ) {
+      //Valid infos
+      new Promise((resolve) => {
+        checkReceipient_walletTransaction(
+          req,
+          collectionPassengers_profiles,
+          collectionDrivers_profiles,
+          collectionGlobalEvents,
+          resolve
         );
-      },
-      (error) => {
-        res.send({ response: false, message: "token_error" });
-      }
-    );
+      }).then(
+        (result) => {
+          res.send(result);
+        },
+        (error) => {
+          console.log(error);
+          res.send({ response: "error", flag: "transaction_error" });
+        }
+      );
+    } //Invalid infos
+    else {
+      res.send({
+        response: "error",
+        flag: "transaction_error_invalid_information",
+      });
+    }
   });
 });
 
