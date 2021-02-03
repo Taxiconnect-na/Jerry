@@ -11,8 +11,6 @@ const MongoClient = require("mongodb").MongoClient;
 var app = express();
 var server = http.createServer(app);
 const io = require("socket.io")(server);
-const mysql = require("mysql");
-const requestAPI = require("request");
 const crypto = require("crypto");
 //....
 const { promisify, inspect } = require("util");
@@ -27,7 +25,6 @@ const redisGet = promisify(client.get).bind(client);
 var chaineDateUTC = null;
 var dateObject = null;
 const moment = require("moment");
-const e = require("express");
 
 //CRUCIAL VARIABLES
 var _INTERVAL_PERSISTER_LATE_REQUESTS = null; //Will hold the interval for checking whether or not a requests has takne too long and should be cancelled.
@@ -56,7 +53,7 @@ function resolveDate() {
     date.minute() +
     ":" +
     date.second();
-  chaineDateUTC = date;
+  chaineDateUTC = new Date(date).toISOString();
 }
 resolveDate();
 

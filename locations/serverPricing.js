@@ -11,7 +11,6 @@ const MongoClient = require("mongodb").MongoClient;
 var app = express();
 var server = http.createServer(app);
 const io = require("socket.io")(server);
-const mysql = require("mysql");
 const requestAPI = require("request");
 //....
 var fastFilter = require("fast-filter");
@@ -51,7 +50,7 @@ function resolveDate() {
     date.minute() +
     ":" +
     date.second();
-  chaineDateUTC = date;
+  chaineDateUTC = new Date(date).toISOString();
 }
 resolveDate();
 

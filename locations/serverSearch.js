@@ -82,7 +82,7 @@ function resolveDate() {
     date.minute() +
     ":" +
     date.second();
-  chaineDateUTC = date;
+  chaineDateUTC = new Date(date).toISOString();
 }
 resolveDate();
 

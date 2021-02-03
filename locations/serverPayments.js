@@ -10,7 +10,6 @@ var app = express();
 var server = http.createServer(app);
 const io = require("socket.io")(server);
 const requestAPI = require("request");
-const crypto = require("crypto");
 //....
 const { promisify, inspect, isRegExp } = require("util");
 const urlParser = require("url");
@@ -67,7 +66,7 @@ function resolveDate() {
     date.minute() +
     ":" +
     date.second();
-  chaineDateUTC = date;
+  chaineDateUTC = new Date(date).toISOString();
 }
 resolveDate();
 
@@ -687,6 +686,7 @@ function processExecute_paymentCardWallet_topup(
  * @param collectionDrivers_profiles: the collection of all the drivers.
  * @param collectionGlobalEvents: the collection of all the events
  * @param resolve
+ * @param includeReceipient_fp: the indicate if the fingerprint should be added or not. - default: false
  *
  * ! If valid user, get the name only.
  */
@@ -695,7 +695,8 @@ function checkReceipient_walletTransaction(
   collectionPassengers_profiles,
   collectionDrivers_profiles,
   collectionGlobalEvents,
-  resolve
+  resolve,
+  includeReceipient_fp = false
 ) {
   resolveDate();
   //...
@@ -749,6 +750,9 @@ function checkReceipient_walletTransaction(
             response: "verified",
             user_nature: "friend",
             receipient_name: riderProfile[0].name,
+            recipient_fp: includeReceipient_fp
+              ? riderProfile[0].user_fingerprint
+              : null,
           });
         } //Strange - no active account foundd
         else {
@@ -805,6 +809,9 @@ function checkReceipient_walletTransaction(
             response: "verified",
             user_nature: "driver",
             receipient_name: driverProfile[0].name,
+            recipient_fp: includeReceipient_fp
+              ? driverProfile[0].driver_fingerprint
+              : null,
           });
         } //? Check for a potential taxi number reference
         else {
@@ -851,6 +858,9 @@ function checkReceipient_walletTransaction(
                   response: "verified",
                   user_nature: "driver",
                   receipient_name: driverProfile[0].name,
+                  recipient_fp: includeReceipient_fp
+                    ? driverProfile[0].driver_fingerprint
+                    : null,
                 });
               } //! Strange - no active account foundd
               else {
@@ -862,6 +872,75 @@ function checkReceipient_walletTransaction(
             });
         }
       });
+  }
+}
+
+/**
+ * @func execSendMoney_fromRiderWallet_transaction
+ * Responsible for executing the payment from the rider's wallet to diverse recipients.
+ * ? Friend/Family or drivers.
+ * @param dataBundle: the general transaction details : amount, recipient fingerprint, sender fingerprint.
+ * @param collectionWalletTransactions_logs: all the transactions that happened.
+ * @param resolve
+ */
+function execSendMoney_fromRiderWallet_transaction(
+  dataBundle,
+  collectionWalletTransactions_logs,
+  resolve
+) {
+  let dateTmp = new Date();
+  if (/friend/i.test(dataBundle.user_nature)) {
+    //Friend/family
+    let transaction_obj = {
+      user_fingerprint: dataBundle.user_fingerprint,
+      recipient_fp: dataBundle.receiver_fingerprint,
+      amount: parseFloat(dataBundle.amount),
+      payment_currency: process.env.PAYMENT_CURRENCY,
+      transaction_nature: "sentToFriend",
+      date_captured: chaineDateUTC,
+      timestamp: dateTmp.getTime(),
+    };
+    //...
+    collectionWalletTransactions_logs.insertOne(
+      transaction_obj,
+      function (err, result) {
+        if (err) {
+          resolve({ response: "error", flag: "transaction_error" });
+        }
+        //...
+        resolve({
+          response: "successful",
+          amount: dataBundle.amount,
+          payment_currency: process.env.PAYMENT_CURRENCY,
+        });
+      }
+    );
+  } else if (/driver/i.test(dataBundle.user_nature)) {
+    //Driver
+    let transaction_obj = {
+      user_fingerprint: dataBundle.user_fingerprint,
+      recipient_fp: dataBundle.receiver_fingerprint,
+      amount: parseFloat(dataBundle.amount),
+      payment_currency: process.env.PAYMENT_CURRENCY,
+      transaction_nature: "paidDriver",
+      date_captured: chaineDateUTC,
+      timestamp: dateTmp.getTime(),
+    };
+    //...
+    collectionWalletTransactions_logs.insertOne(
+      transaction_obj,
+      function (err, result) {
+        if (err) {
+          resolve({ response: "error", flag: "transaction_error" });
+        }
+        //...
+        resolve({
+          response: "successful",
+          amount: dataBundle.amount,
+          payment_currency: process.env.PAYMENT_CURRENCY,
+        });
+      }
+    );
   }
 }
 
@@ -1115,6 +1194,77 @@ clientMongo.connect(function (err) {
         response: "error",
         flag: "transaction_error_invalid_information",
       });
+    }
+  });
+
+  /**
+   * SEND FUNDS FROM WALLET
+   * Responsible for sending funds from the rider's wallet to friends/family or drivers.
+   * ? Amount (No more than N$1000), user nature, user_fingerprint (sender), payNumberOrPhoneNumber (phone number, payment number/taxi number).
+   */
+  app.get("/sendMoney_fromWalletRider_transaction", function (req, res) {
+    resolveDate();
+    let params = urlParser.parse(req.url, true);
+    req = params.query;
+    //...
+    if (
+      req.user_fingerprint !== undefined &&
+      req.user_fingerprint !== null &&
+      req.amount !== undefined &&
+      req.amount !== null &&
+      req.user_nature !== undefined &&
+      req.user_nature !== null &&
+      req.payNumberOrPhoneNumber !== undefined &&
+      req.payNumberOrPhoneNumber !== null
+    ) {
+      //! Valid infos
+      new Promise((resolve) => {
+        checkReceipient_walletTransaction(
+          req,
+          collectionPassengers_profiles,
+          collectionDrivers_profiles,
+          collectionGlobalEvents,
+          resolve,
+          true
+        );
+      }).then(
+        (result) => {
+          if (
+            /verified/i.test(result.response) &&
+            result.recipient_fp !== null &&
+            result.recipient_fp !== undefined
+          ) {
+            //Active user
+            //ADD THE RECIPIENT FINGERPRINT
+            req["recipient_fp"] = result.recipient_fp;
+            //..
+            new Promise((resolve) => {
+              execSendMoney_fromRiderWallet_transaction(
+                req,
+                collectionWalletTransactions_logs,
+                resolve
+              );
+            }).then(
+              (result) => {
+                res.send(result);
+              },
+              (error) => {
+                console.log(error);
+                res.send({ response: "error", flag: "transaction_error" });
+              }
+            );
+          } //No recipient found
+          else {
+            res.send({ response: "error", flag: "transaction_error" });
+          }
+        },
+        (error) => {
+          console.log(error);
+          res.send({ response: "error", flag: "transaction_error" });
+        }
+      );
+    } else {
+      res.send({ response: "error", flag: "transaction_error" });
     }
   });
 });
