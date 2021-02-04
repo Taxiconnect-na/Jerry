@@ -1278,6 +1278,62 @@ io.on("connection", (socket) => {
       });
     }
   });
+
+  /**
+   * PAYMENTS SERVICE, port 9093
+   * Route: getRiders_walletInfos
+   * event: getRiders_walletInfos_io
+   * Responsible for computing the wallet summary (total and details) for the riders.
+   */
+  socket.on("checkRecipient_information_beforeTransfer", function (req) {
+    console.log(req);
+    if (
+      req.user_fingerprint !== undefined &&
+      req.user_fingerprint !== null &&
+      req.user_nature !== undefined &&
+      req.user_nature !== null &&
+      req.payNumberOrPhoneNumber !== undefined &&
+      req.payNumberOrPhoneNumber !== null
+    ) {
+      let url =
+        process.env.LOCAL_URL +
+        ":" +
+        process.env.PAYMENT_SERVICE_PORT +
+        "/checkReceiverDetails_walletTransaction?user_fingerprint=" +
+        req.user_fingerprint +
+        "&user_nature=" +
+        req.user_nature +
+        "&payNumberOrPhoneNumber=" +
+        req.payNumberOrPhoneNumber;
+
+      requestAPI(url, function (error, response, body) {
+        if (error === null) {
+          try {
+            body = JSON.parse(body);
+            socket.emit(
+              "checkRecipient_information_beforeTransfer-response",
+              body
+            );
+          } catch (error) {
+            socket.emit("checkRecipient_information_beforeTransfer-response", {
+              response: "error",
+              flag: "transaction_error",
+            });
+          }
+        } else {
+          socket.emit("checkRecipient_information_beforeTransfer-response", {
+            response: "error",
+            flag: "transaction_error",
+          });
+        }
+      });
+    } else {
+      socket.emit("checkRecipient_information_beforeTransfer-response", {
+        response: "error",
+        flag: "transaction_error",
+      });
+    }
+  });
 });
 
 server.listen(process.env.EVENT_GATEWAY_PORT);

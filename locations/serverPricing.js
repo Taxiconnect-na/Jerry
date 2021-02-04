@@ -26,7 +26,6 @@ const redisGet = promisify(client.get).bind(client);
 var chaineDateUTC = null;
 var dateObject = null;
 const moment = require("moment");
-const e = require("express");
 
 const clientMongo = new MongoClient(process.env.URL_MONGODB, {
   useUnifiedTopology: true,
