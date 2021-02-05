@@ -1334,6 +1334,63 @@ io.on("connection", (socket) => {
       });
     }
   });
+
+  /**
+   * PAYMENTS SERVICE, port 9093
+   * Route: sendMoney_fromWalletRider_transaction
+   * event: makeWallet_transaction_io
+   * Responsible for executing the wallet transfer from a rider to friend or a driver.
+   */
+  socket.on("makeWallet_transaction_io", function (req) {
+    console.log(req);
+    if (
+      req.user_fingerprint !== undefined &&
+      req.user_fingerprint !== null &&
+      req.user_nature !== undefined &&
+      req.user_nature !== null &&
+      req.payNumberOrPhoneNumber !== undefined &&
+      req.payNumberOrPhoneNumber !== null &&
+      req.amount !== undefined &&
+      req.amount !== null
+    ) {
+      let url =
+        process.env.LOCAL_URL +
+        ":" +
+        process.env.PAYMENT_SERVICE_PORT +
+        "/sendMoney_fromWalletRider_transaction?user_fingerprint=" +
+        req.user_fingerprint +
+        "&user_nature=" +
+        req.user_nature +
+        "&payNumberOrPhoneNumber=" +
+        req.payNumberOrPhoneNumber +
+        "&amount=" +
+        req.amount;
+
+      requestAPI(url, function (error, response, body) {
+        if (error === null) {
+          try {
+            body = JSON.parse(body);
+            socket.emit("makeWallet_transaction_io-response", body);
+          } catch (error) {
+            socket.emit("makeWallet_transaction_io-response", {
+              response: "error",
+              flag: "transaction_error",
+            });
+          }
+        } else {
+          socket.emit("makeWallet_transaction_io-response", {
+            response: "error",
+            flag: "transaction_error",
+          });
+        }
+      });
+    } else {
+      socket.emit("makeWallet_transaction_io-response", {
+        response: "error",
+        flag: "transaction_error",
+      });
+    }
+  });
 });
 
 server.listen(process.env.EVENT_GATEWAY_PORT);

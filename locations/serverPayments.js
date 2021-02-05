@@ -17,6 +17,7 @@ var chaineDateUTC = null;
 var dateObject = null;
 var dateObjectImute = null;
 const moment = require("moment");
+const { resolve } = require("path");
 
 const clientMongo = new MongoClient(process.env.URL_MONGODB, {
   useUnifiedTopology: true,
@@ -945,6 +946,57 @@ function execSendMoney_fromRiderWallet_transaction(
 }
 
 /**
+ * @func checkNonSelf_sendingFunds_user
+ * Responsible for checcking that the sender of the funds is not the receiver.
+ * @param collectionPassengers_profiles: the list of all the passengers.
+ * @param payNumberOrPhoneNumber: the sender's phone number
+ * @param user_nature: the nature of the user (friend/driver)
+ * @param sender_fingerprint: the fingerprint of the sender
+ * @param resolve
+ */
+function checkNonSelf_sendingFunds_user(
+  collectionPassengers_profiles,
+  payNumberOrPhoneNumber,
+  user_nature,
+  sender_fingerprint,
+  resolve
+) {
+  if (/friend/i.test(user_nature)) {
+    //To friend - check
+    collectionPassengers_profiles
+      .find({
+        phone_number: {
+          $regex: payNumberOrPhoneNumber.replace("+", "").trim(),
+          $options: "i",
+        },
+      })
+      .toArray(function (err, senderDetails) {
+        if (err) {
+          resolve({ response: false, flag: "invalid_sender" });
+        }
+        console.log(senderDetails);
+        //...
+        if (
+          senderDetails.length > 0 &&
+          senderDetails[0].user_fingerprint !== undefined &&
+          senderDetails[0].user_fingerprint !== null &&
+          senderDetails[0].user_fingerprint === sender_fingerprint
+        ) {
+          //Found a sender
+          //! SAME SENDER - INVALID
+          resolve({ response: false, flag: "invalid_sender" });
+        } //? Found a valid sender
+        else {
+          resolve({ response: true, flag: "valid_sender" });
+        }
+      });
+  } //TO any other nature - pass
+  else {
+    resolve({ response: true, flag: "valid_sender" });
+  }
+}
+
+/**
  * MAIN
  */
 
@@ -1171,17 +1223,47 @@ clientMongo.connect(function (err) {
       req.payNumberOrPhoneNumber !== null
     ) {
       //Valid infos
-      new Promise((resolve) => {
-        checkReceipient_walletTransaction(
-          req,
+      //! CHECK IF THE USER IS NOT SENDING TO HIMSELF
+      new Promise((resCheckValidSender) => {
+        checkNonSelf_sendingFunds_user(
           collectionPassengers_profiles,
-          collectionDrivers_profiles,
-          collectionGlobalEvents,
-          resolve
+          req.payNumberOrPhoneNumber,
+          req.user_nature,
+          req.user_fingerprint,
+          resCheckValidSender
         );
       }).then(
-        (result) => {
-          res.send(result);
+        (resultCheckSender) => {
+          if (
+            resultCheckSender.response !== undefined &&
+            resultCheckSender.response &&
+            /^valid_sender$/i.test(resultCheckSender.flag)
+          ) {
+            //Valid sender
+            new Promise((resolve) => {
+              checkReceipient_walletTransaction(
+                req,
+                collectionPassengers_profiles,
+                collectionDrivers_profiles,
+                collectionGlobalEvents,
+                resolve
+              );
+            }).then(
+              (result) => {
+                res.send(result);
+              },
+              (error) => {
+                console.log(error);
+                res.send({ response: "error", flag: "transaction_error" });
+              }
+            );
+          } //! The user wants to send to himself
+          else {
+            res.send({
+              response: "error",
+              flag: "transaction_error_want_toSend_toHiHermslef",
+            });
+          }
         },
         (error) => {
           console.log(error);
@@ -1206,6 +1288,7 @@ clientMongo.connect(function (err) {
     resolveDate();
     let params = urlParser.parse(req.url, true);
     req = params.query;
+    console.log(req);
     //...
     if (
       req.user_fingerprint !== undefined &&
@@ -1237,16 +1320,115 @@ clientMongo.connect(function (err) {
             //Active user
             //ADD THE RECIPIENT FINGERPRINT
             req["recipient_fp"] = result.recipient_fp;
-            //..
-            new Promise((resolve) => {
-              execSendMoney_fromRiderWallet_transaction(
-                req,
-                collectionWalletTransactions_logs,
-                resolve
+            //! CHECK THAT THE USER IS NOT SENDING TO HIMSELF
+            new Promise((resCheckValidSender) => {
+              checkNonSelf_sendingFunds_user(
+                collectionPassengers_profiles,
+                req.payNumberOrPhoneNumber,
+                req.user_nature,
+                req.user_fingerprint,
+                resCheckValidSender
               );
             }).then(
-              (result) => {
-                res.send(result);
+              (resultCheckSender) => {
+                if (
+                  resultCheckSender.response !== undefined &&
+                  resultCheckSender.response &&
+                  /^valid_sender$/i.test(resultCheckSender.flag)
+                ) {
+                  //Valid sender
+                  //! CHECK THE WALLET BALANCE FOR THE SENDER, it should be >= to the amount to send
+                  new Promise((resCheckBalance) => {
+                    let url =
+                      process.env.LOCAL_URL +
+                      ":" +
+                      process.env.ACCOUNTS_SERVICE_PORT +
+                      "/getRiders_walletInfos?user_fingerprint=" +
+                      req.user_fingerprint +
+                      "&mode=total";
+
+                    requestAPI(url, function (error, response, body) {
+                      if (error === null) {
+                        try {
+                          body = JSON.parse(body);
+                          resCheckBalance(body);
+                        } catch (error) {
+                          resCheckBalance({
+                            total: 0,
+                            response: "error",
+                            tag: "invalid_parameters",
+                          });
+                        }
+                      } else {
+                        resCheckBalance({
+                          total: 0,
+                          response: "error",
+                          tag: "invalid_parameters",
+                        });
+                      }
+                    });
+                  }).then(
+                    (senderBalance_infos) => {
+                      if (
+                        !/error/i.test(senderBalance_infos.response) &&
+                        senderBalance_infos.total !== undefined &&
+                        senderBalance_infos.total !== null
+                      ) {
+                        //Good to Go
+                        if (
+                          parseFloat(senderBalance_infos.total) >=
+                          parseFloat(req.amount)
+                        ) {
+                          //? Has enough funds
+                          new Promise((resolve) => {
+                            execSendMoney_fromRiderWallet_transaction(
+                              req,
+                              collectionWalletTransactions_logs,
+                              resolve
+                            );
+                          }).then(
+                            (result) => {
+                              res.send(result);
+                            },
+                            (error) => {
+                              console.log(error);
+                              res.send({
+                                response: "error",
+                                flag: "transaction_error",
+                              });
+                            }
+                          );
+                        } //! The sender has not enough funds in his/her wallet to proceed
+                        else {
+                          res.send({
+                            response: "error",
+                            flag: "transaction_error_unsifficient_funds",
+                          });
+                        }
+                      } //Error getting the sender's total wallet amount
+                      else {
+                        res.send({
+                          response: "error",
+                          flag: "transaction_error",
+                        });
+                      }
+                    },
+                    (error) => {
+                      //Error getting balance information
+                      console.log(error);
+                      res.send({
+                        response: "error",
+                        flag: "transaction_error",
+                      });
+                    }
+                  );
+                } //! The user wants to send to himself
+                else {
+                  res.send({
+                    response: "error",
+                    flag: "transaction_error_want_toSend_toHiHermslef",
+                  });
+                }
               },
               (error) => {
                 console.log(error);
