@@ -920,7 +920,7 @@ function execSendMoney_fromRiderWallet_transaction(
     //Driver
     let transaction_obj = {
       user_fingerprint: dataBundle.user_fingerprint,
-      recipient_fp: dataBundle.receiver_fingerprint,
+      recipient_fp: dataBundle.recipient_fp,
       amount: parseFloat(dataBundle.amount),
       payment_currency: process.env.PAYMENT_CURRENCY,
       transaction_nature: "paidDriver",

@@ -1329,8 +1329,8 @@ function parseDetailed_walletGetData(
                     //...
                     if (
                       recipientData.length > 0 &&
-                      recipientData[0].user_fingerprint !== undefined &&
-                      recipientData[0].user_fingerprint !== null
+                      recipientData[0].driver_fingerprint !== undefined &&
+                      recipientData[0].driver_fingerprint !== null
                     ) {
                       //? Add the recipient name and DONE
                       tmpClean["recipient_name"] = recipientData[0].name;
@@ -1370,9 +1370,9 @@ function parseDetailed_walletGetData(
             );
           });
           //? Sort
-          cleansedData.sort((a, b) => {
-            return a.timestamp > b.timestamp;
-          });
+          cleansedData.sort((a, b) =>
+            a.timestamp > b.timestamp ? -1 : b.timestamp > a.timestamp ? 1 : 0
+          );
           //? DONE
           resolve(cleansedData);
         } catch (error) {
