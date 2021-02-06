@@ -1274,7 +1274,7 @@ function parseDetailed_walletGetData(
             //? 1. Add the id number
             tmpClean.id = index;
             //? 2. add the amount
-            tmpClean.amount = transaction.amount;
+            tmpClean.amount = parseFloat(transaction.amount);
             //? 3. Payment currency
             tmpClean.payment_currency = process.env.PAYMENT_CURRENCY;
             //? 4. Add and resolve the date made and the timestamp
@@ -1341,10 +1341,15 @@ function parseDetailed_walletGetData(
                       res(false);
                     }
                   });
+              } else if (/topup/i.test(tmpClean.transaction_nature)) {
+                //TOpups
+                //? DONE FOR TOPUPS
+                res(tmpClean);
               } else {
                 res(false);
               }
-            } //For rides or deliveries - DONE
+            }
+            //For rides or deliveries - DONE
             else {
               res(tmpClean);
             }

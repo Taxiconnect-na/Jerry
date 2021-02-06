@@ -1028,10 +1028,10 @@ clientMongo.connect(function (err) {
    * WALLET TOP-UP
    * Responsible for topping up wallets and securing the all process
    */
-  app.post("/topUPThisWalletTaxiconnect", function (req, res) {
+  app.get("/topUPThisWalletTaxiconnect", function (req, res) {
     resolveDate();
     //...
-    let dataBundle = {
+    /*let dataBundle = {
       user_fp:
         "7c57cb6c9471fd33fd265d5441f253eced2a6307c0207dea57c987035b496e6e8dfa7105b86915da",
       amount: 45,
@@ -1040,7 +1040,11 @@ clientMongo.connect(function (err) {
       cvv: 1,
       name: "Dominique", //? Optional
       type: "VISA",
-    };
+    };*/
+    let params = urlParser.parse(req.url, true);
+    req = params.query;
+    dataBundle = req;
+    console.log(dataBundle);
 
     //! CHECK INPUTS
     if (

@@ -1391,6 +1391,71 @@ io.on("connection", (socket) => {
       });
     }
   });
+
+  /**
+   * PAYMENTS SERVICE, port 9093
+   * Route: topUPThisWalletTaxiconnect
+   * event: topUp_wallet_io
+   * Responsible for executing the wallet top-up from only the riders side.
+   */
+  socket.on("topUp_wallet_io", function (req) {
+    console.log(req);
+    if (
+      req.user_fp !== undefined &&
+      req.user_fp !== null &&
+      req.amount !== undefined &&
+      req.amount !== null &&
+      req.number !== undefined &&
+      req.number !== null &&
+      req.expiry !== undefined &&
+      req.expiry !== null &&
+      req.cvv !== undefined &&
+      req.cvv !== null &&
+      req.type !== undefined &&
+      req.type !== null
+    ) {
+      let url =
+        process.env.LOCAL_URL +
+        ":" +
+        process.env.PAYMENT_SERVICE_PORT +
+        "/topUPThisWalletTaxiconnect?user_fp=" +
+        req.user_fp +
+        "&amount=" +
+        req.amount +
+        "&expiry=" +
+        req.expiry +
+        "&cvv=" +
+        req.cvv +
+        "&type=" +
+        req.type +
+        "&number=" +
+        req.number;
+
+      requestAPI(url, function (error, response, body) {
+        if (error === null) {
+          try {
+            body = JSON.parse(body);
+            socket.emit("topUp_wallet_io-response", body);
+          } catch (error) {
+            socket.emit("topUp_wallet_io-response", {
+              response: false,
+              message: "transaction_error_missing_details",
+            });
+          }
+        } else {
+          socket.emit("topUp_wallet_io-response", {
+            response: false,
+            message: "transaction_error_missing_details",
+          });
+        }
+      });
+    } else {
+      socket.emit("topUp_wallet_io-response", {
+        response: false,
+        message: "transaction_error_missing_details",
+      });
+    }
+  });
 });
 
 server.listen(process.env.EVENT_GATEWAY_PORT);
