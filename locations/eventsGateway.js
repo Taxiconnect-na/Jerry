@@ -329,6 +329,56 @@ io.on("connection", (socket) => {
 
   /**
    * MAP SERVICE
+   * route name: getSharedTrip_information
+   * event: getSharedTrip_information_io
+   * Responsible for getting the shared rides information from
+   */
+  socket.on("getSharedTrip_information_io", function (req) {
+    if (
+      req.sharedTo_user_fingerprint !== undefined &&
+      req.sharedTo_user_fingerprint !== null &&
+      req.trip_simplified_id !== undefined &&
+      req.trip_simplified_id !== null
+    ) {
+      let url =
+        process.env.LOCAL_URL +
+        ":" +
+        process.env.MAP_SERVICE_PORT +
+        "/getSharedTrip_information?sharedTo_user_fingerprint=" +
+        req.sharedTo_user_fingerprint +
+        "&trip_simplified_id=" +
+        req.trip_simplified_id;
+      requestAPI(url, function (error, response, body) {
+        //console.log(body);
+        if (error === null) {
+          try {
+            body = JSON.parse(body);
+            socket.emit("getSharedTrip_information_io-response", body);
+            socket.emit("trackdriverroute-response", body);
+          } catch (error) {
+            socket.emit("getSharedTrip_information_io-response", {
+              response: "error",
+              flag: false,
+            });
+          }
+        } else {
+          socket.emit("getSharedTrip_information_io-response", {
+            response: "error",
+            flag: false,
+          });
+        }
+      });
+    } //Invalid params
+    else {
+      socket.emit("getSharedTrip_information_io-response", {
+        response: "error",
+        flag: false,
+      });
+    }
+  });
+
+  /**
+   * MAP SERVICE
    * route name: getRealtimeTrackingRoute_forTHIS
    * event: getRealtimeTrackingRoute_forTHIS_io
    * params: origin/destination latitude, origin/destination longitude, user fingerprint, request fingerprint

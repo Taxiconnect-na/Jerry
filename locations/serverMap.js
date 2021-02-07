@@ -485,13 +485,11 @@ function tripChecker_Dispatcher(
           resolve(false);
           throw err;
         }
-        console.log(userDataRepr);
         if (userDataRepr.length <= 0) {
           //No data
           resolve(false);
         } //Found a user record
         else {
-          //userDataRepr[0].isArrivedToDestination = true; //DEBUG FOR NO RIDES SIMULATION
           //...
           if (
             userDataRepr[0].ride_state_vars.isRideCompleted_riderSide === false
@@ -1339,6 +1337,7 @@ function computeRouteDetails_skeleton(
         .find({ driver_fingerprint: rideHistory.taxi_id })
         .toArray(function (err, driverProfile) {
           if (err) {
+            console.log(err);
             resolve(false); //An error happened
           }
 
@@ -1454,8 +1453,46 @@ function computeRouteDetails_skeleton(
                       }
                     );
                   } else {
-                    //GET DRIVER LOCATION FROM MONGODB
-                    resolve(false);
+                    console.log("Skip cache");
+                    //GET THE DRIVER'S LOCATION FROM MONGO DB
+                    //! auto cache the driver's location - Major performance update!
+                    client.set(
+                      rideHistory.taxi_id,
+                      JSON.stringify(
+                        driverProfile.operational_state.last_location
+                          .coordinates
+                      )
+                    );
+                    //Compute next route update ---------------------------------------------------
+                    new Promise((reslv) => {
+                      computeAndCacheRouteDestination(
+                        JSON.stringify(
+                          driverProfile.operational_state.last_location
+                            .coordinates
+                        ),
+                        rideHistory,
+                        driverProfile,
+                        riderCoords,
+                        requestStatusMain,
+                        reslv
+                      );
+                    }).then(
+                      () => {
+                        //Get route infos from cache.
+                        redisGet(rideHistory.request_fp).then(
+                          (result) => {
+                            resolve(JSON.parse(result));
+                          },
+                          (error) => {
+                            //console.log(error);
+                            resolve(false);
+                          }
+                        );
+                      },
+                      (error) => {
+                        resolve(false);
+                      }
+                    );
                   }
                 },
                 (error) => {
@@ -1594,8 +1631,45 @@ function computeRouteDetails_skeleton(
                       }
                     );
                   } else {
-                    //GET DRIVER LOCATION FROM MONGODB
-                    resolve(false);
+                    //GET THE DRIVER'S LOCATION FROM MONGO DB
+                    //! auto cache the driver's location - Major performance update!
+                    client.set(
+                      rideHistory.taxi_id,
+                      JSON.stringify(
+                        driverProfile.operational_state.last_location
+                          .coordinates
+                      )
+                    );
+                    //Compute next route update ---------------------------------------------------
+                    new Promise((reslv) => {
+                      computeAndCacheRouteDestination(
+                        JSON.stringify(
+                          driverProfile.operational_state.last_location
+                            .coordinates
+                        ),
+                        rideHistory,
+                        driverProfile,
+                        riderCoords,
+                        requestStatusMain,
+                        reslv
+                      );
+                    }).then(
+                      () => {
+                        //Get route infos from cache.
+                        redisGet(rideHistory.request_fp).then(
+                          (result) => {
+                            resolve(JSON.parse(result));
+                          },
+                          (error) => {
+                            //console.log(error);
+                            resolve(false);
+                          }
+                        );
+                      },
+                      (error) => {
+                        resolve(false);
+                      }
+                    );
                   }
                 },
                 (error) => {
@@ -1931,7 +2005,7 @@ function computeAndCacheRouteDestination(
         () => {},
         () => {}
       );
-      console.log("HEEEEEEEE->", result);
+      //console.log("HEEEEEEEE->", result);
       //console.log(rideHistory.destinationData);
       //Add request status variable - inRouteToPickup, inRouteToDestination
       result["request_status"] = request_status;
@@ -2069,33 +2143,44 @@ function computeAndCacheRouteDestination(
           result = { ...result, ...additionalInfos }; //Merge all the data
           //Cache-
           //Cache computed result
-          redisGet(rideHistory.request_fp).then(
-            (cachedTripData) => {
-              if (cachedTripData !== null) {
-                client.set(
-                  rideHistory.request_fp,
-                  JSON.stringify(result),
-                  redis.print
-                );
-              } //Update cache anyways
-              else {
+          new Promise((resPromiseresult) => {
+            redisGet(rideHistory.request_fp).then(
+              (cachedTripData) => {
+                if (cachedTripData !== null) {
+                  client.set(
+                    rideHistory.request_fp,
+                    JSON.stringify(result),
+                    redis.print
+                  );
+                  resPromiseresult(true);
+                } //Update cache anyways
+                else {
+                  //console.log("Update cache");
+                  client.set(
+                    rideHistory.request_fp,
+                    JSON.stringify(result),
+                    redis.print
+                  );
+                  resPromiseresult(true);
+                }
+              },
+              (errorGet) => {
                 //console.log("Update cache");
                 client.set(
                   rideHistory.request_fp,
                   JSON.stringify(result),
                   redis.print
                 );
+                resPromiseresult(true);
               }
-            },
-            (errorGet) => {
-              //console.log("Update cache");
-              client.set(
-                rideHistory.request_fp,
-                JSON.stringify(result),
-                redis.print
-              );
-            }
+            );
+          }).then(
+            () => {},
+            () => {}
           );
+          //...
+          ///DONE
+          resolve(result);
         },
         (error) => {
           console.log(error);
@@ -2103,33 +2188,44 @@ function computeAndCacheRouteDestination(
           result = { ...result, ...additionalInfos }; //Merge all the data
           //Cache-
           //Cache computed result
-          redisGet(rideHistory.request_fp).then(
-            (cachedTripData) => {
-              if (cachedTripData !== null) {
-                client.set(
-                  rideHistory.request_fp,
-                  JSON.stringify(result),
-                  redis.print
-                );
-              } //Update cache anyways
-              else {
+          new Promise((resPromiseresult) => {
+            redisGet(rideHistory.request_fp).then(
+              (cachedTripData) => {
+                if (cachedTripData !== null) {
+                  client.set(
+                    rideHistory.request_fp,
+                    JSON.stringify(result),
+                    redis.print
+                  );
+                  resPromiseresult(true);
+                } //Update cache anyways
+                else {
+                  //console.log("Update cache");
+                  client.set(
+                    rideHistory.request_fp,
+                    JSON.stringify(result),
+                    redis.print
+                  );
+                  resPromiseresult(true);
+                }
+              },
+              (errorGet) => {
                 //console.log("Update cache");
                 client.set(
                   rideHistory.request_fp,
                   JSON.stringify(result),
                   redis.print
                 );
+                resPromiseresult(true);
               }
-            },
-            (errorGet) => {
-              //console.log("Update cache");
-              client.set(
-                rideHistory.request_fp,
-                JSON.stringify(result),
-                redis.print
-              );
-            }
+            );
+          }).then(
+            () => {},
+            () => {}
           );
+          //...
+          ///DONE
+          resolve(result);
         }
       );
     },
@@ -2432,7 +2528,6 @@ function findDestinationPathPreview(resolve, pointData) {
     //Check from redis first
     redisGet(redisKey).then(
       (resp) => {
-        console.log(resp);
         if (resp !== null) {
           //Found something cached
           try {
@@ -3789,7 +3884,46 @@ clientMongo.connect(function (err) {
                 //Update the rider
                 if (result !== false) {
                   if (result != "no_rides") {
-                    res.send(result);
+                    //!Get the sender's details and attach it the to response
+                    collectionPassengers_profiles
+                      .find({
+                        user_fingerprint: parentTripDetails[0].client_id,
+                      })
+                      .toArray(function (err, riderTripOwner) {
+                        if (err) {
+                          console.log(err);
+                          res.send({ request_status: "no_rides" });
+                        }
+                        //...
+                        if (
+                          riderTripOwner.length > 0 &&
+                          riderTripOwner[0].user_fingerprint !== undefined
+                        ) {
+                          //Found the owner of the ride
+                          let ownerInfoBundle = {
+                            name: riderTripOwner[0].name,
+                            profile_picture:
+                              riderTripOwner[0].media.profile_picture,
+                          };
+                          //? attach to the global trip details AND the success status
+                          result["riderOwnerInfoBundle"] = ownerInfoBundle;
+                          result["responsePass"] = "success";
+                          //! Remove the driver's phone number
+                          if (
+                            result.driverDetails !== undefined &&
+                            result.driverDetails.phone_number !== undefined
+                          ) {
+                            result.driverDetails.phone_number = null;
+                            res.send(result);
+                          } //No relevant details
+                          else {
+                            res.send(result);
+                          }
+                        } //Stange - no ride owner linked to this ride
+                        else {
+                          res.send({ request_status: "no_rides" });
+                        }
+                      });
                   } //No rides
                   else {
                     res.send({ request_status: "no_rides" });
@@ -3812,7 +3946,7 @@ clientMongo.connect(function (err) {
         });
     } //Invalid data
     else {
-      res.send({ response: "error", flag: false });
+      res.send({ response: "error_invalid_data", flag: false });
     }
   });
 
