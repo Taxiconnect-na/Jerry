@@ -7,6 +7,7 @@ const geolocationUtlis = require("geolocation-utils");
 const taxiRanksDb = JSON.parse(fs.readFileSync("taxiRanks_points.txt", "utf8"));
 const path = require("path");
 const MongoClient = require("mongodb").MongoClient;
+const { parse, stringify } = require("flatted");
 
 var app = express();
 var server = http.createServer(app);
@@ -1161,7 +1162,8 @@ function getRiders_wallet_summary(
           );
           //...Immediatly reply
           if (avoidCached_data === false) {
-            resp = JSON.parse(resp);
+            resp = parse(resp);
+            console.log(resp);
             resolve(resp);
           }
         } catch (error) {
@@ -1697,7 +1699,7 @@ function execGet_ridersDrivers_walletSummary(
               client.setex(
                 redisKey,
                 process.env.REDIS_EXPIRATION_5MIN,
-                JSON.stringify(result)
+                stringify(result)
               );
               //Reply
               resolve(result);
