@@ -2043,7 +2043,7 @@ function computeAndCacheRouteDestination(
         driverProfile.operational_state.global_rating;
       additionalInfos.driverDetails.phone_number = driverProfile.phone_number;
       //Add the current car details
-      //Get the correct car information
+      //! Get the correct car information
       let currentVehicle = null;
       driverProfile.cars_data.map((car) => {
         if (
@@ -2054,6 +2054,12 @@ function computeAndCacheRouteDestination(
           currentVehicle = car;
         }
       });
+      //! Get the first car registered if null was found
+      currentVehicle =
+        currentVehicle !== null && currentVehicle !== undefined
+          ? currentVehicle
+          : driverProfile.cars_data[0];
+      //!------
       //Complete the car's infos
       additionalInfos.carDetails.taxi_number = currentVehicle.taxi_number;
       additionalInfos.carDetails.car_brand = currentVehicle.car_brand;
@@ -3908,12 +3914,13 @@ clientMongo.connect(function (err) {
                           //? attach to the global trip details AND the success status
                           result["riderOwnerInfoBundle"] = ownerInfoBundle;
                           result["responsePass"] = "success";
-                          //! Remove the driver's phone number
+                          //! Remove the driver's phone number and the car plate number
                           if (
                             result.driverDetails !== undefined &&
                             result.driverDetails.phone_number !== undefined
                           ) {
                             result.driverDetails.phone_number = null;
+                            result.driverDetails.plate_number = null;
                             res.send(result);
                           } //No relevant details
                           else {
