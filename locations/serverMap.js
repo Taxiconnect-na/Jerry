@@ -2040,7 +2040,10 @@ function computeAndCacheRouteDestination(
       additionalInfos.driverDetails.profile_picture =
         driverProfile.identification_data.profile_picture;
       additionalInfos.driverDetails.global_rating =
-        driverProfile.operational_state.global_rating;
+        driverProfile.operational_state.global_rating !== undefined &&
+        driverProfile.operational_state.global_rating !== null
+          ? driverProfile.operational_state.global_rating
+          : 4.9;
       additionalInfos.driverDetails.phone_number = driverProfile.phone_number;
       //Add the current car details
       //! Get the correct car information
