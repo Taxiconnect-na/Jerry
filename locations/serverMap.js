@@ -2907,10 +2907,30 @@ clientMongo.connect(function (err) {
    * Responsible for updating in the databse and other caches new passenger's/rider's locations received.
    * Update CACHE -> MONGODB (-> TRIP CHECKER DISPATCHER)
    */
-  app.get("/updatePassengerLocation", function (req, res) {
-    let params = urlParser.parse(req.url, true);
-    //console.log(params.query);
-    req = params.query;
+  app.post("/updatePassengerLocation", function (req, res) {
+    //DEBUG
+    let testData = {
+      latitude: -22.5704981,
+      longitude: 17.0809425,
+      user_fingerprint:
+        "7c57cb6c9471fd33fd265d5441f253eced2a6307c0207dea57c987035b496e6e8dfa7105b86915da",
+      user_nature: "rider",
+      requestType: "ride",
+      pushnotif_token: {
+        hasNotificationPermission: true,
+        isEmailSubscribed: false,
+        isPushDisabled: false,
+        isSubscribed: true,
+        pushToken:
+          "fNA8f12fQ225K3IHb4Xwdf:APA91bGQW7bJrNzOcIslIDTApTenhWaueP9QC-EJN4IM7ugZm43sJlk8jsj-lJxJN8JB70NsA5ZsDah2egABIm7L3ex-hndQiJEI-ziBggaO0se0rBI3CEE6ytpY2-USaM3yXe3HqKW9",
+        userId: "a0989fbc-2ec1-4b9c-b469-881dfaa345d8",
+      },
+    };
+    req = testData;
+    //DEBUG
+    //let params = urlParser.parse(req.url, true);
+    //req = req.body;
+    console.log(req);
 
     if (
       req !== undefined &&
@@ -2921,6 +2941,65 @@ clientMongo.connect(function (err) {
       req.user_fingerprint !== null &&
       req.user_fingerprint !== undefined
     ) {
+      //? Update the rider's push notification var only if got a new value
+      new Promise((resUpdateNotifToken) => {
+        if (
+          req.pushnotif_token.userId !== undefined &&
+          req.pushnotif_token.userId !== null &&
+          req.pushnotif_token.userId.length > 3
+        ) {
+          //Got something - can update
+          if (/^rider$/i.test(req.user_nature)) {
+            //Rider
+            collectionPassengers_profiles.updateOne(
+              { user_fingerprint: req.user_fingerprint },
+              {
+                $set: {
+                  pushnotif_token: req.pushnotif_token,
+                  last_updated: chaineDateUTC,
+                },
+              },
+              function (err, reslt) {
+                if (err) {
+                  resUpdateNotifToken(false);
+                }
+                //...
+                resUpdateNotifToken(true);
+              }
+            );
+          } else if (/^driver$/i.test(req.user_nature)) {
+            //Driver
+            //Rider
+            collectionDrivers_profiles.updateOne(
+              { driver_fingerprint: req.user_fingerprint },
+              {
+                $set: {
+                  "operational_state.push_notification_token":
+                    req.pushnotif_token,
+                  date_updated: chaineDateUTC,
+                },
+              },
+              function (err, reslt) {
+                if (err) {
+                  resUpdateNotifToken(false);
+                }
+                //...
+                resUpdateNotifToken(true);
+              }
+            );
+          } //Invalid user nature - skip
+          else {
+            resUpdateNotifToken(false);
+          }
+        } //Got invalid data - skip
+        else {
+          resUpdateNotifToken(false);
+        }
+      }).then(
+        () => {},
+        () => {}
+      );
+
       let timeTaken = new Date();
       timeTaken = timeTaken.getTime();
       //Check for any existing ride
@@ -2990,6 +3069,9 @@ clientMongo.connect(function (err) {
         },
         () => {}
       );
+    } //Invalid data
+    else {
+      res.send({ request_status: "no_rides" });
     }
   });
 

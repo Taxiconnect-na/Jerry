@@ -61,8 +61,6 @@ io.on("connection", (socket) => {
    * Update the passenger's location in the system and prefetch the navigation data if any.
    */
   socket.on("update-passenger-location", function (req) {
-    console.log(req);
-
     if (
       req !== undefined &&
       req.latitude !== undefined &&
@@ -76,25 +74,21 @@ io.on("connection", (socket) => {
         process.env.LOCAL_URL +
         ":" +
         process.env.MAP_SERVICE_PORT +
-        "/updatePassengerLocation?latitude=" +
-        req.latitude +
-        "&longitude=" +
-        req.longitude +
-        "&user_fingerprint=" +
-        req.user_fingerprint;
+        "/updatePassengerLocation";
       //Supplement or not the request string based on if the user is a driver or rider
       if (req.user_nature !== undefined && req.user_nature !== null) {
-        url +=
+        req.user_nature =
           req.user_nature !== undefined && req.user_nature !== null
-            ? "&user_nature=" + req.user_nature
-            : "&user_nature=rider";
-        url +=
+            ? req.user_nature
+            : "rider";
+        req.requestType =
           req.requestType !== undefined && req.requestType !== null
-            ? "&requestType=" + req.requestType
-            : "&requestType=rides";
+            ? req.requestType
+            : "rides";
       }
       //...
-      requestAPI(url, function (error, response, body) {
+
+      requestAPI.post({ url, form: req }, function (error, response, body) {
         console.log("RESPONSE HEREE ", error);
         if (error === null) {
           try {
