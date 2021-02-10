@@ -1278,22 +1278,32 @@ function registerAllowedDriversForRidesAndNotify(
                     en:
                       "You have a new ride request " +
                       (snapshotTripInfos.pickup_suburb !== false
-                        ? "from " +
-                          snapshotTripInfos.pickup_suburb.toUpperCase() +
-                          " to " +
-                          snapshotTripInfos.destination_suburb.toUpperCase() +
-                          ". Click here for more details."
+                        ? "from " + snapshotTripInfos.pickup_suburb !==
+                          undefined
+                          ? snapshotTripInfos.pickup_suburb.toUpperCase()
+                          : "near your location" +
+                              " to " +
+                              snapshotTripInfos.pickup_suburb !==
+                            undefined
+                          ? snapshotTripInfos.pickup_suburb.toUpperCase()
+                          : "near your location" +
+                            ". Click here for more details."
                         : "near your location, click here for more details."),
                   }
                 : {
                     en:
                       "You have a new delivery request " +
                       (snapshotTripInfos.pickup_suburb !== false
-                        ? "from " +
-                          snapshotTripInfos.pickup_suburb.toUpperCase() +
-                          " to " +
-                          snapshotTripInfos.destination_suburb.toUpperCase() +
-                          ". Click here for more details."
+                        ? "from " + snapshotTripInfos.pickup_suburb !==
+                          undefined
+                          ? snapshotTripInfos.pickup_suburb.toUpperCase()
+                          : "near your location" +
+                              " to " +
+                              snapshotTripInfos.pickup_suburb !==
+                            undefined
+                          ? snapshotTripInfos.pickup_suburb.toUpperCase()
+                          : "near your location" +
+                            ". Click here for more details."
                         : "near your location, click here for more details."),
                   },
               headings: /RIDE/i.test(snapshotTripInfos.ride_type)

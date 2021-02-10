@@ -886,7 +886,7 @@ io.on("connection", (socket) => {
       }
 
       requestAPI(url, function (error, response, body) {
-        console.log("ANSWER HERE -> ", body);
+        console.log("ANSWER HERE -> ", body, error);
         if (error === null) {
           try {
             body = JSON.parse(body);

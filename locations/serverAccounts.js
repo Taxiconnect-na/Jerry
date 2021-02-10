@@ -1167,6 +1167,7 @@ function getRiders_wallet_summary(
             resolve(resp);
           }
         } catch (error) {
+          console.log("here");
           console.log(error);
           //Error - make a fresh request
           new Promise((res) => {
@@ -1691,20 +1692,34 @@ function execGet_ridersDrivers_walletSummary(
               collectionPassengers_profiles,
               resCleanData
             );
-          }).then(
-            (resultCleansedData) => {
-              //! ONLY OVERWRITE THE TRANSACTIONS DATA
-              result.transactions_data = resultCleansedData;
-              //Cache and reply
-              client.setex(
-                redisKey,
-                process.env.REDIS_EXPIRATION_5MIN,
-                stringify(result)
-              );
-              //Reply
-              resolve(result);
-            },
-            (error) => {
+          })
+            .then(
+              (resultCleansedData) => {
+                //! ONLY OVERWRITE THE TRANSACTIONS DATA
+                result.transactions_data = resultCleansedData;
+                console.log("Caching a circular obj -> ", result);
+                //Cache and reply
+                client.setex(
+                  redisKey,
+                  process.env.REDIS_EXPIRATION_5MIN,
+                  stringify(result)
+                );
+                //Reply
+                resolve(result);
+              },
+              (error) => {
+                console.log(error);
+                //Error - empty wallet -cache
+                client.setex(
+                  redisKey,
+                  process.env.REDIS_EXPIRATION_5MIN,
+                  JSON.stringify({ total: 0, transactions_data: null })
+                );
+                //Reply
+                resolve({ total: 0, transactions_data: null });
+              }
+            )
+            .catch((error) => {
               console.log(error);
               //Error - empty wallet -cache
               client.setex(
@@ -1714,8 +1729,7 @@ function execGet_ridersDrivers_walletSummary(
               );
               //Reply
               resolve({ total: 0, transactions_data: null });
-            }
-          );
+            });
           //?-----------------
         },
         (error) => {
@@ -2351,7 +2365,9 @@ clientMongo.connect(function (err) {
         //SMS
       }).then(
         () => {},
-        (error) => {}
+        (error) => {
+          console.log(error);
+        }
       );
       //2. Check the user's status
       new Promise((res1) => {
@@ -2392,6 +2408,7 @@ clientMongo.connect(function (err) {
                   { user_fingerprint: req.user_fingerprint },
                   secretData,
                   function (err, reslt) {
+                    console.log(err);
                     res2(true);
                   }
                 );
@@ -2650,6 +2667,10 @@ clientMongo.connect(function (err) {
     ) {
       req.email = req.email.toLowerCase().trim();
       req.name = req.name.trim();
+      //? Split name and surnamme
+      let nameHolder = req.name.split(" ");
+      req.name = nameHolder[0].trim();
+      req.surname = nameHolder.slice(1, 5).join(" ").trim();
       //..
       try {
         new Promise((res0) => {
@@ -3078,13 +3099,37 @@ clientMongo.connect(function (err) {
         );
       }).then(
         (result) => {
-          res.send(
-            regModeLimiter.test("detailed")
+          try {
+            let responseHolder = regModeLimiter.test("detailed")
               ? result
               : result.total !== undefined
               ? { total: result.total }
-              : { total: 0 }
-          );
+              : { total: 0 };
+            if (/"transactions\_data"\:"0"/i.test(stringify(responseHolder))) {
+              //! No records - send predefined - Major bug fix!
+              res.send(
+                regModeLimiter.test("detailed")
+                  ? { total: 0, transactions_data: null }
+                  : { total: 0 }
+              );
+            } //Has some records
+            else {
+              res.send(
+                regModeLimiter.test("detailed")
+                  ? result
+                  : result.total !== undefined
+                  ? { total: result.total }
+                  : { total: 0 }
+              );
+            }
+          } catch (error) {
+            console.log(error);
+            res.send(
+              regModeLimiter.test("detailed")
+                ? { total: 0, transactions_data: null }
+                : { total: 0 }
+            );
+          }
         },
         (error) => {
           console.log(error);

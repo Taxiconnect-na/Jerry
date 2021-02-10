@@ -2909,7 +2909,7 @@ clientMongo.connect(function (err) {
    */
   app.post("/updatePassengerLocation", function (req, res) {
     //DEBUG
-    let testData = {
+    /*let testData = {
       latitude: -22.5704981,
       longitude: 17.0809425,
       user_fingerprint:
@@ -2926,10 +2926,10 @@ clientMongo.connect(function (err) {
         userId: "a0989fbc-2ec1-4b9c-b469-881dfaa345d8",
       },
     };
-    req = testData;
+    req = testData;*/
     //DEBUG
     //let params = urlParser.parse(req.url, true);
-    //req = req.body;
+    req = req.body;
     console.log(req);
 
     if (
