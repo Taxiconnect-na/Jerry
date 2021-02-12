@@ -185,7 +185,7 @@ function parseRequestData(inputData, resolve) {
         new Promise((res1) => {
           if (/immediate/i.test(parsedData.request_type)) {
             //Now request - now date
-            parsedData.wished_pickup_time = chaineDateUTC;
+            parsedData.wished_pickup_time = new Date(chaineDateUTC);
             res1(true);
           } //Scheduled
           else {
@@ -279,7 +279,7 @@ function parseRequestData(inputData, resolve) {
                 parsedData.isArrivedToDestination = false;
                 parsedData.date_dropoff = false;
                 parsedData.date_pickup = false;
-                parsedData.date_requested = chaineDateUTC;
+                parsedData.date_requested = new Date(chaineDateUTC);
                 parsedData.date_accepted = false;
                 //Parse nested data
                 //1. Ride state vars
@@ -1353,7 +1353,7 @@ function confirmDropoff_fromRider_side(
   let dropOffDataUpdate = {
     $set: {
       isArrivedToDestination: true,
-      date_dropoff: chaineDateUTC,
+      date_dropoff: new Date(chaineDateUTC),
       ride_state_vars: {
         isAccepted: true,
         inRideToDestination: true,
@@ -1411,7 +1411,7 @@ function cancelRider_request(
       if (requestData.length > 0) {
         //Found something
         //Add the deleted date
-        requestData[0].date_deleted = chaineDateUTC;
+        requestData[0].date_deleted = new Date(chaineDateUTC);
         //Save in the cancelled collection
         collection_cancelledRidesDeliveryData.insertOne(
           requestData[0],
@@ -1475,7 +1475,7 @@ function declineRequest_driver(
             event_name: "driver_declining_request",
             request_fp: bundleWorkingData.request_fp,
             driver_fingerprint: bundleWorkingData.driver_fingerprint,
-            date: chaineDateUTC,
+            date: new Date(chaineDateUTC),
           });
           res(true);
         }).then(
@@ -1563,7 +1563,7 @@ function acceptRequest_driver(
             event_name: "driver_accepting_request",
             request_fp: bundleWorkingData.request_fp,
             driver_fingerprint: bundleWorkingData.driver_fingerprint,
-            date: chaineDateUTC,
+            date: new Date(chaineDateUTC),
           });
           res(true);
         }).then(
@@ -1593,7 +1593,7 @@ function acceptRequest_driver(
                   $set: {
                     taxi_id: bundleWorkingData.driver_fingerprint,
                     "ride_state_vars.isAccepted": true,
-                    date_accepted: chaineDateUTC,
+                    date_accepted: new Date(chaineDateUTC),
                     car_fingerprint:
                       driverData[0].operational_state.default_selected_car
                         .car_fingerprint,
@@ -1653,7 +1653,7 @@ function cancelRequest_driver(
             event_name: "driver_cancelling_request",
             request_fp: bundleWorkingData.request_fp,
             driver_fingerprint: bundleWorkingData.driver_fingerprint,
-            date: chaineDateUTC,
+            date: new Date(chaineDateUTC),
           });
           res(true);
         }).then(
@@ -1722,7 +1722,7 @@ function confirmPickupRequest_driver(
             event_name: "driver_confirm_pickup_request",
             request_fp: bundleWorkingData.request_fp,
             driver_fingerprint: bundleWorkingData.driver_fingerprint,
-            date: chaineDateUTC,
+            date: new Date(chaineDateUTC),
           });
           res(true);
         }).then(
@@ -1738,7 +1738,7 @@ function confirmPickupRequest_driver(
           {
             $set: {
               taxi_id: bundleWorkingData.driver_fingerprint,
-              date_pickup: chaineDateUTC,
+              date_pickup: new Date(chaineDateUTC),
               "ride_state_vars.isAccepted": true,
               "ride_state_vars.inRideToDestination": true,
             },
@@ -1792,7 +1792,7 @@ function confirmDropoffRequest_driver(
             event_name: "driver_confirm_dropoff_request",
             request_fp: bundleWorkingData.request_fp,
             driver_fingerprint: bundleWorkingData.driver_fingerprint,
-            date: chaineDateUTC,
+            date: new Date(chaineDateUTC),
           });
           res(true);
         }).then(
@@ -1808,7 +1808,7 @@ function confirmDropoffRequest_driver(
           {
             $set: {
               taxi_id: bundleWorkingData.driver_fingerprint,
-              date_dropoff: chaineDateUTC,
+              date_dropoff: new Date(chaineDateUTC),
               "ride_state_vars.isAccepted": true,
               "ride_state_vars.inRideToDestination": true,
               "ride_state_vars.isRideCompleted_driverSide": true,
@@ -2077,7 +2077,7 @@ clientMongo.connect(function (err) {
                                         payment_currency:
                                           process.env.PAYMENT_CURRENCY,
                                         transaction_nature: "paidDriver",
-                                        date_captured: chaineDateUTC,
+                                        date_captured: new Date(chaineDateUTC),
                                         timestamp: tmpDate.getTime(),
                                       };
                                       //...

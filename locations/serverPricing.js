@@ -825,7 +825,7 @@ function estimateFullVehiclesCatPrices(
                     point2_suburb: "ANY",
                     city: completedInputData.pickup_location_infos.city,
                     country: completedInputData.country,
-                    date: chaineDateUTC,
+                    date: new Date(chaineDateUTC),
                   };
                   let checkQuery = {
                     point1_suburb:
@@ -1142,7 +1142,7 @@ function computeInDepthPricesMap(
                         point2_suburb: tmpDestinationSuburb,
                         city: destination.city,
                         country: request_country,
-                        date: chaineDateUTC,
+                        date: new Date(chaineDateUTC),
                       };
                       let checkQuery = {
                         point1_suburb: tmpPickupPickup,

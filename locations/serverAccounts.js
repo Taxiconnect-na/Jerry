@@ -192,7 +192,7 @@ function checkUserStatus(
     let dispatchMap = {
       phone_number: userData.phone_number,
       otp: otp,
-      date_sent: chaineDateUTC,
+      date_sent: new Date(chaineDateUTC),
     };
     collection_OTP_dispatch_map.insertOne(dispatchMap, function (error, reslt) {
       res(true);
@@ -1066,7 +1066,9 @@ function exec_computeDaily_amountMade(
         "ride_state_vars.isRideCompleted_driverSide": true,
         "ride_state_vars.isRideCompleted_riderSide": true,
         date_requested: {
-          $regex: escapeStringRegexp(chaineDateUTC.split(" ")[0]),
+          $regex: escapeStringRegexp(
+            String(chaineDateUTC).replace("T", " ").split(" ")[0]
+          ),
           $options: "i",
         },
       };
@@ -1810,7 +1812,7 @@ function updateRiders_generalProfileInfos(
       let updateData = {
         $set: {
           name: ucFirst(requestData.dataToUpdate),
-          last_updated: chaineDateUTC,
+          last_updated: new Date(chaineDateUTC),
         },
       };
       //..
@@ -1836,7 +1838,7 @@ function updateRiders_generalProfileInfos(
                   user_fingerprint: requestData.user_fingerprint,
                   old_data: riderProfile[0].name,
                   new_data: requestData.dataToUpdate,
-                  date: chaineDateUTC,
+                  date: new Date(chaineDateUTC),
                 };
                 collectionGlobalEvents.insertOne(
                   dataEvent,
@@ -1867,7 +1869,7 @@ function updateRiders_generalProfileInfos(
       let updateData = {
         $set: {
           surname: ucFirst(requestData.dataToUpdate),
-          last_updated: chaineDateUTC,
+          last_updated: new Date(chaineDateUTC),
         },
       };
       //..
@@ -1893,7 +1895,7 @@ function updateRiders_generalProfileInfos(
                   user_fingerprint: requestData.user_fingerprint,
                   old_data: riderProfile[0].surname,
                   new_data: requestData.dataToUpdate,
-                  date: chaineDateUTC,
+                  date: new Date(chaineDateUTC),
                 };
                 collectionGlobalEvents.insertOne(
                   dataEvent,
@@ -1927,7 +1929,7 @@ function updateRiders_generalProfileInfos(
       let updateData = {
         $set: {
           gender: requestData.dataToUpdate.toUpperCase(),
-          last_updated: chaineDateUTC,
+          last_updated: new Date(chaineDateUTC),
         },
       };
       //..
@@ -1953,7 +1955,7 @@ function updateRiders_generalProfileInfos(
                   user_fingerprint: requestData.user_fingerprint,
                   old_data: riderProfile[0].gender,
                   new_data: requestData.dataToUpdate,
-                  date: chaineDateUTC,
+                  date: new Date(chaineDateUTC),
                 };
                 collectionGlobalEvents.insertOne(
                   dataEvent,
@@ -1987,7 +1989,7 @@ function updateRiders_generalProfileInfos(
       let updateData = {
         $set: {
           email: requestData.dataToUpdate.trim().toLowerCase(),
-          last_updated: chaineDateUTC,
+          last_updated: new Date(chaineDateUTC),
         },
       };
       //..
@@ -2013,7 +2015,7 @@ function updateRiders_generalProfileInfos(
                   user_fingerprint: requestData.user_fingerprint,
                   old_data: riderProfile[0].email.trim().toLowerCase(),
                   new_data: requestData.dataToUpdate,
-                  date: chaineDateUTC,
+                  date: new Date(chaineDateUTC),
                 };
                 collectionGlobalEvents.insertOne(
                   dataEvent,
@@ -2106,7 +2108,7 @@ function updateRiders_generalProfileInfos(
                   phone_number: /^\+/i.test(requestData.dataToUpdate.trim())
                     ? requestData.dataToUpdate.trim()
                     : `+${requestData.dataToUpdate.trim()}`,
-                  last_updated: chaineDateUTC,
+                  last_updated: new Date(chaineDateUTC),
                 },
               };
               //..
@@ -2135,7 +2137,7 @@ function updateRiders_generalProfileInfos(
                           user_fingerprint: requestData.user_fingerprint,
                           old_data: riderProfile[0].phone_number,
                           new_data: requestData.dataToUpdate,
-                          date: chaineDateUTC,
+                          date: new Date(chaineDateUTC),
                         };
                         collectionGlobalEvents.insertOne(
                           dataEvent,
@@ -2250,7 +2252,7 @@ function updateRiders_generalProfileInfos(
                           user_fingerprint: requestData.user_fingerprint,
                           old_data: riderData[0].media.profile_picture,
                           new_data: tmpPicture_name,
-                          date: chaineDateUTC,
+                          date: new Date(chaineDateUTC),
                         };
                         collectionGlobalEvents.insertOne(
                           dataEvent,
@@ -2393,7 +2395,7 @@ clientMongo.connect(function (err) {
                 $set: {
                   "account_verifications.phone_verification_secrets": {
                     otp: otp,
-                    date_sent: chaineDateUTC,
+                    date_sent: new Date(chaineDateUTC),
                   },
                 },
               };
@@ -2603,10 +2605,10 @@ clientMongo.connect(function (err) {
                   ? decodeURIComponent(req.pushnotif_token)
                   : false,
               last_updated: {
-                date: chaineDateUTC,
+                date: new Date(chaineDateUTC),
               },
               date_registered: {
-                date: chaineDateUTC,
+                date: new Date(chaineDateUTC),
               },
             };
             console.log(minimalAccount);
@@ -2683,7 +2685,7 @@ clientMongo.connect(function (err) {
               email: req.email,
               gender: req.gender,
               account_state: "full", //! ADDD ACCOUNT STATE - full
-              last_updated: chaineDateUTC,
+              last_updated: new Date(chaineDateUTC),
             },
           };
           //Update
@@ -2948,7 +2950,7 @@ clientMongo.connect(function (err) {
                                   ? "online"
                                   : "offline",
                                 driver_fingerprint: req.driver_fingerprint,
-                                date: chaineDateUTC,
+                                date: new Date(chaineDateUTC),
                               });
                               res(true);
                             }).then(
@@ -2989,7 +2991,7 @@ clientMongo.connect(function (err) {
                                 ? "online"
                                 : "offline",
                               driver_fingerprint: req.driver_fingerprint,
-                              date: chaineDateUTC,
+                              date: new Date(chaineDateUTC),
                             });
                             res(true);
                           }).then(

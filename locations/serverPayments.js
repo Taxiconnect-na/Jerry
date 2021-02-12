@@ -375,7 +375,7 @@ function saveLogForTopups(
     responseStatusCode: responseStatusCode,
     payment_currency: payment_currency,
     transactionToken: additionalData,
-    date_captured: chaineDateUTC,
+    date_captured: new Date(chaineDateUTC),
     timestamp: tmpDate.getTime(),
   };
   collectionWalletTransactions_logs.insertOne(dataBundle, function (err, res) {
@@ -417,7 +417,7 @@ function saveLogForTopupsSuccess(
     transaction_nature: "topup",
     transactionToken: transactionToken,
     transactionRef: transactionRef,
-    date_captured: chaineDateUTC,
+    date_captured: new Date(chaineDateUTC),
     timestamp: tmpDate.getTime(),
   };
   //...
@@ -610,7 +610,7 @@ function processExecute_paymentCardWallet_topup(
                         amount: dataBundle.amount,
                         transactionRef: transRef,
                         responseBody: result_paymentExecDeducted,
-                        date_captured: chaineDateUTC,
+                        date_captured: new Date(chaineDateUTC),
                       };
                       //...
                       collectionGlobalEvents.insertOne(
@@ -733,7 +733,7 @@ function checkReceipient_walletTransaction(
               receipient_category: "friendOrFamily",
               user_fingerprint: dataBundle.user_fingerprint,
               receiver_fingerprint: riderProfile[0].user_fingerprint,
-              date_captured: chaineDateUTC,
+              date_captured: new Date(chaineDateUTC),
             };
             //...
             collectionGlobalEvents.insertOne(
@@ -792,7 +792,7 @@ function checkReceipient_walletTransaction(
               receipient_category: "driver",
               user_fingerprint: dataBundle.user_fingerprint,
               receiver_fingerprint: driverProfile[0].driver_fingerprint,
-              date_captured: chaineDateUTC,
+              date_captured: new Date(chaineDateUTC),
             };
             //...
             collectionGlobalEvents.insertOne(
@@ -841,7 +841,7 @@ function checkReceipient_walletTransaction(
                     receipient_category: "driver",
                     user_fingerprint: dataBundle.user_fingerprint,
                     receiver_fingerprint: driverProfile[0].driver_fingerprint,
-                    date_captured: chaineDateUTC,
+                    date_captured: new Date(chaineDateUTC),
                   };
                   //...
                   collectionGlobalEvents.insertOne(
@@ -898,7 +898,7 @@ function execSendMoney_fromRiderWallet_transaction(
       amount: parseFloat(dataBundle.amount),
       payment_currency: process.env.PAYMENT_CURRENCY,
       transaction_nature: "sentToFriend",
-      date_captured: chaineDateUTC,
+      date_captured: new Date(chaineDateUTC),
       timestamp: dateTmp.getTime(),
     };
     //...
@@ -924,7 +924,7 @@ function execSendMoney_fromRiderWallet_transaction(
       amount: parseFloat(dataBundle.amount),
       payment_currency: process.env.PAYMENT_CURRENCY,
       transaction_nature: "paidDriver",
-      date_captured: chaineDateUTC,
+      date_captured: new Date(chaineDateUTC),
       timestamp: dateTmp.getTime(),
     };
     //...
@@ -1179,7 +1179,7 @@ clientMongo.connect(function (err) {
                 event_name: "unlinked_rider_account_topup_failed_trial",
                 user_fingerprint: dataBundle.user_fp,
                 inputData: dataBundle,
-                date_captured: chaineDateUTC,
+                date_captured: new Date(chaineDateUTC),
               };
               //...
               collectionGlobalEvents.insertOne(

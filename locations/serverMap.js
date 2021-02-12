@@ -435,7 +435,7 @@ function updateRiderLocationsLog(
             latitude: locationData.latitude,
             longitude: locationData.longitude,
           },
-          date_logged: chaineDateUTC,
+          date_logged: new Date(chaineDateUTC),
         };
         collectionRidersLocation_log.insertOne(dataBundle, function (err, res) {
           resolve(true);
@@ -2255,7 +2255,7 @@ function computeAndCacheRouteDestination(
  */
 function updateRiderLocationInfosCache(req, resolve) {
   resolveDate();
-  req.date_logged = chaineDateUTC; //Attach date
+  req.date_logged = new Date(chaineDateUTC); //Attach date
   //Check if a previous entry alreay exist
   redisGet(req.user_fingerprint).then(
     (resp) => {
@@ -2740,7 +2740,7 @@ function updateRelativeDistancesRiderDrivers(
           country: relativeHeader.country,
           eta: relativeHeader.eta,
           distance: relativeHeader.distance,
-          date_updated: chaineDateUTC,
+          date_updated: new Date(chaineDateUTC),
         };
         //...
         collectionRelativeDistances.insertOne(record, function (err, res) {
@@ -2756,7 +2756,7 @@ function updateRelativeDistancesRiderDrivers(
             country: relativeHeader.country,
             eta: relativeHeader.eta,
             distance: relativeHeader.distance,
-            date_updated: chaineDateUTC,
+            date_updated: new Date(chaineDateUTC),
           },
         };
         //...
@@ -2908,6 +2908,7 @@ clientMongo.connect(function (err) {
    * Update CACHE -> MONGODB (-> TRIP CHECKER DISPATCHER)
    */
   app.post("/updatePassengerLocation", function (req, res) {
+    resolveDate();
     //DEBUG
     /*let testData = {
       latitude: -22.5704981,
@@ -2930,7 +2931,6 @@ clientMongo.connect(function (err) {
     //DEBUG
     //let params = urlParser.parse(req.url, true);
     req = req.body;
-    console.log(req);
 
     if (
       req !== undefined &&
@@ -2948,6 +2948,7 @@ clientMongo.connect(function (err) {
           req.pushnotif_token.userId !== null &&
           req.pushnotif_token.userId.length > 3
         ) {
+          console.log(req.user_fingerprint);
           //Got something - can update
           if (/^rider$/i.test(req.user_nature)) {
             //Rider
@@ -2956,11 +2957,13 @@ clientMongo.connect(function (err) {
               {
                 $set: {
                   pushnotif_token: req.pushnotif_token,
-                  last_updated: chaineDateUTC,
+                  last_updated: new Date(chaineDateUTC),
                 },
               },
               function (err, reslt) {
+                console.log("HERE");
                 if (err) {
+                  console.log(err);
                   resUpdateNotifToken(false);
                 }
                 //...
@@ -2976,7 +2979,7 @@ clientMongo.connect(function (err) {
                 $set: {
                   "operational_state.push_notification_token":
                     req.pushnotif_token,
-                  date_updated: chaineDateUTC,
+                  date_updated: new Date(chaineDateUTC),
                 },
               },
               function (err, reslt) {
@@ -3937,7 +3940,7 @@ clientMongo.connect(function (err) {
               owner_rider_fingerprint: parentTripDetails[0].client_id,
               request_fp: parentTripDetails[0].request_fp,
               response_got: null, //The response of the request.
-              date_captured: chaineDateUTC,
+              date_captured: new Date(chaineDateUTC),
             };
             //Check for any existing ride
             new Promise((res) => {
