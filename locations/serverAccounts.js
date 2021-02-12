@@ -504,7 +504,25 @@ function shrinkDataSchema_forBatchRidesHistory(
           res(car_brand);
         } //Empty - strange
         else {
-          res(false);
+          //! Get the first car for the driver
+          collectionDrivers_profiles
+            .find({ driver_fingerprint: request.taxi_id })
+            .toArray(function (err, driverProfile) {
+              if (err) {
+                res(false);
+              }
+              ///.
+              if (
+                driverProfile.length > 0 &&
+                driverProfile.cars_data.length > 0
+              ) {
+                //Found something
+                res(driverProfile.cars_data[0].car_brand);
+              } //No valid reccord found
+              else {
+                res(false);
+              }
+            });
         }
       });
     }).then(
@@ -2786,7 +2804,6 @@ clientMongo.connect(function (err) {
         req.request_fp !== undefined &&
         req.request_fp !== null
       ) {
-        console.log("here");
         //Targeted request
         new Promise((res0) => {
           getBachRidesHistory(
