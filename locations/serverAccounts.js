@@ -1134,6 +1134,7 @@ function exec_computeDaily_amountMade(
  * @param collectionPassengers_profiles: collection of all the passengers.
  * @param resolve
  * @param avoidCached_data: false (will return cached data first) or true (will not return the cached data);
+ * @param userType: rider or driver
  * Cache for 5 min only
  * Redis Key: user_fingerprint+wallet-summaryInfos
  */
@@ -1144,7 +1145,8 @@ function getRiders_wallet_summary(
   collectionDrivers_profiles,
   collectionPassengers_profiles,
   resolve,
-  avoidCached_data = false
+  avoidCached_data = false,
+  userType = "rider"
 ) {
   //Form the redis key
   let redisKey = requestObj.user_fingerprint + "wallet-summary";
@@ -1163,7 +1165,8 @@ function getRiders_wallet_summary(
               collectionDrivers_profiles,
               collectionPassengers_profiles,
               redisKey,
-              res
+              res,
+              userType
             );
           }).then(
             (result) => {
@@ -1198,7 +1201,8 @@ function getRiders_wallet_summary(
               collectionDrivers_profiles,
               collectionPassengers_profiles,
               redisKey,
-              res
+              res,
+              userType
             );
           }).then(
             (result) => {
@@ -1221,7 +1225,8 @@ function getRiders_wallet_summary(
             collectionDrivers_profiles,
             collectionPassengers_profiles,
             redisKey,
-            res
+            res,
+            userType
           );
         }).then(
           (result) => {
@@ -1245,7 +1250,8 @@ function getRiders_wallet_summary(
           collectionDrivers_profiles,
           collectionPassengers_profiles,
           redisKey,
-          res
+          res,
+          userType
         );
       }).then(
         (result) => {
@@ -1388,6 +1394,7 @@ function parseDetailed_walletGetData(
     Promise.all(batchPromiser).then(
       (cleansedData) => {
         try {
+          console.log(cleansedData);
           //? Clean the falses
           cleansedData = cleansedData.filter((transaction) => {
             return (
@@ -1428,7 +1435,7 @@ function parseDetailed_walletGetData(
  * @param collectionDrivers_profiles: collection of all the drivers
  * @param collectionPassengers_profiles: collection of all the passengers.
  * @param resolve
- * @param user_type: rider or drivers (the type of user for which to show the wallet details).
+ * @param user_type: rider or driver (the type of user for which to show the wallet details).
  *
  * ? transaction_nature types: topup, paidDriver, sentToDriver, sentToFriend.
  * ? The wallet payments for rides are stored in the rides/deliveries collection.
@@ -1507,20 +1514,24 @@ function execGet_ridersDrivers_walletSummary(
               res({ total: 0, transactions_data: null });
             }
             //..
-            if (resultTransactions.length > 0) {
+            if (resultTransactions.length > 0 || /driver/i.test(user_type)) {
               //Found some records
               //Save the transactions data
               detailsData.transactions_data = resultTransactions;
               //? Find the sum of all the transactions: topup (not including rides/deliveries)
               //! Remove the paidDriver, sentToDriver and sentToFriend.
               resultTransactions.map((transaction) => {
-                if (/topup/i.test(transaction.transaction_nature)) {
+                if (
+                  /topup/i.test(transaction.transaction_nature) &&
+                  /rider/i.test(user_type)
+                ) {
                   //! Add
                   detailsData.topedupAmount += parseFloat(transaction.amount);
                 } else if (
                   /(paidDriver|sentToDriver|sentToFriend)/i.test(
                     transaction.transaction_nature
-                  )
+                  ) &&
+                  /rider/i.test(user_type)
                 ) {
                   //!Remove
                   detailsData.topedupAmount -= parseFloat(transaction.amount);
@@ -1663,15 +1674,26 @@ function execGet_ridersDrivers_walletSummary(
                                 ...receivedTransactionsData.transactions_data,
                               ]
                             : detailsData.transactions_data;
-
-                        //? DONE
-                        res({
-                          total:
-                            detailsData.topedupAmount +
-                            receivedTransactionsData.total -
-                            detailsData.paid_totalAmount,
-                          transactions_data: detailsData.transactions_data,
-                        });
+                        //! DONE - First Logic for the riders - second for drivers!
+                        res(
+                          /rider/i.test(user_type)
+                            ? {
+                                total:
+                                  detailsData.topedupAmount +
+                                  receivedTransactionsData.total -
+                                  detailsData.paid_totalAmount,
+                                transactions_data:
+                                  detailsData.transactions_data,
+                              }
+                            : {
+                                total:
+                                  detailsData.topedupAmount +
+                                  receivedTransactionsData.total +
+                                  detailsData.paid_totalAmount,
+                                transactions_data:
+                                  detailsData.transactions_data,
+                              }
+                        );
                       },
                       (error) => {
                         console.log(error);
@@ -1697,9 +1719,190 @@ function execGet_ridersDrivers_walletSummary(
                     });
                   }
                 });
-            } //No topups records found - so null wallet
+            } //No topups records found - so return the transactions data
             else {
-              res({ total: 0, transactions_data: null });
+              //Find the sum of all the paid transactions (rides/deliveries) - for wallet only
+              //? Happend the cash data to the transaction data as well.
+              let filterPaidRequests = /rider/i.test(user_type)
+                ? {
+                    client_id: requestObj.user_fingerprint,
+                    isArrivedToDestination: true,
+                  }
+                : {
+                    taxi_id: requestObj.user_fingerprint,
+                    isArrivedToDestination: true,
+                  };
+              //...Only consider the completed requests
+              collectionRidesDeliveryData
+                .find(filterPaidRequests)
+                .toArray(function (err, resultPaidRequests) {
+                  if (err) {
+                    console.log(err);
+                    res({ total: 0, transactions_data: null });
+                  }
+                  //...
+                  if (resultPaidRequests.length > 0) {
+                    //Found some records
+                    //Save the requests transaction data and find the sum of the paid transactions
+                    let completedDataPromise = resultPaidRequests.map(
+                      (paidRequests) => {
+                        return new Promise((partialResolver) => {
+                          //Get driver infos : for Taxis - taxi number / for private cars - drivers name
+                          collectionDrivers_profiles
+                            .find({ driver_fingerprint: paidRequests.taxi_id })
+                            .toArray(function (err, driverProfile) {
+                              if (err) {
+                                console.log(err);
+                                partialResolver({
+                                  total: 0,
+                                  transactions_data: null,
+                                });
+                              }
+                              //...
+                              //Gather driver data
+                              let driverData = {
+                                name: null,
+                                car_brand: null,
+                                taxi_number: null,
+                              };
+                              if (driverProfile.length > 0) {
+                                driverProfile = driverProfile[0];
+                                if (driverProfile.cars_data !== undefined) {
+                                  //Add name
+                                  driverData.name = driverProfile.name;
+                                  //Get car infos
+                                  driverProfile.cars_data.map((car) => {
+                                    if (
+                                      car.car_fingerprint ===
+                                      paidRequests.car_fingerprint
+                                    ) {
+                                      //Found car
+                                      //Save car brand and/or fingerprint
+                                      driverData.car_brand = car.car_brand;
+                                      driverData.taxi_number = car.taxi_number;
+                                    }
+                                  });
+                                }
+                              }
+
+                              //1. Reformat the data
+                              let dateRequest = new Date(
+                                paidRequests.date_requested
+                              );
+                              dateRequest = moment(dateRequest.getTime());
+                              dateRequest =
+                                (String(dateRequest.date()).length > 1
+                                  ? dateRequest.date()
+                                  : "0" + dateRequest.date()) +
+                                "-" +
+                                (String(dateRequest.month() + 1).length > 1
+                                  ? dateRequest.month() + 1
+                                  : "0" + (dateRequest.month() + 1)) +
+                                "-" +
+                                dateRequest.year() +
+                                ", " +
+                                (String(dateRequest.hour()).length > 1
+                                  ? dateRequest.hour()
+                                  : "0" + dateRequest.hour()) +
+                                ":" +
+                                (String(dateRequest.minute()).length > 1
+                                  ? dateRequest.minute()
+                                  : "0" + dateRequest.minute());
+
+                              //Only get the sum for the wallets requests
+                              if (/wallet/i.test(paidRequests.payment_method)) {
+                                //Wallet - add the sum and save record to transaction data
+                                detailsData.paid_totalAmount += parseFloat(
+                                  paidRequests.fare
+                                );
+                                //Save record
+                                partialResolver({
+                                  amount: parseFloat(paidRequests.fare),
+                                  transaction_nature: paidRequests.ride_mode,
+                                  payment_method: paidRequests.payment_method,
+                                  driverData: driverData,
+                                  date_captured: dateRequest,
+                                });
+                              } //Cash - only save transaction data
+                              else {
+                                partialResolver({
+                                  amount: parseFloat(paidRequests.fare),
+                                  transaction_nature: paidRequests.ride_mode,
+                                  payment_method: paidRequests.payment_method,
+                                  driverData: driverData,
+                                  date_captured: dateRequest,
+                                });
+                              }
+                              //...
+                            });
+                        });
+                      }
+                    );
+
+                    //..DONE
+                    Promise.all(completedDataPromise).then(
+                      (finalData) => {
+                        //Update the transaction data
+                        detailsData.transactions_data =
+                          detailsData.transactions_data !== null &&
+                          detailsData.transactions_data !== undefined
+                            ? [...detailsData.transactions_data, ...finalData]
+                            : finalData;
+                        //! Add the total received
+                        detailsData.transactions_data =
+                          receivedTransactionsData.transactions_data !== null &&
+                          receivedTransactionsData.transactions_data !==
+                            undefined
+                            ? [
+                                ...detailsData.transactions_data,
+                                ...receivedTransactionsData.transactions_data,
+                              ]
+                            : detailsData.transactions_data;
+                        //! DONE - First Logic for the riders - second for drivers!
+                        res(
+                          /rider/i.test(user_type)
+                            ? {
+                                total:
+                                  detailsData.topedupAmount +
+                                  receivedTransactionsData.total -
+                                  detailsData.paid_totalAmount,
+                                transactions_data:
+                                  detailsData.transactions_data,
+                              }
+                            : {
+                                total:
+                                  detailsData.topedupAmount +
+                                  receivedTransactionsData.total +
+                                  detailsData.paid_totalAmount,
+                                transactions_data:
+                                  detailsData.transactions_data,
+                              }
+                        );
+                      },
+                      (error) => {
+                        console.log(error);
+                        //Done
+                        res({ total: 0, transactions_data: null });
+                      }
+                    );
+                  } //No paid requests yet - send the current total found
+                  else {
+                    res({
+                      total:
+                        detailsData.topedupAmount +
+                        receivedTransactionsData.total -
+                        detailsData.paid_totalAmount,
+                      transactions_data:
+                        receivedTransactionsData.transactions_data !== null &&
+                        receivedTransactionsData.transactions_data !== undefined
+                          ? [
+                              ...detailsData.transactions_data,
+                              ...receivedTransactionsData.transactions_data,
+                            ]
+                          : detailsData.transactions_data,
+                    });
+                  }
+                });
             }
           });
       }).then(
@@ -3114,7 +3317,10 @@ clientMongo.connect(function (err) {
           resolve,
           req.avoidCached_data !== undefined && req.avoidCached_data !== null
             ? true
-            : false
+            : false,
+          req.userType !== undefined && req.userType !== null
+            ? req.userType
+            : "rider"
         );
       }).then(
         (result) => {

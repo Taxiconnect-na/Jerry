@@ -472,6 +472,7 @@ function tripChecker_Dispatcher(
   requestType = "ride",
   resolve
 ) {
+  console.log("arrived");
   if (/^rider$/i.test(user_nature)) {
     //Check if the user has a pending request
     let rideChecker = {
@@ -1175,14 +1176,32 @@ function execDriver_requests_parsing(
 
             //Compute the ETA to destination details
             new Promise((res1) => {
+              console.log({
+                destination: {
+                  latitude: parseFloat(
+                    request.destinationData[0].coordinates.latitude
+                  ),
+                  longitude: parseFloat(
+                    request.destinationData[0].coordinates.longitude
+                  ),
+                },
+                passenger: {
+                  latitude: parseFloat(
+                    request.pickup_location_infos.coordinates.latitude
+                  ),
+                  longitude: parseFloat(
+                    request.pickup_location_infos.coordinates.longitude
+                  ),
+                },
+              });
               getRouteInfosDestination(
                 {
                   destination: {
                     latitude: parseFloat(
-                      request.destinationData[0].coordinates.longitude
+                      request.destinationData[0].coordinates.latitude
                     ),
                     longitude: parseFloat(
-                      request.destinationData[0].coordinates.latitude
+                      request.destinationData[0].coordinates.longitude
                     ),
                   },
                   passenger: {
@@ -2910,12 +2929,12 @@ clientMongo.connect(function (err) {
   app.post("/updatePassengerLocation", function (req, res) {
     resolveDate();
     //DEBUG
-    /*let testData = {
+    let testData = {
       latitude: -22.5704981,
       longitude: 17.0809425,
       user_fingerprint:
-        "7c57cb6c9471fd33fd265d5441f253eced2a6307c0207dea57c987035b496e6e8dfa7105b86915da",
-      user_nature: "rider",
+        "23c9d088e03653169b9c18193a0b8dd329ea1e43eb0626ef9f16b5b979694a429710561a3cb3ddae",
+      user_nature: "driver",
       requestType: "ride",
       pushnotif_token: {
         hasNotificationPermission: true,
@@ -2927,10 +2946,11 @@ clientMongo.connect(function (err) {
         userId: "a0989fbc-2ec1-4b9c-b469-881dfaa345d8",
       },
     };
-    req = testData;*/
+    req = testData;
     //DEBUG
     //let params = urlParser.parse(req.url, true);
-    req = req.body;
+    //req = req.body;
+    console.log(req);
 
     if (
       req !== undefined &&
