@@ -1920,7 +1920,6 @@ function execGet_ridersDrivers_walletSummary(
               (resultCleansedData) => {
                 //! ONLY OVERWRITE THE TRANSACTIONS DATA
                 result.transactions_data = resultCleansedData;
-                console.log("Caching a circular obj -> ", result);
                 //Cache and reply
                 client.setex(
                   redisKey,
