@@ -363,7 +363,9 @@ function parseRequestData(inputData, resolve) {
                     new Promise((res5) => {
                       console.log("Inside");
                       cleanInputData.destinationData = [];
-                      let tmpSchemaArray = [1, 2, 3, 4]; //Just for iterations, nothing more, instead of using for loop
+                      let tmpSchemaArray = new Array(
+                        parseInt(inputData.passengersNo)
+                      ).fill(1); //! Just for iterations, nothing more, instead of using for loop, but make it the right size - critical bug fix (Mandatory 4 passengers going to the same direction bug).
                       if (inputData.passengersNo > 1) {
                         //Many passengers
                         //Check if all going to the same destination
@@ -926,19 +928,19 @@ function sendStagedNotificationsDrivers(
 
         //...Register the drivers fp so that thei can see tne requests
         let driversFp = driversProfiles.map((data) => data.driver_fp); //Drivers fingerprints
-        let driversPushNotif_token = driversProfiles.map(
-          (data) => data.push_notification_token
-        ); //Push notification token
+        let driversPushNotif_token = driversProfiles.map((data) => {
+          return data.operational_state.push_notification_token.userId;
+        }); //Push notification token
         collectionRidesDeliveryData.updateOne(
           { request_fp: snapshotTripInfos.request_fp },
           { $set: { allowed_drivers_see: driversFp } },
           function (err, reslt) {
-            //Send the push notifications
+            //Send the push notifications - FOR DRIVERS
             let message = {
-              app_id: "1e2207f0-99c2-4782-8813-d623bd0ff32a",
+              app_id: "a7e445ea-0852-4bdc-afd0-345c9cd30095",
               android_channel_id: /RIDE/i.test(snapshotTripInfos.ride_type)
-                ? "4ff13528-5fbb-4a98-9925-00af10aaf9fb"
-                : "4ff13528-5fbb-4a98-9925-00af10aaf9fb", //Ride or delivery channel
+                ? "efbefa56-bb11-4b87-844a-6ed9981bd6ae"
+                : "efbefa56-bb11-4b87-844a-6ed9981bd6ae", //Ride or delivery channel
               priority: 10,
               contents: /RIDE/i.test(snapshotTripInfos.ride_type)
                 ? {
@@ -968,6 +970,7 @@ function sendStagedNotificationsDrivers(
                 : { en: "New delivery request, N$" + snapshotTripInfos.fare },
               include_player_ids: driversPushNotif_token,
             };
+            console.log(message);
             //Send
             sendPushUPNotification(message);
             resolve({ response: "successfully_dispatched" });
@@ -977,11 +980,12 @@ function sendStagedNotificationsDrivers(
   } //Staged send
   else {
     console.log("Staged send");
+    console.log(closestDriversList);
     //...Register the drivers fp so that thei can see tne requests
     let driversFp = closestDriversList.map((data) => data.driver_fingerprint); //Drivers fingerprints
-    let driversPushNotif_token = closestDriversList.map(
-      (data) => data.push_notification_token
-    ); //Push notification token
+    let driversPushNotif_token = closestDriversList.map((data) => {
+      return data.push_notification_token;
+    }); //Push notification token
 
     console.log("REQUEST TICKET " + snapshotTripInfos.request_fp);
     new Promise((res) => {
@@ -1236,7 +1240,7 @@ function registerAllowedDriversForRidesAndNotify(
       ? driversSnap.pushNotif_tokens.length
       : stagedBoundaries[incrementalStage].end
   );
-  console.log(driversSnap.drivers_fp);
+  console.log(driversSnap.pushNotif_tokens);
   //Check whether the request was accepted or not.
   let checkAcceptance = {
     "ride_state_vars.isAccepted": false,
@@ -1268,10 +1272,10 @@ function registerAllowedDriversForRidesAndNotify(
             //Send notifications to the newly registered drivers to the allowed_drivers_see
             //Send the push notifications
             let message = {
-              app_id: "1e2207f0-99c2-4782-8813-d623bd0ff32a",
+              app_id: "a7e445ea-0852-4bdc-afd0-345c9cd30095",
               android_channel_id: /RIDE/i.test(snapshotTripInfos.ride_type)
-                ? "4ff13528-5fbb-4a98-9925-00af10aaf9fb"
-                : "4ff13528-5fbb-4a98-9925-00af10aaf9fb", //Ride or delivery channel
+                ? "efbefa56-bb11-4b87-844a-6ed9981bd6ae"
+                : "efbefa56-bb11-4b87-844a-6ed9981bd6ae", //Ride or delivery channel
               priority: 10,
               contents: /RIDE/i.test(snapshotTripInfos.ride_type)
                 ? {
@@ -1309,8 +1313,9 @@ function registerAllowedDriversForRidesAndNotify(
               headings: /RIDE/i.test(snapshotTripInfos.ride_type)
                 ? { en: "New ride request, N$" + snapshotTripInfos.fare }
                 : { en: "New delivery request, N$" + snapshotTripInfos.fare },
-              include_player_ids: driversSnap.drivers_fp,
+              include_player_ids: driversSnap.pushNotif_tokens,
             };
+            console.log(message);
             //Send
             sendPushUPNotification(message);
             //...
@@ -1937,7 +1942,7 @@ clientMongo.connect(function (err) {
     /*let testData = {
       actualRider: "someonelese",
       actualRiderPhone_number: "0817563369",
-      carTypeSelected: "comfortNormalRide",
+      carTypeSelected: "normalTaxiEconomy",
       connectType: "ConnectUs",
       country: "Namibia",
       destinationData: {
@@ -2004,7 +2009,7 @@ clientMongo.connect(function (err) {
       receiverName_delivery: false,
       receiverPhone_delivery: false,
       rideType: "RIDE",
-      timeScheduled: "now",
+      timeScheduled: "immediate",
       paymentMethod: "WALLET",
       user_fingerprint:
         "7c57cb6c9471fd33fd265d5441f253eced2a6307c0207dea57c987035b496e6e8dfa7105b86915da",

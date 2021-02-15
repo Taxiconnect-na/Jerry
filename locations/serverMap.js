@@ -381,20 +381,26 @@ function getRouteInfos(coordsInfos, resolve) {
 
 /**
  * @func updateRidersRealtimeLocationData()
- * @params mongoCollection, collectionRidersLocation_log, locationData
+ * @params mongoCollection, collectionRidersLocation_log, collectionDrivers_profiles, locationData
  * Update the rider's location informations in monogDB everytime a change occurs in the rider's app
  * related to the positioning.
  * Use promises as much as possible.
  */
 function updateRidersRealtimeLocationData(
   collectionRidersLocation_log,
+  collectionDrivers_profiles,
   locationData,
   resolve
 ) {
   resolveDate();
   //Update location log for riders
   new Promise((res) => {
-    updateRiderLocationsLog(collectionRidersLocation_log, locationData, res);
+    updateRiderLocationsLog(
+      collectionRidersLocation_log,
+      collectionDrivers_profiles,
+      locationData,
+      res
+    );
   }).then(
     () => {
       resolve(true);
@@ -407,43 +413,154 @@ function updateRidersRealtimeLocationData(
 
 /**
  * @func updateRiderLocationsLog()
- * @params  collectionRidersLocation_log, locationData, resolve
+ * @params  collectionRidersLocation_log, collectionDrivers_profiles,  locationData, resolve
  * Responsible for updating any rider location change received.
  * Avoid duplicates as much as possible.
  */
 function updateRiderLocationsLog(
   collectionRidersLocation_log,
+  collectionDrivers_profiles,
   locationData,
   resolve
 ) {
+  console.log("HHERE");
   resolveDate();
-  //Check if new
-  collectionRidersLocation_log
-    .find({
-      user_fingerprint: locationData.user_fingerprint,
-      coordinates: {
-        latitude: locationData.latitude,
-        longitude: locationData.longitude,
-      },
-    })
-    .toArray(function (err, res) {
-      if (res.length == 0) {
-        //New record
-        let dataBundle = {
-          user_fingerprint: locationData.user_fingerprint,
-          coordinates: {
-            latitude: locationData.latitude,
-            longitude: locationData.longitude,
-          },
-          date_logged: new Date(chaineDateUTC),
-        };
-        collectionRidersLocation_log.insertOne(dataBundle, function (err, res) {
+  if (/rider/i.test(locationData.user_nature)) {
+    //Riders handler
+    //Check if new
+    collectionRidersLocation_log
+      .find({
+        user_fingerprint: locationData.user_fingerprint,
+        coordinates: {
+          latitude: locationData.latitude,
+          longitude: locationData.longitude,
+        },
+      })
+      .toArray(function (err, res) {
+        if (res.length == 0) {
+          //New record
+          let dataBundle = {
+            user_fingerprint: locationData.user_fingerprint,
+            coordinates: {
+              latitude: locationData.latitude,
+              longitude: locationData.longitude,
+            },
+            date_logged: new Date(chaineDateUTC),
+          };
+          collectionRidersLocation_log.insertOne(
+            dataBundle,
+            function (err, res) {
+              resolve(true);
+            }
+          );
+        } else {
           resolve(true);
-        });
-      } else {
-        resolve(true);
-      }
-    });
+        }
+      });
+  } else if (/driver/i.test(locationData.user_nature)) {
+    console.log("HEREE");
+    //Drivers handler
+    //Update the driver's operstional position
+    let filterDriver = {
+      driver_fingerprint: locationData.user_fingerprint,
+    };
+    //First get the current coordinate
+    collectionDrivers_profiles
+      .find(filterDriver)
+      .toArray(function (err, driverData) {
+        if (driverData.length > 0) {
+          if (
+            driverData[0].operational_state.last_location !== undefined &&
+            driverData[0].operational_state.last_location.coordinates !==
+              undefined
+          ) {
+            //Get the previous location
+            if (
+              driverData[0].operational_state.last_location.prev_coordinates !==
+              undefined
+            ) {
+              //? Here it gets the current coords which are becoming prev.
+              let prevCoordsWhichWasNewHere =
+                driverData[0].operational_state.last_location.coordinates;
+              //...
+              let dataBundle = {
+                $set: {
+                  "operational_state.last_location.coordinates": {
+                    latitude: locationData.latitude,
+                    longitude: locationData.longitude,
+                  },
+                  "operational_state.last_location.prev_coordinates": prevCoordsWhichWasNewHere,
+                  "operational_state.last_location.date_updated": new Date(
+                    chaineDateUTC
+                  ),
+                  date_updated: new Date(chaineDateUTC),
+                },
+              };
+              collectionDrivers_profiles.updateOne(
+                filterDriver,
+                dataBundle,
+                function (err, res) {
+                  resolve(true);
+                }
+              );
+            } //No previous location -- update current location and prev to the same value
+            else {
+              let dataBundle = {
+                $set: {
+                  "operational_state.last_location.coordinates": {
+                    latitude: locationData.latitude,
+                    longitude: locationData.longitude,
+                  },
+                  "operational_state.last_location.prev_coordinates": {
+                    latitude: locationData.latitude,
+                    longitude: locationData.longitude,
+                  },
+                  "operational_state.last_location.date_updated": new Date(
+                    chaineDateUTC
+                  ),
+                  date_logged: new Date(chaineDateUTC),
+                },
+              };
+              collectionDrivers_profiles.updateOne(
+                filterDriver,
+                dataBundle,
+                function (err, res) {
+                  resolve(true);
+                }
+              );
+            }
+          } //No location data yet - update the previous location and current to the same value
+          else {
+            let dataBundle = {
+              $set: {
+                "operational_state.last_location.coordinates": {
+                  latitude: locationData.latitude,
+                  longitude: locationData.longitude,
+                },
+                "operational_state.last_location.prev_coordinates": {
+                  latitude: locationData.latitude,
+                  longitude: locationData.longitude,
+                },
+                "operational_state.last_location.date_updated": new Date(
+                  chaineDateUTC
+                ),
+                date_logged: new Date(chaineDateUTC),
+              },
+            };
+            collectionDrivers_profiles.updateOne(
+              filterDriver,
+              dataBundle,
+              function (err, res) {
+                resolve(true);
+              }
+            );
+          }
+        } //No record - strange
+        else {
+          resolve(false);
+        }
+      });
+  }
 }
 
 /**
@@ -535,10 +652,14 @@ function tripChecker_Dispatcher(
           "ride_state_vars.isAccepted": true,
           "ride_state_vars.isRideCompleted_driverSide": false,
           isArrivedToDestination: false,
-          ride_mode: { $regex: requestType, $options: "i" },
+          /*ride_mode:
+            /scheduled/i.test(requestType) === false
+              ? { $regex: requestType, $options: "i" }
+              : { $in: driverData.operation_clearances },*/
           allowed_drivers_see: user_fingerprint,
           intentional_request_decline: { $not: { $regex: user_fingerprint } },
         };
+
         collectionRidesDeliveries_data
           .find(checkRide0)
           .toArray(function (err, acceptedRidesArray) {
@@ -750,7 +871,7 @@ function execGetDrivers_requests_and_provide(
         $regex: driverData.operational_state.last_location.city,
         $options: "i",
       },
-      ride_mode: { $regex: requestType, $options: "i" }, //ride, delivery
+      //ride_mode: { $regex: requestType, $options: "i" }, //ride, delivery
       request_type: { $regex: request_type_regex, $options: "i" }, //Shceduled or now rides/deliveries
     };
     //...
@@ -782,6 +903,7 @@ function execGetDrivers_requests_and_provide(
             parseRequests_forDrivers_view(
               refinedRequests,
               collectionPassengers_profiles,
+              driverData,
               res
             );
           }).then(
@@ -841,8 +963,7 @@ function execGetDrivers_requests_and_provide(
         $regex: driverData.operational_state.last_location.city,
         $options: "i",
       },
-      ride_mode: { $regex: requestType, $options: "i" }, //ride, delivery
-      request_type: { $regex: request_type_regex, $options: "i" }, //Shceduled or now rides/deliveries
+      request_type: { $regex: request_type_regex, $options: "i" }, //Shceduled or immediate rides/deliveries
     };
     //...
     collectionRidesDeliveries_data
@@ -851,11 +972,10 @@ function execGetDrivers_requests_and_provide(
         if (err) {
           resolve(false);
         }
-        console.log(requestsData);
         //...
         if (requestsData !== undefined && requestsData.length > 0) {
           //Found some data
-          //1. Filter the requests based on the clearances of the driver - ride/delivery
+          //! 1. Filter the requests based on the clearances of the driver - ride/delivery
           let clearancesString = driverData.operation_clearances.join(",");
           let max_passengers_capacity =
             driverData.operational_state.default_selected_car.max_passengers;
@@ -1005,20 +1125,25 @@ function parseRequests_forDrivers_view(
     });
   });
   //...
-  Promise.all(batchRequestProcessing).then(
-    (batchRequestsResults) => {
-      //Remove any false values
-      batchRequestsResults = batchRequestsResults.filter(
-        (request) => request !== false
-      );
-      //DONE WITH BATCH REQUESTS
-      resolve(batchRequestsResults);
-    },
-    (error) => {
+  Promise.all(batchRequestProcessing)
+    .then(
+      (batchRequestsResults) => {
+        //Remove any false values
+        batchRequestsResults = batchRequestsResults.filter(
+          (request) => request !== false
+        );
+        //DONE WITH BATCH REQUESTS
+        resolve(batchRequestsResults);
+      },
+      (error) => {
+        console.log(error);
+        resolve(false);
+      }
+    )
+    .catch((error) => {
       console.log(error);
       resolve(false);
-    }
-  );
+    });
 }
 
 /**
@@ -1146,123 +1271,110 @@ function execDriver_requests_parsing(
           true,
           request.request_fp + "-cached-etaToPassenger-requests"
         );
-      }).then(
-        (resultEtaToPassenger) => {
-          if (resultEtaToPassenger !== false) {
-            //Save the eta and distancee
-            parsedRequestsArray.eta_to_passenger_infos.eta =
-              resultEtaToPassenger.eta;
-            parsedRequestsArray.eta_to_passenger_infos.distance =
-              resultEtaToPassenger.distance;
-            //4. Add the destination informations
-            parsedRequestsArray.origin_destination_infos.pickup_infos.location_name =
-              request.pickup_location_infos.location_name !== undefined &&
-              request.pickup_location_infos.location_name !== false
-                ? request.pickup_location_infos.location_name
-                : request.pickup_location_infos.street_name;
-            parsedRequestsArray.origin_destination_infos.pickup_infos.street_name =
-              request.pickup_location_infos.street_name;
-            parsedRequestsArray.origin_destination_infos.pickup_infos.suburb =
-              request.pickup_location_infos.suburb;
-            parsedRequestsArray.origin_destination_infos.pickup_infos.coordinates =
-              request.pickup_location_infos.coordinates;
+      })
+        .then(
+          (resultEtaToPassenger) => {
+            if (resultEtaToPassenger !== false) {
+              //Save the eta and distancee
+              parsedRequestsArray.eta_to_passenger_infos.eta =
+                resultEtaToPassenger.eta;
+              parsedRequestsArray.eta_to_passenger_infos.distance =
+                resultEtaToPassenger.distance;
+              //4. Add the destination informations
+              parsedRequestsArray.origin_destination_infos.pickup_infos.location_name =
+                request.pickup_location_infos.location_name !== undefined &&
+                request.pickup_location_infos.location_name !== false
+                  ? request.pickup_location_infos.location_name
+                  : request.pickup_location_infos.street_name;
+              parsedRequestsArray.origin_destination_infos.pickup_infos.street_name =
+                request.pickup_location_infos.street_name;
+              parsedRequestsArray.origin_destination_infos.pickup_infos.suburb =
+                request.pickup_location_infos.suburb;
+              parsedRequestsArray.origin_destination_infos.pickup_infos.coordinates =
+                request.pickup_location_infos.coordinates;
 
-            //ADD THE REQUEST TYPE
-            parsedRequestsArray.request_type = /(now|immediate)/i.test(
-              request.request_type
-            )
-              ? request.ride_mode
-              : "scheduled";
+              //ADD THE REQUEST TYPE
+              parsedRequestsArray.request_type = /(now|immediate)/i.test(
+                request.request_type
+              )
+                ? request.ride_mode
+                : "scheduled";
 
-            //Compute the ETA to destination details
-            new Promise((res1) => {
-              console.log({
-                destination: {
-                  latitude: parseFloat(
-                    request.destinationData[0].coordinates.latitude
-                  ),
-                  longitude: parseFloat(
-                    request.destinationData[0].coordinates.longitude
-                  ),
-                },
-                passenger: {
-                  latitude: parseFloat(
-                    request.pickup_location_infos.coordinates.latitude
-                  ),
-                  longitude: parseFloat(
-                    request.pickup_location_infos.coordinates.longitude
-                  ),
-                },
-              });
-              getRouteInfosDestination(
-                {
-                  destination: {
-                    latitude: parseFloat(
-                      request.destinationData[0].coordinates.latitude
-                    ),
-                    longitude: parseFloat(
-                      request.destinationData[0].coordinates.longitude
-                    ),
-                  },
-                  passenger: {
-                    latitude: parseFloat(
-                      request.pickup_location_infos.coordinates.latitude
-                    ),
-                    longitude: parseFloat(
-                      request.pickup_location_infos.coordinates.longitude
-                    ),
-                  },
-                },
-                res1,
-                true,
-                request.request_fp + "-cached-etaToDestination-requests"
-              );
-            }).then(
-              (resultETAToDestination) => {
-                if (resultETAToDestination !== false) {
-                  //Save the ETA to destination data
-                  parsedRequestsArray.origin_destination_infos.eta_to_destination_infos.eta =
-                    resultETAToDestination.eta;
-                  parsedRequestsArray.origin_destination_infos.eta_to_destination_infos.distance =
-                    resultETAToDestination.distance;
-                  //4. Save the destination data
-                  parsedRequestsArray.origin_destination_infos.destination_infos =
-                    request.destinationData;
-                  //Add the request fingerprint
-                  parsedRequestsArray.request_fp = request.request_fp;
-                  //DONE
-                  //CACHE
-                  new Promise((resCache) => {
-                    client.set(redisKey, JSON.stringify(parsedRequestsArray));
-                    resCache(true);
-                  }).then(
-                    () => {
-                      console.log("Single processing cached!");
+              //Compute the ETA to destination details
+              new Promise((res1) => {
+                getRouteInfosDestination(
+                  {
+                    destination: {
+                      latitude: parseFloat(
+                        request.destinationData[0].coordinates.longitude
+                      ),
+                      longitude: parseFloat(
+                        request.destinationData[0].coordinates.latitude
+                      ),
                     },
-                    () => {}
-                  );
-                  //Return the answer
-                  res(parsedRequestsArray);
-                } //Error
-                else {
+                    passenger: {
+                      latitude: parseFloat(
+                        request.pickup_location_infos.coordinates.latitude
+                      ),
+                      longitude: parseFloat(
+                        request.pickup_location_infos.coordinates.longitude
+                      ),
+                    },
+                  },
+                  res1,
+                  true,
+                  request.request_fp + "-cached-etaToDestination-requests"
+                );
+              }).then(
+                (resultETAToDestination) => {
+                  if (resultETAToDestination !== false) {
+                    //Save the ETA to destination data
+                    parsedRequestsArray.origin_destination_infos.eta_to_destination_infos.eta =
+                      resultETAToDestination.eta;
+                    parsedRequestsArray.origin_destination_infos.eta_to_destination_infos.distance =
+                      resultETAToDestination.distance;
+                    //4. Save the destination data
+                    parsedRequestsArray.origin_destination_infos.destination_infos =
+                      request.destinationData;
+                    //Add the request fingerprint
+                    parsedRequestsArray.request_fp = request.request_fp;
+                    //DONE
+                    //CACHE
+                    new Promise((resCache) => {
+                      client.set(redisKey, JSON.stringify(parsedRequestsArray));
+                      resCache(true);
+                    }).then(
+                      () => {
+                        console.log("Single processing cached!");
+                      },
+                      () => {}
+                    );
+                    //Return the answer
+                    res(parsedRequestsArray);
+                  } //Error
+                  else {
+                    res(false);
+                  }
+                },
+                (error) => {
+                  console.log(error);
                   res(false);
                 }
-              },
-              (error) => {
-                console.log(error);
-                res(false);
-              }
-            );
-          } //EError
-          else {
+              );
+            } //EError
+            else {
+              res(false);
+            }
+          },
+          (error) => {
+            console.log(error);
             res(false);
           }
-        },
-        (error) => {
+        )
+        .catch((error) => {
           console.log(error);
-          res(false);
-        }
-      );
+          resolve(false);
+        });
     });
 }
 
@@ -2500,7 +2612,6 @@ function findoutPickupLocationNature(resolve, point) {
       reverseGeocodeUserLocation(res, point);
     }).then(
       (result) => {
-        console.log(result);
         if (result !== false) {
           if (result.name !== undefined) {
             if (/airport/i.test(result.name)) {
@@ -2935,7 +3046,7 @@ clientMongo.connect(function (err) {
       user_fingerprint:
         "23c9d088e03653169b9c18193a0b8dd329ea1e43eb0626ef9f16b5b979694a429710561a3cb3ddae",
       user_nature: "driver",
-      requestType: "ride",
+      requestType: "scheduled",
       pushnotif_token: {
         hasNotificationPermission: true,
         isEmailSubscribed: false,
@@ -2968,7 +3079,6 @@ clientMongo.connect(function (err) {
           req.pushnotif_token.userId !== null &&
           req.pushnotif_token.userId.length > 3
         ) {
-          console.log(req.user_fingerprint);
           //Got something - can update
           if (/^rider$/i.test(req.user_nature)) {
             //Rider
@@ -3047,7 +3157,6 @@ clientMongo.connect(function (err) {
           timeTaken = doneTime.getTime() - timeTaken;
           //console.log("[" + chaineDateUTC + "] Compute and dispatch time (trip) ------>  " + timeTaken + " ms");
           //Update the rider
-          console.log(result);
           if (result !== false) {
             if (result != "no_rides") {
               res.send(result);
@@ -3083,6 +3192,7 @@ clientMongo.connect(function (err) {
       new Promise((resolve2) => {
         updateRidersRealtimeLocationData(
           collectionRidersLocation_log,
+          collectionDrivers_profiles,
           req,
           resolve2
         );
@@ -3386,7 +3496,7 @@ clientMongo.connect(function (err) {
                                   .prev_coordinates.longitude,
                             }; //Add the driver's previous coordinates to the response
                             resp[valueIndex].push_notification_token =
-                              driverData.push_notification_token; //Add the push notification token
+                              driverData.operational_state.push_notification_token.userId; //Add the push notification token
                             resolve(resp[valueIndex]);
                           } //The wanted index is not present, make a new search
                           else {
@@ -3454,7 +3564,7 @@ clientMongo.connect(function (err) {
                                       .prev_coordinates.longitude,
                                 }; //Add the driver's previous coordinates to the response
                                 result.push_notification_token =
-                                  driverData.push_notification_token; //Add push toekn
+                                  driverData.operational_state.push_notification_token.userId; //Add push toekn
                                 resolve(result);
                               },
                               (error) => {
@@ -3527,7 +3637,7 @@ clientMongo.connect(function (err) {
                                     .prev_coordinates.longitude,
                               }; //Add the driver's previous coordinates to the response
                               result.push_notification_token =
-                                driverData.push_notification_token; //Add push token
+                                driverData.operational_state.push_notification_token.userId; //Add push token
                               resolve(result);
                             },
                             (error) => {
@@ -3600,7 +3710,7 @@ clientMongo.connect(function (err) {
                                   .prev_coordinates.longitude,
                             }; //Add the driver's previous coordinates to the response
                             result.push_notification_token =
-                              driverData.push_notification_token; //Add push notif token
+                              driverData.operational_state.push_notification_token.userId; //Add push notif token
                             resolve(result);
                           },
                           (error) => {
@@ -3674,7 +3784,7 @@ clientMongo.connect(function (err) {
                                 .prev_coordinates.longitude,
                           }; //Add the driver's previous coordinates to the response
                           result.push_notification_token =
-                            driverData.push_notification_token; //Add push notif token
+                            driverData.operational_state.push_notification_token.userId; //Add push notif token
                           resolve(result);
                         },
                         (error) => {
