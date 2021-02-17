@@ -3,11 +3,11 @@ FROM node:latest
 ADD . /app/
 WORKDIR /app
 
-RUN npm install pm2 -g
-RUN pm2 install pm2-logrotate
+RUN npm install yarn -g --force
+RUN yarn global add pm2
+RUN yarn global add pm2-logrotate
 RUN pm2 set pm2-logrotate:max_size 50Mb
-RUN npm install
-RUN npm audit fix
+RUN yarn install
 
 EXPOSE 9097
 EXPOSE 9090

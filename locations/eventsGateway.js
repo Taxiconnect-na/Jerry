@@ -1298,6 +1298,10 @@ io.on("connection", (socket) => {
         //Targeted request (target flags: single, multiple)
         url += "&target=" + req.target + "&request_fp=" + req.request_fp;
       }
+      //? Add the user nature for drivers if any
+      if (req.user_nature !== undefined && req.user_nature !== null) {
+        url += `&user_nature=${req.user_nature}`;
+      }
       //...
       requestAPI(url, function (error, response, body) {
         console.log(error, body);

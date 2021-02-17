@@ -290,6 +290,7 @@ function checkUserStatus(
  * @param collectionDrivers_profiles: list of all drivers
  * @param resolve
  * @param req: the requests arguments : user_fp, ride_type, and/or the targeted argument
+ * ! Should contain a user nature: rider or driver
  */
 function getBachRidesHistory(
   req,
@@ -303,22 +304,52 @@ function getBachRidesHistory(
       //Batch request
       if (/past/i.test(req.ride_type)) {
         //Past requests
-        res0({
-          client_id: req.user_fingerprint,
-          "ride_state_vars.isRideCompleted_riderSide": true,
-        });
+        let resolveResponse =
+          req.user_nature === undefined ||
+          req.user_nature === null ||
+          /rider/i.test(req.user_nature)
+            ? {
+                client_id: req.user_fingerprint,
+                "ride_state_vars.isRideCompleted_riderSide": true,
+              }
+            : {
+                taxi_id: req.user_fingerprint,
+                "ride_state_vars.isRideCompleted_riderSide": true,
+              };
+        //...
+        res0(resolveResponse);
       } else if (/scheduled/i.test(req.ride_type)) {
         //Scheduled
-        res0({
-          client_id: req.user_fingerprint,
-          request_type: { $regex: /^scheduled$/, $options: "i" },
-        });
+        let resolveResponse =
+          req.user_nature === undefined ||
+          req.user_nature === null ||
+          /rider/i.test(req.user_nature)
+            ? {
+                client_id: req.user_fingerprint,
+                request_type: { $regex: /^scheduled$/, $options: "i" },
+              }
+            : {
+                taxi_id: req.user_fingerprint,
+                request_type: { $regex: /^scheduled$/, $options: "i" },
+              };
+        //...
+        res0(resolveResponse);
       } else if (/business/i.test(req.ride_type)) {
         //Business
-        res0({
-          client_id: req.user_fingerprint,
-          ride_flag: { $regex: /business/, $options: "i" },
-        });
+        let resolveResponse =
+          req.user_nature === undefined ||
+          req.user_nature === null ||
+          /rider/i.test(req.user_nature)
+            ? {
+                client_id: req.user_fingerprint,
+                ride_flag: { $regex: /business/, $options: "i" },
+              }
+            : {
+                taxi_id: req.user_fingerprint,
+                ride_flag: { $regex: /business/, $options: "i" },
+              };
+        //...
+        res0(resolveResponse);
       } //Invalid data
       else {
         res0(false);
@@ -326,10 +357,20 @@ function getBachRidesHistory(
     } //Targeted request
     else {
       console.log("Targeted request detected!");
-      res0({
-        client_id: req.user_fingerprint,
-        request_fp: req.request_fp,
-      });
+      let resolveResponse =
+        req.user_nature === undefined ||
+        req.user_nature === null ||
+        /rider/i.test(req.user_nature)
+          ? {
+              client_id: req.user_fingerprint,
+              request_fp: req.request_fp,
+            }
+          : {
+              taxi_id: req.user_fingerprint,
+              request_fp: req.request_fp,
+            };
+      //...
+      res0(resolveResponse);
     }
   }).then(
     (result) => {
@@ -1186,11 +1227,9 @@ function getRiders_wallet_summary(
           //...Immediatly reply
           if (avoidCached_data === false) {
             resp = parse(resp);
-            console.log(resp);
             resolve(resp);
           }
         } catch (error) {
-          console.log("here");
           console.log(error);
           //Error - make a fresh request
           new Promise((res) => {
@@ -1307,10 +1346,26 @@ function parseDetailed_walletGetData(
             //? 3. Payment currency
             tmpClean.payment_currency = process.env.PAYMENT_CURRENCY;
             //? 4. Add and resolve the date made and the timestamp
-            let tmpDateCaptured = new Date(transaction.date_captured);
+            let tmpDateHolder = /\,/i.test(transaction.date_captured)
+              ? transaction.date_captured.split(", ")
+              : null;
+            let datElementHolder =
+              tmpDateHolder !== null ? tmpDateHolder[0].split("-") : null;
+            let validDate =
+              tmpDateHolder !== null
+                ? `${datElementHolder[2]}-${datElementHolder[1]}-${datElementHolder[0]}T${tmpDateHolder[1]}:00.000Z`
+                : transaction.date_captured;
+
+            let tmpDateCaptured = new Date(new String(validDate)); //! Avoid invalid date formats
             tmpClean.date_made = `${tmpDateCaptured.getDay()}/${
               tmpDateCaptured.getMonth() + 1
             }/${tmpDateCaptured.getFullYear()} ${tmpDateCaptured.getHours()}:${tmpDateCaptured.getMinutes()}`;
+            try {
+              tmpClean.rawDate_made = tmpDateCaptured.toISOString(); //! Save the ISO date captured.
+            } catch (error) {
+              console.log(error);
+              tmpClean.rawDate_made = transaction.date_requestedRaw;
+            }
             tmpClean.timestamp = tmpDateCaptured.getTime();
             //? 5. Add the transaction nature
             tmpClean.transaction_nature = transaction.transaction_nature;
@@ -1370,7 +1425,11 @@ function parseDetailed_walletGetData(
                       res(false);
                     }
                   });
-              } else if (/topup/i.test(tmpClean.transaction_nature)) {
+              } else if (
+                /(topup|weeklyPaidDriverAutomatic|commissionTCSubtracted)/i.test(
+                  tmpClean.transaction_nature
+                )
+              ) {
                 //TOpups
                 //? DONE FOR TOPUPS
                 res(tmpClean);
@@ -1394,7 +1453,6 @@ function parseDetailed_walletGetData(
     Promise.all(batchPromiser).then(
       (cleansedData) => {
         try {
-          console.log(cleansedData);
           //? Clean the falses
           cleansedData = cleansedData.filter((transaction) => {
             return (
@@ -1462,7 +1520,7 @@ function execGet_ridersDrivers_walletSummary(
     let filterReceived = {
       recipient_fp: requestObj.user_fingerprint,
       transaction_nature: {
-        $regex: /(sentToFriend|paidDriver|sentToDriver)/,
+        $regex: /(sentToFriend|paidDriver|sentToDriver|weeklyPaidDriverAutomatic|commissionTCSubtracted)/,
         $options: "i",
       },
     };
@@ -1483,7 +1541,15 @@ function execGet_ridersDrivers_walletSummary(
           };
           //? Find the total of all the received transactions
           resultTransactionsReceived.map((transaction) => {
-            receivedDataShot.total += parseFloat(transaction.amount);
+            //! Add all except the TaxiConnect commission
+            if (
+              !/commissionTCSubtracted/i.test(transaction.transaction_nature)
+            ) {
+              receivedDataShot.total += parseFloat(transaction.amount);
+            } //! Substract the commission
+            else {
+              receivedDataShot.total -= parseFloat(transaction.amount);
+            }
             //Save he record
             receivedDataShot.transactions_data.push(transaction);
           });
@@ -1638,6 +1704,8 @@ function execGet_ridersDrivers_walletSummary(
                                   payment_method: paidRequests.payment_method,
                                   driverData: driverData,
                                   date_captured: dateRequest,
+                                  date_requestedRaw:
+                                    paidRequests.date_requested,
                                 });
                               } //Cash - only save transaction data
                               else {
@@ -1647,6 +1715,8 @@ function execGet_ridersDrivers_walletSummary(
                                   payment_method: paidRequests.payment_method,
                                   driverData: driverData,
                                   date_captured: dateRequest,
+                                  date_requestedRaw:
+                                    paidRequests.date_requested,
                                 });
                               }
                               //...
@@ -1822,6 +1892,8 @@ function execGet_ridersDrivers_walletSummary(
                                   payment_method: paidRequests.payment_method,
                                   driverData: driverData,
                                   date_captured: dateRequest,
+                                  date_requestedRaw:
+                                    paidRequests.date_requested,
                                 });
                               } //Cash - only save transaction data
                               else {
@@ -1831,6 +1903,8 @@ function execGet_ridersDrivers_walletSummary(
                                   payment_method: paidRequests.payment_method,
                                   driverData: driverData,
                                   date_captured: dateRequest,
+                                  date_requestedRaw:
+                                    paidRequests.date_requested,
                                 });
                               }
                               //...
@@ -1972,6 +2046,342 @@ function execGet_ridersDrivers_walletSummary(
       res({ total: 0, transactions_data: null });
     }
   );
+}
+/**
+ * @func computeDriver_walletDeepInsights
+ * Responsible for getting deep insights about the driver's wallet about all the payments during each week
+ * of every year and a clear look on the total commission of TaxiConnect for each week of the year and globally.
+ * ? Consider commissions for CASH or WALLET.
+ * @param walletBasicData: the basic wallet data coming straight from the wallet history fetcher.
+ * @param redisKey: the unique redis key where to cache the wallet data.
+ * @param avoidCached_data: whether to return cached data first or perform a fresh computation (true or false).
+ * ! Note that "avoidCached_data", when true, you should also set the same for the "walletBasicData" API to have consistent data.
+ * @param resolve
+ */
+function computeDriver_walletDeepInsights(
+  walletBasicData,
+  redisKey,
+  avoidCached_data,
+  resolve
+) {
+  redisGet(redisKey)
+    .then(
+      (resp) => {
+        if (resp !== null && avoidCached_data == false) {
+          //Send cached data
+          try {
+            //Rehydrate cached data
+            new Promise((resNewData) => {
+              execGet_driversDeepInsights_fromWalletData(
+                walletBasicData,
+                redisKey,
+                resNewData
+              );
+            }).then(
+              () => {},
+              () => {}
+            );
+            //-------
+
+            resp = parse(resp);
+            resolve(resp);
+          } catch (error) {
+            //Something's wrong perform a fresh computation
+            console.log(error);
+            new Promise((resNewData) => {
+              execGet_driversDeepInsights_fromWalletData(
+                walletBasicData,
+                redisKey,
+                resNewData
+              );
+            })
+              .then(
+                (result) => {
+                  resolve(result);
+                },
+                (error) => {
+                  console.log(error);
+                  resolve({
+                    header: null,
+                    weeks_view: null,
+                    response: "error",
+                  });
+                }
+              )
+              .catch((error) => {
+                console.log(error);
+                resolve({
+                  header: null,
+                  weeks_view: null,
+                  response: "error",
+                });
+              });
+          }
+        } //? Send freshly computed data
+        else {
+          new Promise((resNewData) => {
+            execGet_driversDeepInsights_fromWalletData(
+              walletBasicData,
+              redisKey,
+              resNewData
+            );
+          })
+            .then(
+              (result) => {
+                resolve(result);
+              },
+              (error) => {
+                console.log(error);
+                resolve({
+                  header: null,
+                  weeks_view: null,
+                  response: "error",
+                });
+              }
+            )
+            .catch((error) => {
+              console.log(error);
+              resolve({
+                header: null,
+                weeks_view: null,
+                response: "error",
+              });
+            });
+        }
+      },
+      (error) => {
+        //Something's wrong perform a fresh computation
+        console.log(error);
+        new Promise((resNewData) => {
+          execGet_driversDeepInsights_fromWalletData(
+            walletBasicData,
+            redisKey,
+            resNewData
+          );
+        })
+          .then(
+            (result) => {
+              resolve(result);
+            },
+            (error) => {
+              console.log(error);
+              resolve({
+                header: null,
+                weeks_view: null,
+                response: "error",
+              });
+            }
+          )
+          .catch((error) => {
+            console.log(error);
+            resolve({
+              header: null,
+              weeks_view: null,
+              response: "error",
+            });
+          });
+      }
+    )
+    .catch((error) => {
+      //Something's wrong perform a fresh computation
+      console.log(error);
+      new Promise((resNewData) => {
+        execGet_driversDeepInsights_fromWalletData(
+          walletBasicData,
+          redisKey,
+          resNewData
+        );
+      })
+        .then(
+          (result) => {
+            resolve(result);
+          },
+          (error) => {
+            console.log(error);
+            resolve({
+              header: null,
+              weeks_view: null,
+              response: "error",
+            });
+          }
+        )
+        .catch((error) => {
+          console.log(error);
+          resolve({
+            header: null,
+            weeks_view: null,
+            response: "error",
+          });
+        });
+    });
+}
+
+/**
+ * @func getWeekNumber
+ * Responsible for getting the week number for any specific date.
+ * @param d: the date object
+ */
+function getWeekNumber(d) {
+  // Copy date so don't modify original
+  d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  // Set to nearest Thursday: current date + 4 - current day number
+  // Make Sunday's day number 7
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+  // Get first day of year
+  var yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  // Calculate full weeks to nearest Thursday
+  var weekNo = Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
+  // Return array of year and week number
+  return [d.getUTCFullYear(), weekNo];
+}
+
+/**
+ * @func execGet_driversDeepInsights_fromWalletData
+ * Responsible for actively executing the computation on the driver's basic wallet to get more insights from them.
+ * @param walletBasicData: the basic wallet data coming straight from the wallet history fetcher.
+ * @param redisKey: the unique redis key where to cache the wallet data.
+ * @param resolve
+ * ? WEEK OBJECT TEMPLATE
+ * {
+ *  week_number: number,
+ *  day_name: (monday...),
+ *  total_rides: number,
+ *  total_deliveries: number,
+ *  total_earning: number (Without comission removal),
+ *  taxiconnect_commission: number,
+ *  earning_due_to_driver: number
+ *  daily_earning: {
+ *    monday: number,
+ *    tuesday: number,
+ *    wednesday: number,
+ *    thursday: number,
+ *    friday: number,
+ *    saturday: number,
+ *    sunday: number
+ *  },
+ *  scheduled_payment_date: date
+ * }
+ * ? GLOBAL HEADER OBJECT
+ * {
+ *  remaining_commission: number,
+ *  scheduled_payment_date: date
+ * }
+ * ? GENERAL OBJECT STRUCTURE
+ * {
+ *  header: GLOBAL HEADER OBJ
+ *  weeks_view: WEEK OBJ TEMMPLATE
+ * }
+ */
+function execGet_driversDeepInsights_fromWalletData(
+  walletBasicData,
+  redisKey,
+  resolve
+) {
+  if (
+    walletBasicData.transactions_data !== null &&
+    walletBasicData.transactions_data !== undefined &&
+    walletBasicData.transactions_data.length > 0
+  ) {
+    let parentPromises = walletBasicData.transactions_data.map(
+      (transaction) => {
+        return new Promise((resCompute) => {
+          //? *. Do a bulk computation, without specifying week specific data for new
+          let templateOne = {
+            week_number: null,
+            year_number: null,
+            day_name: null,
+            earning_amount: null, //Specific for this transaction
+            total_rides: null, //Specific for this transaction
+            total_deliveries: null, //Specific for this transaction
+            taxiconnect_commission: null,
+            earning_due_to_driver: null,
+            driver_weekly_payout: null, //The money paid to the driver.
+            transaction_nature: null,
+            date_made: null,
+          };
+          //----
+          //? Save the transaction nature and the date made
+          templateOne.transaction_nature = transaction.transaction_nature;
+          templateOne.date_made = transaction.rawDate_made;
+          //? ------------
+          //1. Get the week number and year number
+          let weekYearDetails = getWeekNumber(
+            new Date(transaction.rawDate_made)
+          );
+          templateOne.week_number = weekYearDetails[1];
+          templateOne.year_number = weekYearDetails[0];
+          //2. Get the day name (3 letters)
+          templateOne.day_name = new Date(transaction.rawDate_made)
+            .toString()
+            .split(" ")[0];
+          //! 3. Set the eearning for the day (WE TAKE COMMISSION ON EVERYTHING EXCEPT 'commission' and 'weekly')
+          templateOne.earning_amount = !/(commissionTCSubtracted|weeklyPaidDriverAutomatic)/i.test(
+            transaction.transaction_nature
+          )
+            ? parseFloat(transaction.amount)
+            : 0;
+          //4. Set the ride/delivery - ONLLY for ride/delivery transactions
+          templateOne.total_rides = /ride/i.test(transaction.transaction_nature)
+            ? 1
+            : 0;
+          templateOne.total_deliveries = /delivery/i.test(
+            transaction.transaction_nature
+          )
+            ? 1
+            : 0;
+          //! 5. Set the commission amount if the proper transaction nature is detectedd
+          templateOne.taxiconnect_commission = /commissionTCSubtracted/i.test(
+            transaction.transaction_nature
+          )
+            ? transaction.amount
+            : 0;
+          //! 6. Set the weekly payment if the proper transaction nature is detectedd
+          templateOne.driver_weekly_payout = /weeklyPaidDriverAutomatic/i.test(
+            transaction.transaction_nature
+          )
+            ? transaction.amount
+            : 0;
+
+          //! 7. Compute the earning due to the driver
+          templateOne.earning_due_to_driver =
+            templateOne.earning_amount -
+            templateOne.earning_amount * process.env.TAXICONNECT_COMMISSION;
+
+          //DONE
+          resCompute(templateOne);
+        });
+      }
+    );
+    //....
+    Promise.all(parentPromises)
+      .then(
+        (resultBulkCompute) => {
+          console.log(resultBulkCompute);
+        },
+        (error) => {
+          console.log(error);
+          resolve({
+            header: null,
+            weeks_view: null,
+            response: "error",
+          });
+        }
+      )
+      .catch((error) => {
+        console.log(error);
+        resolve({
+          header: null,
+          weeks_view: null,
+          response: "error",
+        });
+      });
+  } //No transactions
+  else {
+    resolve({
+      header: null,
+      weeks_view: null,
+    });
+  }
 }
 
 /**
@@ -2572,6 +2982,10 @@ clientMongo.connect(function (err) {
         specialChars: false,
         alphabets: false,
       });
+      //!DEBUG - for iOS testers to use
+      //otp = 66743;
+      //!--------------_Remove after
+
       //1. Generate and SMS the OTP
       new Promise((res0) => {
         let message =
@@ -3290,8 +3704,8 @@ clientMongo.connect(function (err) {
 
   /**
    * COMPUTE WALLET SUMMARY FOR RIDERS
-   * Responsible for computing the wallet summary (total and details) for the riders.
-   * Supports 2 modes: total (will only return the current total wallet balance) or detailed (will return the total amount and the list of all wallet transactions)
+   * ? Responsible for computing the wallet summary (total and detailed) for the riders.
+   * ! Supports 2 modes: total (will only return the current total wallet balance) or detailed (will return the total amount and the list of all wallet transactions)
    */
   app.get("/getRiders_walletInfos", function (req, res) {
     resolveDate();
@@ -3366,6 +3780,176 @@ clientMongo.connect(function (err) {
       );
     } //Invalid parameters
     else {
+      let regModeLimiter = new RegExp(req.mode, "i"); //Limit data to total balance (total) or total balance+details (detailed)
+      res.send(
+        regModeLimiter.test("detailed")
+          ? {
+              total: 0,
+              transactions_data: null,
+              response: "error",
+              tag: "invalid_parameters",
+            }
+          : { total: 0, response: "error", tag: "invalid_parameters" }
+      );
+    }
+  });
+
+  /**
+   * COMPUTE THE DETAILED WALLET SUMMARY FOR THE DRIVERS
+   * ? Responsible for computing the wallet summary (total and detailed) for the drivers.
+   */
+  app.get("/getDrivers_walletInfosDeep", function (req, res) {
+    resolveDate();
+    let params = urlParser.parse(req.url, true);
+    req = params.query;
+    console.log(req);
+
+    if (req.user_fingerprint !== undefined && req.user_fingerprint !== null) {
+      let regModeLimiter = new RegExp(req.mode, "i"); //Limit data to total balance (total) or total balance+details (detailed)
+
+      new Promise((resCompute) => {
+        let url =
+          process.env.LOCAL_URL +
+          ":" +
+          process.env.ACCOUNTS_SERVICE_PORT +
+          "/getRiders_walletInfos?user_fingerprint=" +
+          req.user_fingerprint +
+          "&mode=detailed&userType=driver";
+
+        requestAPI(url, function (error, response, body) {
+          if (error === null) {
+            try {
+              body = JSON.parse(body);
+              if (
+                body.transactions_data !== null &&
+                body.transactions_data !== undefined &&
+                body.transactions_data.length > 0
+              ) {
+                //? Has some transaction data
+                resCompute(body);
+              } //! No transaction data - return current value
+              else {
+                resCompute(
+                  regModeLimiter.test("detailed")
+                    ? {
+                        total: 0,
+                        transactions_data: null,
+                        response: "error",
+                        tag: "invalid_parameters",
+                      }
+                    : { total: 0, response: "error", tag: "invalid_parameters" }
+                );
+              }
+            } catch (error) {
+              resCompute(
+                regModeLimiter.test("detailed")
+                  ? {
+                      total: 0,
+                      transactions_data: null,
+                      response: "error",
+                      tag: "invalid_parameters",
+                    }
+                  : { total: 0, response: "error", tag: "invalid_parameters" }
+              );
+            }
+          } else {
+            resCompute(
+              regModeLimiter.test("detailed")
+                ? {
+                    total: 0,
+                    transactions_data: null,
+                    response: "error",
+                    tag: "invalid_parameters",
+                  }
+                : { total: 0, response: "error", tag: "invalid_parameters" }
+            );
+          }
+        });
+      })
+        .then(
+          (resultWalletdata) => {
+            res.send(resultWalletdata);
+            //? Final data
+            new Promise((resGetDeepInsights) => {
+              let redisKey = `${req.user_fingerprint}-deepWalletData-driver`;
+              //?computeDriver_walletDeepInsights(walletBasicData, redisKey, avoidCached_data?, resolve)
+              computeDriver_walletDeepInsights(
+                resultWalletdata,
+                redisKey,
+                req.avoidCached_data !== undefined &&
+                  req.avoidCached_data !== null
+                  ? req.avoidCached_data
+                  : false,
+                resGetDeepInsights
+              );
+            })
+              .then(
+                (resultInsights) => {
+                  console.log(result);
+                  res.send(resultInsights);
+                },
+                (error) => {
+                  console.log(error);
+                  res.send(
+                    regModeLimiter.test("detailed")
+                      ? {
+                          total: 0,
+                          transactions_data: null,
+                          response: "error",
+                          tag: "invalid_parameters",
+                        }
+                      : {
+                          total: 0,
+                          response: "error",
+                          tag: "invalid_parameters",
+                        }
+                  );
+                }
+              )
+              .catch((error) => {
+                console.log(error);
+                res.send(
+                  regModeLimiter.test("detailed")
+                    ? {
+                        total: 0,
+                        transactions_data: null,
+                        response: "error",
+                        tag: "invalid_parameters",
+                      }
+                    : { total: 0, response: "error", tag: "invalid_parameters" }
+                );
+              });
+          },
+          (error) => {
+            console.log(error);
+            res.send(
+              regModeLimiter.test("detailed")
+                ? {
+                    total: 0,
+                    transactions_data: null,
+                    response: "error",
+                    tag: "invalid_parameters",
+                  }
+                : { total: 0, response: "error", tag: "invalid_parameters" }
+            );
+          }
+        )
+        .catch((error) => {
+          console.log(error);
+          res.send(
+            regModeLimiter.test("detailed")
+              ? {
+                  total: 0,
+                  transactions_data: null,
+                  response: "error",
+                  tag: "invalid_parameters",
+                }
+              : { total: 0, response: "error", tag: "invalid_parameters" }
+          );
+        });
+    } //Invalid params
+    else {
+      let regModeLimiter = new RegExp(req.mode, "i"); //Limit data to total balance (total) or total balance+details (detailed)
       res.send(
         regModeLimiter.test("detailed")
           ? {
@@ -3381,8 +3965,8 @@ clientMongo.connect(function (err) {
 
   /**
    * MODIFY PASSENGERS PROFILE DETAILS
-   * Responsible for updating ANY information related to the passengers profile.
-   * Informations that can be updated: name, surname, picture, email, phone number, gender.
+   * ? Responsible for updating ANY information related to the passengers profile.
+   * ? Informations that can be updated: name, surname, picture, email, phone number, gender.
    */
   app.post("/updateRiders_profileInfos", function (req, res) {
     resolveDate();
