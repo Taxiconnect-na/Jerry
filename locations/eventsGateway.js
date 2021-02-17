@@ -963,6 +963,51 @@ io.on("connection", (socket) => {
 
   /**
    * ACCOUNTS SERVICE, port 9696
+   * Route: getDrivers_walletInfosDeep
+   * event: getDrivers_walletInfosDeep_io
+   * Responsible for computing the wallet deep summary for the drivers
+   */
+  socket.on("getDrivers_walletInfosDeep_io", function (req) {
+    console.log(req);
+    if (req.user_fingerprint !== undefined && req.user_fingerprint !== null) {
+      let url =
+        process.env.LOCAL_URL +
+        ":" +
+        process.env.ACCOUNTS_SERVICE_PORT +
+        "/getDrivers_walletInfosDeep?user_fingerprint=" +
+        req.user_fingerprint;
+
+      requestAPI(url, function (error, response, body) {
+        if (error === null) {
+          try {
+            body = JSON.parse(body);
+            socket.emit("getDrivers_walletInfosDeep_io-response", body);
+          } catch (error) {
+            socket.emit("getDrivers_walletInfosDeep_io-response", {
+              header: null,
+              weeks_view: null,
+              response: "error",
+            });
+          }
+        } else {
+          socket.emit("getDrivers_walletInfosDeep_io-response", {
+            header: null,
+            weeks_view: null,
+            response: "error",
+          });
+        }
+      });
+    } else {
+      socket.emit("getRiders_walletInfos_io-response", {
+        header: null,
+        weeks_view: null,
+        response: "error",
+      });
+    }
+  });
+
+  /**
+   * ACCOUNTS SERVICE, port 9696
    * Route: computeDaily_amountMadeSoFar
    * event: computeDaily_amountMadeSoFar_io
    * Responsible for getting the daily amount made so far by the driver for exactly all the completed requests.

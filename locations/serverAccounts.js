@@ -4185,6 +4185,11 @@ clientMongo.connect(function (err) {
           req.user_fingerprint +
           "&mode=detailed&userType=driver";
 
+        //Add caching strategy if any
+        if (req.avoidCached_data !== undefined) {
+          url += "&avoidCached_data=" + avoidCached_data;
+        }
+
         requestAPI(url, function (error, response, body) {
           if (error === null) {
             try {
