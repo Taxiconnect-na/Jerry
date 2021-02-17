@@ -2978,6 +2978,9 @@ clientMongo.connect(function (err) {
     "passengers_profiles"
   ); //Hold all the passengers profiles.
   const collectionGlobalEvents = dbMongo.collection("global_events"); //Hold all the random events that happened somewhere.
+  const collectionWalletTransactions_logs = dbMongo.collection(
+    "wallet_transactions_logs"
+  ); //Hold the latest information about the riders topups
   //-------------
   const bodyParser = require("body-parser");
   app
@@ -3102,7 +3105,48 @@ clientMongo.connect(function (err) {
             );
           } else if (/^driver$/i.test(req.user_nature)) {
             //Driver
-            //Rider
+            //! Update the payment cycle starting point if not set yet
+            new Promise((resPaymentCycle) => {
+              //!Check if a reference point exists - if not set one to NOW
+              //! Annotation string: startingPoint_forFreshPayouts
+              collectionWalletTransactions_logs
+                .find({
+                  flag_annotation: {
+                    $regex: /startingPoint_forFreshPayouts/,
+                    $options: "i",
+                  },
+                  user_fingerprint: req.user_fingerprint,
+                })
+                .toArray(function (err, referenceData) {
+                  if (err) {
+                    resPaymentCycle(false);
+                  }
+                  //...
+                  if (
+                    referenceData !== undefined &&
+                    referenceData.length > 0 &&
+                    referenceData[0].date_captured !== undefined
+                  ) {
+                    resPaymentCycle(true);
+                  } //No annotation yet - create one
+                  else {
+                    collectionWalletTransactions_logs.insertOne(
+                      {
+                        flag_annotation: "startingPoint_forFreshPayouts",
+                        user_fingerprint: req.user_fingerprint,
+                        date_captured: chaineDateUTC,
+                      },
+                      function (err, reslt) {
+                        resPaymentCycle(true);
+                      }
+                    );
+                  }
+                });
+            }).then(
+              () => {},
+              () => {}
+            );
+            //...
             collectionDrivers_profiles.updateOne(
               { driver_fingerprint: req.user_fingerprint },
               {

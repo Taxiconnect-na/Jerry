@@ -2053,6 +2053,8 @@ function execGet_ridersDrivers_walletSummary(
  * of every year and a clear look on the total commission of TaxiConnect for each week of the year and globally.
  * ? Consider commissions for CASH or WALLET.
  * @param walletBasicData: the basic wallet data coming straight from the wallet history fetcher.
+ * @param collectionWalletTransactions_logs: all the funds transactions done in the system.
+ * @param driver_fingerprint: the driver's fingerprint
  * @param redisKey: the unique redis key where to cache the wallet data.
  * @param avoidCached_data: whether to return cached data first or perform a fresh computation (true or false).
  * ! Note that "avoidCached_data", when true, you should also set the same for the "walletBasicData" API to have consistent data.
@@ -2060,6 +2062,8 @@ function execGet_ridersDrivers_walletSummary(
  */
 function computeDriver_walletDeepInsights(
   walletBasicData,
+  collectionWalletTransactions_logs,
+  driver_fingerprint,
   redisKey,
   avoidCached_data,
   resolve
@@ -2074,6 +2078,8 @@ function computeDriver_walletDeepInsights(
             new Promise((resNewData) => {
               execGet_driversDeepInsights_fromWalletData(
                 walletBasicData,
+                collectionWalletTransactions_logs,
+                driver_fingerprint,
                 redisKey,
                 resNewData
               );
@@ -2082,7 +2088,7 @@ function computeDriver_walletDeepInsights(
               () => {}
             );
             //-------
-
+            console.log("FOUND CACHED DATA");
             resp = parse(resp);
             resolve(resp);
           } catch (error) {
@@ -2091,6 +2097,8 @@ function computeDriver_walletDeepInsights(
             new Promise((resNewData) => {
               execGet_driversDeepInsights_fromWalletData(
                 walletBasicData,
+                collectionWalletTransactions_logs,
+                driver_fingerprint,
                 redisKey,
                 resNewData
               );
@@ -2122,6 +2130,8 @@ function computeDriver_walletDeepInsights(
           new Promise((resNewData) => {
             execGet_driversDeepInsights_fromWalletData(
               walletBasicData,
+              collectionWalletTransactions_logs,
+              driver_fingerprint,
               redisKey,
               resNewData
             );
@@ -2155,6 +2165,8 @@ function computeDriver_walletDeepInsights(
         new Promise((resNewData) => {
           execGet_driversDeepInsights_fromWalletData(
             walletBasicData,
+            collectionWalletTransactions_logs,
+            driver_fingerprint,
             redisKey,
             resNewData
           );
@@ -2188,6 +2200,8 @@ function computeDriver_walletDeepInsights(
       new Promise((resNewData) => {
         execGet_driversDeepInsights_fromWalletData(
           walletBasicData,
+          collectionWalletTransactions_logs,
+          driver_fingerprint,
           redisKey,
           resNewData
         );
@@ -2239,6 +2253,8 @@ function getWeekNumber(d) {
  * @func execGet_driversDeepInsights_fromWalletData
  * Responsible for actively executing the computation on the driver's basic wallet to get more insights from them.
  * @param walletBasicData: the basic wallet data coming straight from the wallet history fetcher.
+ * @param collectionWalletTransactions_logs: hold all the transactions list
+ * @param driver_fingerprint: the driver's fingerprint
  * @param redisKey: the unique redis key where to cache the wallet data.
  * @param resolve
  * ? WEEK OBJECT TEMPLATE
@@ -2274,6 +2290,8 @@ function getWeekNumber(d) {
  */
 function execGet_driversDeepInsights_fromWalletData(
   walletBasicData,
+  collectionWalletTransactions_logs,
+  driver_fingerprint,
   redisKey,
   resolve
 ) {
@@ -2356,7 +2374,358 @@ function execGet_driversDeepInsights_fromWalletData(
     Promise.all(parentPromises)
       .then(
         (resultBulkCompute) => {
-          console.log(resultBulkCompute);
+          if (
+            resultBulkCompute !== undefined &&
+            resultBulkCompute !== null &&
+            resultBulkCompute.length > 0
+          ) {
+            let _GLOBAL_OBJECT = {
+              header: {
+                remaining_commission: 0,
+                remaining_due_to_driver: 0,
+                currency: null,
+                scheduled_payment_date: null,
+              },
+              weeks_view: [],
+              recordHolder: {}, //! Responsible for holding a record map, to quickly check if the object for a specific week was already generated.
+            };
+
+            let parentPromises2 = resultBulkCompute.map((weekData, index) => {
+              return new Promise((resComputePack) => {
+                //? FORM THE WEEK VIEW - GLOBAL FOR THE WEEK NUMBER
+                //Only regenerate new object if new week detected
+                if (
+                  _GLOBAL_OBJECT.recordHolder[`${weekData.week_number}`] !==
+                    undefined &&
+                  _GLOBAL_OBJECT.recordHolder[`${weekData.week_number}`] !==
+                    null &&
+                  _GLOBAL_OBJECT.recordHolder[`${weekData.week_number}`]
+                    .year === weekData.year_number &&
+                  _GLOBAL_OBJECT.recordHolder[`${weekData.week_number}`]
+                    .week === weekData.week_number
+                ) {
+                  //Week obj already generated - JUST Update
+                  let savedRecordOBJ =
+                    _GLOBAL_OBJECT.weeks_view[
+                      _GLOBAL_OBJECT.recordHolder[`${weekData.week_number}`]
+                        .index
+                    ];
+                  savedRecordOBJ.total_earning += weekData.earning_amount;
+                  savedRecordOBJ.total_rides += weekData.total_rides;
+                  savedRecordOBJ.total_deliveries += weekData.total_deliveries;
+                  savedRecordOBJ.total_taxiconnect_commission +=
+                    weekData.taxiconnect_commission;
+                  savedRecordOBJ.total_earning_due_to_driver +=
+                    weekData.earning_due_to_driver;
+                  //Update the correct day of the week
+                  let dayNameIndex = /^mon/i.test(weekData.day_name)
+                    ? "monday"
+                    : /^tu/i.test(weekData.day_name)
+                    ? "tuesday"
+                    : /^wed/i.test(weekData.day_name)
+                    ? "wednesday"
+                    : /^thu/i.test(weekData.day_name)
+                    ? "thursday"
+                    : /^fri/i.test(weekData.day_name)
+                    ? "friday"
+                    : /^sat/i.test(weekData.day_name)
+                    ? "saturday"
+                    : "sunday";
+                  //.....
+                  savedRecordOBJ.daily_earning[dayNameIndex].requests +=
+                    weekData.total_rides + weekData.total_deliveries;
+                  savedRecordOBJ.daily_earning[dayNameIndex].earning +=
+                    weekData.earning_amount;
+                  //! DONE - UPDATE SAVED OBJECT
+                  _GLOBAL_OBJECT.weeks_view[
+                    _GLOBAL_OBJECT.recordHolder[`${weekData.week_number}`].index
+                  ] = savedRecordOBJ;
+                  //...
+                  resComputePack(true);
+                } //No obj generated yet - create a fresh one
+                else {
+                  let weekTemplate = {
+                    id: index + 1,
+                    week_number: weekData.week_number,
+                    year_number: weekData.year_number,
+                    total_earning: weekData.earning_amount, //Without commission removal
+                    total_rides: weekData.total_rides,
+                    total_deliveries: weekData.total_deliveries,
+                    total_taxiconnect_commission:
+                      weekData.taxiconnect_commission,
+                    total_earning_due_to_driver: weekData.earning_due_to_driver, //With comission removal
+                    driver_weekly_payout: weekData.driver_weekly_payout,
+                    scheduled_payment_date: null, //! VERY IMPORTANT - for information
+                    daily_earning: {
+                      monday: {
+                        requests: /^mon/i.test(weekData.day_name)
+                          ? weekData.total_rides + weekData.total_deliveries
+                          : 0,
+                        earning: /^mon/i.test(weekData.day_name)
+                          ? weekData.earning_amount
+                          : 0,
+                      },
+                      tuesday: {
+                        requests: /^tu/i.test(weekData.day_name)
+                          ? weekData.total_rides + weekData.total_deliveries
+                          : 0,
+                        earning: /^tu/i.test(weekData.day_name)
+                          ? weekData.earning_amount
+                          : 0,
+                      },
+                      wednesday: {
+                        requests: /^wed/i.test(weekData.day_name)
+                          ? weekData.total_rides + weekData.total_deliveries
+                          : 0,
+                        earning: /^wed/i.test(weekData.day_name)
+                          ? weekData.earning_amount
+                          : 0,
+                      },
+                      thursday: {
+                        requests: /^thu/i.test(weekData.day_name)
+                          ? weekData.total_rides + weekData.total_deliveries
+                          : 0,
+                        earning: /^thu/i.test(weekData.day_name)
+                          ? weekData.earning_amount
+                          : 0,
+                      },
+                      friday: {
+                        requests: /^fri/i.test(weekData.day_name)
+                          ? weekData.total_rides + weekData.total_deliveries
+                          : 0,
+                        earning: /^fri/i.test(weekData.day_name)
+                          ? weekData.earning_amount
+                          : 0,
+                      },
+                      saturday: {
+                        requests: /^sat/i.test(weekData.day_name)
+                          ? weekData.total_rides + weekData.total_deliveries
+                          : 0,
+                        earning: /^sat/i.test(weekData.day_name)
+                          ? weekData.earning_amount
+                          : 0,
+                      },
+                      sunday: {
+                        requests: /^sun/i.test(weekData.day_name)
+                          ? weekData.total_rides + weekData.total_deliveries
+                          : 0,
+                        earning: /^sun/i.test(weekData.day_name)
+                          ? weekData.earning_amount
+                          : 0,
+                      },
+                    },
+                  };
+                  //...Done initiallizing - SAVE
+                  //! 1. Update the record holder
+                  _GLOBAL_OBJECT.recordHolder[`${weekData.week_number}`] = {
+                    index: index,
+                    year: weekData.year_number, //? Very important - gather based on the years as well
+                    week: weekData.week_number, //? Very important - gather based on the weeks of the years as well
+                  };
+                  //! 2. Update the week view following the index order
+                  _GLOBAL_OBJECT.weeks_view[index] = weekTemplate;
+                  resComputePack(true);
+                }
+              });
+            });
+            //....DOne
+            Promise.all(parentPromises2)
+              .then(
+                (resultGlobalData) => {
+                  if (resultGlobalData.length > 0) {
+                    //Has some data
+                    //Remove empty objects, false, null or undefined
+                    _GLOBAL_OBJECT.weeks_view = _GLOBAL_OBJECT.weeks_view.filter(
+                      (data) =>
+                        Object.keys(data).length > 0 &&
+                        data !== undefined &&
+                        data !== false &&
+                        data !== null
+                    );
+                    //? Compute the global remaining comission for TaxiConnect
+                    let totalEarnings = 0;
+                    let totalDues = 0;
+                    let totalPayouts = 0;
+                    let totalComission = 0;
+                    _GLOBAL_OBJECT.weeks_view.map((weekData) => {
+                      totalEarnings += weekData.total_earning; //Money made
+                      totalDues += weekData.total_earning_due_to_driver; //Money due
+                      totalPayouts += weekData.driver_weekly_payout; //Money already transaferred.
+                      totalComission += weekData.total_taxiconnect_commission; //Comission already transferred to US
+                    });
+                    //...
+                    //! General left comission
+                    _GLOBAL_OBJECT.header.remaining_commission =
+                      totalEarnings - totalDues - totalComission;
+                    //! General left due to driver
+                    _GLOBAL_OBJECT.header.remaining_due_to_driver =
+                      totalDues - totalPayouts;
+                    //! Attatch a currency
+                    _GLOBAL_OBJECT.header.currency =
+                      process.env.PAYMENT_CURRENCY;
+                    //! Attach the NEXT PAYMENT DATE.
+                    new Promise((resFindNexyPayoutDate) => {
+                      resolveDate(); //! Update the date
+                      //? Find the last payout and from there - compute the next one
+                      collectionWalletTransactions_logs
+                        .find({
+                          transaction_nature: {
+                            $regex: /weeklyPaidDriverAutomatic/,
+                            $options: "i",
+                          },
+                          recipient_fp: driver_fingerprint,
+                        })
+                        .toArray(function (err, resultLastPayout) {
+                          if (err) {
+                            resFindNexyPayoutDate(false);
+                          }
+                          //...
+                          if (
+                            resultLastPayout !== undefined &&
+                            resultLastPayout.length > 0 &&
+                            resultLastPayout[0].date_captured !== undefined
+                          ) {
+                            //Found the llast payout date
+                            let lastPayoutDate = new Date(
+                              new Date(
+                                resultLastPayout[0].date_captured
+                              ).getTime() +
+                                process.env.TAXICONNECT_PAYMENT_FREQUENCY *
+                                  24 *
+                                  3600000
+                            );
+                            //....
+                            resFindNexyPayoutDate(lastPayoutDate);
+                          } //? The driver was never paid before
+                          else {
+                            //!Check if a reference point exists - if not set one to NOW
+                            //! Annotation string: startingPoint_forFreshPayouts
+                            collectionWalletTransactions_logs
+                              .find({
+                                flag_annotation: {
+                                  $regex: /startingPoint_forFreshPayouts/,
+                                  $options: "i",
+                                },
+                                user_fingerprint: driver_fingerprint,
+                              })
+                              .toArray(function (err, referenceData) {
+                                if (err) {
+                                  resFindNexyPayoutDate(false);
+                                }
+                                //...
+                                if (
+                                  referenceData !== undefined &&
+                                  referenceData.length > 0 &&
+                                  referenceData[0].date_captured !== undefined
+                                ) {
+                                  //Found an existing annotation - use the date as starting point
+                                  let lastPayoutDate = new Date(
+                                    new Date(
+                                      referenceData[0].date_captured
+                                    ).getTime() +
+                                      process.env
+                                        .TAXICONNECT_PAYMENT_FREQUENCY *
+                                        24 *
+                                        3600000
+                                  );
+                                  //..
+                                  resFindNexyPayoutDate(lastPayoutDate);
+                                } //No annotation yet - create one
+                                else {
+                                  collectionWalletTransactions_logs.insertOne(
+                                    {
+                                      flag_annotation:
+                                        "startingPoint_forFreshPayouts",
+                                      user_fingerprint: driver_fingerprint,
+                                      date_captured: chaineDateUTC,
+                                    },
+                                    function (err, reslt) {
+                                      let lastPayoutDate = new Date(
+                                        new Date(chaineDateUTC).getTime() +
+                                          process.env
+                                            .TAXICONNECT_PAYMENT_FREQUENCY *
+                                            24 *
+                                            3600000
+                                      );
+                                      //..
+                                      resFindNexyPayoutDate(lastPayoutDate);
+                                    }
+                                  );
+                                }
+                              });
+                          }
+                        });
+                    })
+                      .then(
+                        (resultPayoutDate) => {
+                          if (resultPayoutDate !== false) {
+                            //? Update the next payout date var
+                            _GLOBAL_OBJECT.header.scheduled_payment_date = resultPayoutDate;
+                            //! Cache data
+                            client.set(
+                              redisKey,
+                              stringify(_GLOBAL_OBJECT),
+                              redis.print
+                            );
+                            resolve(_GLOBAL_OBJECT);
+                          } //Couldn't find a payout date
+                          else {
+                            resolve({
+                              header: null,
+                              weeks_view: null,
+                              response: "error",
+                            });
+                          }
+                        },
+                        (error) => {
+                          console.log(error);
+                          resolve({
+                            header: null,
+                            weeks_view: null,
+                            response: "error",
+                          });
+                        }
+                      )
+                      .catch((error) => {
+                        console.log(error);
+                        resolve({
+                          header: null,
+                          weeks_view: null,
+                          response: "error",
+                        });
+                      });
+                  } //No data
+                  else {
+                    resolve({
+                      header: null,
+                      weeks_view: null,
+                    });
+                  }
+                },
+                (error) => {
+                  console.log(error);
+                  resolve({
+                    header: null,
+                    weeks_view: null,
+                    response: "error",
+                  });
+                }
+              )
+              .catch((error) => {
+                console.log(error);
+                resolve({
+                  header: null,
+                  weeks_view: null,
+                  response: "error",
+                });
+              });
+          } //Empty records
+          else {
+            resolve({
+              header: null,
+              weeks_view: null,
+            });
+          }
         },
         (error) => {
           console.log(error);
@@ -3868,13 +4237,14 @@ clientMongo.connect(function (err) {
       })
         .then(
           (resultWalletdata) => {
-            res.send(resultWalletdata);
             //? Final data
             new Promise((resGetDeepInsights) => {
               let redisKey = `${req.user_fingerprint}-deepWalletData-driver`;
               //?computeDriver_walletDeepInsights(walletBasicData, redisKey, avoidCached_data?, resolve)
               computeDriver_walletDeepInsights(
                 resultWalletdata,
+                collectionWalletTransactions_logs,
+                req.user_fingerprint,
                 redisKey,
                 req.avoidCached_data !== undefined &&
                   req.avoidCached_data !== null
@@ -3885,81 +4255,59 @@ clientMongo.connect(function (err) {
             })
               .then(
                 (resultInsights) => {
-                  console.log(result);
-                  res.send(resultInsights);
+                  //? Remove the record holder
+                  res.send(
+                    resultInsights.header !== undefined &&
+                      resultInsights.header !== null
+                      ? {
+                          header: resultInsights.header,
+                          weeks_view: resultInsights.weeks_view,
+                        }
+                      : resultInsights
+                  );
                 },
                 (error) => {
                   console.log(error);
-                  res.send(
-                    regModeLimiter.test("detailed")
-                      ? {
-                          total: 0,
-                          transactions_data: null,
-                          response: "error",
-                          tag: "invalid_parameters",
-                        }
-                      : {
-                          total: 0,
-                          response: "error",
-                          tag: "invalid_parameters",
-                        }
-                  );
+                  res.send({
+                    header: null,
+                    weeks_view: null,
+                    response: "error",
+                  });
                 }
               )
               .catch((error) => {
                 console.log(error);
-                res.send(
-                  regModeLimiter.test("detailed")
-                    ? {
-                        total: 0,
-                        transactions_data: null,
-                        response: "error",
-                        tag: "invalid_parameters",
-                      }
-                    : { total: 0, response: "error", tag: "invalid_parameters" }
-                );
+                res.send({
+                  header: null,
+                  weeks_view: null,
+                  response: "error",
+                });
               });
           },
           (error) => {
             console.log(error);
-            res.send(
-              regModeLimiter.test("detailed")
-                ? {
-                    total: 0,
-                    transactions_data: null,
-                    response: "error",
-                    tag: "invalid_parameters",
-                  }
-                : { total: 0, response: "error", tag: "invalid_parameters" }
-            );
+            res.send({
+              header: null,
+              weeks_view: null,
+              response: "error",
+            });
           }
         )
         .catch((error) => {
           console.log(error);
-          res.send(
-            regModeLimiter.test("detailed")
-              ? {
-                  total: 0,
-                  transactions_data: null,
-                  response: "error",
-                  tag: "invalid_parameters",
-                }
-              : { total: 0, response: "error", tag: "invalid_parameters" }
-          );
+          res.send({
+            header: null,
+            weeks_view: null,
+            response: "error",
+          });
         });
     } //Invalid params
     else {
-      let regModeLimiter = new RegExp(req.mode, "i"); //Limit data to total balance (total) or total balance+details (detailed)
-      res.send(
-        regModeLimiter.test("detailed")
-          ? {
-              total: 0,
-              transactions_data: null,
-              response: "error",
-              tag: "invalid_parameters",
-            }
-          : { total: 0, response: "error", tag: "invalid_parameters" }
-      );
+      res.send({
+        header: null,
+        weeks_view: null,
+        response: "error",
+      });
     }
   });
 
