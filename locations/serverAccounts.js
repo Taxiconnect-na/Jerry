@@ -1961,20 +1961,30 @@ function execGet_ridersDrivers_walletSummary(
                     );
                   } //No paid requests yet - send the current total found
                   else {
-                    res({
-                      total:
-                        detailsData.topedupAmount +
-                        receivedTransactionsData.total -
-                        detailsData.paid_totalAmount,
-                      transactions_data:
-                        receivedTransactionsData.transactions_data !== null &&
-                        receivedTransactionsData.transactions_data !== undefined
-                          ? [
-                              ...detailsData.transactions_data,
-                              ...receivedTransactionsData.transactions_data,
-                            ]
-                          : detailsData.transactions_data,
-                    });
+                    try {
+                      res({
+                        total:
+                          detailsData.topedupAmount +
+                          receivedTransactionsData.total -
+                          detailsData.paid_totalAmount,
+                        transactions_data:
+                          receivedTransactionsData.transactions_data !== null &&
+                          receivedTransactionsData.transactions_data !==
+                            undefined
+                            ? detailsData.transactions_data !== undefined &&
+                              detailsData.transactions_data !== null
+                              ? [
+                                  ...detailsData.transactions_data,
+                                  ...receivedTransactionsData.transactions_data,
+                                ]
+                              : receivedTransactionsData.transactions_data
+                            : detailsData.transactions_data,
+                      });
+                    } catch (error) {
+                      console.log(error);
+                      //Done
+                      res({ total: 0, transactions_data: null, flag: "error" });
+                    }
                   }
                 });
             }
@@ -4260,6 +4270,17 @@ clientMongo.connect(function (err) {
             })
               .then(
                 (resultInsights) => {
+                  //! Sort the weeks from the biggest week and year to the smallest
+                  resultInsights.weeks_view =
+                    resultInsights.weeks_view !== null &&
+                    resultInsights.weeks_view !== undefined
+                      ? resultInsights.weeks_view.sort((a, b) =>
+                          a.year_number < b.year_number &&
+                          a.week_number < b.year_number
+                            ? -1
+                            : 1
+                        )
+                      : resultInsights.weeks_view;
                   //? Remove the record holder
                   res.send(
                     resultInsights.header !== undefined &&
