@@ -409,10 +409,13 @@ function saveLogForTopupsSuccess(
 ) {
   resolveDate();
   let tmpDate = new Date();
+  let amountRecomputed =
+    (amount * process.env.DPO_GATEWAY_CHARGES_PERCENTAGE) / 100; //! VERY IMPORTANT - REMOVE DPO DEDUCTIONS
   //...
   let dataBundle = {
     user_fingerprint: user_fp,
-    amount: amount,
+    initial_paid_amount: amount,
+    amount: Math.floor((amountRecomputed + Number.EPSILON) * 100) / 100,
     payment_currency: payment_currency,
     transaction_nature: "topup",
     transactionToken: transactionToken,
