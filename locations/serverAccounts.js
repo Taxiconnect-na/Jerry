@@ -2473,9 +2473,14 @@ function execGet_driversDeepInsights_fromWalletData(
                   savedRecordOBJ.total_taxiconnect_commission +=
                     weekData.taxiconnect_commission;
                   savedRecordOBJ.total_earning_due_to_driver +=
-                    weekData.earning_due_to_driver;
+                    Math.floor(
+                      (weekData.earning_due_to_driver + Number.EPSILON) * 100
+                    ) / 100;
                   savedRecordOBJ.total_earning_due_to_driver_cash +=
-                    weekData.earning_due_to_driver_CASH;
+                    Math.floor(
+                      (weekData.earning_due_to_driver_CASH + Number.EPSILON) *
+                        100
+                    ) / 100;
                   //Update the correct day of the week
                   let dayNameIndex = /^mon/i.test(weekData.day_name)
                     ? "monday"
@@ -2513,9 +2518,15 @@ function execGet_driversDeepInsights_fromWalletData(
                     total_deliveries: weekData.total_deliveries,
                     total_taxiconnect_commission:
                       weekData.taxiconnect_commission,
-                    total_earning_due_to_driver: weekData.earning_due_to_driver, //With comission removal
+                    total_earning_due_to_driver:
+                      Math.floor(
+                        (weekData.earning_due_to_driver + Number.EPSILON) * 100
+                      ) / 100, //With comission removal
                     total_earning_due_to_driver_cash:
-                      weekData.earning_due_to_driver_CASH, //For cash
+                      Math.floor(
+                        (weekData.earning_due_to_driver_CASH + Number.EPSILON) *
+                          100
+                      ) / 100, //For cash
                     driver_weekly_payout: weekData.driver_weekly_payout,
                     scheduled_payment_date: null, //! VERY IMPORTANT - for information
                     daily_earning: {
@@ -2622,10 +2633,18 @@ function execGet_driversDeepInsights_fromWalletData(
                     //...
                     //! General left comission
                     _GLOBAL_OBJECT.header.remaining_commission =
-                      totalEarnings - totalDues - totalComission;
+                      Math.ceil(
+                        (totalEarnings -
+                          totalDues -
+                          totalComission +
+                          Number.EPSILON) *
+                          100
+                      ) / 100;
                     //! General left due to driver
                     _GLOBAL_OBJECT.header.remaining_due_to_driver =
-                      totalDues_wallet - totalPayouts;
+                      Math.floor(
+                        (totalDues_wallet - totalPayouts + Number.EPSILON) * 100
+                      ) / 100;
                     //! Attatch a currency
                     _GLOBAL_OBJECT.header.currency =
                       process.env.PAYMENT_CURRENCY;
