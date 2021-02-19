@@ -3436,9 +3436,6 @@ clientMongo.connect(function (err) {
         specialChars: false,
         alphabets: false,
       });
-      //!DEBUG - for iOS testers to use
-      //otp = 66743;
-      //!--------------_Remove after
 
       //1. Generate and SMS the OTP
       new Promise((res0) => {

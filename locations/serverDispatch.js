@@ -1388,13 +1388,15 @@ function confirmDropoff_fromRider_side(
  * @param collectionRidesDeliveryData: list of all the rides/delivery requests
  * @param collection_cancelledRidesDeliveryData: list of all the cancelledd rides/delivery requests.
  * @param requestBundle_data: object containing the request fp and the rider's fp
+ * @param additionalData: contains additional data like the flag and so on.
  * Responsible for cancelling requests for riders and all the related processes.
  */
 function cancelRider_request(
   requestBundle_data,
   collectionRidesDeliveryData,
   collection_cancelledRidesDeliveryData,
-  resolve
+  resolve,
+  additionalData
 ) {
   resolveDate();
   //Get the request first, if empty - error (very strange), if got something - migrate to the cancelled collection
@@ -1415,6 +1417,8 @@ function cancelRider_request(
         //Found something
         //Add the deleted date
         requestData[0].date_deleted = new Date(chaineDateUTC);
+        //Add any additional data
+        requestData[0].additionalData = additionalData;
         //Save in the cancelled collection
         collection_cancelledRidesDeliveryData.insertOne(
           requestData[0],
@@ -2256,13 +2260,18 @@ clientMongo.connect(function (err) {
       req.request_fp !== undefined &&
       req.request_fp !== null
     ) {
+      //? Add a flag if provided: the flag can be used to know who cancelled the request, if not provided, - it's the rider
+      let additionalData = {
+        flag: req.flag !== undefined && req.flag !== null ? req.flag : null,
+      };
       //...
       new Promise((res0) => {
         cancelRider_request(
           req,
           collectionRidesDeliveryData,
           collection_cancelledRidesDeliveryData,
-          res0
+          res0,
+          additionalData
         );
       }).then(
         (result) => {
