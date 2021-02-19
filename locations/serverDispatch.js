@@ -734,14 +734,14 @@ function parseRequestData(inputData, resolve) {
  * @param collectionDrivers_profiles: drivers profiles collection
  * connect type (connectMe/connectUS).
  * Responsible for sending notifications to drivers and a staged manner:
- * * Closest first (1 driver)
+ * ? Closest first (1 driver)
  * after 1min30'' of not accepting
- * * increase the radius (3 drivers)
+ * ? increase the radius (3 drivers)
  * after 1 min of not accepting
- * * increase the radius (5 drivers)
+ * ? increase the radius (5 drivers)
  * after 1 min of not accepting
- * * increase the radius (all the rest)
- * * after 20 min of not accepting - AUTO cancel request
+ * ? increase the radius (all the rest)
+ * ? after 20 min of not accepting - AUTO cancel request
  */
 function intitiateStagedDispatch(
   snapshotTripInfos,
@@ -871,7 +871,7 @@ function intitiateStagedDispatch(
  * the allowed_drivers_see list of the request so that they can access the trip from their app if not
  * yet accepted.
  * ? Closest first (1 driver)
- * after 1min30'' of not accepting
+ * after 1min00'' of not accepting
  * ? increase the radius (3 drivers)
  * after 1 min of not accepting
  * ? increase the radius (5 drivers)
@@ -1006,9 +1006,9 @@ function sendStagedNotificationsDrivers(
             //CONCLUDE THE REQUEST
             resolve({ response: "successfully_dispatched" });
             //Proceed with the staged dispatch
-            //1. Wait for 1 min 30'' - in ms
+            //1. Wait for 1 min 00'' - in ms
             console.log(
-              "Waiting for 1min 30. ---ticket: " + snapshotTripInfos.request_fp
+              "Waiting for 1min 00. ---ticket: " + snapshotTripInfos.request_fp
             );
             setTimeout(() => {
               new Promise((res2) => {
@@ -1177,7 +1177,7 @@ function sendStagedNotificationsDrivers(
                       });
                   }, 1 * 60 * 1000);
                 });
-            }, 90 * 1000);
+            }, 60 * 1000);
           } //End the staged dispatch - done
           else {
             resolve({ response: "successfully_dispatched" });

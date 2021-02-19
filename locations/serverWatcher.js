@@ -28,7 +28,6 @@ const moment = require("moment");
 
 //CRUCIAL VARIABLES
 var _INTERVAL_PERSISTER_LATE_REQUESTS = null; //Will hold the interval for checking whether or not a requests has takne too long and should be cancelled.
-var _INTERVAL_PERSISTER_LATE_REQUESTS_TIME = 1000; //Will hold the timeout for the late requests watchdog - default: 5 sec
 //...
 
 const clientMongo = new MongoClient(process.env.URL_MONGODB, {
@@ -365,7 +364,7 @@ clientMongo.connect(function (err) {
       .catch((error) => {
         console.log(error);
       });
-  }, _INTERVAL_PERSISTER_LATE_REQUESTS_TIME);
+  }, process.env.INTERVAL_PERSISTER_MAIN_WATCHER_MILLISECONDS);
 });
 
 server.listen(process.env.WATCHER_SERVICE_PORT);

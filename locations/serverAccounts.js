@@ -2499,7 +2499,9 @@ function execGet_driversDeepInsights_fromWalletData(
                   savedRecordOBJ.daily_earning[dayNameIndex].requests +=
                     weekData.total_rides + weekData.total_deliveries;
                   savedRecordOBJ.daily_earning[dayNameIndex].earning +=
-                    weekData.earning_amount;
+                    Math.floor(
+                      (weekData.earning_amount + Number.EPSILON) * 100
+                    ) / 100;
                   //! DONE - UPDATE SAVED OBJECT
                   _GLOBAL_OBJECT.weeks_view[
                     _GLOBAL_OBJECT.recordHolder[`${weekData.week_number}`].index
