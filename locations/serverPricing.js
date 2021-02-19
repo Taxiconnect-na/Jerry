@@ -1684,8 +1684,18 @@ clientMongo.connect(function (err) {
     .get("/", function (req, res) {
       res.send("Pricing services up");
     })
-    .use(bodyParser.json())
-    .use(bodyParser.urlencoded({ extended: true }));
+    .use(
+      bodyParser.json({
+        limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
+        extended: true,
+      })
+    )
+    .use(
+      bodyParser.urlencoded({
+        limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
+        extended: true,
+      })
+    );
 
   //-------------------------------
 

@@ -4,6 +4,8 @@ services:
   redis-server:
     image: redis:latest
     restart: always
+    deploy:
+      replicas: 5
 
   server_beta_v2:
     depends_on:

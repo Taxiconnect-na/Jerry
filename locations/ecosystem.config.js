@@ -1,9 +1,9 @@
 module.exports = {
   apps: [
     {
-      name: "eventsGateway.js",
+      name: "Events gateway",
       script: "eventsGateway.js",
-      instances: 3,
+      instances: 5,
       autorestart: true,
       watch: false,
       max_memory_restart: "1G",
@@ -15,9 +15,9 @@ module.exports = {
       },
     },
     {
-      name: "serverAccounts.js",
+      name: "Account service",
       script: "serverAccounts.js",
-      instances: 3,
+      instances: 4,
       autorestart: true,
       watch: false,
       max_memory_restart: "1G",
@@ -29,9 +29,9 @@ module.exports = {
       },
     },
     {
-      name: "serverDispatch.js",
+      name: "Dispatch service",
       script: "serverDispatch.js",
-      instances: 3,
+      instances: 4,
       autorestart: true,
       watch: false,
       max_memory_restart: "1G",
@@ -43,9 +43,9 @@ module.exports = {
       },
     },
     {
-      name: "serverMap.js",
+      name: "Map service",
       script: "serverMap.js",
-      instances: 3,
+      instances: 5,
       autorestart: true,
       watch: false,
       max_memory_restart: "1G",
@@ -57,7 +57,7 @@ module.exports = {
       },
     },
     {
-      name: "serverPricing.js",
+      name: "Pricing service",
       script: "serverPricing.js",
       instances: 3,
       autorestart: true,
@@ -71,9 +71,9 @@ module.exports = {
       },
     },
     {
-      name: "serverSearch.js",
+      name: "Search service",
       script: "serverSearch.js",
-      instances: 3,
+      instances: 5,
       autorestart: true,
       watch: false,
       max_memory_restart: "1G",
@@ -85,8 +85,22 @@ module.exports = {
       },
     },
     {
-      name: "serverPayments.js",
+      name: "Payment service",
       script: "serverPayments.js",
+      instances: 5,
+      autorestart: true,
+      watch: false,
+      max_memory_restart: "1G",
+      env: {
+        NODE_ENV: "development",
+      },
+      env_production: {
+        NODE_ENV: "production",
+      },
+    },
+    {
+      name: "Watcher service",
+      script: "serverWatcher.js",
       instances: 3,
       autorestart: true,
       watch: false,

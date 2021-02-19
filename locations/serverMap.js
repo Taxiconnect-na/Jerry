@@ -2988,8 +2988,18 @@ clientMongo.connect(function (err) {
     .get("/", function (req, res) {
       res.send("Map services up");
     })
-    .use(bodyParser.json())
-    .use(bodyParser.urlencoded({ extended: true }));
+    .use(
+      bodyParser.json({
+        limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
+        extended: true,
+      })
+    )
+    .use(
+      bodyParser.urlencoded({
+        limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
+        extended: true,
+      })
+    );
 
   //Ride tracking for customers to see real-time drivers positions
   /*socket.on("trackdriverroute", function (coordsData) {

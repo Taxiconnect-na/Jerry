@@ -45,9 +45,18 @@ app
   })
   .use(express.static(path.join(__dirname, "assets")));
 app
-  .use(bodyParser.json({ limit: "100mb", extended: true }))
-  .use(bodyParser.urlencoded({ limit: "100mb", extended: true }))
-  .use(bodyParser.urlencoded({ extended: true }))
+  .use(
+    bodyParser.json({
+      limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
+      extended: true,
+    })
+  )
+  .use(
+    bodyParser.urlencoded({
+      limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
+      extended: true,
+    })
+  )
   .use(express.static(__dirname + process.env.RIDERS_PROFILE_PICTURES_PATH)) //Riders profiles
   .use(express.static(__dirname + process.env.DRIVERS_PROFILE_PICTURES_PATH)); //Drivers profiles.
 

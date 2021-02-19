@@ -524,8 +524,19 @@ clientMongo.connect(function (err) {
   //Cached restore OR initialized
   const bodyParser = require("body-parser");
 
-  app.use(bodyParser.json());
-  app.use(bodyParser.urlencoded({ extended: true }));
+  app
+    .use(
+      bodyParser.json({
+        limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
+        extended: true,
+      })
+    )
+    .use(
+      bodyParser.urlencoded({
+        limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
+        extended: true,
+      })
+    );
 
   //1. SEARCH API
   app.get("/getSearchedLocations", function (request, res) {
