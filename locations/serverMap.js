@@ -1184,7 +1184,7 @@ function execDriver_requests_parsing(
       isRideCompleted_driverSide: null,
       ride_mode: null, //ride or delivery
       request_type: null, //immediate or scheduled
-      delivery_infos: null, //If not delivery - null
+      pickup_note: null, //If not set - null
       rider_infos: null,
     },
     origin_destination_infos: {
@@ -1241,11 +1241,12 @@ function execDriver_requests_parsing(
         request.ride_state_vars.isRideCompleted_driverSide;
       //...
       parsedRequestsArray.ride_basic_infos.rider_infos = request.rider_infos;
-      parsedRequestsArray.ride_basic_infos.delivery_infos = /delivery/i.test(
-        request.ride_mode
-      )
-        ? request.delivery_infos
-        : null;
+      parsedRequestsArray.ride_basic_infos.pickup_note =
+        /false/i.test(request.pickup_location_infos.pickup_note) ||
+        request.pickup_location_infos.pickup_note === "false" ||
+        request.pickup_location_infos.pickup_note === false
+          ? null
+          : request.pickup_location_infos.pickup_note;
       //3. Compute the ETA to passenger
       new Promise((res0) => {
         getRouteInfosDestination(

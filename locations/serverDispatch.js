@@ -157,7 +157,6 @@ function parseRequestData(inputData, resolve) {
     })
       .then(
         (result) => {
-          console.log("here res");
           parsedData.request_fp = result; //Update with the fingerprint;
         },
         (error) => {
@@ -361,7 +360,6 @@ function parseRequestData(inputData, resolve) {
                     let cleanInputData = { destinationData: null };
                     //Resolve destination infos
                     new Promise((res5) => {
-                      console.log("Inside");
                       cleanInputData.destinationData = [];
                       let tmpSchemaArray = new Array(
                         parseInt(inputData.passengersNo)

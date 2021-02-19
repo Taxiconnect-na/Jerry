@@ -2319,6 +2319,7 @@ function execGet_driversDeepInsights_fromWalletData(
             year_number: null,
             day_name: null,
             earning_amount: null, //Specific for this transaction
+            earning_amount_wallet: null, //Earnings only from the wallet
             total_rides: null, //Specific for this transaction
             total_deliveries: null, //Specific for this transaction
             taxiconnect_commission: null,
@@ -2348,6 +2349,18 @@ function execGet_driversDeepInsights_fromWalletData(
           )
             ? parseFloat(transaction.amount)
             : 0;
+          //! 3i. Set the earning only from wallet methods
+          templateOne.earning_amount_wallet = !/(commissionTCSubtracted|weeklyPaidDriverAutomatic)/i.test(
+            transaction.transaction_nature
+          )
+            ? /(paidDriver|sentToDriver)/i.test(transaction.transaction_nature)
+              ? parseFloat(transaction.amount)
+              : /(RIDE|DELIVERY)/i.test(transaction.transaction_nature) &&
+                /WALLET/i.test(transaction.payment_method)
+              ? parseFloat(transaction.amount)
+              : 0
+            : 0;
+
           //4. Set the ride/delivery - ONLLY for ride/delivery transactions
           templateOne.total_rides = /ride/i.test(transaction.transaction_nature)
             ? 1
@@ -2370,13 +2383,45 @@ function execGet_driversDeepInsights_fromWalletData(
             ? transaction.amount
             : 0;
 
-          //! 7. Compute the earning due to the driver
-          templateOne.earning_due_to_driver =
-            templateOne.earning_amount -
-            templateOne.earning_amount * process.env.TAXICONNECT_COMMISSION;
-
-          //DONE
-          resCompute(templateOne);
+          //! 7. Compute the earning due to the driver - CONSIDER ONLY CASH PAYMENTS
+          if (
+            /(RIDE|DELIVERY)/i.test(transaction.transaction_nature) &&
+            /WALLET/i.test(transaction.payment_method)
+          ) {
+            templateOne.earning_due_to_driver_CASH = 0;
+            //!ONLY WALLET
+            templateOne.earning_due_to_driver =
+              templateOne.earning_amount -
+              templateOne.earning_amount * process.env.TAXICONNECT_COMMISSION;
+            //DONE
+            resCompute(templateOne);
+          } else if (
+            /(RIDE|DELIVERY)/i.test(transaction.transaction_nature) &&
+            /CASH/i.test(transaction.payment_method)
+          ) {
+            //!ONLY CASH
+            templateOne.earning_due_to_driver = 0; //Wallet to zero
+            templateOne.earning_due_to_driver_CASH =
+              templateOne.earning_amount -
+              templateOne.earning_amount * process.env.TAXICONNECT_COMMISSION;
+            //DONE
+            resCompute(templateOne);
+          } else if (
+            /(paidDriver|sentToDriver)/i.test(transaction.transaction_nature)
+          ) {
+            templateOne.earning_due_to_driver_CASH = 0;
+            //! WHEN A DRIVER IS PAID
+            templateOne.earning_due_to_driver =
+              templateOne.earning_amount -
+              templateOne.earning_amount * process.env.TAXICONNECT_COMMISSION;
+            //DONE
+            resCompute(templateOne);
+          } else {
+            templateOne.earning_due_to_driver_CASH = 0;
+            templateOne.earning_due_to_driver = 0;
+            //DONE
+            resCompute(templateOne);
+          }
         });
       }
     );
@@ -2420,13 +2465,17 @@ function execGet_driversDeepInsights_fromWalletData(
                       _GLOBAL_OBJECT.recordHolder[`${weekData.week_number}`]
                         .index
                     ];
-                  savedRecordOBJ.total_earning += weekData.earning_amount;
+                  savedRecordOBJ.total_earning += weekData.earning_amount; //Cash and wallet
+                  savedRecordOBJ.total_earning_wallet +=
+                    weekData.earning_amount_wallet; //Only wallet
                   savedRecordOBJ.total_rides += weekData.total_rides;
                   savedRecordOBJ.total_deliveries += weekData.total_deliveries;
                   savedRecordOBJ.total_taxiconnect_commission +=
                     weekData.taxiconnect_commission;
                   savedRecordOBJ.total_earning_due_to_driver +=
                     weekData.earning_due_to_driver;
+                  savedRecordOBJ.total_earning_due_to_driver_cash +=
+                    weekData.earning_due_to_driver_CASH;
                   //Update the correct day of the week
                   let dayNameIndex = /^mon/i.test(weekData.day_name)
                     ? "monday"
@@ -2458,12 +2507,15 @@ function execGet_driversDeepInsights_fromWalletData(
                     id: index + 1,
                     week_number: weekData.week_number,
                     year_number: weekData.year_number,
-                    total_earning: weekData.earning_amount, //Without commission removal
+                    total_earning: weekData.earning_amount, //Cash and wallet included
+                    total_earning_wallet: weekData.earning_amount_wallet, //Without commission removal - wallet amount
                     total_rides: weekData.total_rides,
                     total_deliveries: weekData.total_deliveries,
                     total_taxiconnect_commission:
                       weekData.taxiconnect_commission,
                     total_earning_due_to_driver: weekData.earning_due_to_driver, //With comission removal
+                    total_earning_due_to_driver_cash:
+                      weekData.earning_due_to_driver_CASH, //For cash
                     driver_weekly_payout: weekData.driver_weekly_payout,
                     scheduled_payment_date: null, //! VERY IMPORTANT - for information
                     daily_earning: {
@@ -2523,7 +2575,7 @@ function execGet_driversDeepInsights_fromWalletData(
                           ? weekData.earning_amount
                           : 0,
                       },
-                    },
+                    }, //? Weeekly earning include cash and wallet amounts
                   };
                   //...Done initiallizing - SAVE
                   //! 1. Update the record holder
@@ -2555,11 +2607,15 @@ function execGet_driversDeepInsights_fromWalletData(
                     //? Compute the global remaining comission for TaxiConnect
                     let totalEarnings = 0;
                     let totalDues = 0;
+                    let totalDues_wallet = 0;
                     let totalPayouts = 0;
                     let totalComission = 0;
                     _GLOBAL_OBJECT.weeks_view.map((weekData) => {
                       totalEarnings += weekData.total_earning; //Money made
-                      totalDues += weekData.total_earning_due_to_driver; //Money due
+                      totalDues +=
+                        weekData.total_earning_due_to_driver +
+                        weekData.total_earning_due_to_driver_cash; //Money due - WALLET AND CASH
+                      totalDues_wallet += weekData.total_earning_due_to_driver; //Only dues for the wallet
                       totalPayouts += weekData.driver_weekly_payout; //Money already transaferred.
                       totalComission += weekData.total_taxiconnect_commission; //Comission already transferred to US
                     });
@@ -2569,7 +2625,7 @@ function execGet_driversDeepInsights_fromWalletData(
                       totalEarnings - totalDues - totalComission;
                     //! General left due to driver
                     _GLOBAL_OBJECT.header.remaining_due_to_driver =
-                      totalDues - totalPayouts;
+                      totalDues_wallet - totalPayouts;
                     //! Attatch a currency
                     _GLOBAL_OBJECT.header.currency =
                       process.env.PAYMENT_CURRENCY;
