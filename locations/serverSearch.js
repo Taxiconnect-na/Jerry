@@ -86,18 +86,6 @@ function resolveDate() {
 }
 resolveDate();
 
-//const port = 7005;
-const port = 9091;
-
-//Database connection
-const dbPool = mysql.createPool({
-  connectionLimit: 1000000000,
-  host: "localhost",
-  database: "taxiconnect",
-  user: "root",
-  password: "",
-});
-
 function logObject(obj) {
   console.log(
     inspect(obj, {
@@ -514,95 +502,93 @@ function getLocationList_five(
   );
 }
 
-dbPool.getConnection(function (err, connection) {
-  clientMongo.connect(function (err) {
-    //if (err) throw err;
-    console.log("Connected to Mongodb");
-    const dbMongo = clientMongo.db(process.env.DB_NAME_MONGODDB);
-    const collectionMongoDb = dbMongo.collection("searched_locations_persist");
-    //-------------
-    //Restore searched location cached if any from Mongodb
-    var restoreCache = new Promise((reslv) => {
-      restoreSearchedLocations_cache(reslv, collectionMongoDb);
+clientMongo.connect(function (err) {
+  //if (err) throw err;
+  console.log("Connected to Mongodb");
+  const dbMongo = clientMongo.db(process.env.DB_NAME_MONGODDB);
+  const collectionMongoDb = dbMongo.collection("searched_locations_persist");
+  //-------------
+  //Restore searched location cached if any from Mongodb
+  var restoreCache = new Promise((reslv) => {
+    restoreSearchedLocations_cache(reslv, collectionMongoDb);
+  }).then(
+    (result) => {},
+    (err) => {
+      //Initialize mongodb collection
+      //Persist usual user searches
+      console.log(err);
+      dbMongo.collection("searched_locations_persist");
+    }
+  );
+  //...
+  //Cached restore OR initialized
+  const bodyParser = require("body-parser");
+
+  app.use(bodyParser.json());
+  app.use(bodyParser.urlencoded({ extended: true }));
+
+  //1. SEARCH API
+  app.get("/getSearchedLocations", function (request, res) {
+    resolveDate();
+    //..
+    let params = urlParser.parse(request.url, true);
+    request = params.query;
+    console.log(request);
+    let request0 = null;
+    //Update search timestamp
+    //search_timestamp = dateObject.unix();
+    let search_timestamp = request.query.length;
+    //1. Get the bbox
+    request0 = new Promise((res, rej) => {
+      getCityBbox(request.city, res);
     }).then(
-      (result) => {},
-      (err) => {
-        //Initialize mongodb collection
-        //Persist usual user searches
-        console.log(err);
-        dbMongo.collection("searched_locations_persist");
+      (result) => {
+        let bbox = result;
+        //Get the location
+        new Promise((res, rej) => {
+          let tmpTimestamp = search_timestamp;
+          getLocationList_five(
+            request.query,
+            request.city,
+            request.country,
+            bbox,
+            res,
+            tmpTimestamp,
+            collectionMongoDb
+          );
+        }).then(
+          (result) => {
+            console.log(result);
+            if (
+              parseInt(search_timestamp) != parseInt(result.search_timestamp)
+            ) {
+              //Inconsistent - do not update
+              //console.log('Inconsistent');
+              //res.send(false);
+              res.send(result);
+            } //Consistent - update
+            else {
+              //console.log('Consistent');
+              //logObject(result);
+              //socket.emit("getLocations-response", result);
+              res.send(result);
+            }
+          },
+          (error) => {
+            console.log(error);
+            //socket.emit("getLocations-response", false);
+            res.send(false);
+          }
+        );
+      },
+      (error) => {
+        console.log(error);
+        //socket.emit("getLocations-response", false);
+        res.send(false);
       }
     );
-    //...
-    //Cached restore OR initialized
-    const bodyParser = require("body-parser");
-
-    app.use(bodyParser.json());
-    app.use(bodyParser.urlencoded({ extended: true }));
-
-    //1. SEARCH API
-    app.get("/getSearchedLocations", function (request, res) {
-      resolveDate();
-      //..
-      let params = urlParser.parse(request.url, true);
-      request = params.query;
-      console.log(request);
-      let request0 = null;
-      //Update search timestamp
-      //search_timestamp = dateObject.unix();
-      let search_timestamp = request.query.length;
-      //1. Get the bbox
-      request0 = new Promise((res, rej) => {
-        getCityBbox(request.city, res);
-      }).then(
-        (result) => {
-          let bbox = result;
-          //Get the location
-          new Promise((res, rej) => {
-            let tmpTimestamp = search_timestamp;
-            getLocationList_five(
-              request.query,
-              request.city,
-              request.country,
-              bbox,
-              res,
-              tmpTimestamp,
-              collectionMongoDb
-            );
-          }).then(
-            (result) => {
-              console.log(result);
-              if (
-                parseInt(search_timestamp) != parseInt(result.search_timestamp)
-              ) {
-                //Inconsistent - do not update
-                //console.log('Inconsistent');
-                //res.send(false);
-                res.send(result);
-              } //Consistent - update
-              else {
-                //console.log('Consistent');
-                //logObject(result);
-                //socket.emit("getLocations-response", result);
-                res.send(result);
-              }
-            },
-            (error) => {
-              console.log(error);
-              //socket.emit("getLocations-response", false);
-              res.send(false);
-            }
-          );
-        },
-        (error) => {
-          console.log(error);
-          //socket.emit("getLocations-response", false);
-          res.send(false);
-        }
-      );
-    });
   });
 });
 
-server.listen(port);
+server.listen(process.env.SEARCH_SERVICE_PORT);
 //dash.monitor({server: server});

@@ -4,7 +4,6 @@ var express = require("express");
 const http = require("http");
 const fs = require("fs");
 const geolocationUtlis = require("geolocation-utils");
-const taxiRanksDb = JSON.parse(fs.readFileSync("taxiRanks_points.txt", "utf8"));
 const path = require("path");
 const MongoClient = require("mongodb").MongoClient;
 
@@ -28,7 +27,7 @@ const moment = require("moment");
 
 //CRUCIAL VARIABLES
 var _INTERVAL_PERSISTER_LATE_REQUESTS = null; //Will hold the interval for checking whether or not a requests has takne too long and should be cancelled.
-var _INTERVAL_PERSISTER_LATE_REQUESTS_TIME = 10000; //Will hold the timeout for the late requests watchdog - default: 5 sec
+var _INTERVAL_PERSISTER_LATE_REQUESTS_TIME = 1000; //Will hold the timeout for the late requests watchdog - default: 5 sec
 //...
 
 const clientMongo = new MongoClient(process.env.URL_MONGODB, {
@@ -131,32 +130,37 @@ clientMongo.connect(function (err) {
   //if (err) throw err;
   console.log("[+] Watcher services active.");
   const dbMongo = clientMongo.db(process.env.DB_NAME_MONGODDB);
+  const collectionPassengers_profiles = dbMongo.collection(
+    "passengers_profiles"
+  ); //Hold all the passengers profiles
   const collectionRidesDeliveryData = dbMongo.collection(
     "rides_deliveries_requests"
   ); //Hold all the requests made (rides and deliveries)
-  const collectionRelativeDistances = dbMongo.collection(
-    "relative_distances_riders_drivers"
-  ); //Hold the relative distances between rider and the drivers (online, same city, same country) at any given time
-  const collectionRidersLocation_log = dbMongo.collection(
-    "historical_positioning_logs"
-  ); //Hold all the location updated from the rider
+  const collection_OTP_dispatch_map = dbMongo.collection("OTP_dispatch_map");
   const collectionDrivers_profiles = dbMongo.collection("drivers_profiles"); //Hold all the drivers profiles
+  const collectionGlobalEvents = dbMongo.collection("global_events"); //Hold all the random events that happened somewhere.
+  const collectionWalletTransactions_logs = dbMongo.collection(
+    "wallet_transactions_logs"
+  ); //Hold all the wallet transactions (exlude rides/deliveries records which are in the rides/deliveries collection)
   //-------------
   const bodyParser = require("body-parser");
   app
     .get("/", function (req, res) {
-      res.send("Watcher services up");
+      console.log("Account services up");
     })
-    .use(bodyParser.json())
+    .use(bodyParser.json({ limit: "100mb", extended: true }))
+    .use(bodyParser.urlencoded({ limit: "100mb", extended: true }))
     .use(bodyParser.urlencoded({ extended: true }));
 
   /**
-   * WATCH REQUESTS MADE IN ORDER TO TRGIIGER TIMEOUT WHEN THE REQUESTS
-   * HAVE BEEN THERE FOR EXACTLY 25MIN WITHOUT ACCEPTANCE.
-   * Reference it from the last acceptance time.
+   * ? 1. WATCH REQUESTS MADE IN ORDER TO TRGIIGER TIMEOUT WHEN THE REQUESTS
+   * ? HAVE BEEN THERE FOR EXACTLY 25MIN WITHOUT ACCEPTANCE.
+   * ? Reference it from the last acceptance time.
    */
-  _INTERVAL_PERSISTER_LATE_REQUESTS = setInterval(() => {
-    //console.log("Requests watcher");
+  _INTERVAL_PERSISTER_LATE_REQUESTS = setInterval(function () {
+    resolveDate();
+    //...
+    console.log(`[${chaineDateUTC}] - Watcher loopedi`);
   }, _INTERVAL_PERSISTER_LATE_REQUESTS_TIME);
 });
 
