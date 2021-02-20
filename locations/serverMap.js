@@ -3441,7 +3441,14 @@ clientMongo.connect(function (err) {
               (dData) =>
                 dData.operational_state.accepted_requests_infos
                   .total_passengers_number <=
-                dData.operational_state.default_selected_car.max_passengers + 3
+                  dData.operational_state.default_selected_car.max_passengers +
+                    3 ||
+                dData.operational_state.accepted_requests_infos === undefined ||
+                dData.operational_state.accepted_requests_infos === null ||
+                dData.operational_state.accepted_requests_infos
+                  .total_passengers_number === undefined ||
+                dData.operational_state.accepted_requests_infos
+                  .total_passengers_number === null
             );
             //...
             let mainPromiser = driversProfiles.map((driverData) => {

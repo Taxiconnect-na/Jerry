@@ -921,7 +921,13 @@ function sendStagedNotificationsDrivers(
           (dData) =>
             dData.operational_state.accepted_requests_infos
               .total_passengers_number <=
-            dData.operational_state.default_selected_car.max_passengers + 3
+              dData.operational_state.default_selected_car.max_passengers + 3 ||
+            dData.operational_state.accepted_requests_infos === undefined ||
+            dData.operational_state.accepted_requests_infos === null ||
+            dData.operational_state.accepted_requests_infos
+              .total_passengers_number === undefined ||
+            dData.operational_state.accepted_requests_infos
+              .total_passengers_number === null
         );
 
         //...Register the drivers fp so that thei can see tne requests
@@ -1610,6 +1616,77 @@ function acceptRequest_driver(
                   if (err) {
                     resolve({ response: "unable_to_accept_request_error" });
                   }
+                  //? Update the accepted rides brief list in the driver's profile
+                  new Promise((resUpdateDriverProfile) => {
+                    //Get request infos
+                    collectionRidesDeliveryData
+                      .find({ request_fp: bundleWorkingData.request_fp })
+                      .toArray(function (err, requestPrevData) {
+                        if (err) {
+                          resUpdateDriverProfile(false);
+                        }
+                        //...
+                        if (
+                          requestPrevData.length > 0 &&
+                          requestPrevData[0].request_fp !== undefined &&
+                          requestPrevData[0].request_fp !== null
+                        ) {
+                          //?Get the previous data or initialize it if empty
+                          let prevAcceptedData =
+                            driverData.accepted_requests_infos
+                              .total_passengers_number !== undefined &&
+                            driverData.accepted_requests_infos
+                              .total_passengers_number !== null &&
+                            driverData.accepted_requests_infos
+                              .total_passengers_number !== undefined &&
+                            driverData.accepted_requests_infos
+                              .total_passengers_number !== null
+                              ? driverData.accepted_requests_infos
+                              : {
+                                  total_passengers_number: 0,
+                                  requests_fingerprints: [],
+                                };
+                          //...
+                          //? Update with new request
+                          prevAcceptedData.total_passengers_number += parseInt(
+                            requestPrevData[0].passengers_number
+                          );
+                          prevAcceptedData.requests_fingerprints.push(
+                            requestPrevData[0].request_fp
+                          );
+                          //...
+                          collectionDrivers_profiles.updateOne(
+                            {
+                              driver_fingerprint:
+                                bundleWorkingData.driver_fingerprint,
+                            },
+                            {
+                              $set: {
+                                "operational_state.accepted_requests_infos": prevAcceptedData,
+                                date_updated: chaineDateUTC,
+                              },
+                            },
+                            function (err, reslt) {
+                              if (err) {
+                                resUpdateDriverProfile(false);
+                              }
+                              //...
+                              resUpdateDriverProfile(true);
+                            }
+                          );
+                        } //Strange - no request found
+                        else {
+                          resUpdateDriverProfile(true);
+                        }
+                      });
+                  })
+                    .then(
+                      () => {},
+                      () => {}
+                    )
+                    .catch((error) => {
+                      console.log(error);
+                    });
                   //DONE
                   resolve({ response: "successfully_accepted" });
                 }
@@ -1684,6 +1761,83 @@ function cancelRequest_driver(
             if (err) {
               resolve({ response: "unable_to_cancel_request_error" });
             }
+            //? Update the accepted rides brief list in the driver's profile
+            new Promise((resUpdateDriverProfile) => {
+              //Get request infos
+              collectionRidesDeliveryData
+                .find({ request_fp: bundleWorkingData.request_fp })
+                .toArray(function (err, requestPrevData) {
+                  if (err) {
+                    resUpdateDriverProfile(false);
+                  }
+                  //...
+                  if (
+                    requestPrevData.length > 0 &&
+                    requestPrevData[0].request_fp !== undefined &&
+                    requestPrevData[0].request_fp !== null
+                  ) {
+                    //?Get the previous data or initialize it if empty
+                    let prevAcceptedData =
+                      driverData.accepted_requests_infos
+                        .total_passengers_number !== undefined &&
+                      driverData.accepted_requests_infos
+                        .total_passengers_number !== null &&
+                      driverData.accepted_requests_infos
+                        .total_passengers_number !== undefined &&
+                      driverData.accepted_requests_infos
+                        .total_passengers_number !== null
+                        ? driverData.accepted_requests_infos
+                        : {
+                            total_passengers_number: 0,
+                            requests_fingerprints: [],
+                          };
+                    //...
+                    //? Update with new request - remove current request data
+                    prevAcceptedData.total_passengers_number -= parseInt(
+                      driverData.accepted_requests_infos
+                        .total_passengers_number > 0
+                        ? requestPrevData[0].passengers_number
+                        : 0
+                    ); //! DO not remove if the total number of passengers was zero already.
+                    prevAcceptedData.requests_fingerprints =
+                      prevAcceptedData.requests_fingerprints.length > 0
+                        ? prevAcceptedData.requests_fingerprints.filter(
+                            (fps) => fps !== bundleWorkingData.request_fp
+                          )
+                        : {}; //! Do not filter out the current request_fp if it was already empty.
+                    //...
+                    collectionDrivers_profiles.updateOne(
+                      {
+                        driver_fingerprint:
+                          bundleWorkingData.driver_fingerprint,
+                      },
+                      {
+                        $set: {
+                          "operational_state.accepted_requests_infos": prevAcceptedData,
+                          date_updated: chaineDateUTC,
+                        },
+                      },
+                      function (err, reslt) {
+                        if (err) {
+                          resUpdateDriverProfile(false);
+                        }
+                        //...
+                        resUpdateDriverProfile(true);
+                      }
+                    );
+                  } //Strange - no request found
+                  else {
+                    resUpdateDriverProfile(true);
+                  }
+                });
+            })
+              .then(
+                () => {},
+                () => {}
+              )
+              .catch((error) => {
+                console.log(error);
+              });
             //DONE
             resolve({ response: "successfully_cancelled" });
           }
@@ -1825,6 +1979,83 @@ function confirmDropoffRequest_driver(
             if (err) {
               resolve({ response: "unable_to_confirm_dropoff_request_error" });
             }
+            //? Update the accepted rides brief list in the driver's profile
+            new Promise((resUpdateDriverProfile) => {
+              //Get request infos
+              collectionRidesDeliveryData
+                .find({ request_fp: bundleWorkingData.request_fp })
+                .toArray(function (err, requestPrevData) {
+                  if (err) {
+                    resUpdateDriverProfile(false);
+                  }
+                  //...
+                  if (
+                    requestPrevData.length > 0 &&
+                    requestPrevData[0].request_fp !== undefined &&
+                    requestPrevData[0].request_fp !== null
+                  ) {
+                    //?Get the previous data or initialize it if empty
+                    let prevAcceptedData =
+                      driverData.accepted_requests_infos
+                        .total_passengers_number !== undefined &&
+                      driverData.accepted_requests_infos
+                        .total_passengers_number !== null &&
+                      driverData.accepted_requests_infos
+                        .total_passengers_number !== undefined &&
+                      driverData.accepted_requests_infos
+                        .total_passengers_number !== null
+                        ? driverData.accepted_requests_infos
+                        : {
+                            total_passengers_number: 0,
+                            requests_fingerprints: [],
+                          };
+                    //...
+                    //? Update with new request - remove current request data
+                    prevAcceptedData.total_passengers_number -= parseInt(
+                      driverData.accepted_requests_infos
+                        .total_passengers_number > 0
+                        ? requestPrevData[0].passengers_number
+                        : 0
+                    ); //! DO not remove if the total number of passengers was zero already.
+                    prevAcceptedData.requests_fingerprints =
+                      prevAcceptedData.requests_fingerprints.length > 0
+                        ? prevAcceptedData.requests_fingerprints.filter(
+                            (fps) => fps !== bundleWorkingData.request_fp
+                          )
+                        : {}; //! Do not filter out the current request_fp if it was already empty.
+                    //...
+                    collectionDrivers_profiles.updateOne(
+                      {
+                        driver_fingerprint:
+                          bundleWorkingData.driver_fingerprint,
+                      },
+                      {
+                        $set: {
+                          "operational_state.accepted_requests_infos": prevAcceptedData,
+                          date_updated: chaineDateUTC,
+                        },
+                      },
+                      function (err, reslt) {
+                        if (err) {
+                          resUpdateDriverProfile(false);
+                        }
+                        //...
+                        resUpdateDriverProfile(true);
+                      }
+                    );
+                  } //Strange - no request found
+                  else {
+                    resUpdateDriverProfile(true);
+                  }
+                });
+            })
+              .then(
+                () => {},
+                () => {}
+              )
+              .catch((error) => {
+                console.log(error);
+              });
             //DONE
             resolve({ response: "successfully_confirmed_dropoff" });
           }
