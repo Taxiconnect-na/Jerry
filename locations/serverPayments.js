@@ -410,11 +410,12 @@ function saveLogForTopupsSuccess(
   resolveDate();
   let tmpDate = new Date();
   let amountRecomputed =
-    (amount * process.env.DPO_GATEWAY_CHARGES_PERCENTAGE) / 100; //! VERY IMPORTANT - REMOVE DPO DEDUCTIONS
+    parseFloat(amount) -
+    (parseFloat(amount) * process.env.DPO_GATEWAY_CHARGES_PERCENTAGE) / 100; //! VERY IMPORTANT - REMOVE DPO DEDUCTIONS
   //...
   let dataBundle = {
     user_fingerprint: user_fp,
-    initial_paid_amount: amount,
+    initial_paid_amount: parseFloat(amount),
     amount: Math.floor((amountRecomputed + Number.EPSILON) * 100) / 100,
     payment_currency: payment_currency,
     transaction_nature: "topup",
@@ -546,7 +547,6 @@ function processExecute_paymentCardWallet_topup(
                               result_verifyPaymentDeducted = JSON.parse(
                                 result_verifyPaymentDeducted
                               );
-                              console.log(result_verifyPaymentDeducted);
                               //! ONLY ALLOW: TRANSACTION PAID (000), AUTHORIZED (001), TRANSACTION NOT PAID YET (900), consider the rest as faild charge.
                               if (
                                 /(000|001|900)/i.test(
@@ -572,9 +572,7 @@ function processExecute_paymentCardWallet_topup(
                                 //DONE - SUCCESSFULLY PAID
                                 resolve({
                                   response: "success",
-                                  log_transaction: result_paymentExec,
-                                  log_verify: resultVerify_transaction,
-                                }); //! REMOVE log after
+                                });
                               } //Creddit card charging failed
                               else {
                                 resolve({
@@ -1078,7 +1076,6 @@ clientMongo.connect(function (err) {
       dataBundle.type !== undefined &&
       dataBundle.type !== null
     ) {
-      let dpoFinalObject = []; //! REMOVE IN THE RESPONSE AFTER
       //?PASSED
       //Get user's details
       collectionPassengers_profiles
@@ -1134,13 +1131,11 @@ clientMongo.connect(function (err) {
                 );
               }).then(
                 (reslt) => {
-                  dpoFinalObject.push(reslt); //! REMOVE AFTER
                   //Deduct XML response
                   new Promise((resolve) => {
                     deductXML_responses(reslt, "createToken", resolve);
                   }).then(
                     (result_createTokenDeducted) => {
-                      console.log(result_createTokenDeducted);
                       if (result_createTokenDeducted !== false) {
                         //? Continue the top-up process
                         new Promise((resFollower) => {
@@ -1154,11 +1149,7 @@ clientMongo.connect(function (err) {
                           );
                         }).then(
                           (result_final) => {
-                            res.send({
-                              result_final,
-                              dpoFinalObject,
-                              log_add: result_createTokenDeducted,
-                            }); //!Remove dpoFinal object and remove object bracket form!
+                            res.send(result_final); //!Remove dpoFinal object and remove object bracket form!
                           },
                           (error) => {
                             console.log(error);

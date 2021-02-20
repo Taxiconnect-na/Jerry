@@ -554,6 +554,8 @@ function shrinkDataSchema_forBatchRidesHistory(
               }
               ///.
               if (
+                driverProfile.cars_data !== undefined &&
+                driverProfile.cars_data !== null &&
                 driverProfile.length > 0 &&
                 driverProfile.cars_data.length > 0
               ) {

@@ -4,8 +4,8 @@ services:
   redis-server:
     image: redis:latest
     restart: always
-    deploy:
-      replicas: 5
+    ports:
+      - "6379-6385:6379"
 
   server_beta_v2:
     depends_on:
