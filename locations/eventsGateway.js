@@ -193,15 +193,21 @@ io.on("connection", (socket) => {
             body = JSON.parse(body);
             socket.emit("getPickupLocationNature-response", body);
           } catch (error) {
-            socket.emit("getPickupLocationNature-response", false);
+            socket.emit("getPickupLocationNature-response", {
+              locationType: "PrivateLocation",
+            });
           }
         } else {
-          socket.emit("getPickupLocationNature-response", false);
+          socket.emit("getPickupLocationNature-response", {
+            locationType: "PrivateLocation",
+          });
         }
       });
     } //Invalid params
     else {
-      socket.emit("getPickupLocationNature-response", false);
+      socket.emit("getPickupLocationNature-response", {
+        locationType: "PrivateLocation",
+      });
     }
   });
 
