@@ -1633,6 +1633,7 @@ function acceptRequest_driver(
                         ) {
                           //?Get the previous data or initialize it if empty
                           let prevAcceptedData =
+                            driverData.accepted_requests_infos !== undefined &&
                             driverData.accepted_requests_infos
                               .total_passengers_number !== undefined &&
                             driverData.accepted_requests_infos
@@ -1763,71 +1764,88 @@ function cancelRequest_driver(
             }
             //? Update the accepted rides brief list in the driver's profile
             new Promise((resUpdateDriverProfile) => {
-              //Get request infos
-              collectionRidesDeliveryData
-                .find({ request_fp: bundleWorkingData.request_fp })
-                .toArray(function (err, requestPrevData) {
+              //! Get the driver's details - to fetch the car's fingerprint
+              collectionDrivers_profiles
+                .find({
+                  driver_fingerprint: bundleWorkingData.driver_fingerprint,
+                })
+                .toArray(function (err, driverData) {
                   if (err) {
                     resUpdateDriverProfile(false);
                   }
                   //...
-                  if (
-                    requestPrevData.length > 0 &&
-                    requestPrevData[0].request_fp !== undefined &&
-                    requestPrevData[0].request_fp !== null
-                  ) {
-                    //?Get the previous data or initialize it if empty
-                    let prevAcceptedData =
-                      driverData.accepted_requests_infos
-                        .total_passengers_number !== undefined &&
-                      driverData.accepted_requests_infos
-                        .total_passengers_number !== null &&
-                      driverData.accepted_requests_infos
-                        .total_passengers_number !== undefined &&
-                      driverData.accepted_requests_infos
-                        .total_passengers_number !== null
-                        ? driverData.accepted_requests_infos
-                        : {
-                            total_passengers_number: 0,
-                            requests_fingerprints: [],
-                          };
-                    //...
-                    //? Update with new request - remove current request data
-                    prevAcceptedData.total_passengers_number -= parseInt(
-                      driverData.accepted_requests_infos
-                        .total_passengers_number > 0
-                        ? requestPrevData[0].passengers_number
-                        : 0
-                    ); //! DO not remove if the total number of passengers was zero already.
-                    prevAcceptedData.requests_fingerprints =
-                      prevAcceptedData.requests_fingerprints.length > 0
-                        ? prevAcceptedData.requests_fingerprints.filter(
-                            (fps) => fps !== bundleWorkingData.request_fp
-                          )
-                        : {}; //! Do not filter out the current request_fp if it was already empty.
-                    //...
-                    collectionDrivers_profiles.updateOne(
-                      {
-                        driver_fingerprint:
-                          bundleWorkingData.driver_fingerprint,
-                      },
-                      {
-                        $set: {
-                          "operational_state.accepted_requests_infos": prevAcceptedData,
-                          date_updated: chaineDateUTC,
-                        },
-                      },
-                      function (err, reslt) {
+                  if (driverData.length > 0) {
+                    //Get request infos
+                    collectionRidesDeliveryData
+                      .find({ request_fp: bundleWorkingData.request_fp })
+                      .toArray(function (err, requestPrevData) {
                         if (err) {
                           resUpdateDriverProfile(false);
                         }
                         //...
-                        resUpdateDriverProfile(true);
-                      }
-                    );
-                  } //Strange - no request found
+                        if (
+                          requestPrevData.length > 0 &&
+                          requestPrevData[0].request_fp !== undefined &&
+                          requestPrevData[0].request_fp !== null
+                        ) {
+                          //?Get the previous data or initialize it if empty
+                          let prevAcceptedData =
+                            driverData.accepted_requests_infos !== undefined &&
+                            driverData.accepted_requests_infos
+                              .total_passengers_number !== undefined &&
+                            driverData.accepted_requests_infos
+                              .total_passengers_number !== null &&
+                            driverData.accepted_requests_infos
+                              .total_passengers_number !== undefined &&
+                            driverData.accepted_requests_infos
+                              .total_passengers_number !== null
+                              ? driverData.accepted_requests_infos
+                              : {
+                                  total_passengers_number: 0,
+                                  requests_fingerprints: [],
+                                };
+                          //...
+                          //? Update with new request - remove current request data
+                          prevAcceptedData.total_passengers_number -= parseInt(
+                            driverData.accepted_requests_infos
+                              .total_passengers_number > 0
+                              ? requestPrevData[0].passengers_number
+                              : 0
+                          ); //! DO not remove if the total number of passengers was zero already.
+                          prevAcceptedData.requests_fingerprints =
+                            prevAcceptedData.requests_fingerprints.length > 0
+                              ? prevAcceptedData.requests_fingerprints.filter(
+                                  (fps) => fps !== bundleWorkingData.request_fp
+                                )
+                              : {}; //! Do not filter out the current request_fp if it was already empty.
+                          //...
+                          collectionDrivers_profiles.updateOne(
+                            {
+                              driver_fingerprint:
+                                bundleWorkingData.driver_fingerprint,
+                            },
+                            {
+                              $set: {
+                                "operational_state.accepted_requests_infos": prevAcceptedData,
+                                date_updated: chaineDateUTC,
+                              },
+                            },
+                            function (err, reslt) {
+                              if (err) {
+                                resUpdateDriverProfile(false);
+                              }
+                              //...
+                              resUpdateDriverProfile(true);
+                            }
+                          );
+                        } //Strange - no request found
+                        else {
+                          resUpdateDriverProfile(true);
+                        }
+                      });
+                  } //No driver found
                   else {
-                    resUpdateDriverProfile(true);
+                    resUpdateDriverProfile(false);
                   }
                 });
             })
@@ -1981,71 +1999,88 @@ function confirmDropoffRequest_driver(
             }
             //? Update the accepted rides brief list in the driver's profile
             new Promise((resUpdateDriverProfile) => {
-              //Get request infos
-              collectionRidesDeliveryData
-                .find({ request_fp: bundleWorkingData.request_fp })
-                .toArray(function (err, requestPrevData) {
+              //! Get the driver's details - to fetch the car's fingerprint
+              collectionDrivers_profiles
+                .find({
+                  driver_fingerprint: bundleWorkingData.driver_fingerprint,
+                })
+                .toArray(function (err, driverData) {
                   if (err) {
                     resUpdateDriverProfile(false);
                   }
                   //...
-                  if (
-                    requestPrevData.length > 0 &&
-                    requestPrevData[0].request_fp !== undefined &&
-                    requestPrevData[0].request_fp !== null
-                  ) {
-                    //?Get the previous data or initialize it if empty
-                    let prevAcceptedData =
-                      driverData.accepted_requests_infos
-                        .total_passengers_number !== undefined &&
-                      driverData.accepted_requests_infos
-                        .total_passengers_number !== null &&
-                      driverData.accepted_requests_infos
-                        .total_passengers_number !== undefined &&
-                      driverData.accepted_requests_infos
-                        .total_passengers_number !== null
-                        ? driverData.accepted_requests_infos
-                        : {
-                            total_passengers_number: 0,
-                            requests_fingerprints: [],
-                          };
-                    //...
-                    //? Update with new request - remove current request data
-                    prevAcceptedData.total_passengers_number -= parseInt(
-                      driverData.accepted_requests_infos
-                        .total_passengers_number > 0
-                        ? requestPrevData[0].passengers_number
-                        : 0
-                    ); //! DO not remove if the total number of passengers was zero already.
-                    prevAcceptedData.requests_fingerprints =
-                      prevAcceptedData.requests_fingerprints.length > 0
-                        ? prevAcceptedData.requests_fingerprints.filter(
-                            (fps) => fps !== bundleWorkingData.request_fp
-                          )
-                        : {}; //! Do not filter out the current request_fp if it was already empty.
-                    //...
-                    collectionDrivers_profiles.updateOne(
-                      {
-                        driver_fingerprint:
-                          bundleWorkingData.driver_fingerprint,
-                      },
-                      {
-                        $set: {
-                          "operational_state.accepted_requests_infos": prevAcceptedData,
-                          date_updated: chaineDateUTC,
-                        },
-                      },
-                      function (err, reslt) {
+                  if (driverData.length > 0) {
+                    //Get request infos
+                    collectionRidesDeliveryData
+                      .find({ request_fp: bundleWorkingData.request_fp })
+                      .toArray(function (err, requestPrevData) {
                         if (err) {
                           resUpdateDriverProfile(false);
                         }
                         //...
-                        resUpdateDriverProfile(true);
-                      }
-                    );
-                  } //Strange - no request found
+                        if (
+                          requestPrevData.length > 0 &&
+                          requestPrevData[0].request_fp !== undefined &&
+                          requestPrevData[0].request_fp !== null
+                        ) {
+                          //?Get the previous data or initialize it if empty
+                          let prevAcceptedData =
+                            driverData.accepted_requests_infos !== undefined &&
+                            driverData.accepted_requests_infos
+                              .total_passengers_number !== undefined &&
+                            driverData.accepted_requests_infos
+                              .total_passengers_number !== null &&
+                            driverData.accepted_requests_infos
+                              .total_passengers_number !== undefined &&
+                            driverData.accepted_requests_infos
+                              .total_passengers_number !== null
+                              ? driverData.accepted_requests_infos
+                              : {
+                                  total_passengers_number: 0,
+                                  requests_fingerprints: [],
+                                };
+                          //...
+                          //? Update with new request - remove current request data
+                          prevAcceptedData.total_passengers_number -= parseInt(
+                            driverData.accepted_requests_infos
+                              .total_passengers_number > 0
+                              ? requestPrevData[0].passengers_number
+                              : 0
+                          ); //! DO not remove if the total number of passengers was zero already.
+                          prevAcceptedData.requests_fingerprints =
+                            prevAcceptedData.requests_fingerprints.length > 0
+                              ? prevAcceptedData.requests_fingerprints.filter(
+                                  (fps) => fps !== bundleWorkingData.request_fp
+                                )
+                              : {}; //! Do not filter out the current request_fp if it was already empty.
+                          //...
+                          collectionDrivers_profiles.updateOne(
+                            {
+                              driver_fingerprint:
+                                bundleWorkingData.driver_fingerprint,
+                            },
+                            {
+                              $set: {
+                                "operational_state.accepted_requests_infos": prevAcceptedData,
+                                date_updated: chaineDateUTC,
+                              },
+                            },
+                            function (err, reslt) {
+                              if (err) {
+                                resUpdateDriverProfile(false);
+                              }
+                              //...
+                              resUpdateDriverProfile(true);
+                            }
+                          );
+                        } //Strange - no request found
+                        else {
+                          resUpdateDriverProfile(true);
+                        }
+                      });
+                  } //No driver
                   else {
-                    resUpdateDriverProfile(true);
+                    resUpdateDriverProfile(false);
                   }
                 });
             })
