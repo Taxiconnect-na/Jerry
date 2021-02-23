@@ -3122,6 +3122,7 @@ clientMongo.connect(function (err) {
             //! Update the payment cycle starting point if not set yet
             new Promise((resPaymentCycle) => {
               //!Check if a reference point exists - if not set one to NOW
+              //? For days before wednesday, set to wednesdat and for those after wednesday, set to next week that same day.
               //! Annotation string: startingPoint_forFreshPayouts
               collectionWalletTransactions_logs
                 .find({
@@ -3144,16 +3145,38 @@ clientMongo.connect(function (err) {
                     resPaymentCycle(true);
                   } //No annotation yet - create one
                   else {
-                    collectionWalletTransactions_logs.insertOne(
-                      {
-                        flag_annotation: "startingPoint_forFreshPayouts",
-                        user_fingerprint: req.user_fingerprint,
-                        date_captured: chaineDateUTC,
-                      },
-                      function (err, reslt) {
-                        resPaymentCycle(true);
-                      }
-                    );
+                    let tmpDate = new Date(chaineDateUTC)
+                      .toDateString()
+                      .split(" ")[0];
+                    if (/(mon|tue)/i.test(tmpDate)) {
+                      //For mondays and tuesdays - add 3 days
+                      let tmpNextDate = new Date(
+                        new Date(chaineDateUTC).getTime() + 3 * 24 * 3600 * 1000
+                      ).toISOString();
+                      //...
+                      collectionWalletTransactions_logs.insertOne(
+                        {
+                          flag_annotation: "startingPoint_forFreshPayouts",
+                          user_fingerprint: req.user_fingerprint,
+                          date_captured: tmpNextDate,
+                        },
+                        function (err, reslt) {
+                          resPaymentCycle(true);
+                        }
+                      );
+                    } //After wednesday - OK
+                    else {
+                      collectionWalletTransactions_logs.insertOne(
+                        {
+                          flag_annotation: "startingPoint_forFreshPayouts",
+                          user_fingerprint: req.user_fingerprint,
+                          date_captured: chaineDateUTC,
+                        },
+                        function (err, reslt) {
+                          resPaymentCycle(true);
+                        }
+                      );
+                    }
                   }
                 });
             }).then(
