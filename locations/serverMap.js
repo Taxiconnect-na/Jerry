@@ -3440,12 +3440,13 @@ clientMongo.connect(function (err) {
             //yep
             //Filter the drivers based on their car's maximum capacity (the amount of passengers it can handle)
             //They can receive 3 additional requests on top of the limit of sits in their selected cars.
+            //! Add 30 possible passengers on top of the base passengers limit.
             driversProfiles = driversProfiles.filter(
               (dData) =>
                 dData.operational_state.accepted_requests_infos
                   .total_passengers_number <=
                   dData.operational_state.default_selected_car.max_passengers +
-                    3 ||
+                    30 ||
                 dData.operational_state.accepted_requests_infos === undefined ||
                 dData.operational_state.accepted_requests_infos === null ||
                 dData.operational_state.accepted_requests_infos
