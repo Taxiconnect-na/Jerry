@@ -2400,6 +2400,9 @@ function getRequests_graphPreview_forDrivers(
                   clearance.toUpperCase().trim()
                 ),
               },
+              intentional_request_decline: {
+                $not: { $regex: driver_fingerprint },
+              },
             })
             .toArray(function (err, filteredRequests) {
               if (err) {
