@@ -972,6 +972,7 @@ function sendStagedNotificationsDrivers(
               headings: /RIDE/i.test(snapshotTripInfos.ride_type)
                 ? { en: "New ride request, N$" + snapshotTripInfos.fare }
                 : { en: "New delivery request, N$" + snapshotTripInfos.fare },
+              content_available: true,
               include_player_ids: driversPushNotif_token,
             };
             console.log(message);
@@ -1317,6 +1318,7 @@ function registerAllowedDriversForRidesAndNotify(
               headings: /RIDE/i.test(snapshotTripInfos.ride_type)
                 ? { en: "New ride request, N$" + snapshotTripInfos.fare }
                 : { en: "New delivery request, N$" + snapshotTripInfos.fare },
+              content_available: true,
               include_player_ids: driversSnap.pushNotif_tokens,
             };
             console.log(message);
@@ -2558,6 +2560,9 @@ clientMongo.connect(function (err) {
           res.send({ response: "error_cancelling" });
         }
       );
+    } //Invalid parameters
+    else {
+      res.send({ response: "error_cancelling" });
     }
   });
 

@@ -2165,6 +2165,7 @@ function computeAndCacheRouteDestination(
           passengers_number: null,
           ride_mode: null, //Ride or delivery
           ride_simplified_id: null, //Very useful for sharing/tracking the trip infos
+          request_fp: null, //! VERY IMPORTANT
         },
       }; //Will contain all the additional informations needed
       //Add the driver's basic information (name, profile picture, taxi number-if any, car brand, car image, general rating, plate number, phone number)
@@ -2247,6 +2248,8 @@ function computeAndCacheRouteDestination(
       //Add the simplified id
       additionalInfos.basicTripDetails.ride_simplified_id =
         rideHistory.trip_simplified_id;
+      //! Add the ride fingerprint
+      additionalInfos.basicTripDetails.request_fp = rideHistory.request_fp;
 
       //Get the estimated time TO the destination (from the current's user position)
       new Promise((res4) => {
@@ -2905,7 +2908,7 @@ function updateRelativeDistancesRiderDrivers(
 
 /**
  * @func cleanAndAdjustRelativeDistancesList
- * Responsible for clean the relative distances of drivers and passengers of all false values and
+ * Responsible for cleaning the relative distances of drivers and passengers of all false values and
  * limiting the result number based on the @param list_limit parameter
  * @param list_limit: for limiting the result returned or "all" for all the results (not recommended for mobile responses).
  * @param resolve

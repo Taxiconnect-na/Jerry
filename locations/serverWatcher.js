@@ -251,7 +251,8 @@ function removeOldRequests_madeWithoutBeingAttended(
                                   en:
                                     "Sorry we couldn't find for you an available ride, please try again.",
                                 },
-                                headings: "Unable to find a ride",
+                                headings: { en: "Unable to find a ride" },
+                                content_available: true,
                                 include_player_ids: [
                                   recordData.pushNotif_token,
                                 ],
