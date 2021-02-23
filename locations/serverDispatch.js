@@ -992,7 +992,6 @@ function sendStagedNotificationsDrivers(
       return data.push_notification_token;
     }); //Push notification token
 
-    console.log("REQUEST TICKET " + snapshotTripInfos.request_fp);
     new Promise((res) => {
       //Asnwer
       console.log(
@@ -1768,12 +1767,14 @@ function acceptRequest_driver(
  * @param collectionRidesDeliveryData: list of all the requests made.
  * @param collectionGlobalEvents: hold all the random events that happened somewhere.
  * @param bundleWorkingData: contains the driver_fp and the request_fp.
+ * @param collectionPassengers_profiles: list of all the drivers.
  * @param resolve
  */
 function cancelRequest_driver(
   bundleWorkingData,
   collectionRidesDeliveryData,
   collectionGlobalEvents,
+  collectionPassengers_profiles,
   resolve
 ) {
   resolveDate();
@@ -1896,6 +1897,59 @@ function cancelRequest_driver(
                               resUpdateDriverProfile(true);
                             }
                           );
+
+                          //?Notify the cllient
+                          //Send the push notifications - FOR Passengers
+                          new Promise((resSendNotif) => {
+                            //? Get the rider's details
+                            collectionPassengers_profiles
+                              .find({
+                                user_fingerprint: requestPrevData[0].client_id,
+                              })
+                              .toArray(function (err, ridersDetails) {
+                                if (err) {
+                                  resSendNotif(false);
+                                }
+                                //...
+                                if (
+                                  ridersDetails.length > 0 &&
+                                  ridersDetails[0].user_fingerprint !==
+                                    undefined &&
+                                  ridersDetails[0].pushnotif_token !== null &&
+                                  ridersDetails[0].pushnotif_token !==
+                                    undefined &&
+                                  ridersDetails[0].pushnotif_token.userId !==
+                                    undefined
+                                ) {
+                                  let message = {
+                                    app_id:
+                                      "05ebefef-e2b4-48e3-a154-9a00285e394b",
+                                    android_channel_id:
+                                      "6e8929ad-a744-48b4-b7ef-5e42b3a5eedf", //Ride or delivery channel
+                                    priority: 10,
+                                    contents: {
+                                      en:
+                                        "Your previous driver has cancelled the trip, we're looking for a new one.",
+                                    },
+                                    headings: { en: "Finding you a ride" },
+                                    content_available: true,
+                                    include_player_ids: [
+                                      String(
+                                        ridersDetails[0].pushnotif_token.userId
+                                      ),
+                                    ],
+                                  };
+                                  //Send
+                                  sendPushUPNotification(message);
+                                  resSendNotif(false);
+                                } else {
+                                  resSendNotif(false);
+                                }
+                              });
+                          }).then(
+                            () => {},
+                            () => {}
+                          );
                         } //Strange - no request found
                         else {
                           resUpdateDriverProfile(true);
@@ -2001,12 +2055,14 @@ function confirmPickupRequest_driver(
  * @param collectionRidesDeliveryData: list of all the requests made.
  * @param collectionGlobalEvents: hold all the random events that happened somewhere.
  * @param bundleWorkingData: contains the driver_fp and the request_fp.
+ * @param collectionPassengers_profiles: list of all the passengers.
  * @param resolve
  */
 function confirmDropoffRequest_driver(
   bundleWorkingData,
   collectionRidesDeliveryData,
   collectionGlobalEvents,
+  collectionPassengers_profiles,
   resolve
 ) {
   resolveDate();
@@ -2131,6 +2187,59 @@ function confirmDropoffRequest_driver(
                               resUpdateDriverProfile(true);
                             }
                           );
+
+                          //?Notify the cllient
+                          //Send the push notifications - FOR Passengers
+                          new Promise((resSendNotif) => {
+                            //? Get the rider's details
+                            collectionPassengers_profiles
+                              .find({
+                                user_fingerprint: requestPrevData[0].client_id,
+                              })
+                              .toArray(function (err, ridersDetails) {
+                                if (err) {
+                                  resSendNotif(false);
+                                }
+                                //...
+                                if (
+                                  ridersDetails.length > 0 &&
+                                  ridersDetails[0].user_fingerprint !==
+                                    undefined &&
+                                  ridersDetails[0].pushnotif_token !== null &&
+                                  ridersDetails[0].pushnotif_token !==
+                                    undefined &&
+                                  ridersDetails[0].pushnotif_token.userId !==
+                                    undefined
+                                ) {
+                                  let message = {
+                                    app_id:
+                                      "05ebefef-e2b4-48e3-a154-9a00285e394b",
+                                    android_channel_id:
+                                      "6e8929ad-a744-48b4-b7ef-5e42b3a5eedf", //Ride or delivery channel
+                                    priority: 10,
+                                    contents: {
+                                      en:
+                                        "Don't forget to confirm your drop off and rate your driver. Click here to do so.",
+                                    },
+                                    headings: { en: "Your trip is completed" },
+                                    content_available: true,
+                                    include_player_ids: [
+                                      String(
+                                        ridersDetails[0].pushnotif_token.userId
+                                      ),
+                                    ],
+                                  };
+                                  //Send
+                                  sendPushUPNotification(message);
+                                  resSendNotif(false);
+                                } else {
+                                  resSendNotif(false);
+                                }
+                              });
+                          }).then(
+                            () => {},
+                            () => {}
+                          );
                         } //Strange - no request found
                         else {
                           resUpdateDriverProfile(true);
@@ -2215,11 +2324,163 @@ function INIT_RIDE_DELIVERY_DISPATCH_ENTRY(
           console.log(error);
         }
       );
-
       //..Success - respond to the user
       resolve({ response: "successfully_requested" });
     }
   );
+}
+
+/**
+ * @func getRequests_graphPreview_forDrivers
+ * Responsible for getting the graph of available requests to display notification badges on the
+ * driver's app to make the request finding much more simple and efficient.
+ * ? Only consider the free requests.
+ * ? Filter based on the car type selected (normal taxo, ebikes, etc).
+ * ? Filter based on the country and city.
+ * ! Do not limit based on the driver's maximum capacity.
+ * ? Filter based on the operation clearances of the driver.
+ * ------
+ * @param driver_fingerprint: the driver's fingerprint.
+ * @param collectionRidesDeliveryData: the list of all the requests.
+ * @param collectionDrivers_profiles: the list of all the drivers.
+ * @param resolve
+ */
+function getRequests_graphPreview_forDrivers(
+  driver_fingerprint,
+  collectionRidesDeliveryData,
+  collectionDrivers_profiles,
+  resolve
+) {
+  //? Form requests graph template
+  let requestsGraph = {
+    rides: 0,
+    deliveries: 0,
+    scheduled: 0,
+  };
+  //...
+  //1. Get the driver's data
+  collectionDrivers_profiles
+    .find({ driver_fingerprint: driver_fingerprint })
+    .toArray(function (err, driverData) {
+      if (err) {
+        resolve({
+          rides: 0,
+          deliveries: 0,
+          scheduled: 0,
+        });
+      }
+      //...
+      if (
+        driverData.length > 0 &&
+        driverData[0].driver_fingerprint !== undefined &&
+        driverData[0].driver_fingerprint !== null
+      ) {
+        //Found the ddriver's data
+        try {
+          //2. Isolate correct requests
+          collectionRidesDeliveryData
+            .find({
+              taxi_id: false,
+              "pickup_location_infos.city": {
+                $regex: driverData[0].operational_state.last_location.city,
+                $options: "i",
+              },
+              country: {
+                $regex: driverData[0].operational_state.last_location.country,
+                $options: "i",
+              },
+              carTypeSelected: {
+                $regex:
+                  driverData[0].operational_state.default_selected_car
+                    .vehicle_type,
+                $options: "i",
+              },
+              ride_mode: {
+                $in: driverData[0].operation_clearances.map((clearance) =>
+                  clearance.toUpperCase().trim()
+                ),
+              },
+            })
+            .toArray(function (err, filteredRequests) {
+              if (err) {
+                resolve({
+                  rides: 0,
+                  deliveries: 0,
+                  scheduled: 0,
+                });
+              }
+              //...
+              if (filteredRequests.length > 0) {
+                //? Auto segregate rides, deliveries and scheduled rides
+                let parentPromises = filteredRequests.map((requestInfo) => {
+                  return new Promise((resSegregate) => {
+                    if (/scheduled/i.test(requestInfo.request_type)) {
+                      //Scheduled request
+                      requestsGraph.scheduled += 1;
+                      resSegregate(true);
+                    } else if (/ride/i.test(requestInfo.ride_mode)) {
+                      //Ride only - now
+                      requestsGraph.rides += 1;
+                      resSegregate(true);
+                    } else if (/delivery/i.test(requestInfo.ride_mode)) {
+                      //Delivery only -now
+                      requestsGraph.deliveries += 1;
+                      resSegregate(true);
+                    } //Unknown request mode? -Weiird
+                    else {
+                      resSegregate(true);
+                    }
+                  });
+                });
+                //Done
+                Promise.all(parentPromises)
+                  .then(
+                    (resultSegregatedRequests) => {
+                      resolve(requestsGraph);
+                    },
+                    (error) => {
+                      console.log(error);
+                      resolve({
+                        rides: 0,
+                        deliveries: 0,
+                        scheduled: 0,
+                      });
+                    }
+                  )
+                  .catch((error) => {
+                    console.log(error);
+                    resolve({
+                      rides: 0,
+                      deliveries: 0,
+                      scheduled: 0,
+                    });
+                  });
+              } //No requests
+              else {
+                resolve({
+                  rides: 0,
+                  deliveries: 0,
+                  scheduled: 0,
+                });
+              }
+            });
+        } catch (error) {
+          console.log(error);
+          resolve({
+            rides: 0,
+            deliveries: 0,
+            scheduled: 0,
+          });
+        }
+      } //Strange - no driver's record found
+      else {
+        resolve({
+          rides: 0,
+          deliveries: 0,
+          scheduled: 0,
+        });
+      }
+    });
 }
 
 /**
@@ -2268,6 +2529,138 @@ clientMongo.connect(function (err) {
         extended: true,
       })
     );
+
+  /**
+   * REQUESTS GRAPH ASSEMBLER
+   * Responsible for getting the requests graphs to help the drivers selectedd the correct tab easily.
+   */
+  app.get("/getRequests_graphNumbers", function (req, res) {
+    resolveDate();
+    let params = urlParser.parse(req.url, true);
+    req = params.query;
+
+    if (req.driver_fingerprint !== undefined) {
+      let redisKey = `requestsGraph-${req.driver_fingerprint}`;
+      //OK
+      redisGet(redisKey).then(
+        (resp) => {
+          if (resp !== null) {
+            try {
+              console.log("cached resullts found!");
+              //? Rehyddrate the cached results
+              new Promise((res0) => {
+                getRequests_graphPreview_forDrivers(
+                  req.driver_fingerprint,
+                  collectionRidesDeliveryData,
+                  collectionDrivers_profiles,
+                  res0
+                );
+              })
+                .then(
+                  (result) => {
+                    client.set(redisKey, JSON.stringify(result));
+                  },
+                  (error) => {
+                    console.log(error);
+                    client.set(redisKey, JSON.stringify(result));
+                  }
+                )
+                .catch((error) => {
+                  console.log(error);
+                  client.set(redisKey, JSON.stringify(result));
+                });
+              //...
+              resp = JSON.parse(resp);
+              //...Return the cached results quickly
+              res.send(resp);
+            } catch (error) {
+              console.log(error);
+              new Promise((res0) => {
+                getRequests_graphPreview_forDrivers(
+                  req.driver_fingerprint,
+                  collectionRidesDeliveryData,
+                  collectionDrivers_profiles,
+                  res0
+                );
+              })
+                .then(
+                  (result) => {
+                    client.set(redisKey, JSON.stringify(result));
+                    res.send(result);
+                  },
+                  (error) => {
+                    console.log(error);
+                    client.set(redisKey, JSON.stringify(result));
+                    res.send({ rides: 0, deliveries: 0, scheduled: 0 });
+                  }
+                )
+                .catch((error) => {
+                  console.log(error);
+                  client.set(redisKey, JSON.stringify(result));
+                  res.send({ rides: 0, deliveries: 0, scheduled: 0 });
+                });
+            }
+          } //No cached data yet
+          else {
+            new Promise((res0) => {
+              getRequests_graphPreview_forDrivers(
+                req.driver_fingerprint,
+                collectionRidesDeliveryData,
+                collectionDrivers_profiles,
+                res0
+              );
+            })
+              .then(
+                (result) => {
+                  client.set(redisKey, JSON.stringify(result));
+                  res.send(result);
+                },
+                (error) => {
+                  console.log(error);
+                  client.set(redisKey, JSON.stringify(result));
+                  res.send({ rides: 0, deliveries: 0, scheduled: 0 });
+                }
+              )
+              .catch((error) => {
+                console.log(error);
+                client.set(redisKey, JSON.stringify(result));
+                res.send({ rides: 0, deliveries: 0, scheduled: 0 });
+              });
+          }
+        },
+        (error) => {
+          console.log(error);
+          new Promise((res0) => {
+            getRequests_graphPreview_forDrivers(
+              req.driver_fingerprint,
+              collectionRidesDeliveryData,
+              collectionDrivers_profiles,
+              res0
+            );
+          })
+            .then(
+              (result) => {
+                client.set(redisKey, JSON.stringify(result));
+                res.send(result);
+              },
+              (error) => {
+                console.log(error);
+                client.set(redisKey, JSON.stringify(result));
+                res.send({ rides: 0, deliveries: 0, scheduled: 0 });
+              }
+            )
+            .catch((error) => {
+              console.log(error);
+              client.set(redisKey, JSON.stringify(result));
+              res.send({ rides: 0, deliveries: 0, scheduled: 0 });
+            });
+        }
+      );
+    } //Invalid params
+    else {
+      res.send({ rides: 0, deliveries: 0, scheduled: 0 });
+    }
+  });
 
   /**
    * RIDES OR DELIVERY DISPATCHER
@@ -2727,6 +3120,7 @@ clientMongo.connect(function (err) {
           req,
           collectionRidesDeliveryData,
           collectionGlobalEvents,
+          collectionPassengers_profiles,
           res0
         );
       }).then(
@@ -2813,6 +3207,7 @@ clientMongo.connect(function (err) {
           req,
           collectionRidesDeliveryData,
           collectionGlobalEvents,
+          collectionPassengers_profiles,
           res0
         );
       }).then(

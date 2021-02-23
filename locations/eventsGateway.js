@@ -579,6 +579,55 @@ io.on("connection", (socket) => {
 
   /**
    * DISPATCH SERVICE, port 9094
+   * Route: getRequests_graphNumbers
+   * event: update_requestsGraph
+   * Update the general requests numbers for ease of access
+   */
+  socket.on("update_requestsGraph", function (req) {
+    console.log(req);
+    if (
+      req.driver_fingerprint !== undefined &&
+      req.driver_fingerprint !== null
+    ) {
+      let url =
+        process.env.LOCAL_URL +
+        ":" +
+        process.env.DISPATCH_SERVICE_PORT +
+        "/getRequests_graphNumbers?driver_fingerprint=" +
+        req.driver_fingerprint;
+
+      requestAPI(url, function (error, response, body) {
+        console.log(body);
+        if (error === null) {
+          try {
+            body = JSON.parse(body);
+            socket.emit("update_requestsGraph-response", body);
+          } catch (error) {
+            socket.emit("update_requestsGraph-response", {
+              rides: 0,
+              deliveries: 0,
+              scheduled: 0,
+            });
+          }
+        } else {
+          socket.emit("update_requestsGraph-response", {
+            rides: 0,
+            deliveries: 0,
+            scheduled: 0,
+          });
+        }
+      });
+    } else {
+      socket.emit("update_requestsGraph-response", {
+        rides: 0,
+        deliveries: 0,
+        scheduled: 0,
+      });
+    }
+  });
+
+  /**
+   * DISPATCH SERVICE, port 9094
    * Route: decline_request
    * event: declineRequest_driver
    * Decline any request from the driver's side.
