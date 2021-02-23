@@ -1546,6 +1546,7 @@ function declineRequest_driver(
  * @param collectionRidesDeliveryData: list of all the requests made.
  * @param collectionGlobalEvents: hold all the random events that happened somewhere.
  * @param collectionDrivers_profiles: list of all the drivers.
+ * @param collectionPassengers_profiles: list off all the riders.
  * @param resolve
  */
 function acceptRequest_driver(
@@ -1553,6 +1554,7 @@ function acceptRequest_driver(
   collectionRidesDeliveryData,
   collectionGlobalEvents,
   collectionDrivers_profiles,
+  collectionPassengers_profiles,
   resolve
 ) {
   resolveDate();
@@ -1677,6 +1679,59 @@ function acceptRequest_driver(
                               resUpdateDriverProfile(true);
                             }
                           );
+
+                          //?Notify the cllient
+                          //Send the push notifications - FOR Passengers
+                          new Promise((resSendNotif) => {
+                            //? Get the rider's details
+                            collectionPassengers_profiles
+                              .find({
+                                user_fingerprint: requestPrevData[0].client_id,
+                              })
+                              .toArray(function (err, ridersDetails) {
+                                if (err) {
+                                  resSendNotif(false);
+                                }
+                                //...
+                                if (
+                                  ridersDetails.length > 0 &&
+                                  ridersDetails[0].user_fingerprint !==
+                                    undefined &&
+                                  ridersDetails[0].pushnotif_token !== null &&
+                                  ridersDetails[0].pushnotif_token !==
+                                    undefined &&
+                                  ridersDetails[0].pushnotif_token.userId !==
+                                    undefined
+                                ) {
+                                  let message = {
+                                    app_id:
+                                      "05ebefef-e2b4-48e3-a154-9a00285e394b",
+                                    android_channel_id:
+                                      "6e8929ad-a744-48b4-b7ef-5e42b3a5eedf", //Ride or delivery channel
+                                    priority: 10,
+                                    contents: {
+                                      en:
+                                        "We've found a driver for your request. click here for more.",
+                                    },
+                                    headings: { en: "Request accepted" },
+                                    content_available: true,
+                                    include_player_ids: [
+                                      String(
+                                        ridersDetails[0].pushnotif_token.userId
+                                      ),
+                                    ],
+                                  };
+                                  //Send
+                                  sendPushUPNotification(message);
+                                  resSendNotif(false);
+                                } else {
+                                  resSendNotif(false);
+                                }
+                              });
+                          }).then(
+                            () => {},
+                            () => {}
+                          );
                         } //Strange - no request found
                         else {
                           resUpdateDriverProfile(true);
@@ -1690,6 +1745,7 @@ function acceptRequest_driver(
                     .catch((error) => {
                       console.log(error);
                     });
+
                   //DONE
                   resolve({ response: "successfully_accepted" });
                 }
@@ -2174,6 +2230,9 @@ clientMongo.connect(function (err) {
   //if (err) throw err;
   console.log("[+] Dispatch services active.");
   const dbMongo = clientMongo.db(process.env.DB_NAME_MONGODDB);
+  const collectionPassengers_profiles = dbMongo.collection(
+    "passengers_profiles"
+  ); //Hold the information about the riders
   const collectionRidesDeliveryData = dbMongo.collection(
     "rides_deliveries_requests"
   ); //Hold all the requests made (rides and deliveries)
@@ -2624,6 +2683,7 @@ clientMongo.connect(function (err) {
           collectionRidesDeliveryData,
           collectionGlobalEvents,
           collectionDrivers_profiles,
+          collectionPassengers_profiles,
           res0
         );
       }).then(
