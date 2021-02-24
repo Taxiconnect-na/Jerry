@@ -3294,7 +3294,9 @@ function updateRiders_generalProfileInfos(
         );
         //Save the image
         fs.writeFile(
-          `${process.env.RIDERS_PROFILE_PICTURES_PATH.replace(
+          `${process.env.SERVER_IP}:${
+            process.env.EVENT_GATEWAY_PORT
+          }/${process.env.RIDERS_PROFILE_PICTURES_PATH.replace(
             /\//g,
             ""
           )}/${tmpPicture_name}`,
