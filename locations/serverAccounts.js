@@ -2835,10 +2835,127 @@ function execGet_driversDeepInsights_fromWalletData(
       });
   } //No transactions
   else {
-    resolve({
-      header: null,
-      weeks_view: null,
-    });
+    //! Attach the NEXT PAYMENT DATE.
+    new Promise((resFindNexyPayoutDate) => {
+      resolveDate(); //! Update the date
+      //? Find the last payout and from there - compute the next one
+      collectionWalletTransactions_logs
+        .find({
+          transaction_nature: {
+            $regex: /weeklyPaidDriverAutomatic/,
+            $options: "i",
+          },
+          recipient_fp: driver_fingerprint,
+        })
+        .toArray(function (err, resultLastPayout) {
+          if (err) {
+            resFindNexyPayoutDate(false);
+          }
+          //...
+          if (
+            resultLastPayout !== undefined &&
+            resultLastPayout.length > 0 &&
+            resultLastPayout[0].date_captured !== undefined
+          ) {
+            //Found the llast payout date
+            let lastPayoutDate = new Date(
+              new Date(resultLastPayout[0].date_captured).getTime() +
+                process.env.TAXICONNECT_PAYMENT_FREQUENCY * 24 * 3600000
+            );
+            //....
+            resFindNexyPayoutDate(lastPayoutDate);
+          } //? The driver was never paid before
+          else {
+            //!Check if a reference point exists - if not set one to NOW
+            //! Annotation string: startingPoint_forFreshPayouts
+            collectionWalletTransactions_logs
+              .find({
+                flag_annotation: {
+                  $regex: /startingPoint_forFreshPayouts/,
+                  $options: "i",
+                },
+                user_fingerprint: driver_fingerprint,
+              })
+              .toArray(function (err, referenceData) {
+                if (err) {
+                  resFindNexyPayoutDate(false);
+                }
+                //...
+                if (
+                  referenceData !== undefined &&
+                  referenceData.length > 0 &&
+                  referenceData[0].date_captured !== undefined
+                ) {
+                  //Found an existing annotation - use the date as starting point
+                  let lastPayoutDate = new Date(
+                    new Date(referenceData[0].date_captured).getTime() +
+                      process.env.TAXICONNECT_PAYMENT_FREQUENCY * 24 * 3600000
+                  );
+                  //..
+                  resFindNexyPayoutDate(lastPayoutDate);
+                } //No annotation yet - create one
+                else {
+                  collectionWalletTransactions_logs.insertOne(
+                    {
+                      flag_annotation: "startingPoint_forFreshPayouts",
+                      user_fingerprint: driver_fingerprint,
+                      date_captured: chaineDateUTC,
+                    },
+                    function (err, reslt) {
+                      let lastPayoutDate = new Date(
+                        new Date(chaineDateUTC).getTime() +
+                          process.env.TAXICONNECT_PAYMENT_FREQUENCY *
+                            24 *
+                            3600000
+                      );
+                      //..
+                      resFindNexyPayoutDate(lastPayoutDate);
+                    }
+                  );
+                }
+              });
+          }
+        });
+    })
+      .then(
+        (resultPayoutDate) => {
+          if (resultPayoutDate !== false) {
+            let _GLOBAL_OBJECT = {
+              header: {
+                scheduled_payment_date: null,
+              },
+              weeks_view: null,
+            };
+            //? Update the next payout date var
+            _GLOBAL_OBJECT.header.scheduled_payment_date = resultPayoutDate;
+            //....
+            resolve(_GLOBAL_OBJECT);
+          } //Couldn't find a payout date
+          else {
+            resolve({
+              header: null,
+              weeks_view: null,
+              response: "error",
+            });
+          }
+        },
+        (error) => {
+          console.log(error);
+          resolve({
+            header: null,
+            weeks_view: null,
+            response: "error",
+          });
+        }
+      )
+      .catch((error) => {
+        console.log(error);
+        resolve({
+          header: null,
+          weeks_view: null,
+          response: "error",
+        });
+      });
   }
 }
 
@@ -4305,10 +4422,10 @@ clientMongo.connect(function (err) {
                     ? {
                         total: 0,
                         transactions_data: null,
-                        response: "error",
-                        tag: "invalid_parameters",
+                        response: "empty",
+                        tag: "empty_wallet",
                       }
-                    : { total: 0, response: "error", tag: "invalid_parameters" }
+                    : { total: 0, response: "empty", tag: "empty_wallet" }
                 );
               }
             } catch (error) {

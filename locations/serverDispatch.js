@@ -919,6 +919,7 @@ function sendStagedNotificationsDrivers(
         //They can receive 3 additional requests on top of the limit of sits in their selected cars.
         driversProfiles = driversProfiles.filter(
           (dData) =>
+            dData.operational_state.accepted_requests_infos === null ||
             dData.operational_state.accepted_requests_infos
               .total_passengers_number <=
               dData.operational_state.default_selected_car.max_passengers + 3 ||
@@ -2382,11 +2383,23 @@ function getRequests_graphPreview_forDrivers(
             .find({
               taxi_id: false,
               "pickup_location_infos.city": {
-                $regex: driverData[0].operational_state.last_location.city,
+                $regex:
+                  driverData[0].operational_state.last_location !== null &&
+                  driverData[0].operational_state.last_location.city &&
+                  driverData[0].operational_state.last_location.city !==
+                    undefined
+                    ? driverData[0].operational_state.last_location.city
+                    : "Windhoek",
                 $options: "i",
               },
               country: {
-                $regex: driverData[0].operational_state.last_location.country,
+                $regex:
+                  driverData[0].operational_state.last_location !== null &&
+                  driverData[0].operational_state.last_location.country &&
+                  driverData[0].operational_state.last_location.country !==
+                    undefined
+                    ? driverData[0].operational_state.last_location.country
+                    : "Namibia",
                 $options: "i",
               },
               carTypeSelected: {
@@ -2400,6 +2413,7 @@ function getRequests_graphPreview_forDrivers(
                   clearance.toUpperCase().trim()
                 ),
               },
+              allowed_drivers_see: driver_fingerprint,
               intentional_request_decline: {
                 $not: { $regex: driver_fingerprint },
               },

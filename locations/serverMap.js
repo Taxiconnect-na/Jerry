@@ -29,6 +29,7 @@ var chaineDateUTC = null;
 var dateObject = null;
 const moment = require("moment");
 const e = require("express");
+const { resolve } = require("dns");
 
 const clientMongo = new MongoClient(process.env.URL_MONGODB, {
   useUnifiedTopology: true,
@@ -470,6 +471,7 @@ function updateRiderLocationsLog(
       .toArray(function (err, driverData) {
         if (driverData.length > 0) {
           if (
+            driverData[0].operational_state.last_location !== null &&
             driverData[0].operational_state.last_location !== undefined &&
             driverData[0].operational_state.last_location.coordinates !==
               undefined
@@ -500,6 +502,17 @@ function updateRiderLocationsLog(
                 filterDriver,
                 dataBundle,
                 function (err, res) {
+                  //! Update the city and the country
+                  new Promise((resUpdateRest) => {
+                    completeLastLoccation_infosSubsAndRest(
+                      locationData,
+                      collectionDrivers_profiles,
+                      resUpdateRest
+                    );
+                  }).then(
+                    () => {},
+                    () => {}
+                  );
                   resolve(true);
                 }
               );
@@ -507,50 +520,74 @@ function updateRiderLocationsLog(
             else {
               let dataBundle = {
                 $set: {
-                  "operational_state.last_location.coordinates": {
-                    latitude: locationData.latitude,
-                    longitude: locationData.longitude,
+                  "operational_state.last_location": {
+                    coordinates: {
+                      latitude: locationData.latitude,
+                      longitude: locationData.longitude,
+                    },
+                    prev_coordinates: {
+                      latitude: locationData.latitude,
+                      longitude: locationData.longitude,
+                    },
+                    date_updated: new Date(chaineDateUTC),
+                    date_logged: new Date(chaineDateUTC),
                   },
-                  "operational_state.last_location.prev_coordinates": {
-                    latitude: locationData.latitude,
-                    longitude: locationData.longitude,
-                  },
-                  "operational_state.last_location.date_updated": new Date(
-                    chaineDateUTC
-                  ),
-                  date_logged: new Date(chaineDateUTC),
                 },
               };
               collectionDrivers_profiles.updateOne(
                 filterDriver,
                 dataBundle,
                 function (err, res) {
+                  //! Update the city and the country
+                  new Promise((resUpdateRest) => {
+                    completeLastLoccation_infosSubsAndRest(
+                      locationData,
+                      collectionDrivers_profiles,
+                      resUpdateRest
+                    );
+                  }).then(
+                    () => {},
+                    () => {}
+                  );
                   resolve(true);
                 }
               );
             }
           } //No location data yet - update the previous location and current to the same value
           else {
+            //! Auto initialize fields
             let dataBundle = {
               $set: {
-                "operational_state.last_location.coordinates": {
-                  latitude: locationData.latitude,
-                  longitude: locationData.longitude,
+                "operational_state.last_location": {
+                  coordinates: {
+                    latitude: locationData.latitude,
+                    longitude: locationData.longitude,
+                  },
+                  prev_coordinates: {
+                    latitude: locationData.latitude,
+                    longitude: locationData.longitude,
+                  },
+                  date_updated: new Date(chaineDateUTC),
+                  date_logged: new Date(chaineDateUTC),
                 },
-                "operational_state.last_location.prev_coordinates": {
-                  latitude: locationData.latitude,
-                  longitude: locationData.longitude,
-                },
-                "operational_state.last_location.date_updated": new Date(
-                  chaineDateUTC
-                ),
-                date_logged: new Date(chaineDateUTC),
               },
             };
             collectionDrivers_profiles.updateOne(
               filterDriver,
               dataBundle,
               function (err, res) {
+                console.log(err);
+                //! Update the city and the country
+                new Promise((resUpdateRest) => {
+                  completeLastLoccation_infosSubsAndRest(
+                    locationData,
+                    collectionDrivers_profiles,
+                    resUpdateRest
+                  );
+                }).then(
+                  () => {},
+                  () => {}
+                );
                 resolve(true);
               }
             );
@@ -561,6 +598,120 @@ function updateRiderLocationsLog(
         }
       });
   }
+}
+
+/**
+ * @func completeLastLoccation_infosSubsAndRest
+ * Responsible for completing the last location data like city, country and suburb if any.
+ * ? Makes sense for the drivers only.
+ * @param locationData: the bundle containing the user's location and coordinates.
+ * @param collectionDrivers_profiles: list of all the drivers.
+ * @param resolve
+ */
+function completeLastLoccation_infosSubsAndRest(
+  locationData,
+  collectionDrivers_profiles,
+  resolve
+) {
+  //? Prepare the obj
+  let objFinal = {
+    city: null,
+    country: null,
+    street: null,
+    suburb: null,
+    location_name: null,
+    geographic_extent: null,
+  };
+  //1. Get the general location infos
+  let url =
+    process.env.LOCAL_URL +
+    ":" +
+    process.env.MAP_SERVICE_PORT +
+    "/getUserLocationInfos?latitude=" +
+    locationData.latitude +
+    "&longitude=" +
+    locationData.longitude +
+    "&user_fingerprint=" +
+    locationData.user_fingerprint;
+  requestAPI(url, function (error, response, body) {
+    if (error === null) {
+      try {
+        body = JSON.parse(body);
+        //? Partially complete the final object
+        objFinal.city = body.city;
+        objFinal.country = body.country;
+        objFinal.street = body.street !== undefined ? body.street : false;
+        objFinal.location_name = body.name;
+        objFinal.geographic_extent =
+          body.extent !== undefined ? body.extent : false;
+        //1. Get the suburb
+        let url =
+          process.env.LOCAL_URL +
+          ":" +
+          process.env.PRICING_SERVICE_PORT +
+          "/getCorrespondingSuburbInfos?location_name=" +
+          objFinal.location_name +
+          "&street_name=" +
+          objFinal.street +
+          "&city=" +
+          objFinal.city +
+          "&country=" +
+          objFinal.country +
+          "&latitude=" +
+          locationData.latitude +
+          "&longitude=" +
+          locationData.longitude +
+          "&user_fingerprint=" +
+          locationData.user_fingerprint;
+        requestAPI(url, function (error, response, body) {
+          if (error === null) {
+            try {
+              body = JSON.parse(body);
+              console.log(body);
+              //? Complete the suburb data
+              objFinal.suburb = body.suburb !== undefined ? body.suburb : false;
+              //Update the user's profile
+              if (objFinal.city !== null && objFinal.country !== null) {
+                //! Avoid to overwrite good values by nulls
+                collectionDrivers_profiles.updateOne(
+                  {
+                    driver_fingerprint: locationData.user_fingerprint,
+                  },
+                  {
+                    $set: {
+                      "operational_state.last_location.city": objFinal.city,
+                      "operational_state.last_location.country":
+                        objFinal.country,
+                      "operational_state.last_location.suburb": objFinal.suburb,
+                      "operational_state.last_location.street": objFinal.street,
+                      "operational_state.last_location.location_name":
+                        objFinal.location_name,
+                      "operational_state.last_location.geographic_extent":
+                        objFinal.geographic_extent,
+                    },
+                  },
+                  function (err, res) {
+                    console.log(err);
+                    resolve(true);
+                  }
+                );
+              } else {
+                resolve(false);
+              }
+            } catch (error) {
+              resolve(false);
+            }
+          } else {
+            resolve(false);
+          }
+        });
+      } catch (error) {
+        resolve(false);
+      }
+    } else {
+      resolve(false);
+    }
+  });
 }
 
 /**
@@ -589,13 +740,13 @@ function tripChecker_Dispatcher(
   requestType = "ride",
   resolve
 ) {
-  console.log("arrived");
   if (/^rider$/i.test(user_nature)) {
     //Check if the user has a pending request
     let rideChecker = {
       client_id: { $regex: user_fingerprint },
       "ride_state_vars.isRideCompleted_riderSide": false,
     };
+    console.log(rideChecker);
     collectionRidesDeliveries_data
       .find(rideChecker)
       .toArray(function (err, userDataRepr) {
@@ -603,6 +754,7 @@ function tripChecker_Dispatcher(
           resolve(false);
           throw err;
         }
+        console.log(userDataRepr);
         if (userDataRepr.length <= 0) {
           //No data
           resolve(false);
@@ -634,7 +786,7 @@ function tripChecker_Dispatcher(
     collectionDrivers_profiles
       .find({
         driver_fingerprint: user_fingerprint,
-        "operational_state.status": { $regex: /online/i },
+        "operational_state.status": { $regex: /online/, $options: "i" },
       })
       .toArray(function (err, driverData) {
         if (err) {
@@ -956,11 +1108,23 @@ function execGetDrivers_requests_and_provide(
         $options: "i",
       },
       country: {
-        $regex: driverData.operational_state.last_location.country,
+        $regex:
+          driverData.operational_state.last_location !== null &&
+          driverData.operational_state.last_location !== undefined &&
+          driverData.operational_state.last_location.country !== undefined &&
+          driverData.operational_state.last_location.country != null
+            ? driverData.operational_state.last_location.country
+            : "Namibia",
         $options: "i",
       },
       "pickup_location_infos.city": {
-        $regex: driverData.operational_state.last_location.city,
+        $regex:
+          driverData.operational_state.last_location !== null &&
+          driverData.operational_state.last_location !== undefined &&
+          driverData.operational_state.last_location.city !== undefined &&
+          driverData.operational_state.last_location.city != null
+            ? driverData.operational_state.last_location.city
+            : "Windhoek",
         $options: "i",
       },
       request_type: { $regex: request_type_regex, $options: "i" }, //Shceduled or immediate rides/deliveries
@@ -1458,6 +1622,7 @@ function computeRouteDetails_skeleton(
   collectionDrivers_profiles,
   resolve
 ) {
+  console.log(result);
   if (result.length > 0 && result[0].request_fp !== undefined) {
     //There is a ride
     let rideHistory = result[0];
@@ -1485,6 +1650,7 @@ function computeRouteDetails_skeleton(
               rideHistory.ride_state_vars.inRideToDestination === false &&
               rideHistory.ride_state_vars.isRideCompleted_driverSide === false
             ) {
+              console.log("IN ROUTE TO PICKUP");
               //In route to pickup
               //console.log("In  route to pickup");
               let requestStatusMain = "inRouteToPickup";
@@ -1493,6 +1659,7 @@ function computeRouteDetails_skeleton(
               redisGet(rideHistory.taxi_id).then(
                 (resp) => {
                   if (resp !== null) {
+                    console.log(rideHistory.taxi_id);
                     //Check for any trip record related to the route infos in the cache
                     //KEY: request_fp
                     redisGet(rideHistory.request_fp).then(
@@ -3236,16 +3403,13 @@ clientMongo.connect(function (err) {
         (result) => {
           let doneTime = new Date();
           timeTaken = doneTime.getTime() - timeTaken;
-          //console.log("[" + chaineDateUTC + "] Compute and dispatch time (trip) ------>  " + timeTaken + " ms");
           //Update the rider
           if (result !== false) {
             if (result != "no_rides") {
               res.send(result);
-              //socket.emit("trackdriverroute-response", result);
             } //No rides
             else {
               res.send({ request_status: "no_rides" });
-              //socket.emit("trackdriverroute-response", { request_status: result });
             }
           } //No rides
           else {
@@ -3255,7 +3419,6 @@ clientMongo.connect(function (err) {
         (error) => {
           console.log(error);
           res.send({ request_status: "no_rides" });
-          //console.log(error);
         }
       );
 
@@ -3438,7 +3601,7 @@ clientMongo.connect(function (err) {
       }
       //Get the list of drivers match the availability criteria
       let driverFilter = {
-        "operational_state.status": { $regex: /online/i },
+        "operational_state.status": { $regex: /online/, $options: "i" },
         "operational_state.last_location.city": {
           $regex: req.city,
           $options: "i",
@@ -3454,18 +3617,21 @@ clientMongo.connect(function (err) {
             ? { $regex: req.vehicle_type, $options: "i" }
             : { $regex: /[a-zA-Z]/, $options: "i" },
       };
+      console.log(driverFilter);
       //...
       collectionDrivers_profiles
         .find(driverFilter)
         .toArray(function (err, driversProfiles) {
+          console.log(driversProfiles);
           //check that some drivers where found
           if (driversProfiles.length > 0) {
             //yep
             //Filter the drivers based on their car's maximum capacity (the amount of passengers it can handle)
             //They can receive 3 additional requests on top of the limit of sits in their selected cars.
             //! Add 30 possible passengers on top of the base passengers limit.
-            driversProfiles = driversProfiles.filter(
+            /*driversProfiles = driversProfiles.filter(
               (dData) =>
+                dData.operational_state.accepted_requests_infos === null ||
                 dData.operational_state.accepted_requests_infos
                   .total_passengers_number <=
                   dData.operational_state.default_selected_car.max_passengers +
@@ -3476,12 +3642,13 @@ clientMongo.connect(function (err) {
                   .total_passengers_number === undefined ||
                 dData.operational_state.accepted_requests_infos
                   .total_passengers_number === null
-            );
+            );*/
             //...
             let mainPromiser = driversProfiles.map((driverData) => {
               return new Promise((resolve) => {
                 //Check for the coords
                 if (
+                  driverData.operational_state.last_location !== null &&
                   driverData.operational_state.last_location.coordinates
                     .latitude !== undefined &&
                   driverData.operational_state.last_location.coordinates
@@ -3502,6 +3669,7 @@ clientMongo.connect(function (err) {
                           .longitude,
                     },
                   };
+                  console.log(tmp);
                   let redisKey =
                     req.user_fingerprint + "-" + driverData.driver_fingerprint;
                   let valueIndex = "relativeEta";
@@ -3596,6 +3764,7 @@ clientMongo.connect(function (err) {
                               }); //Only get simplified data : ETA and distance
                             }).then(
                               (result) => {
+                                console.log("HERRRRRE");
                                 //Update the relative mongo records
                                 if (
                                   result !== false &&
@@ -3657,11 +3826,13 @@ clientMongo.connect(function (err) {
                                 resolve(result);
                               },
                               (error) => {
+                                console.log(error);
                                 resolve(false);
                               }
                             );
                           }
                         } catch (error) {
+                          console.log(error);
                           //Make a fresh search
                           new Promise((res) => {
                             getRouteInfosDestination(tmp, res, true, {
@@ -3730,6 +3901,7 @@ clientMongo.connect(function (err) {
                               resolve(result);
                             },
                             (error) => {
+                              console.log(error);
                               resolve(false);
                             }
                           );
@@ -3743,6 +3915,7 @@ clientMongo.connect(function (err) {
                           }); //Only get simplified data : ETA and distance
                         }).then(
                           (result) => {
+                            console.log("HERRRRE -->", result);
                             //Update the relative mongo records
                             if (
                               result !== false &&
@@ -3803,12 +3976,14 @@ clientMongo.connect(function (err) {
                             resolve(result);
                           },
                           (error) => {
+                            console.log(error);
                             resolve(false);
                           }
                         );
                       }
                     },
                     (error) => {
+                      console.log(error);
                       //Make a fresh search
                       new Promise((res) => {
                         getRouteInfosDestination(tmp, res, true, {
@@ -3877,6 +4052,7 @@ clientMongo.connect(function (err) {
                           resolve(result);
                         },
                         (error) => {
+                          console.log(error);
                           resolve(false);
                         }
                       );
@@ -3890,6 +4066,7 @@ clientMongo.connect(function (err) {
             //Resolve all
             Promise.all(mainPromiser).then(
               (result) => {
+                console.trace(result);
                 //Done- exlude all false
                 new Promise((res) => {
                   cleanAndAdjustRelativeDistancesList(
