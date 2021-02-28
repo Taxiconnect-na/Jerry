@@ -367,7 +367,20 @@ function parseRequestData(inputData, resolve) {
                       if (inputData.passengersNo > 1) {
                         //Many passengers
                         //Check if all going to the same destination
-                        if (inputData.isAllGoingToSameDestination) {
+                        //? Clean the boolean
+                        inputData.isAllGoingToSameDestination = /string/i.test(
+                          typeof inputData.isAllGoingToSameDestination
+                        )
+                          ? inputData.isAllGoingToSameDestination === "true"
+                            ? true
+                            : false
+                          : inputData.isAllGoingToSameDestination;
+                        //? -----------
+                        if (
+                          inputData.isAllGoingToSameDestination &&
+                          inputData.isAllGoingToSameDestination !== false &&
+                          inputData.isAllGoingToSameDestination !== "false"
+                        ) {
                           //yes
                           tmpSchemaArray.map((element, index) => {
                             cleanInputData.destinationData.push({

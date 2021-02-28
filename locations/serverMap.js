@@ -671,7 +671,16 @@ function completeLastLoccation_infosSubsAndRest(
               //? Complete the suburb data
               objFinal.suburb = body.suburb !== undefined ? body.suburb : false;
               //Update the user's profile
-              if (objFinal.city !== null && objFinal.country !== null) {
+              if (
+                objFinal.city !== null &&
+                objFinal.country !== null &&
+                objFinal.city !== "null" &&
+                objFinal.country !== "null" &&
+                objFinal.city !== undefined &&
+                objFinal.country !== undefined &&
+                objFinal.city !== "undefined" &&
+                objFinal.country !== "undefined"
+              ) {
                 //! Avoid to overwrite good values by nulls
                 collectionDrivers_profiles.updateOne(
                   {
