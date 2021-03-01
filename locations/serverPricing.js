@@ -413,8 +413,16 @@ function manageAutoCompleteDestinationLocations(
               completeLocation.city === prevLocation.city
             ) {
               //Same location - update - else ignore
-              destinationLocations[index].suburb = completeLocation.suburb;
-              destinationLocations[index].state = completeLocation.state;
+              destinationLocations[index].suburb =
+                completeLocation.suburb !== false &&
+                completeLocation.suburb !== undefined
+                  ? completeLocation.suburb
+                  : prevLocation.location_name;
+              destinationLocations[index].state =
+                completeLocation.state !== false &&
+                completeLocation.state !== undefined
+                  ? completeLocation.state
+                  : prevLocation.city;
             }
           });
         });
