@@ -409,10 +409,14 @@ function saveLogForTopupsSuccess(
 ) {
   resolveDate();
   let tmpDate = new Date();
+  let amountRecomputed =
+    parseFloat(amount) -
+    (parseFloat(amount) * process.env.DPO_GATEWAY_CHARGES_PERCENTAGE) / 100; //! VERY IMPORTANT - REMOVE DPO DEDUCTIONS
   //...
   let dataBundle = {
     user_fingerprint: user_fp,
-    amount: amount,
+    initial_paid_amount: parseFloat(amount),
+    amount: Math.floor((amountRecomputed + Number.EPSILON) * 100) / 100,
     payment_currency: payment_currency,
     transaction_nature: "topup",
     transactionToken: transactionToken,
@@ -543,7 +547,6 @@ function processExecute_paymentCardWallet_topup(
                               result_verifyPaymentDeducted = JSON.parse(
                                 result_verifyPaymentDeducted
                               );
-                              console.log(result_verifyPaymentDeducted);
                               //! ONLY ALLOW: TRANSACTION PAID (000), AUTHORIZED (001), TRANSACTION NOT PAID YET (900), consider the rest as faild charge.
                               if (
                                 /(000|001|900)/i.test(
@@ -567,7 +570,9 @@ function processExecute_paymentCardWallet_topup(
                                 );
                                 //...
                                 //DONE - SUCCESSFULLY PAID
-                                resolve({ response: "success" });
+                                resolve({
+                                  response: "success",
+                                });
                               } //Creddit card charging failed
                               else {
                                 resolve({
@@ -1021,8 +1026,18 @@ clientMongo.connect(function (err) {
     .get("/", function (req, res) {
       console.log("Payments services up");
     })
-    .use(bodyParser.json({ limit: "100mb", extended: true }))
-    .use(bodyParser.urlencoded({ limit: "100mb", extended: true }));
+    .use(
+      bodyParser.json({
+        limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
+        extended: true,
+      })
+    )
+    .use(
+      bodyParser.urlencoded({
+        limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
+        extended: true,
+      })
+    );
 
   /**
    * WALLET TOP-UP
@@ -1121,7 +1136,6 @@ clientMongo.connect(function (err) {
                     deductXML_responses(reslt, "createToken", resolve);
                   }).then(
                     (result_createTokenDeducted) => {
-                      console.log(result_createTokenDeducted);
                       if (result_createTokenDeducted !== false) {
                         //? Continue the top-up process
                         new Promise((resFollower) => {
@@ -1135,7 +1149,7 @@ clientMongo.connect(function (err) {
                           );
                         }).then(
                           (result_final) => {
-                            res.send(result_final);
+                            res.send(result_final); //!Remove dpoFinal object and remove object bracket form!
                           },
                           (error) => {
                             console.log(error);
