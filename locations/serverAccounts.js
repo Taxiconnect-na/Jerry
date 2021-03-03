@@ -8,6 +8,11 @@ const taxiRanksDb = JSON.parse(fs.readFileSync("taxiRanks_points.txt", "utf8"));
 const path = require("path");
 const MongoClient = require("mongodb").MongoClient;
 const { parse, stringify } = require("flatted");
+const AWS = require("aws-sdk");
+const s3 = new AWS.S3({
+  accessKeyId: process.env.AWS_S3_ID,
+  secretAccessKey: process.env.AWS_S3_SECRET,
+});
 
 var app = express();
 var server = http.createServer(app);
@@ -3410,11 +3415,12 @@ function updateRiders_generalProfileInfos(
           ""
         );
         //Save the image
+        let fileName_andPath = `${process.env.RIDERS_PROFILE_PICTURES_PATH.replace(
+          /\//g,
+          ""
+        )}/${tmpPicture_name}`;
         fs.writeFile(
-          `${process.env.RIDERS_PROFILE_PICTURES_PATH.replace(
-            /\//g,
-            ""
-          )}/${tmpPicture_name}`,
+          fileName_andPath,
           requestData.dataToUpdate,
           "base64",
           function (err) {
@@ -3424,65 +3430,119 @@ function updateRiders_generalProfileInfos(
                 flag: "unexpected_conversion_error_1",
               });
             }
-            //Done - update mongodb
-            let updatedData = {
-              $set: {
-                "media.profile_picture": tmpPicture_name,
-              },
-            };
-            //...
-            collectionPassengers_profiles.updateOne(
-              { user_fingerprint: requestData.user_fingerprint },
-              updatedData,
-              function (err, reslt) {
+            //! UPLOAD THE PICTURE TO S3 - Promisify!
+            new Promise((resUploadPic_toS3) => {
+              // Read content from the file
+              const fileContentUploaded_locally = fs.readFileSync(
+                fileName_andPath
+              );
+
+              // Setting up S3 upload parameters
+              const params = {
+                Bucket: `${process.env.AWS_S3_RIDERS_BUCKET_NAME}/Profiles_pictures`,
+                Key: tmpPicture_name, // File name you want to save as in S3
+                Body: fileContentUploaded_locally,
+              };
+
+              // Uploading files to the bucket
+              s3.upload(params, function (err, data) {
                 if (err) {
+                  console.log(err);
+                  resUploadPic_toS3(false);
+                }
+                console.log(`Riders profile picture uploaded successfully.`);
+                resUploadPic_toS3(true);
+              });
+            })
+              .then(
+                (resultS3_upload) => {
+                  if (resultS3_upload) {
+                    //? Was successfullly upload to S3
+                    //Done - update mongodb
+                    let updatedData = {
+                      $set: {
+                        "media.profile_picture": tmpPicture_name,
+                      },
+                    };
+                    //...
+                    collectionPassengers_profiles.updateOne(
+                      { user_fingerprint: requestData.user_fingerprint },
+                      updatedData,
+                      function (err, reslt) {
+                        if (err) {
+                          resolve({
+                            response: "error",
+                            flag: "unexpected_conversion_error_",
+                          });
+                        }
+                        //...Update the general event log
+                        new Promise((res) => {
+                          collectionPassengers_profiles
+                            .find({
+                              user_fingerprint: requestData.user_fingerprint,
+                            })
+                            .toArray(function (error, riderData) {
+                              if (error) {
+                                res(false);
+                              }
+                              //...
+                              if (riderData.length > 0) {
+                                //Valid
+                                let dataEvent = {
+                                  event_name: "rider_profile_picture_update",
+                                  user_fingerprint:
+                                    requestData.user_fingerprint,
+                                  old_data: riderData[0].media.profile_picture,
+                                  new_data: tmpPicture_name,
+                                  date: new Date(chaineDateUTC),
+                                };
+                                collectionGlobalEvents.insertOne(
+                                  dataEvent,
+                                  function (err, reslt) {
+                                    res(true);
+                                  }
+                                );
+                              } //No riders with the providedd fingerprint
+                              else {
+                                res(false);
+                              }
+                            });
+                        }).then(
+                          () => {},
+                          () => {}
+                        );
+                        //...
+                        //DONE
+                        resolve({
+                          response: "success",
+                          flag: "operation successful",
+                          picture_name: `${process.env.AWS_S3_RIDERS_PROFILE_PICTURES_PATH}/${tmpPicture_name}`,
+                        });
+                      }
+                    );
+                  } //! Was unable to upload to S3 - conversion error
+                  else {
+                    resolve({
+                      response: "error",
+                      flag: "unexpected_conversion_error_1",
+                    });
+                  }
+                },
+                (error) => {
+                  console.log(error);
                   resolve({
                     response: "error",
-                    flag: "unexpected_conversion_error_",
+                    flag: "unexpected_conversion_error_1",
                   });
                 }
-                //...Update the general event log
-                new Promise((res) => {
-                  collectionPassengers_profiles
-                    .find({ user_fingerprint: requestData.user_fingerprint })
-                    .toArray(function (error, riderData) {
-                      if (error) {
-                        res(false);
-                      }
-                      //...
-                      if (riderData.length > 0) {
-                        //Valid
-                        let dataEvent = {
-                          event_name: "rider_profile_picture_update",
-                          user_fingerprint: requestData.user_fingerprint,
-                          old_data: riderData[0].media.profile_picture,
-                          new_data: tmpPicture_name,
-                          date: new Date(chaineDateUTC),
-                        };
-                        collectionGlobalEvents.insertOne(
-                          dataEvent,
-                          function (err, reslt) {
-                            res(true);
-                          }
-                        );
-                      } //No riders with the providedd fingerprint
-                      else {
-                        res(false);
-                      }
-                    });
-                }).then(
-                  () => {},
-                  () => {}
-                );
-                //...
-                //DONE
+              )
+              .catch((error) => {
+                console.log(error);
                 resolve({
-                  response: "success",
-                  flag: "operation successful",
-                  picture_name: `${process.env.SERVER_IP}:${process.env.EVENT_GATEWAY_PORT}/${tmpPicture_name}`,
+                  response: "error",
+                  flag: "unexpected_conversion_error_1",
                 });
-              }
-            );
+              });
           }
         );
       } //No mime found

@@ -3,6 +3,7 @@ node_modules
 SERVICES
 Cached
 assets
+Experiments
 Redis
 .gitignore
 tripSimulator.html
