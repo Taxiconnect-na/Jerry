@@ -566,13 +566,29 @@ function doMongoSearchForAutocompletedSuburbs(
     "-" +
     (locationInfos.city !== undefined && locationInfos.city !== false
       ? locationInfos.city.trim().toLowerCase()
-      : locationInfos.city);
+      : locationInfos.city) +
+    "-" +
+    (locationInfos.country !== undefined && locationInfos.country !== false
+      ? locationInfos.country.trim().toLowerCase()
+      : locationInfos.country);
   //Check from redis first
   redisGet(redisKey).then(
     (resp) => {
       if (resp !== null) {
         //Has a previous record
         try {
+          //Rehydrate the cached data
+          new Promise((res) => {
+            execMongoSearchAutoComplete(
+              res,
+              locationInfos,
+              redisKey,
+              collectionSavedSuburbResults
+            );
+          }).then(
+            (result) => {},
+            (error) => {}
+          );
           console.log("FOUND REDIS RECORD OF SUBURB!");
           resp = JSON.parse(resp);
           resolve(resp);
@@ -660,7 +676,91 @@ function execMongoSearchAutoComplete(
     .toArray(function (err, result) {
       if (result.length > 0) {
         //Found previous record
-        resolve(result[0]);
+        //! Make a fresh search
+        let url =
+          process.env.URL_NOMINATIM_SERVICES +
+          "/reverse?format=json&lat=" +
+          locationInfos.coordinates.latitude +
+          "&lon=" +
+          locationInfos.coordinates.longitude +
+          "&zoom=18&addressdetails=1&extratags=1&namedetails=1";
+        requestAPI(url, function (err, response, body) {
+          try {
+            console.log(err, body, response);
+            //Get only the state and suburb infos
+            body = JSON.parse(body);
+            if (body.address !== undefined && body.address !== null) {
+              if (
+                body.address.state !== undefined &&
+                body.address.suburb !== undefined
+              ) {
+                //? Update the previous record
+                console.log("fresh search done!");
+                new Promise((res1) => {
+                  //Save result in MongoDB
+                  let newRecord = {
+                    $set: {
+                      suburb: body.address.suburb,
+                      state: body.address.state,
+                      location_name: locationInfos.location_name,
+                      city: locationInfos.city,
+                      street_name: locationInfos.street_name,
+                    },
+                  };
+
+                  collectionSavedSuburbResults.updateOne(
+                    findPrevQuery,
+                    newRecord,
+                    function (err, reslt) {
+                      console.log("Updated prev record in mongo");
+                      res1(true);
+                    }
+                  );
+                }).then(
+                  () => {},
+                  () => {}
+                );
+
+                //Cache result
+                new Promise((res2) => {
+                  //Update the cache
+                  //add new record
+                  client.set(
+                    redisKey,
+                    JSON.stringify({
+                      suburb: body.address.suburb,
+                      state: body.address.state,
+                      location_name: locationInfos.location_name,
+                      city: locationInfos.city,
+                      street_name: locationInfos.street_name,
+                    }),
+                    redis.print
+                  );
+                  //...
+                  res2(true);
+                }).then(
+                  () => {},
+                  (error) => {
+                    console.log(error);
+                  }
+                );
+                //..respond - complete the input data
+                locationInfos.suburb = body.address.suburb;
+                locationInfos.state = body.address.state;
+                resolve(locationInfos);
+              } //Error
+              else {
+                resolve(false);
+              }
+            } //error
+            else {
+              resolve(false);
+            }
+          } catch (error) {
+            console.log(error);
+            resolve(false);
+          }
+        });
       } //Do a fresh search
       else {
         console.log(

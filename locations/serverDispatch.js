@@ -301,6 +301,7 @@ function parseRequestData(inputData, resolve) {
                   suburb: false,
                   pickup_note: inputData.pickupNote,
                   city: inputData.pickupData.city,
+                  state: null,
                 };
                 //Auto complete the suburb
                 new Promise((res3) => {
@@ -327,6 +328,8 @@ function parseRequestData(inputData, resolve) {
                       try {
                         body = JSON.parse(body);
                         parsedData.pickup_location_infos.suburb = body.suburb;
+                        parsedData.pickup_location_infos.state = body.state;
+
                         res3(true);
                       } catch (error) {
                         res3(false);
