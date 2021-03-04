@@ -687,7 +687,6 @@ function execMongoSearchAutoComplete(
           "&zoom=18&addressdetails=1&extratags=1&namedetails=1";
         requestAPI(url, function (err, response, body) {
           try {
-            console.log(err, body, response);
             //Get only the state and suburb infos
             body = JSON.parse(body);
             if (body.address !== undefined && body.address !== null) {
@@ -706,6 +705,7 @@ function execMongoSearchAutoComplete(
                       location_name: locationInfos.location_name,
                       city: locationInfos.city,
                       street_name: locationInfos.street_name,
+                      country: locationInfos.country,
                       date_updated: new Date(chaineDateUTC),
                     },
                   };
@@ -727,13 +727,15 @@ function execMongoSearchAutoComplete(
                 new Promise((res2) => {
                   //Update the cache
                   //add new record
-                  client.set(
+                  client.setex(
                     redisKey,
+                    process.env.REDIS_EXPIRATION_5MIN,
                     JSON.stringify({
                       suburb: body.address.suburb,
                       state: body.address.state,
                       location_name: locationInfos.location_name,
                       city: locationInfos.city,
+                      country: locationInfos.country,
                       street_name: locationInfos.street_name,
                     }),
                     redis.print
@@ -796,6 +798,7 @@ function execMongoSearchAutoComplete(
                     state: body.address.state,
                     location_name: locationInfos.location_name,
                     city: locationInfos.city,
+                    country: locationInfos.country,
                     street_name: locationInfos.street_name,
                     date_updated: new Date(chaineDateUTC),
                   };
@@ -816,13 +819,15 @@ function execMongoSearchAutoComplete(
                 new Promise((res2) => {
                   //Update the cache
                   //add new record
-                  client.set(
+                  client.setex(
                     redisKey,
+                    process.env.REDIS_EXPIRATION_5MIN,
                     JSON.stringify({
                       suburb: body.address.suburb,
                       state: body.address.state,
                       location_name: locationInfos.location_name,
                       city: locationInfos.city,
+                      country: locationInfos.country,
                       street_name: locationInfos.street_name,
                     }),
                     redis.print
