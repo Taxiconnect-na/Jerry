@@ -2081,8 +2081,7 @@ function computeRouteDetails_skeleton(
               //6. Add the driver's name and profile picture
               confirmation_request_schema.driver_details.name =
                 driverProfile.name;
-              confirmation_request_schema.driver_details.profile_picture =
-                driverProfile.identification_data.profile_picture;
+              confirmation_request_schema.driver_details.profile_picture = `${process.env.AWS_S3_DRIVERS_PROFILE_PICTURES_PATH}/${driverProfile.identification_data.profile_picture}`;
 
               //Done
               resolve(confirmation_request_schema);
@@ -2346,8 +2345,7 @@ function computeAndCacheRouteDestination(
       }; //Will contain all the additional informations needed
       //Add the driver's basic information (name, profile picture, taxi number-if any, car brand, car image, general rating, plate number, phone number)
       additionalInfos.driverDetails.name = driverProfile.name;
-      additionalInfos.driverDetails.profile_picture =
-        driverProfile.identification_data.profile_picture;
+      additionalInfos.driverDetails.profile_picture = `${process.env.AWS_S3_DRIVERS_PROFILE_PICTURES_PATH}/${driverProfile.identification_data.profile_picture}`;
       additionalInfos.driverDetails.global_rating =
         driverProfile.operational_state.global_rating !== undefined &&
         driverProfile.operational_state.global_rating !== null
@@ -4401,8 +4399,7 @@ clientMongo.connect(function (err) {
                           //Found the owner of the ride
                           let ownerInfoBundle = {
                             name: riderTripOwner[0].name,
-                            profile_picture:
-                              riderTripOwner[0].media.profile_picture,
+                            profile_picture: `${process.env.AWS_S3_RIDERS_PROFILE_PICTURES_PATH}/${riderTripOwner[0].media.profile_picture}`,
                           };
                           //? attach to the global trip details AND the success status
                           result["riderOwnerInfoBundle"] = ownerInfoBundle;

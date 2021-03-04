@@ -56,9 +56,10 @@ app
       limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
       extended: true,
     })
-  )
-  .use(express.static(__dirname + process.env.RIDERS_PROFILE_PICTURES_PATH)) //Riders profiles
-  .use(express.static(__dirname + process.env.DRIVERS_PROFILE_PICTURES_PATH)); //Drivers profiles.
+  );
+//! DISABLE EXTERNAL SERVING FOR SECURITY REASONS.
+//!.use(express.static(__dirname + process.env.RIDERS_PROFILE_PICTURES_PATH)) //Riders profiles
+//!.use(express.static(__dirname + process.env.DRIVERS_PROFILE_PICTURES_PATH)); //Drivers profiles.
 
 //EVENTS ROUTER
 io.on("connection", (socket) => {

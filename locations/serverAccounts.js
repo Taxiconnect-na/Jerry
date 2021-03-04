@@ -235,7 +235,7 @@ function checkUserStatus(
             gender: result[0].gender,
             phone_number: result[0].phone_number,
             email: result[0].email,
-            profile_picture: `${process.env.SERVER_IP}:${process.env.EVENT_GATEWAY_PORT}/${result[0].media.profile_picture}`,
+            profile_picture: `${process.env.AWS_S3_RIDERS_PROFILE_PICTURES_PATH}/${result[0].media.profile_picture}`,
             account_state:
               result[0].account_state !== undefined &&
               result[0].account_state !== null
@@ -272,7 +272,7 @@ function checkUserStatus(
             gender: result[0].gender,
             phone_number: result[0].phone_number,
             email: result[0].email,
-            profile_picture: `${process.env.SERVER_IP}:${process.env.EVENT_GATEWAY_PORT}/${result[0].identification_data.profile_picture}`,
+            profile_picture: `${process.env.AWS_S3_DRIVERS_PROFILE_PICTURES_PATH}/${result[0].identification_data.profile_picture}`,
             account_state:
               result[0].isDriverSuspended !== undefined &&
               result[0].isDriverSuspended !== null
@@ -808,7 +808,7 @@ function proceedTargeted_requestHistory_fetcher(
                 " " +
                 plate_number[plate_number.length - 1];
               driver_name = driver.name + " " + driver.surname;
-              driver_picture = driver.identification_data.profile_picture;
+              driver_picture = `${process.env.AWS_S3_DRIVERS_PROFILE_PICTURES_PATH}/${driver.identification_data.profile_picture}`;
             }
           });
         });
@@ -3999,7 +3999,7 @@ clientMongo.connect(function (err) {
                       phone_number: riderProfile[0].phone_number,
                       email: riderProfile[0].email,
                       account_state: "full", //!VERY IMPORTANT - MARK ACCOUNT CREATION STATE AS FULL - to avoid redirection to complete details screen.
-                      profile_picture: `${process.env.SERVER_IP}:${process.env.EVENT_GATEWAY_PORT}/${riderProfile[0].media.profile_picture}`,
+                      profile_picture: `${process.env.AWS_S3_RIDERS_PROFILE_PICTURES_PATH}/${riderProfile[0].media.profile_picture}`,
                       pushnotif_token: riderProfile[0].pushnotif_token,
                     });
                   } //Error finding profile
