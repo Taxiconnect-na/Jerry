@@ -665,6 +665,7 @@ function execMongoSearchAutoComplete(
   redisKey,
   collectionSavedSuburbResults
 ) {
+  resolveDate();
   //Check mongodb for previous record
   let findPrevQuery = {
     location_name: locationInfos.location_name,
@@ -705,6 +706,7 @@ function execMongoSearchAutoComplete(
                       location_name: locationInfos.location_name,
                       city: locationInfos.city,
                       street_name: locationInfos.street_name,
+                      date_updated: new Date(chaineDateUTC),
                     },
                   };
 
@@ -795,6 +797,7 @@ function execMongoSearchAutoComplete(
                     location_name: locationInfos.location_name,
                     city: locationInfos.city,
                     street_name: locationInfos.street_name,
+                    date_updated: new Date(chaineDateUTC),
                   };
 
                   collectionSavedSuburbResults.insertOne(
