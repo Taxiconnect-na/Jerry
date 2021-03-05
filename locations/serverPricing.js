@@ -183,7 +183,6 @@ function autocompleteInputData(
   //..
   redisGet(redisKey).then(
     (resp) => {
-      console.log(resp);
       if (resp !== null && resp !== undefined) {
         //Found a record
         resp = JSON.parse(resp);
@@ -207,6 +206,7 @@ function autocompleteInputData(
             );
           }).then(
             (result) => {
+              console.log("HERRRREE -- > ", result);
               if (result !== false) {
                 inputData.destination_location_infos = result; //Update main object
                 destinationInfos = result; //Update shortcut object
@@ -286,7 +286,6 @@ function autocompleteInputData(
               inputData.pickup_location_infos.state = result.state;
               pickupInfos = inputData.pickup_location_infos; //Update shortcut var
               //...Done auto complete destination locations
-              //console.log(result);
               new Promise((res) => {
                 manageAutoCompleteDestinationLocations(
                   res,
@@ -296,6 +295,7 @@ function autocompleteInputData(
                 );
               }).then(
                 (result) => {
+                  console.log("HERRRREE -- > ", result);
                   if (result !== false) {
                     inputData.destination_location_infos = result; //Update main object
                     destinationInfos = result; //Update shortcut object
@@ -389,28 +389,30 @@ function manageAutoCompleteDestinationLocations(
   console.log("AUTO COMPLETE DESTINATION DATA");
   let promiseParent = destinationLocations.map((destination) => {
     return new Promise((res) => {
-      // Swap latitude and longitude (cause they were reversed)- MAJOR FIX!
+      //! Swap latitude and longitude (cause they were reversed)- MAJOR FIX! --IS IT???
       let tmp = destination.coordinates.latitude;
       destination.coordinates.latitude = destination.coordinates.longitude;
       destination.coordinates.longitude = tmp;
       doMongoSearchForAutocompletedSuburbs(
         res,
         destination,
-        collectionSavedSuburbResults
+        collectionSavedSuburbResults,
+        true
       );
     });
   });
   Promise.all(promiseParent).then(
     (result) => {
       if (result !== false) {
-        console.log(result);
         //Update the input data
         destinationLocations.map((prevLocation, index) => {
           result.map((completeLocation) => {
             if (
-              completeLocation.location_name === prevLocation.location_name &&
+              /*completeLocation.location_name === prevLocation.location_name &&
               completeLocation.street_name === prevLocation.street_name &&
-              completeLocation.city === prevLocation.city
+              completeLocation.city === prevLocation.city*/
+              parseInt(completeLocation.passenger_number_id) ===
+              parseInt(prevLocation.passenger_number_id)
             ) {
               //Same location - update - else ignore
               destinationLocations[index].suburb =
@@ -545,18 +547,19 @@ function manageAutoCompleteDestinationLocations(
  * @param locationInfos: object containing specific single location infos
  * @param resolve
  * @param collectionSavedSuburbResults: collection containing all the already proccessed records
+ * @param annotate: whether or not the put index annotations
  * Responsible for checking in mongodb for previous exact record already searched.
  */
 function doMongoSearchForAutocompletedSuburbs(
   resolve,
   locationInfos,
-  collectionSavedSuburbResults
+  collectionSavedSuburbResults,
+  annotate = false
 ) {
   //! Make sure that "make_new" is provided
   if (locationInfos.make_new === undefined || locationInfos.make_new === null) {
     locationInfos["make_new"] = false;
   }
-  console.log(locationInfos);
   //!!!
   let redisKey =
     "savedSuburbResults-" +
@@ -589,7 +592,8 @@ function doMongoSearchForAutocompletedSuburbs(
               res,
               locationInfos,
               redisKey,
-              collectionSavedSuburbResults
+              collectionSavedSuburbResults,
+              annotate
             );
           }).then(
             (result) => {},
@@ -597,6 +601,11 @@ function doMongoSearchForAutocompletedSuburbs(
           );
           console.log("FOUND REDIS RECORD OF SUBURB!");
           resp = JSON.parse(resp);
+          resp["passenger_number_id"] =
+            locationInfos.passenger_number_id !== undefined &&
+            locationInfos.passenger_number_id !== null
+              ? locationInfos.passenger_number_id
+              : null;
           resolve(resp);
         } catch (
           error //Error parsing -get from mongodb
@@ -606,7 +615,8 @@ function doMongoSearchForAutocompletedSuburbs(
               res,
               locationInfos,
               redisKey,
-              collectionSavedSuburbResults
+              collectionSavedSuburbResults,
+              annotate
             );
           }).then(
             (result) => {
@@ -624,26 +634,30 @@ function doMongoSearchForAutocompletedSuburbs(
             res,
             locationInfos,
             redisKey,
-            collectionSavedSuburbResults
+            collectionSavedSuburbResults,
+            annotate
           );
         }).then(
           (result) => {
             resolve(result);
           },
           (error) => {
+            console.log(error);
             resolve(false);
           }
         );
       }
     },
     (error) => {
+      console.log(error);
       //Error -get from mongodb
       new Promise((res) => {
         execMongoSearchAutoComplete(
           res,
           locationInfos,
           redisKey,
-          collectionSavedSuburbResults
+          collectionSavedSuburbResults,
+          annotate
         );
       }).then(
         (result) => {
@@ -663,13 +677,15 @@ function doMongoSearchForAutocompletedSuburbs(
  * @param locationInfos: object containing specific single location infos
  * @param resolve
  * @param collectionSavedSuburbResults: collection containing all the already proccessed records
+ * @param annotate: whether or not to add index number to the results
  * @param redisKey: corresponding record key for this location point
  */
 function execMongoSearchAutoComplete(
   resolve,
   locationInfos,
   redisKey,
-  collectionSavedSuburbResults
+  collectionSavedSuburbResults,
+  annotate = false
 ) {
   //! Make sure that "make_new" is provided
   if (locationInfos.make_new === undefined || locationInfos.make_new === null) {
@@ -713,10 +729,21 @@ function execMongoSearchAutoComplete(
                     $set: {
                       suburb: body.address.suburb,
                       state: body.address.state,
-                      location_name: locationInfos.location_name,
-                      city: locationInfos.city,
-                      street_name: locationInfos.street_name,
-                      country: locationInfos.country,
+                      location_name:
+                        body.namedetails["name"] !== undefined &&
+                        body.namedetails["name"] !== null
+                          ? body.namedetails["name"]
+                          : body.address.amenity !== undefined &&
+                            body.address.amenity !== null
+                          ? body.address.amenity
+                          : body.address.road,
+                      city: body.address.city,
+                      country: body.address.country,
+                      street_name:
+                        body.address.road !== undefined &&
+                        body.address.road !== null
+                          ? body.address.road
+                          : body.namedetails["name:en"],
                       date_updated: new Date(chaineDateUTC),
                     },
                   };
@@ -726,110 +753,6 @@ function execMongoSearchAutoComplete(
                     newRecord,
                     function (err, reslt) {
                       console.log("Updated prev record in mongo");
-                      res1(true);
-                    }
-                  );
-                }).then(
-                  () => {},
-                  () => {}
-                );
-
-                //Cache result
-                new Promise((res2) => {
-                  //Update the cache
-                  //add new record
-                  client.setex(
-                    redisKey,
-                    process.env.REDIS_EXPIRATION_5MIN,
-                    JSON.stringify({
-                      suburb: body.address.suburb,
-                      state: body.address.state,
-                      location_name: locationInfos.location_name,
-                      city: locationInfos.city,
-                      country: locationInfos.country,
-                      street_name: locationInfos.street_name,
-                    }),
-                    redis.print
-                  );
-                  //...
-                  res2(true);
-                }).then(
-                  () => {},
-                  (error) => {
-                    console.log(error);
-                  }
-                );
-                //..respond - complete the input data
-                locationInfos.suburb = body.address.suburb;
-                locationInfos.state = body.address.state;
-                resolve(locationInfos);
-              } //Error
-              else {
-                resolve(false);
-              }
-            } //error
-            else {
-              resolve(false);
-            }
-          } catch (error) {
-            console.log(error);
-            resolve(false);
-          }
-        });
-      } //Do a fresh search
-      else {
-        console.log(
-          "PERFORM FRESH GEOCODINGR -->",
-          locationInfos.coordinates.latitude,
-          ",",
-          locationInfos.coordinates.longitude
-        );
-        let url =
-          process.env.URL_NOMINATIM_SERVICES +
-          "/reverse?format=json&lat=" +
-          locationInfos.coordinates.latitude +
-          "&lon=" +
-          locationInfos.coordinates.longitude +
-          "&zoom=18&addressdetails=1&extratags=1&namedetails=1";
-        requestAPI(url, function (err, response, body) {
-          try {
-            console.log(body);
-            //Get only the state and suburb infos
-            body = JSON.parse(body);
-            if (body.address !== undefined && body.address !== null) {
-              if (
-                body.address.state !== undefined &&
-                body.address.suburb !== undefined
-              ) {
-                //! PICKUP LOCATION REINFORCEMENTS
-                console.log("fresh search done! - MAKE NEW");
-                new Promise((res1) => {
-                  //Save result in MongoDB
-                  let newRecord = {
-                    suburb: body.address.suburb,
-                    state: body.address.state,
-                    location_name:
-                      body.namedetails["name"] !== undefined &&
-                      body.namedetails["name"] !== null
-                        ? body.namedetails["name"]
-                        : body.address.amenity !== undefined &&
-                          body.address.amenity !== null
-                        ? body.address.amenity
-                        : body.address.road,
-                    city: body.address.city,
-                    country: body.address.country,
-                    street_name:
-                      body.address.road !== undefined &&
-                      body.address.road !== null
-                        ? body.address.road
-                        : body.namedetails["name:en"],
-                    date_updated: new Date(chaineDateUTC),
-                  };
-
-                  collectionSavedSuburbResults.insertOne(
-                    newRecord,
-                    function (err, reslt) {
-                      console.log("Saved new record in mongo");
                       res1(true);
                     }
                   );
@@ -875,7 +798,14 @@ function execMongoSearchAutoComplete(
                   }
                 );
                 //..respond - complete the input data
-                locationInfos = {
+                //locationInfos.suburb = body.address.suburb;
+                //locationInfos.state = body.address.state;
+                resolve({
+                  passenger_number_id:
+                    locationInfos.passenger_number_id !== undefined &&
+                    locationInfos.passenger_number_id !== null
+                      ? passenger_number_id
+                      : null,
                   suburb: body.address.suburb,
                   state: body.address.state,
                   location_name:
@@ -893,8 +823,166 @@ function execMongoSearchAutoComplete(
                     body.address.road !== null
                       ? body.address.road
                       : body.namedetails["name"],
-                };
-                resolve(locationInfos);
+                });
+              } //Error
+              else {
+                resolve(false);
+              }
+            } //error
+            else {
+              resolve(false);
+            }
+          } catch (error) {
+            console.log(error);
+            resolve(false);
+          }
+        });
+      } //Do a fresh search
+      else {
+        console.log(
+          "PERFORM FRESH GEOCODINGR -->",
+          locationInfos.coordinates.latitude,
+          ",",
+          locationInfos.coordinates.longitude
+        );
+        let url =
+          process.env.URL_NOMINATIM_SERVICES +
+          "/reverse?format=json&lat=" +
+          locationInfos.coordinates.latitude +
+          "&lon=" +
+          locationInfos.coordinates.longitude +
+          "&zoom=18&addressdetails=1&extratags=1&namedetails=1";
+        requestAPI(url, function (err, response, body) {
+          try {
+            console.log(body);
+            //Get only the state and suburb infos
+            body = JSON.parse(body);
+            if (body.address !== undefined && body.address !== null) {
+              if (
+                body.address.state !== undefined &&
+                body.address.suburb !== undefined
+              ) {
+                //! PICKUP LOCATION REINFORCEMENTS
+                console.log("fresh search done! - MAKE NEW");
+                try {
+                  new Promise((res1) => {
+                    //Save result in MongoDB
+                    let newRecord = {
+                      suburb: body.address.suburb,
+                      state: body.address.state,
+                      location_name:
+                        body.namedetails["name"] !== undefined &&
+                        body.namedetails["name"] !== null
+                          ? body.namedetails["name"]
+                          : body.address.amenity !== undefined &&
+                            body.address.amenity !== null
+                          ? body.address.amenity
+                          : body.address.road,
+                      city: body.address.city,
+                      country: body.address.country,
+                      street_name:
+                        body.address.road !== undefined &&
+                        body.address.road !== null
+                          ? body.address.road
+                          : body.namedetails["name:en"],
+                      date_updated: new Date(chaineDateUTC),
+                    };
+
+                    collectionSavedSuburbResults.insertOne(
+                      newRecord,
+                      function (err, reslt) {
+                        console.log("Saved new record in mongo");
+                        res1(true);
+                      }
+                    );
+                  }).then(
+                    () => {},
+                    () => {}
+                  );
+
+                  //Cache result
+                  new Promise((res2) => {
+                    //Update the cache
+                    //add new record
+                    client.setex(
+                      redisKey,
+                      process.env.REDIS_EXPIRATION_5MIN,
+                      JSON.stringify({
+                        suburb: body.address.suburb,
+                        state: body.address.state,
+                        location_name:
+                          body.namedetails["name"] !== undefined &&
+                          body.namedetails["name"] !== null
+                            ? body.namedetails["name"]
+                            : body.address.amenity !== undefined &&
+                              body.address.amenity !== null
+                            ? body.address.amenity
+                            : body.address.road,
+                        city: body.address.city,
+                        country: body.address.country,
+                        street_name:
+                          body.address.road !== undefined &&
+                          body.address.road !== null
+                            ? body.address.road
+                            : body.namedetails["name:en"],
+                      }),
+                      redis.print
+                    );
+                    //...
+                    res2(true);
+                  }).then(
+                    () => {},
+                    (error) => {
+                      console.log(error);
+                    }
+                  );
+                  //..respond - complete the input data
+                  locationInfos = {
+                    suburb: body.address.suburb,
+                    state: body.address.state,
+                    location_name:
+                      body.namedetails["name"] !== undefined &&
+                      body.namedetails["name"] !== null
+                        ? body.namedetails["name"]
+                        : body.address.amenity !== undefined &&
+                          body.address.amenity !== null
+                        ? body.address.amenity
+                        : body.address.road,
+                    city: body.address.city,
+                    country: body.address.country,
+                    street_name:
+                      body.address.road !== undefined &&
+                      body.address.road !== null
+                        ? body.address.road
+                        : body.namedetails["name"],
+                  };
+                  resolve({
+                    passenger_number_id:
+                      locationInfos.passenger_number_id !== undefined &&
+                      locationInfos.passenger_number_id !== null
+                        ? passenger_number_id
+                        : null,
+                    suburb: body.address.suburb,
+                    state: body.address.state,
+                    location_name:
+                      body.namedetails["name"] !== undefined &&
+                      body.namedetails["name"] !== null
+                        ? body.namedetails["name"]
+                        : body.address.amenity !== undefined &&
+                          body.address.amenity !== null
+                        ? body.address.amenity
+                        : body.address.road,
+                    city: body.address.city,
+                    country: body.address.country,
+                    street_name:
+                      body.address.road !== undefined &&
+                      body.address.road !== null
+                        ? body.address.road
+                        : body.namedetails["name"],
+                  });
+                } catch (error) {
+                  resolve(false);
+                }
               } //Error
               else {
                 resolve(false);
@@ -1933,6 +2021,7 @@ clientMongo.connect(function (err) {
                     console.log(
                       "Computing prices metadata of relevant car categories"
                     );
+                    console.log(result);
                     new Promise((res) => {
                       estimateFullVehiclesCatPrices(
                         res,
