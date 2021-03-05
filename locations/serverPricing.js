@@ -556,6 +556,7 @@ function doMongoSearchForAutocompletedSuburbs(
   if (locationInfos.make_new === undefined || locationInfos.make_new === null) {
     locationInfos["make_new"] = false;
   }
+  console.log(locationInfos);
   //!!!
   let redisKey =
     "savedSuburbResults-" +
@@ -792,7 +793,7 @@ function execMongoSearchAutoComplete(
           "&zoom=18&addressdetails=1&extratags=1&namedetails=1";
         requestAPI(url, function (err, response, body) {
           try {
-            console.log(err, body, response);
+            console.log(body);
             //Get only the state and suburb infos
             body = JSON.parse(body);
             if (body.address !== undefined && body.address !== null) {
@@ -800,16 +801,28 @@ function execMongoSearchAutoComplete(
                 body.address.state !== undefined &&
                 body.address.suburb !== undefined
               ) {
-                console.log("fresh search done!");
+                //! PICKUP LOCATION REINFORCEMENTS
+                console.log("fresh search done! - MAKE NEW");
                 new Promise((res1) => {
                   //Save result in MongoDB
                   let newRecord = {
                     suburb: body.address.suburb,
                     state: body.address.state,
-                    location_name: locationInfos.location_name,
-                    city: locationInfos.city,
-                    country: locationInfos.country,
-                    street_name: locationInfos.street_name,
+                    location_name:
+                      body.namedetails["name"] !== undefined &&
+                      body.namedetails["name"] !== null
+                        ? body.namedetails["name"]
+                        : body.address.amenity !== undefined &&
+                          body.address.amenity !== null
+                        ? body.address.amenity
+                        : body.address.road,
+                    city: body.address.city,
+                    country: body.address.country,
+                    street_name:
+                      body.address.road !== undefined &&
+                      body.address.road !== null
+                        ? body.address.road
+                        : body.namedetails["name:en"],
                     date_updated: new Date(chaineDateUTC),
                   };
 
@@ -835,10 +848,21 @@ function execMongoSearchAutoComplete(
                     JSON.stringify({
                       suburb: body.address.suburb,
                       state: body.address.state,
-                      location_name: locationInfos.location_name,
-                      city: locationInfos.city,
-                      country: locationInfos.country,
-                      street_name: locationInfos.street_name,
+                      location_name:
+                        body.namedetails["name"] !== undefined &&
+                        body.namedetails["name"] !== null
+                          ? body.namedetails["name"]
+                          : body.address.amenity !== undefined &&
+                            body.address.amenity !== null
+                          ? body.address.amenity
+                          : body.address.road,
+                      city: body.address.city,
+                      country: body.address.country,
+                      street_name:
+                        body.address.road !== undefined &&
+                        body.address.road !== null
+                          ? body.address.road
+                          : body.namedetails["name:en"],
                     }),
                     redis.print
                   );
@@ -851,8 +875,25 @@ function execMongoSearchAutoComplete(
                   }
                 );
                 //..respond - complete the input data
-                locationInfos.suburb = body.address.suburb;
-                locationInfos.state = body.address.state;
+                locationInfos = {
+                  suburb: body.address.suburb,
+                  state: body.address.state,
+                  location_name:
+                    body.namedetails["name"] !== undefined &&
+                    body.namedetails["name"] !== null
+                      ? body.namedetails["name"]
+                      : body.address.amenity !== undefined &&
+                        body.address.amenity !== null
+                      ? body.address.amenity
+                      : body.address.road,
+                  city: body.address.city,
+                  country: body.address.country,
+                  street_name:
+                    body.address.road !== undefined &&
+                    body.address.road !== null
+                      ? body.address.road
+                      : body.namedetails["name"],
+                };
                 resolve(locationInfos);
               } //Error
               else {
