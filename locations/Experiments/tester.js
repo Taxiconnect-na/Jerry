@@ -4,7 +4,7 @@ const fs = require("fs");
 const ID = "AKIAJP5PRI4VPXIEFIVA";
 const SECRET = "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";
 
-const BUCKET_NAME = "riders-central/Profiles_pictures";
+const BUCKET_NAME = "drivers-central/Profiles_pictures";
 
 const s3 = new AWS.S3({
   accessKeyId: ID,

@@ -129,6 +129,8 @@ function generateUniqueFingerprint(str, encryption = false, resolve) {
  */
 function parseRequestData(inputData, resolve) {
   resolveDate();
+  console.log("INITIAL RECEIVED REQUEST");
+  console.log(inputData);
   //Check data consistency
   if (
     inputData.destinationData !== undefined &&
@@ -322,13 +324,18 @@ function parseRequestData(inputData, resolve) {
                     "&longitude=" +
                     inputData.pickupData.coordinates[1] +
                     "&user_fingerprint=" +
-                    inputData.user_fingerprint;
+                    inputData.user_fingerprint +
+                    "&make_new=true";
                   requestAPI(url, function (error, response, body) {
                     if (error === null) {
                       try {
                         body = JSON.parse(body);
-                        parsedData.pickup_location_infos.suburb = body.suburb;
-                        parsedData.pickup_location_infos.state = body.state;
+                        parsedData.pickup_location_infos.suburb = body.suburb; //! Suburb
+                        parsedData.pickup_location_infos.state = body.state; //! State
+                        parsedData.pickup_location_infos.location_name =
+                          body.location_name; //! Location name
+                        parsedData.pickup_location_infos.street_name =
+                          body.street_name; //! Street name
 
                         res3(true);
                       } catch (error) {
@@ -714,6 +721,8 @@ function parseRequestData(inputData, resolve) {
                                 else {
                                   //Update the destination data
                                   parsedData.destinationData = body;
+                                  console.log("PARSED DATA");
+                                  console.log(parsedData);
                                   //DONE
                                   resolve(parsedData);
                                 }

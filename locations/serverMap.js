@@ -4073,7 +4073,7 @@ clientMongo.connect(function (err) {
             //Resolve all
             Promise.all(mainPromiser).then(
               (result) => {
-                console.trace(result);
+                console.log(result);
                 //Done- exlude all false
                 new Promise((res) => {
                   cleanAndAdjustRelativeDistancesList(

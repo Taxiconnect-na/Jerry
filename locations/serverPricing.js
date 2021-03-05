@@ -552,6 +552,11 @@ function doMongoSearchForAutocompletedSuburbs(
   locationInfos,
   collectionSavedSuburbResults
 ) {
+  //! Make sure that "make_new" is provided
+  if (locationInfos.make_new === undefined || locationInfos.make_new === null) {
+    locationInfos["make_new"] = false;
+  }
+  //!!!
   let redisKey =
     "savedSuburbResults-" +
     (locationInfos.location_name !== undefined &&
@@ -574,7 +579,7 @@ function doMongoSearchForAutocompletedSuburbs(
   //Check from redis first
   redisGet(redisKey).then(
     (resp) => {
-      if (resp !== null) {
+      if (resp !== null && locationInfos.make_new === false) {
         //Has a previous record
         try {
           //Rehydrate the cached data
@@ -665,17 +670,22 @@ function execMongoSearchAutoComplete(
   redisKey,
   collectionSavedSuburbResults
 ) {
+  //! Make sure that "make_new" is provided
+  if (locationInfos.make_new === undefined || locationInfos.make_new === null) {
+    locationInfos["make_new"] = false;
+  }
+  //!!!
   resolveDate();
   //Check mongodb for previous record
   let findPrevQuery = {
-    location_name: locationInfos.location_name,
-    city: locationInfos.city,
-    street_name: locationInfos.street_name,
+    location_name: { $regex: locationInfos.location_name },
+    city: { $regex: locationInfos.city },
+    street_name: { $regex: locationInfos.street_name },
   };
   collectionSavedSuburbResults
     .find(findPrevQuery)
     .toArray(function (err, result) {
-      if (result.length > 0) {
+      if (result.length > 0 && locationInfos.make_new === false) {
         //Found previous record
         //! Make a fresh search
         let url =
@@ -1956,6 +1966,10 @@ clientMongo.connect(function (err) {
               latitude: req.latitude,
               longitude: req.longitude,
             },
+            make_new:
+              req.make_new !== undefined && req.make_new !== null
+                ? true
+                : false,
           },
           collectionSavedSuburbResults
         );

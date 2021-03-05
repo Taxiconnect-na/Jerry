@@ -3,10 +3,10 @@ module.exports = {
     {
       name: "Events gateway",
       script: "eventsGateway.js",
-      instances: 5,
+      instances: 3,
       autorestart: true,
       watch: false,
-      max_memory_restart: "1G",
+      max_memory_restart: "3G",
       env: {
         NODE_ENV: "development",
       },
@@ -17,7 +17,7 @@ module.exports = {
     {
       name: "Account service",
       script: "serverAccounts.js",
-      instances: 4,
+      instances: 3,
       autorestart: true,
       watch: false,
       max_memory_restart: "1G",
@@ -31,10 +31,10 @@ module.exports = {
     {
       name: "Dispatch service",
       script: "serverDispatch.js",
-      instances: 4,
+      instances: 3,
       autorestart: true,
       watch: false,
-      max_memory_restart: "1G",
+      max_memory_restart: "4G",
       env: {
         NODE_ENV: "development",
       },
@@ -45,10 +45,10 @@ module.exports = {
     {
       name: "Map service",
       script: "serverMap.js",
-      instances: 5,
+      instances: 4,
       autorestart: true,
       watch: false,
-      max_memory_restart: "1G",
+      max_memory_restart: "3G",
       env: {
         NODE_ENV: "development",
       },
@@ -62,7 +62,7 @@ module.exports = {
       instances: 3,
       autorestart: true,
       watch: false,
-      max_memory_restart: "1G",
+      max_memory_restart: "3G",
       env: {
         NODE_ENV: "development",
       },
@@ -73,10 +73,10 @@ module.exports = {
     {
       name: "Search service",
       script: "serverSearch.js",
-      instances: 5,
+      instances: 4,
       autorestart: true,
       watch: false,
-      max_memory_restart: "1G",
+      max_memory_restart: "3G",
       env: {
         NODE_ENV: "development",
       },
@@ -87,10 +87,10 @@ module.exports = {
     {
       name: "Payment service",
       script: "serverPayments.js",
-      instances: 5,
+      instances: 4,
       autorestart: true,
       watch: false,
-      max_memory_restart: "1G",
+      max_memory_restart: "4G",
       env: {
         NODE_ENV: "development",
       },
@@ -101,10 +101,10 @@ module.exports = {
     {
       name: "Watcher service",
       script: "serverWatcher.js",
-      instances: 3,
+      instances: 2,
       autorestart: true,
       watch: false,
-      max_memory_restart: "1G",
+      max_memory_restart: "2G",
       env: {
         NODE_ENV: "development",
       },
