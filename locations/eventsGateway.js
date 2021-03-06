@@ -6,7 +6,15 @@ const path = require("path");
 
 var app = express();
 var server = http.createServer(app);
-const io = require("socket.io").listen(server);
+var cors = require("cors");
+var helmet = require("helmet");
+const io = require("socket.io")(server, {
+  cors: {
+    origin: "http://192.168.43.44",
+    methods: ["GET", "POST"],
+    credentials: true,
+  },
+});
 const requestAPI = require("request");
 const bodyParser = require("body-parser");
 //....
@@ -56,7 +64,9 @@ app
       limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
       extended: true,
     })
-  );
+  )
+  .use(cors())
+  .use(helmet());
 //! DISABLE EXTERNAL SERVING FOR SECURITY REASONS.
 //!.use(express.static(__dirname + process.env.RIDERS_PROFILE_PICTURES_PATH)) //Riders profiles
 //!.use(express.static(__dirname + process.env.DRIVERS_PROFILE_PICTURES_PATH)); //Drivers profiles.

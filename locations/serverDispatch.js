@@ -787,60 +787,19 @@ function intitiateStagedDispatch(
     snapshotTripInfos.org_longitude +
     "&ride_type=" +
     snapshotTripInfos.ride_type +
+    "&vehicle_type=" +
+    snapshotTripInfos.vehicle_type +
     "&city=" +
     snapshotTripInfos.city +
     "&country=" +
     snapshotTripInfos.country +
-    "&list_limit=all";
+    "&list_limit=all&make_new=true";
   requestAPI(url, function (error, response, body) {
     console.log(body);
-    if (error === null) {
-      try {
-        body = JSON.parse(body);
-        if (body.response !== undefined || response === false) {
-          //Error getting the list - send to all drivers
-          new Promise((res) => {
-            sendStagedNotificationsDrivers(
-              false,
-              snapshotTripInfos,
-              collectionDrivers_profiles,
-              collectionRidesDeliveryData,
-              res
-            );
-          }).then(
-            (result) => {
-              console.log(result);
-              resolve(result);
-            },
-            (error) => {
-              console.log(error);
-              resolve(false);
-            }
-          );
-        } //Successfully got the list
-        else {
-          new Promise((res) => {
-            sendStagedNotificationsDrivers(
-              body,
-              snapshotTripInfos,
-              collectionDrivers_profiles,
-              collectionRidesDeliveryData,
-              res
-            );
-          }).then(
-            (result) => {
-              console.log(result);
-              resolve(result);
-            },
-            (error) => {
-              console.log(error);
-              resolve(false);
-            }
-          );
-        }
-      } catch (error) {
-        console.log(error);
-        //Error getting the list of closest drivers - send to all the drivers
+    try {
+      body = JSON.parse(body);
+      if (body.response !== undefined) {
+        //Error getting the list - send to all drivers
         new Promise((res) => {
           sendStagedNotificationsDrivers(
             false,
@@ -859,8 +818,29 @@ function intitiateStagedDispatch(
             resolve(false);
           }
         );
+      } //Successfully got the list
+      else {
+        new Promise((res) => {
+          sendStagedNotificationsDrivers(
+            body,
+            snapshotTripInfos,
+            collectionDrivers_profiles,
+            collectionRidesDeliveryData,
+            res
+          );
+        }).then(
+          (result) => {
+            console.log(result);
+            resolve(result);
+          },
+          (error) => {
+            console.log(error);
+            resolve(false);
+          }
+        );
       }
-    } else {
+    } catch (error) {
+      console.log(error);
       //Error getting the list of closest drivers - send to all the drivers
       new Promise((res) => {
         sendStagedNotificationsDrivers(
@@ -897,9 +877,9 @@ function intitiateStagedDispatch(
  * yet accepted.
  * ? Closest first (1 driver)
  * after 1min00'' of not accepting
- * ? increase the radius (3 drivers)
- * after 1 min of not accepting
  * ? increase the radius (5 drivers)
+ * after 1 min of not accepting
+ * ? increase the radius (10 drivers)
  * after 1 min of not accepting
  * ? increase the radius (all the rest)
  * ! after 20 min of not accepting - AUTO cancel request
@@ -942,7 +922,8 @@ function sendStagedNotificationsDrivers(
       .toArray(function (err, driversProfiles) {
         //Filter the drivers based on their car's maximum capacity (the amount of passengers it can handle)
         //They can receive 3 additional requests on top of the limit of sits in their selected cars.
-        driversProfiles = driversProfiles.filter(
+        //! DISBALE PASSENGERS CHECK
+        /*driversProfiles = driversProfiles.filter(
           (dData) =>
             dData.operational_state.accepted_requests_infos === null ||
             dData.operational_state.accepted_requests_infos
@@ -954,7 +935,7 @@ function sendStagedNotificationsDrivers(
               .total_passengers_number === undefined ||
             dData.operational_state.accepted_requests_infos
               .total_passengers_number === null
-        );
+        );*/
 
         //...Register the drivers fp so that thei can see tne requests
         let driversFp = driversProfiles.map((data) => data.driver_fp); //Drivers fingerprints
@@ -1001,7 +982,6 @@ function sendStagedNotificationsDrivers(
               content_available: true,
               include_player_ids: driversPushNotif_token,
             };
-            console.log(message);
             //Send
             sendPushUPNotification(message);
             resolve({ response: "successfully_dispatched" });
@@ -1205,11 +1185,11 @@ function sendStagedNotificationsDrivers(
                               //Done FULL STAGED DISPATCH!
                               resolve({ response: "successfully_dispatched" });
                             });
-                        }, 1 * 60 * 1000);
+                        }, 1 * 30 * 1000);
                       });
-                  }, 1 * 60 * 1000);
+                  }, 1 * 30 * 1000);
                 });
-            }, 60 * 1000);
+            }, 35 * 1000);
           } //End the staged dispatch - done
           else {
             resolve({ response: "successfully_dispatched" });
@@ -1245,19 +1225,19 @@ function registerAllowedDriversForRidesAndNotify(
   incrementalStage = 1,
   resolve
 ) {
-  //Fit back to boundary.limit max
+  //? Fit back to boundary.limit max
   if (incrementalStage > 4) {
     incrementalStage = 4;
   }
   //Staged boundaries
   let stagedBoundaries = {
     1: { start: 0, end: 1 },
-    2: { start: 1, end: 4 },
-    3: { start: 4, end: 9 },
+    2: { start: 1, end: 6 },
+    3: { start: 4, end: 11 },
     4: { start: 9, end: false },
   };
+  let originalAllDrivers_fp = driversSnap.drivers_fp;
   //Slice the drivers fp and push notif tokens to be within the boundaries
-  console.log(driversSnap.drivers_fp);
   driversSnap.drivers_fp = driversSnap.drivers_fp.slice(
     stagedBoundaries[incrementalStage].start,
     stagedBoundaries[incrementalStage].end === false
@@ -1270,7 +1250,7 @@ function registerAllowedDriversForRidesAndNotify(
       ? driversSnap.pushNotif_tokens.length
       : stagedBoundaries[incrementalStage].end
   );
-  console.log(driversSnap.pushNotif_tokens);
+
   //Check whether the request was accepted or not.
   let checkAcceptance = {
     "ride_state_vars.isAccepted": false,
@@ -1355,7 +1335,41 @@ function registerAllowedDriversForRidesAndNotify(
         );
       } //Request already accepted
       else {
-        resolve({ response: "request_already_accepted" });
+        //! Give access to all the qualified drivers
+        let checkAcceptance = {
+          "ride_state_vars.isRideCompleted_driverSide": false,
+          request_fp: request_fp,
+        };
+        collectionRidesDeliveryData
+          .find(checkAcceptance)
+          .toArray(function (err, requestInfos) {
+            if (requestInfos.length > 0 && driversSnap.drivers_fp.length > 0) {
+              //Not yet accepted
+              requestInfos = requestInfos[0];
+              //...
+              //Add the drivers' fingerprints to the allowed_drivers_see
+              let updatedAllowedSee = {
+                $set: {
+                  allowed_drivers_see: [
+                    ...new Set([
+                      ...requestInfos.allowed_drivers_see,
+                      ...originalAllDrivers_fp,
+                    ]),
+                  ],
+                },
+              };
+              collectionRidesDeliveryData.updateOne(
+                checkAcceptance,
+                updatedAllowedSee,
+                function (err, reslt) {
+                  resolve({ response: "request_already_accepted" });
+                }
+              );
+            } //Already completed
+            else {
+              resolve({ response: "request_already_accepted" });
+            }
+          });
       }
     });
 }
