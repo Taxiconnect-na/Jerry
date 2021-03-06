@@ -3118,6 +3118,31 @@ function cleanAndAdjustRelativeDistancesList(rawList, list_limit = 5, resolve) {
     }
   } //Limit the results
   else {
+    //! Remove drivers with undefined, false or null coordinates
+    rawList = rawList.filter((element) =>
+      element.driver_coordinates !== undefined &&
+      element.driver_coordinates !== false &&
+      element.driver_coordinates !== null &&
+      element.driver_coordinates.latitude !== undefined &&
+      element.driver_coordinates.latitude !== false &&
+      element.driver_coordinates.latitude !== null &&
+      element.driver_coordinates.longitude !== undefined &&
+      element.driver_coordinates.longitude !== false &&
+      element.driver_coordinates.longitude !== null &&
+      //...
+      element.prev_driver_coordinates !== undefined &&
+      element.prev_driver_coordinates !== false &&
+      element.prev_driver_coordinates !== null &&
+      element.prev_driver_coordinates.latitude !== undefined &&
+      element.prev_driver_coordinates.latitude !== false &&
+      element.prev_driver_coordinates.latitude !== null &&
+      element.prev_driver_coordinates.longitude !== undefined &&
+      element.prev_driver_coordinates.longitude !== false &&
+      element.prev_driver_coordinates.longitude !== null
+        ? true
+        : false
+    );
+    //!....
     try {
       list_limit = parseInt(list_limit);
       rawList = rawList.slice(0, list_limit);
