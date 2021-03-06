@@ -10,7 +10,7 @@ var cors = require("cors");
 var helmet = require("helmet");
 const io = require("socket.io")(server, {
   cors: {
-    origin: "http://192.168.43.44",
+    origin: process.env.LEAD_DOMAIN_URL,
     methods: ["GET", "POST"],
     credentials: true,
   },
