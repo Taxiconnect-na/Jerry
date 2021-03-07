@@ -3342,7 +3342,13 @@ function getFreshProximity_driversList(
                               .prev_coordinates.longitude,
                         }; //Add the driver's previous coordinates to the response
                         resp[valueIndex].push_notification_token =
-                          driverData.operational_state.push_notification_token.userId; //Add the push notification token
+                          driverData.operational_state
+                            .push_notification_token !== null &&
+                          driverData.operational_state
+                            .push_notification_token !== undefined
+                            ? driverData.operational_state
+                                .push_notification_token.userId
+                            : null; //Add the push notification token
                         resolve(resp[valueIndex]);
                       } //The wanted index is not present, make a new search
                       else {
@@ -3351,9 +3357,127 @@ function getFreshProximity_driversList(
                             redisKey: redisKey,
                             valueIndex: valueIndex,
                           }); //Only get simplified data : ETA and distance
-                        }).then(
+                        })
+                          .then(
+                            (result) => {
+                              console.log("HERRRRRE");
+                              //Update the relative mongo records
+                              if (
+                                result !== false &&
+                                result !== undefined &&
+                                result.eta !== undefined
+                              ) {
+                                new Promise((res1) => {
+                                  let relativeHeader = {
+                                    user_fingerprint: req.user_fingerprint,
+                                    driver_fingerprint:
+                                      driverData.driver_fingerprint,
+                                    driver_coordinates: {
+                                      latitude:
+                                        driverData.operational_state
+                                          .last_location.coordinates.latitude,
+                                      longitude:
+                                        driverData.operational_state
+                                          .last_location.coordinates.longitude,
+                                    },
+                                    push_notification_token:
+                                      driverData.push_notification_token,
+                                    eta: result.eta,
+                                    distance: result.distance,
+                                    city: req.city,
+                                    country: req.country,
+                                  };
+                                  updateRelativeDistancesRiderDrivers(
+                                    collectionRelativeDistances,
+                                    relativeHeader,
+                                    res1
+                                  );
+                                }).then(
+                                  () => {},
+                                  () => {}
+                                );
+                              }
+                              //...
+                              result.driver_fingerprint =
+                                driverData.driver_fingerprint; //Add the driver fingerprint to the response
+                              result.driver_coordinates = {
+                                latitude:
+                                  driverData.operational_state.last_location
+                                    .coordinates.latitude,
+                                longitude:
+                                  driverData.operational_state.last_location
+                                    .coordinates.longitude,
+                              }; //Add the driver coordinates to the response
+                              result.prev_driver_coordinates = {
+                                latitude:
+                                  driverData.operational_state.last_location
+                                    .prev_coordinates.latitude,
+                                longitude:
+                                  driverData.operational_state.last_location
+                                    .prev_coordinates.longitude,
+                              }; //Add the driver's previous coordinates to the response
+                              result.push_notification_token =
+                                driverData.operational_state
+                                  .push_notification_token !== null &&
+                                driverData.operational_state
+                                  .push_notification_token !== undefined
+                                  ? driverData.operational_state
+                                      .push_notification_token.userId
+                                  : null; //Add push token
+                              resolve(result);
+                            },
+                            (error) => {
+                              console.log(error);
+                              let driverRepr = {
+                                eta: null,
+                                distance: null,
+                                driver_fingerprint:
+                                  driverData.driver_fingerprint,
+                                driver_coordinates: null,
+                                prev_driver_coordinates: null,
+                                push_notification_token:
+                                  driverData.operational_state
+                                    .push_notification_token !== undefined &&
+                                  driverData.operational_state
+                                    .push_notification_token !== null
+                                    ? driverData.operational_state
+                                        .push_notification_token.userId
+                                    : null,
+                              };
+                              resolve(driverRepr);
+                            }
+                          )
+                          .catch((error) => {
+                            console.log(error);
+                            let driverRepr = {
+                              eta: null,
+                              distance: null,
+                              driver_fingerprint: driverData.driver_fingerprint,
+                              driver_coordinates: null,
+                              prev_driver_coordinates: null,
+                              push_notification_token:
+                                driverData.operational_state
+                                  .push_notification_token !== undefined &&
+                                driverData.operational_state
+                                  .push_notification_token !== null
+                                  ? driverData.operational_state
+                                      .push_notification_token.userId
+                                  : null,
+                            };
+                            resolve(driverRepr);
+                          });
+                      }
+                    } catch (error) {
+                      console.log(error);
+                      //Make a fresh search
+                      new Promise((res) => {
+                        getRouteInfosDestination(tmp, res, true, {
+                          redisKey: redisKey,
+                          valueIndex: valueIndex,
+                        }); //Only get simplified data : ETA and distance
+                      })
+                        .then(
                           (result) => {
-                            console.log("HERRRRRE");
                             //Update the relative mongo records
                             if (
                               result !== false &&
@@ -3410,7 +3534,13 @@ function getFreshProximity_driversList(
                                   .prev_coordinates.longitude,
                             }; //Add the driver's previous coordinates to the response
                             result.push_notification_token =
-                              driverData.operational_state.push_notification_token.userId; //Add push toekn
+                              driverData.operational_state
+                                .push_notification_token !== null &&
+                              driverData.operational_state
+                                .push_notification_token !== undefined
+                                ? driverData.operational_state
+                                    .push_notification_token.userId
+                                : null; //Add push token
                             resolve(result);
                           },
                           (error) => {
@@ -3432,78 +3562,8 @@ function getFreshProximity_driversList(
                             };
                             resolve(driverRepr);
                           }
-                        );
-                      }
-                    } catch (error) {
-                      console.log(error);
-                      //Make a fresh search
-                      new Promise((res) => {
-                        getRouteInfosDestination(tmp, res, true, {
-                          redisKey: redisKey,
-                          valueIndex: valueIndex,
-                        }); //Only get simplified data : ETA and distance
-                      }).then(
-                        (result) => {
-                          //Update the relative mongo records
-                          if (
-                            result !== false &&
-                            result !== undefined &&
-                            result.eta !== undefined
-                          ) {
-                            new Promise((res1) => {
-                              let relativeHeader = {
-                                user_fingerprint: req.user_fingerprint,
-                                driver_fingerprint:
-                                  driverData.driver_fingerprint,
-                                driver_coordinates: {
-                                  latitude:
-                                    driverData.operational_state.last_location
-                                      .coordinates.latitude,
-                                  longitude:
-                                    driverData.operational_state.last_location
-                                      .coordinates.longitude,
-                                },
-                                push_notification_token:
-                                  driverData.push_notification_token,
-                                eta: result.eta,
-                                distance: result.distance,
-                                city: req.city,
-                                country: req.country,
-                              };
-                              updateRelativeDistancesRiderDrivers(
-                                collectionRelativeDistances,
-                                relativeHeader,
-                                res1
-                              );
-                            }).then(
-                              () => {},
-                              () => {}
-                            );
-                          }
-                          //...
-                          result.driver_fingerprint =
-                            driverData.driver_fingerprint; //Add the driver fingerprint to the response
-                          result.driver_coordinates = {
-                            latitude:
-                              driverData.operational_state.last_location
-                                .coordinates.latitude,
-                            longitude:
-                              driverData.operational_state.last_location
-                                .coordinates.longitude,
-                          }; //Add the driver coordinates to the response
-                          result.prev_driver_coordinates = {
-                            latitude:
-                              driverData.operational_state.last_location
-                                .prev_coordinates.latitude,
-                            longitude:
-                              driverData.operational_state.last_location
-                                .prev_coordinates.longitude,
-                          }; //Add the driver's previous coordinates to the response
-                          result.push_notification_token =
-                            driverData.operational_state.push_notification_token.userId; //Add push token
-                          resolve(result);
-                        },
-                        (error) => {
+                        )
+                        .catch((error) => {
                           console.log(error);
                           let driverRepr = {
                             eta: null,
@@ -3521,8 +3581,7 @@ function getFreshProximity_driversList(
                                 : null,
                           };
                           resolve(driverRepr);
-                        }
-                      );
+                        });
                     }
                   } //No records make a fresh search
                   else {
@@ -3588,7 +3647,13 @@ function getFreshProximity_driversList(
                               .prev_coordinates.longitude,
                         }; //Add the driver's previous coordinates to the response
                         result.push_notification_token =
-                          driverData.operational_state.push_notification_token.userId; //Add push notif token
+                          driverData.operational_state
+                            .push_notification_token !== null &&
+                          driverData.operational_state
+                            .push_notification_token !== undefined
+                            ? driverData.operational_state
+                                .push_notification_token.userId
+                            : null; //Add push token
                         resolve(result);
                       },
                       (error) => {
@@ -3677,7 +3742,13 @@ function getFreshProximity_driversList(
                             .prev_coordinates.longitude,
                       }; //Add the driver's previous coordinates to the response
                       result.push_notification_token =
-                        driverData.operational_state.push_notification_token.userId; //Add push notif token
+                        driverData.operational_state.push_notification_token !==
+                          null &&
+                        driverData.operational_state.push_notification_token !==
+                          undefined
+                          ? driverData.operational_state.push_notification_token
+                              .userId
+                          : null; //Add push token
                       resolve(result);
                     },
                     (error) => {
