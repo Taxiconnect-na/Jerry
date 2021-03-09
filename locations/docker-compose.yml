@@ -5,12 +5,12 @@ services:
     image: redis:latest
     restart: always
     ports:
-      - "6379:6379"
+      - "6379-6385:6379"
 
   server_beta_v2:
     depends_on:
       - redis-server
-    image: rider_beta_server
+    image: taxiconnect/rider_beta_server:2.0.168
     ports:
       - "9097:9097"
       - "9090:9090"

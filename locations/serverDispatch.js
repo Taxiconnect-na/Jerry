@@ -958,22 +958,40 @@ function sendStagedNotificationsDrivers(
                     en:
                       "You have a new ride request " +
                       (snapshotTripInfos.pickup_suburb !== false
-                        ? "from " +
-                          snapshotTripInfos.pickup_suburb.toUpperCase() +
-                          " to " +
-                          snapshotTripInfos.destination_suburb.toUpperCase() +
-                          ". Click here for more details."
+                        ? "from " + snapshotTripInfos.pickup_suburb !==
+                            undefined &&
+                          snapshotTripInfos.pickup_suburb !== false &&
+                          snapshotTripInfos.pickup_suburb !== null
+                          ? snapshotTripInfos.pickup_suburb.toUpperCase()
+                          : "near your location" +
+                              " to " +
+                              snapshotTripInfos.destination_suburb !==
+                              undefined &&
+                            snapshotTripInfos.destination_suburb !== false &&
+                            snapshotTripInfos.destination_suburb !== null
+                          ? snapshotTripInfos.destination_suburb.toUpperCase()
+                          : "near your location" +
+                            ". Click here for more details."
                         : "near your location, click here for more details."),
                   }
                 : {
                     en:
                       "You have a new delivery request " +
                       (snapshotTripInfos.pickup_suburb !== false
-                        ? "from " +
-                          snapshotTripInfos.pickup_suburb.toUpperCase() +
-                          " to " +
-                          snapshotTripInfos.destination_suburb.toUpperCase() +
-                          ". Click here for more details."
+                        ? "from " + snapshotTripInfos.pickup_suburb !==
+                            undefined &&
+                          snapshotTripInfos.pickup_suburb !== false &&
+                          snapshotTripInfos.pickup_suburb !== null
+                          ? snapshotTripInfos.pickup_suburb.toUpperCase()
+                          : "near your location" +
+                              " to " +
+                              snapshotTripInfos.destination_suburb !==
+                              undefined &&
+                            snapshotTripInfos.destination_suburb !== false &&
+                            snapshotTripInfos.destination_suburb !== null
+                          ? snapshotTripInfos.destination_suburb.toUpperCase()
+                          : "near your location" +
+                            ". Click here for more details."
                         : "near your location, click here for more details."),
                   },
               headings: /RIDE/i.test(snapshotTripInfos.ride_type)
@@ -991,7 +1009,6 @@ function sendStagedNotificationsDrivers(
   } //Staged send
   else {
     console.log("Staged send");
-    console.log(closestDriversList);
     //...Register the drivers fp so that thei can see tne requests
     let driversFp = closestDriversList.map((data) => data.driver_fingerprint); //Drivers fingerprints
     let driversPushNotif_token = closestDriversList.map((data) => {
@@ -1294,12 +1311,20 @@ function registerAllowedDriversForRidesAndNotify(
                       (snapshotTripInfos.pickup_suburb !== false
                         ? "from " + snapshotTripInfos.pickup_suburb !==
                           undefined
-                          ? snapshotTripInfos.pickup_suburb.toUpperCase()
+                          ? snapshotTripInfos.pickup_suburb !== undefined &&
+                            snapshotTripInfos.pickup_suburb !== false &&
+                            snapshotTripInfos.pickup_suburb !== null
+                            ? snapshotTripInfos.pickup_suburb.toUpperCase()
+                            : "near your location"
                           : "near your location" +
                               " to " +
                               snapshotTripInfos.pickup_suburb !==
                             undefined
-                          ? snapshotTripInfos.pickup_suburb.toUpperCase()
+                          ? snapshotTripInfos.pickup_suburb !== undefined &&
+                            snapshotTripInfos.pickup_suburb !== false &&
+                            snapshotTripInfos.pickup_suburb !== null
+                            ? snapshotTripInfos.pickup_suburb.toUpperCase()
+                            : "near your location"
                           : "near your location" +
                             ". Click here for more details."
                         : "near your location, click here for more details."),
@@ -1310,12 +1335,20 @@ function registerAllowedDriversForRidesAndNotify(
                       (snapshotTripInfos.pickup_suburb !== false
                         ? "from " + snapshotTripInfos.pickup_suburb !==
                           undefined
-                          ? snapshotTripInfos.pickup_suburb.toUpperCase()
+                          ? snapshotTripInfos.pickup_suburb !== undefined &&
+                            snapshotTripInfos.pickup_suburb !== false &&
+                            snapshotTripInfos.pickup_suburb !== null
+                            ? snapshotTripInfos.pickup_suburb.toUpperCase()
+                            : "near your location"
                           : "near your location" +
                               " to " +
                               snapshotTripInfos.pickup_suburb !==
                             undefined
-                          ? snapshotTripInfos.pickup_suburb.toUpperCase()
+                          ? snapshotTripInfos.pickup_suburb !== undefined &&
+                            snapshotTripInfos.pickup_suburb !== false &&
+                            snapshotTripInfos.pickup_suburb !== null
+                            ? snapshotTripInfos.pickup_suburb.toUpperCase()
+                            : "near your location"
                           : "near your location" +
                             ". Click here for more details."
                         : "near your location, click here for more details."),
