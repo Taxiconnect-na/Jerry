@@ -6,7 +6,7 @@ module.exports = {
       instances: 3,
       autorestart: true,
       watch: false,
-      max_memory_restart: "3G",
+      max_memory_restart: "1G",
       env: {
         NODE_ENV: "development",
       },
@@ -31,10 +31,10 @@ module.exports = {
     {
       name: "Dispatch service",
       script: "serverDispatch.js",
-      instances: 3,
+      instances: 4,
       autorestart: true,
       watch: false,
-      max_memory_restart: "4G",
+      max_memory_restart: "2G",
       env: {
         NODE_ENV: "development",
       },
@@ -48,7 +48,7 @@ module.exports = {
       instances: 4,
       autorestart: true,
       watch: false,
-      max_memory_restart: "3G",
+      max_memory_restart: "2G",
       env: {
         NODE_ENV: "development",
       },
@@ -62,7 +62,7 @@ module.exports = {
       instances: 3,
       autorestart: true,
       watch: false,
-      max_memory_restart: "3G",
+      max_memory_restart: "1G",
       env: {
         NODE_ENV: "development",
       },
@@ -76,7 +76,7 @@ module.exports = {
       instances: 4,
       autorestart: true,
       watch: false,
-      max_memory_restart: "3G",
+      max_memory_restart: "1G",
       env: {
         NODE_ENV: "development",
       },
@@ -90,7 +90,7 @@ module.exports = {
       instances: 4,
       autorestart: true,
       watch: false,
-      max_memory_restart: "4G",
+      max_memory_restart: "2G",
       env: {
         NODE_ENV: "development",
       },
@@ -101,10 +101,10 @@ module.exports = {
     {
       name: "Watcher service",
       script: "serverWatcher.js",
-      instances: 2,
+      instances: 1,
       autorestart: true,
       watch: false,
-      max_memory_restart: "2G",
+      max_memory_restart: "1G",
       env: {
         NODE_ENV: "development",
       },
