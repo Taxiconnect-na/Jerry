@@ -29,7 +29,7 @@ const moment = require("moment");
 const e = require("express");
 
 const clientMongo = new MongoClient(process.env.URL_MONGODB, {
-  useUnifiedTopology: true,
+  useUnifiedTopology: false,
 });
 
 function resolveDate() {
@@ -2814,7 +2814,7 @@ clientMongo.connect(function (err) {
       collectionRidesDeliveryData
         .find(checkPrevRequest)
         .toArray(function (err, prevRequest) {
-          if (prevRequest.length === 0) {
+          if (prevRequest !== undefined && prevRequest.length === 0) {
             prevRequest = prevRequest[0];
             //No previous pending request - MAKE REQUEST VALID
             //Parse the data

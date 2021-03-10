@@ -31,7 +31,7 @@ const DB_NAME_MONGODB = "riders_data_schemeless";
 const URL_SEARCH_SERVICES = "http://www.taxiconnectna.com:7007/";
 const URL_ROUTE_SERVICES = "http://www.taxiconnectna.com:7008/route?";
 
-const clientMongo = new MongoClient(URL_MONGODB, { useUnifiedTopology: true });
+const clientMongo = new MongoClient(URL_MONGODB, { useUnifiedTopology: false });
 
 function resolveDate() {
   //Resolve date

@@ -24,7 +24,7 @@ var dateObject = null;
 const moment = require("moment");
 
 const clientMongo = new MongoClient(process.env.URL_MONGODB, {
-  useUnifiedTopology: true,
+  useUnifiedTopology: false,
 });
 
 //INITIALIZE LOCATION CACHE

@@ -33,7 +33,7 @@ const { resolve } = require("dns");
 const { stringify, parse } = require("flatted");
 
 const clientMongo = new MongoClient(process.env.URL_MONGODB, {
-  useUnifiedTopology: true,
+  useUnifiedTopology: false,
 });
 
 function resolveDate() {

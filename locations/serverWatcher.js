@@ -31,7 +31,7 @@ var _INTERVAL_PERSISTER_LATE_REQUESTS = null; //Will hold the interval for check
 //...
 
 const clientMongo = new MongoClient(process.env.URL_MONGODB, {
-  useUnifiedTopology: true,
+  useUnifiedTopology: false,
 });
 
 function resolveDate() {
@@ -149,7 +149,7 @@ function removeOldRequests_madeWithoutBeingAttended(
         resolve({ response: "error", flag: "unable_to_clean_x_hold_requests" });
       }
       //...
-      if (holdRequests.length > 0) {
+      if (holdRequests !== undefined && holdRequests.length > 0) {
         //Found some hold requests - check the time as well
         //Will contain the 'age_minutes', 'request_fp', 'client_id' and 'pushNotif_token' as an obj
         //? Bulk compute the age
