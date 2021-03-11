@@ -2,6 +2,8 @@ FROM node:latest
 
 ADD . /app/
 WORKDIR /app
+RUN rm .env
+RUN mv .env_live .env
 
 RUN npm install yarn -g --force
 RUN yarn global add pm2
