@@ -191,7 +191,6 @@ function checkUserStatus(
   collectionDrivers_profiles,
   resolve
 ) {
-  console.log(userData);
   //Save the dispatch map for this user
   new Promise((res) => {
     let dispatchMap = {
@@ -253,6 +252,13 @@ function checkUserStatus(
     userData.user_nature !== null &&
     /driver/i.test(userData.user_nature)
   ) {
+    /**
+     * ! elligibility_status: {
+     * !  status:'valid',		//valid, suspended, expelled
+     * !  message: 'Message to display',
+     * !  date_updated: ${date},
+     * ! }
+     */
     //2. Drivers
     collectionDrivers_profiles
       .find(checkUser)
@@ -274,10 +280,10 @@ function checkUserStatus(
             email: result[0].email,
             profile_picture: `${process.env.AWS_S3_DRIVERS_PROFILE_PICTURES_PATH}/${result[0].identification_data.profile_picture}`,
             account_state:
-              result[0].isDriverSuspended !== undefined &&
-              result[0].isDriverSuspended !== null
-                ? result[0].isDriverSuspended
-                : "suspended",
+              result[0].elligibility_status !== undefined &&
+              result[0].elligibility_status !== null
+                ? result[0].elligibility_status.status
+                : "valid", //? By default - Valid
             pushnotif_token: result[0].pushnotif_token,
             suspension_message: result[0].suspension_message,
           });
