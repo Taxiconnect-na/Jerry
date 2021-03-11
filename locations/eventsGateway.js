@@ -498,7 +498,7 @@ io.on("connection", (socket) => {
   });
 
   /**
-   * PRICING SERVICE, port 8989
+   * PRICING SERVICE, port 9797
    * Route: getOverallPricingAndAvailabilityDetails
    * event: getPricingForRideorDelivery
    * Get fare estimations for any ride or delivery booking
