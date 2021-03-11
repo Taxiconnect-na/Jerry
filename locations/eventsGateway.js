@@ -109,7 +109,6 @@ io.on("connection", (socket) => {
       //...
 
       requestAPI.post({ url, form: req }, function (error, response, body) {
-        console.log("RESPONSE HEREE ", error);
         if (error === null) {
           try {
             body = JSON.parse(body);
@@ -132,7 +131,6 @@ io.on("connection", (socket) => {
    * Get user location (reverse geocoding)
    */
   socket.on("geocode-this-point", function (req) {
-    console.log(req);
     if (
       req.latitude !== undefined &&
       req.latitude !== null &&

@@ -3136,6 +3136,12 @@ function updateRiders_generalProfileInfos(
       resolve({ response: "error", flag: "The surname's too short." });
     }
   } else if (requestData.infoToUpdate === "gender") {
+    //? Update the gender's string to M, F or unknown
+    requestData.dataToUpdate = /^male$/i.test(requestData.dataToUpdate.trim())
+      ? "M"
+      : /^female$/i.test(requestData.dataToUpdate.trim())
+      ? "F"
+      : "unknown";
     //Modify the gender
     if (
       requestData.dataToUpdate.length > 0 &&
