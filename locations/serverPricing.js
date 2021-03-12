@@ -1962,7 +1962,7 @@ clientMongo.connect(function (err) {
     //DELIVERY TEST DATA - DEBUG
     /*let deliveryPricingInputDataRaw = {
       user_fingerprint:
-        "7c57cb6c9471fd33fd265d5441f253eced2a6307c0207dea57c987035b496e6e8dfa7105b86915da",
+        "4ec9a3cac550584cfe04108e63b61961af32f9162ca09bee59bc0fc264c6dd1d61dbd97238a27e147e1134e9b37299d160c0f0ee1c620c9f012e3a08a4505fd6",
       connectType: "ConnectUs",
       country: "Namibia",
       isAllGoingToSameDestination: false,
