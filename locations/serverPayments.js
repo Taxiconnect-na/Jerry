@@ -409,13 +409,19 @@ function saveLogForTopupsSuccess(
 ) {
   resolveDate();
   let tmpDate = new Date();
+  let dpo_gateway_deduction_fees =
+    (parseFloat(amount) * process.env.DPO_GATEWAY_CHARGES_PERCENTAGE) / 100;
+  let taxiconnect_service_fees =
+    (parseFloat(amount) * process.env.TAXICONNECT_WALLET_TOPUP_SERVICE_FEES) /
+    100;
   let amountRecomputed =
-    parseFloat(amount) -
-    (parseFloat(amount) * process.env.DPO_GATEWAY_CHARGES_PERCENTAGE) / 100; //! VERY IMPORTANT - REMOVE DPO DEDUCTIONS
+    parseFloat(amount) - dpo_gateway_deduction_fees - taxiconnect_service_fees; //! VERY IMPORTANT - REMOVE DPO AND TAXICONNECT DEDUCTIONS
   //...
   let dataBundle = {
     user_fingerprint: user_fp,
     initial_paid_amount: parseFloat(amount),
+    dpo_gateway_deduction_fees: dpo_gateway_deduction_fees,
+    taxiconnect_service_fees: taxiconnect_service_fees,
     amount: Math.floor((amountRecomputed + Number.EPSILON) * 100) / 100,
     payment_currency: payment_currency,
     transaction_nature: "topup",
