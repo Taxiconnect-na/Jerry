@@ -308,6 +308,169 @@ function removeOldRequests_madeWithoutBeingAttended(
 }
 
 /**
+ * @func updateNext_paymentDateDrivers
+ * Responsible for updating the driver's next payments date, only for those having a date start.
+ * ? Only consider drivers already having a starting point, that should already be the case for
+ * ? any drivers that already logged in once.
+ * ! Only if there was not a previous
+ * @param collectionDrivers_profiles: the driver's list
+ * @param collectionWalletTransactions_logs: all the transactions.
+ * @param resolve
+ */
+function updateNext_paymentDateDrivers(
+  collectionDrivers_profiles,
+  collectionWalletTransactions_logs,
+  resolve
+) {
+  collectionDrivers_profiles.find({}).toArray(function (err, driversMega) {
+    if (err) {
+      resolve({ response: "error_getting_drivers_mega_data" });
+    }
+    //...
+    if (driversMega.length > 0) {
+      //Found some data
+      let parentPromises = driversMega.map((driverData) => {
+        return new Promise((resPaymentCycle) => {
+          //!Check if a reference point exists - if not set one to NOW
+          //? For days before wednesday, set to wednesdat and for those after wednesday, set to next week that same day.
+          //! Annotation string: startingPoint_forFreshPayouts
+
+          collectionWalletTransactions_logs
+            .find({
+              flag_annotation: {
+                $regex: /startingPoint_forFreshPayouts/,
+                $options: "i",
+              },
+              user_fingerprint: driverData.driver_fingerprint,
+            })
+            .toArray(function (err, referenceData) {
+              if (err) {
+                resPaymentCycle(false);
+              }
+              //...
+              if (
+                referenceData !== undefined &&
+                referenceData.length > 0 &&
+                referenceData[0].date_captured !== undefined
+              ) {
+                referenceData = referenceData[0];
+                //? Check if the date is not old, not behing of 24h
+                let refDate = new Date(chaineDateUTC);
+                let nextPaymentDate = new Date(referenceData.date_captured);
+                let dateDiffChecker = Math.abs(refDate - nextPaymentDate); //Milliseconds
+                dateDiffChecker /= 36e5;
+
+                console.log(`DIFF FOUND ----> ${dateDiffChecker}`);
+
+                if (dateDiffChecker >= 32) {
+                  console.log("Found obsolete date, add 7 days");
+                  //! Day passed already by 32 hours - update - ADD 7 days
+                  let tmpDate = new Date(
+                    nextPaymentDate.getTime() +
+                      parseFloat(process.env.TAXICONNECT_PAYMENT_FREQUENCY) *
+                        3600 *
+                        1000
+                  )
+                    .toDateString()
+                    .split(" ")[0];
+                  if (/(mon|tue)/i.test(tmpDate)) {
+                    //For mondays and tuesdays - add 3 days
+                    let tmpNextDate = new Date(
+                      nextPaymentDate +
+                        (parseFloat(process.env.TAXICONNECT_PAYMENT_FREQUENCY) +
+                          3) *
+                          3600000
+                    ).toISOString();
+                    console.log(tmpNextDate);
+                    //...
+                    collectionWalletTransactions_logs.updateOne(
+                      {
+                        flag_annotation: {
+                          $regex: /startingPoint_forFreshPayouts/,
+                          $options: "i",
+                        },
+                        user_fingerprint: driverData.driver_fingerprint,
+                      },
+                      {
+                        $set: {
+                          flag_annotation: "startingPoint_forFreshPayouts",
+                          date_captured: new Date(tmpNextDate),
+                        },
+                      },
+                      function (err, reslt) {
+                        resPaymentCycle(true);
+                      }
+                    );
+                  } //After wednesday - OK
+                  else {
+                    let dateNext = new Date(
+                      nextPaymentDate.getTime() +
+                        parseFloat(process.env.TAXICONNECT_PAYMENT_FREQUENCY) *
+                          3600000
+                    ).toISOString();
+                    console.log(dateNext);
+                    collectionWalletTransactions_logs.updateOne(
+                      {
+                        flag_annotation: {
+                          $regex: /startingPoint_forFreshPayouts/,
+                          $options: "i",
+                        },
+                        user_fingerprint: driverData.driver_fingerprint,
+                      },
+                      {
+                        $set: {
+                          flag_annotation: "startingPoint_forFreshPayouts",
+                          date_captured: new Date(dateNext),
+                        },
+                      },
+                      function (err, reslt) {
+                        resPaymentCycle(true);
+                      }
+                    );
+                  }
+                } //? The date looks good - skip
+                else {
+                  console.log("Next payment date not obsolete found!");
+                  resPaymentCycle(true);
+                }
+              } //No annotation yet - create one
+              else {
+                resPaymentCycle(true);
+              }
+            });
+        });
+      });
+      //? DONE
+      Promise.all(parentPromises)
+        .then(
+          (reslt) => {
+            resolve({
+              response:
+                "Done checking and updating obsolete next payment dates",
+            });
+          },
+          (error) => {
+            console.log(error);
+            resolve({
+              response:
+                "Done checking and updating obsolete next payment dates",
+            });
+          }
+        )
+        .catch((error) => {
+          console.log(error);
+          resolve({
+            response: "Done checking and updating obsolete next payment dates",
+          });
+        });
+    } //Empty driver's mega data
+    else {
+      resolve({ response: "empty_drivers_mega_data" });
+    }
+  });
+}
+
+/**
  * MAIN
  */
 
@@ -362,6 +525,26 @@ clientMongo.connect(function (err) {
         collectionPassengers_profiles,
         collectionRidesDeliveryData,
         res1
+      );
+    })
+      .then(
+        (result) => {
+          console.log(result);
+        },
+        (error) => {
+          console.log(error);
+        }
+      )
+      .catch((error) => {
+        console.log(error);
+      });
+
+    //? 2. Keep the drivers next payment date UP TO DATE
+    new Promise((res2) => {
+      updateNext_paymentDateDrivers(
+        collectionDrivers_profiles,
+        collectionWalletTransactions_logs,
+        res2
       );
     })
       .then(

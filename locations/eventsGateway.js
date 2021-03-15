@@ -112,6 +112,7 @@ io.on("connection", (socket) => {
         if (error === null) {
           try {
             body = JSON.parse(body);
+            console.log(body);
             socket.emit("trackdriverroute-response", body);
           } catch (error) {
             socket.emit("trackdriverroute-response", false);

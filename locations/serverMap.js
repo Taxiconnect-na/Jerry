@@ -4039,7 +4039,7 @@ clientMongo.connect(function (err) {
                         {
                           flag_annotation: "startingPoint_forFreshPayouts",
                           user_fingerprint: req.user_fingerprint,
-                          date_captured: tmpNextDate,
+                          date_captured: new Date(tmpNextDate),
                         },
                         function (err, reslt) {
                           resPaymentCycle(true);
@@ -4051,7 +4051,7 @@ clientMongo.connect(function (err) {
                         {
                           flag_annotation: "startingPoint_forFreshPayouts",
                           user_fingerprint: req.user_fingerprint,
-                          date_captured: chaineDateUTC,
+                          date_captured: new Date(chaineDateUTC),
                         },
                         function (err, reslt) {
                           resPaymentCycle(true);
