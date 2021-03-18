@@ -13,3 +13,4 @@ config_mod.yml
 test2.js
 test2.json
 .env_dev
+package-lock.json
