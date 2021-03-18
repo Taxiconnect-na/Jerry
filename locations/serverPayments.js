@@ -469,11 +469,11 @@ function processExecute_paymentCardWallet_topup(
       let transRef = createToken_deductedResponse.API3G.TransRef;
       dataBundle.number = String(dataBundle.number).replace(/ /g, "");
       dataBundle.expiry = String(dataBundle.expiry).replace("/", "");
-      //DEBUG CARD-------------------------------------------------------------------------------
-      dataBundle.number = "5436886269848367";
-      dataBundle.expiry = "1222";
-      dataBundle.cvv = "123";
-      //....-------------------------------------------------------------------------------------
+      //DEBUG CARD -------------------------------------------------------------------------------
+      //dataBundle.number = "5436886269848367";
+      //dataBundle.expiry = "1222";
+      //dataBundle.cvv = "123";
+      // -----------------------------------------------------------------------------------------
 
       //...
       //MAKE PAYMENT
