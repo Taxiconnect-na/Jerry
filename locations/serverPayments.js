@@ -20,7 +20,7 @@ const moment = require("moment");
 const { resolve } = require("path");
 
 const clientMongo = new MongoClient(process.env.URL_MONGODB, {
-  useUnifiedTopology: false,
+  useUnifiedTopology: true,
 });
 
 function resolveDate() {

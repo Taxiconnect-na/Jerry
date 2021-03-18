@@ -327,7 +327,7 @@ function updateNext_paymentDateDrivers(
       resolve({ response: "error_getting_drivers_mega_data" });
     }
     //...
-    if (driversMega.length > 0) {
+    if (driversMega !== undefined && driversMega.length > 0) {
       //Found some data
       let parentPromises = driversMega.map((driverData) => {
         return new Promise((resPaymentCycle) => {

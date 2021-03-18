@@ -29,7 +29,7 @@ const moment = require("moment");
 const e = require("express");
 
 const clientMongo = new MongoClient(process.env.URL_MONGODB, {
-  useUnifiedTopology: false,
+  useUnifiedTopology: true,
 });
 
 function resolveDate() {

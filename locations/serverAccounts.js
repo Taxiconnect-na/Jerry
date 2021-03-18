@@ -37,7 +37,7 @@ var otpGenerator = require("otp-generator");
 const { resolve } = require("path");
 
 const clientMongo = new MongoClient(process.env.URL_MONGODB, {
-  useUnifiedTopology: false,
+  useUnifiedTopology: true,
 });
 
 function SendSMSTo(phone_number, message) {
@@ -1596,7 +1596,11 @@ function execGet_ridersDrivers_walletSummary(
               res({ total: 0, transactions_data: null });
             }
             //..
-            if (resultTransactions.length > 0 || /driver/i.test(user_type)) {
+            if (
+              (resultTransactions !== undefined &&
+                resultTransactions.length > 0) ||
+              /driver/i.test(user_type)
+            ) {
               //Found some records
               //Save the transactions data
               detailsData.transactions_data = resultTransactions;
