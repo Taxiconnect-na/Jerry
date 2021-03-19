@@ -171,7 +171,6 @@ function createPaymentTransaction(
         body: xmlBody,
       },
       function (error, response, body) {
-        console.log(error, body);
         //Save the general log, status code and error
         new Promise((reslv) => {
           saveLogForTopups(
@@ -236,7 +235,6 @@ function executePaymentTransaction(
         body: xmlBody,
       },
       function (error, response, body) {
-        console.log(body, response.statusCode);
         //Save the general log, status code and error
         new Promise((reslv) => {
           saveLogForTopups(
@@ -301,7 +299,6 @@ function verifyPaymentTransaction(
         body: xmlBody,
       },
       function (error, response, body) {
-        console.log(body, response.statusCode);
         //Save the general log, status code and error
         new Promise((reslv) => {
           saveLogForTopups(
@@ -515,7 +512,6 @@ function processExecute_paymentCardWallet_topup(
                   result_paymentExecDeducted = JSON.parse(
                     result_paymentExecDeducted
                   );
-                  console.log(result_paymentExecDeducted);
                   if (
                     result_paymentExecDeducted.API3G.Result === "000" ||
                     /^000$/i.test(result_paymentExecDeducted.API3G.Result)
@@ -985,7 +981,6 @@ function checkNonSelf_sendingFunds_user(
         if (err) {
           resolve({ response: false, flag: "invalid_sender" });
         }
-        console.log(senderDetails);
         //...
         if (
           senderDetails.length > 0 &&
@@ -1065,7 +1060,6 @@ clientMongo.connect(function (err) {
     let params = urlParser.parse(req.url, true);
     req = params.query;
     dataBundle = req;
-    console.log(dataBundle);
 
     //! CHECK INPUTS
     if (
