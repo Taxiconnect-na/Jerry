@@ -3334,7 +3334,7 @@ function getFreshProximity_driversList(
                           );
                         }
                         //has something, return that
-                        res[valueIndex].status =
+                        resp[valueIndex].status =
                           driverData.operational_state.status; //? Online or offline
                         resp[valueIndex].driver_fingerprint =
                           driverData.driver_fingerprint; //Add the driver fingerprint to the response
