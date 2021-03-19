@@ -3179,6 +3179,9 @@ function cleanAndAdjustRelativeDistancesList(rawList, list_limit = 5, resolve) {
  * @param collectionRidesDeliveries_data: list of all the rides.
  * @param collectionPassengers_profiles: list of all the rides/deliveries
  * @param resolveMother
+ *
+ * ? includeOfflineDrivers
+ * Param used to also include offline drivers with the wanted criteria, very useful for dispatching requests.
  */
 function getFreshProximity_driversList(
   req,
@@ -3190,7 +3193,14 @@ function getFreshProximity_driversList(
 ) {
   //Get the list of drivers match the availability criteria
   let driverFilter = {
-    "operational_state.status": { $regex: /online/, $options: "i" },
+    "operational_state.status": {
+      $regex:
+        req.includeOfflineDrivers !== undefined &&
+        req.includeOfflineDrivers !== null
+          ? /(offline|online)/
+          : /online/,
+      $options: "i",
+    },
     "operational_state.last_location.city": {
       $regex: req.city,
       $options: "i",
@@ -3296,6 +3306,7 @@ function getFreshProximity_driversList(
                           new Promise((res1) => {
                             let relativeHeader = {
                               user_fingerprint: req.user_fingerprint,
+                              status: driverData.operational_state.status,
                               driver_fingerprint: driverData.driver_fingerprint,
                               driver_coordinates: {
                                 latitude:
@@ -3323,6 +3334,8 @@ function getFreshProximity_driversList(
                           );
                         }
                         //has something, return that
+                        res[valueIndex].status =
+                          driverData.operational_state.status; //? Online or offline
                         resp[valueIndex].driver_fingerprint =
                           driverData.driver_fingerprint; //Add the driver fingerprint to the response
                         resp[valueIndex].driver_coordinates = {
@@ -3370,6 +3383,7 @@ function getFreshProximity_driversList(
                                 new Promise((res1) => {
                                   let relativeHeader = {
                                     user_fingerprint: req.user_fingerprint,
+                                    status: driverData.operational_state.status,
                                     driver_fingerprint:
                                       driverData.driver_fingerprint,
                                     driver_coordinates: {
@@ -3398,6 +3412,8 @@ function getFreshProximity_driversList(
                                 );
                               }
                               //...
+                              result.status =
+                                driverData.operational_state.status; //? Online or offline
                               result.driver_fingerprint =
                                 driverData.driver_fingerprint; //Add the driver fingerprint to the response
                               result.driver_coordinates = {
@@ -3431,6 +3447,7 @@ function getFreshProximity_driversList(
                               let driverRepr = {
                                 eta: null,
                                 distance: null,
+                                status: driverData.operational_state.status,
                                 driver_fingerprint:
                                   driverData.driver_fingerprint,
                                 driver_coordinates: null,
@@ -3452,6 +3469,7 @@ function getFreshProximity_driversList(
                             let driverRepr = {
                               eta: null,
                               distance: null,
+                              status: driverData.operational_state.status,
                               driver_fingerprint: driverData.driver_fingerprint,
                               driver_coordinates: null,
                               prev_driver_coordinates: null,
@@ -3487,6 +3505,7 @@ function getFreshProximity_driversList(
                               new Promise((res1) => {
                                 let relativeHeader = {
                                   user_fingerprint: req.user_fingerprint,
+                                  status: driverData.operational_state.status,
                                   driver_fingerprint:
                                     driverData.driver_fingerprint,
                                   driver_coordinates: {
@@ -3515,6 +3534,7 @@ function getFreshProximity_driversList(
                               );
                             }
                             //...
+                            result.status = driverData.operational_state.status; //? Online or offline
                             result.driver_fingerprint =
                               driverData.driver_fingerprint; //Add the driver fingerprint to the response
                             result.driver_coordinates = {
@@ -3548,6 +3568,7 @@ function getFreshProximity_driversList(
                             let driverRepr = {
                               eta: null,
                               distance: null,
+                              status: driverData.operational_state.status,
                               driver_fingerprint: driverData.driver_fingerprint,
                               driver_coordinates: null,
                               prev_driver_coordinates: null,
@@ -3568,6 +3589,7 @@ function getFreshProximity_driversList(
                           let driverRepr = {
                             eta: null,
                             distance: null,
+                            status: driverData.operational_state.status,
                             driver_fingerprint: driverData.driver_fingerprint,
                             driver_coordinates: null,
                             prev_driver_coordinates: null,
@@ -3601,6 +3623,7 @@ function getFreshProximity_driversList(
                           new Promise((res1) => {
                             let relativeHeader = {
                               user_fingerprint: req.user_fingerprint,
+                              status: driverData.operational_state.status,
                               driver_fingerprint: driverData.driver_fingerprint,
                               driver_coordinates: {
                                 latitude:
@@ -3628,6 +3651,7 @@ function getFreshProximity_driversList(
                           );
                         }
                         //...
+                        result.status = driverData.operational_state.status; //? Online or offline
                         result.driver_fingerprint =
                           driverData.driver_fingerprint; //Add the driver fingerprint to the response
                         result.driver_coordinates = {
@@ -3661,6 +3685,7 @@ function getFreshProximity_driversList(
                         let driverRepr = {
                           eta: null,
                           distance: null,
+                          status: driverData.operational_state.status,
                           driver_fingerprint: driverData.driver_fingerprint,
                           driver_coordinates: null,
                           prev_driver_coordinates: null,
@@ -3697,6 +3722,7 @@ function getFreshProximity_driversList(
                         new Promise((res1) => {
                           let relativeHeader = {
                             user_fingerprint: req.user_fingerprint,
+                            status: driverData.operational_state.status,
                             driver_fingerprint: driverData.driver_fingerprint,
                             driver_coordinates: {
                               latitude:
@@ -3724,6 +3750,7 @@ function getFreshProximity_driversList(
                         );
                       }
                       //...
+                      result.status = driverData.operational_state.status; //? Online or offline
                       result.driver_fingerprint = driverData.driver_fingerprint; //Add the driver fingerprint to the response
                       result.driver_coordinates = {
                         latitude:
@@ -3756,6 +3783,7 @@ function getFreshProximity_driversList(
                       let driverRepr = {
                         eta: null,
                         distance: null,
+                        status: driverData.operational_state.status,
                         driver_fingerprint: driverData.driver_fingerprint,
                         driver_coordinates: null,
                         prev_driver_coordinates: null,
@@ -3778,6 +3806,7 @@ function getFreshProximity_driversList(
               let driverRepr = {
                 eta: null,
                 distance: null,
+                status: driverData.operational_state.status,
                 driver_fingerprint: driverData.driver_fingerprint,
                 driver_coordinates: null,
                 prev_driver_coordinates: null,

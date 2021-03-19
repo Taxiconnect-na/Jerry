@@ -775,6 +775,9 @@ function intitiateStagedDispatch(
   resolve
 ) {
   //Get the list of all the closest drivers
+  /**
+   * Can use @param includeOfflineDrivers to also subscribe offline drivers to a request.
+   */
   let url =
     process.env.LOCAL_URL +
     ":" +
@@ -793,7 +796,7 @@ function intitiateStagedDispatch(
     snapshotTripInfos.city +
     "&country=" +
     snapshotTripInfos.country +
-    "&list_limit=all&make_new=true";
+    "&list_limit=all&make_new=true&includeOfflineDrivers=true";
   requestAPI(url, function (error, response, body) {
     console.log(body);
     try {
@@ -876,11 +879,11 @@ function intitiateStagedDispatch(
  * the allowed_drivers_see list of the request so that they can access the trip from their app if not
  * yet accepted.
  * ? Closest first (1 driver)
- * after 1min00'' of not accepting
+ * after 35sec of not accepting
  * ? increase the radius (5 drivers)
- * after 1 min of not accepting
+ * after 30sec of not accepting
  * ? increase the radius (10 drivers)
- * after 1 min of not accepting
+ * after 30sec of not accepting
  * ? increase the radius (all the rest)
  * ! after 20 min of not accepting - AUTO cancel request
  */
@@ -897,7 +900,7 @@ function sendStagedNotificationsDrivers(
     //2. Register their fp in the allowed_drivers_see on the requests
     //3. Send the notifications to each selected one.
     let driverFilter = {
-      "operational_state.status": { $regex: /online/i },
+      "operational_state.status": { $regex: /(offline|online)/i },
       "operational_state.last_location.city": {
         $regex: snapshotTripInfos.city,
         $options: "i",
@@ -940,7 +943,11 @@ function sendStagedNotificationsDrivers(
         //...Register the drivers fp so that thei can see tne requests
         let driversFp = driversProfiles.map((data) => data.driver_fp); //Drivers fingerprints
         let driversPushNotif_token = driversProfiles.map((data) => {
-          return data.operational_state.push_notification_token.userId;
+          if (/online/i.test(data.operational_state.status)) {
+            return data.operational_state.push_notification_token.userId;
+          } else {
+            return null; //Only notify the drivers that are online.
+          }
         }); //Push notification token
         collectionRidesDeliveryData.updateOne(
           { request_fp: snapshotTripInfos.request_fp },
@@ -1012,11 +1019,15 @@ function sendStagedNotificationsDrivers(
     //...Register the drivers fp so that thei can see tne requests
     let driversFp = closestDriversList.map((data) => data.driver_fingerprint); //Drivers fingerprints
     let driversPushNotif_token = closestDriversList.map((data) => {
-      return data.push_notification_token;
+      if (/online/i.test(data.status)) {
+        return data.push_notification_token;
+      } else {
+        return null; //Only notify the drivers that are online.
+      }
     }); //Push notification token
 
     new Promise((res) => {
-      //Asnwer
+      //Answer
       console.log(
         "[1] Closest drivers ---ticket: " + snapshotTripInfos.request_fp
       );
