@@ -8,11 +8,11 @@ RUN mv .env_live .env
 RUN npm install yarn -g --force
 RUN yarn global add pm2
 RUN yarn global add pm2-logrotate
-#RUN yarn global add @easynvest/pm2-logstash
+RUN yarn global add @easynvest/pm2-logstash
 RUN pm2 set pm2-logrotate:max_size 500Mb
-#RUN pm2 set @easynvest/pm2-logstash:logstash_host 'taxiconnectna.com'
-#RUN pm2 set @easynvest/pm2-logstash:logstash_port 9994
-#RUN pm2 set @easynvest/pm2-logstash:logstash_type 'tcp'
+RUN pm2 set @easynvest/pm2-logstash:logstash_host 'taxiconnectna.com'
+RUN pm2 set @easynvest/pm2-logstash:logstash_port 9994
+RUN pm2 set @easynvest/pm2-logstash:logstash_type 'tcp'
 RUN yarn install
 
 EXPOSE 9097
