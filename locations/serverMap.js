@@ -4059,9 +4059,16 @@ clientMongo.connect(function (err) {
                       .toDateString()
                       .split(" ")[0];
                     if (/(mon|tue)/i.test(tmpDate)) {
-                      //For mondays and tuesdays - add 3 days
+                      //For mondays and tuesdays - add 3 days + the PAYMENT CYCLE
                       let tmpNextDate = new Date(
-                        new Date(chaineDateUTC).getTime() + 3 * 24 * 3600 * 1000
+                        new Date(chaineDateUTC).getTime() +
+                          (3 +
+                            parseFloat(
+                              process.env.TAXICONNECT_PAYMENT_FREQUENCY
+                            )) *
+                            24 *
+                            3600 *
+                            1000
                       ).toISOString();
                       //...
                       collectionWalletTransactions_logs.insertOne(
@@ -4076,11 +4083,21 @@ clientMongo.connect(function (err) {
                       );
                     } //After wednesday - OK
                     else {
+                      //ADD THE PAYMENT CYCLE
+                      let tmpNextDate = new Date(
+                        new Date(chaineDateUTC).getTime() +
+                          parseFloat(
+                            process.env.TAXICONNECT_PAYMENT_FREQUENCY *
+                              24 *
+                              3600 *
+                              1000
+                          )
+                      ).toISOString();
                       collectionWalletTransactions_logs.insertOne(
                         {
                           flag_annotation: "startingPoint_forFreshPayouts",
                           user_fingerprint: req.user_fingerprint,
-                          date_captured: new Date(chaineDateUTC),
+                          date_captured: new Date(tmpNextDate),
                         },
                         function (err, reslt) {
                           resPaymentCycle(true);
