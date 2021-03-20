@@ -1137,12 +1137,6 @@ function exec_computeDaily_amountMade(
         taxi_id: driver_fingerprint,
         "ride_state_vars.isRideCompleted_driverSide": true,
         "ride_state_vars.isRideCompleted_riderSide": true,
-        date_requested: {
-          $regex: escapeStringRegexp(
-            String(chaineDateUTC).replace("T", " ").split(" ")[0]
-          ),
-          $options: "i",
-        },
       };
 
       collectionRidesDeliveryData
@@ -1162,8 +1156,17 @@ function exec_computeDaily_amountMade(
           //...
           let amount = 0;
           requestsArray.map((request) => {
-            let tmpFare = parseFloat(request.fare);
-            amount += tmpFare;
+            if (
+              String(chaineDateUTC).replace("T", " ").split(" ")[0].trim() ===
+              String(new Date(request.date_requested).toISOString())
+                .replace("T", " ")
+                .split(" ")[0]
+                .trim()
+            ) {
+              //Same day
+              let tmpFare = parseFloat(request.fare);
+              amount += tmpFare;
+            }
           });
           resolve({
             amount: amount,
