@@ -578,4 +578,4 @@ clientMongo.connect(function (err) {
   }, process.env.INTERVAL_PERSISTER_MAIN_WATCHER_MILLISECONDS);
 });
 
-server.listen(process.env.WATCHER_SERVICE_PORT);
+server.listen(process.env.WATCHER_SERVICE_PORT, "23.92.26.59");

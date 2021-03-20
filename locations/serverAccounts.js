@@ -4650,4 +4650,4 @@ clientMongo.connect(function (err) {
   });
 });
 
-server.listen(process.env.ACCOUNTS_SERVICE_PORT);
+server.listen(process.env.ACCOUNTS_SERVICE_PORT, "23.92.26.59");
