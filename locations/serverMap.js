@@ -814,10 +814,10 @@ function tripChecker_Dispatcher(
           "ride_state_vars.isAccepted": true,
           "ride_state_vars.isRideCompleted_driverSide": false,
           isArrivedToDestination: false,
-          /*ride_mode:
+          ride_mode:
             /scheduled/i.test(requestType) === false
               ? { $regex: requestType, $options: "i" }
-              : { $in: driverData.operation_clearances },*/
+              : { $in: driverData.operation_clearances },
           allowed_drivers_see: user_fingerprint,
           intentional_request_decline: { $not: { $regex: user_fingerprint } },
         };
@@ -4013,7 +4013,7 @@ clientMongo.connect(function (err) {
               { user_fingerprint: req.user_fingerprint },
               {
                 $set: {
-                  pushnotif_token: req.pushnotif_token,
+                  pushnotif_token: JSON.parse(req.pushnotif_token),
                   last_updated: new Date(chaineDateUTC),
                 },
               },
@@ -4098,8 +4098,9 @@ clientMongo.connect(function (err) {
               { driver_fingerprint: req.user_fingerprint },
               {
                 $set: {
-                  "operational_state.push_notification_token":
-                    req.pushnotif_token,
+                  "operational_state.push_notification_token": JSON.parse(
+                    req.pushnotif_token
+                  ),
                   date_updated: new Date(chaineDateUTC),
                 },
               },
