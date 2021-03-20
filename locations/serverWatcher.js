@@ -307,6 +307,16 @@ function removeOldRequests_madeWithoutBeingAttended(
     });
 }
 
+function date_diff_indays(date1, date2) {
+  dt1 = new Date(date1);
+  dt2 = new Date(date2);
+  return Math.floor(
+    (Date.UTC(dt2.getFullYear(), dt2.getMonth(), dt2.getDate()) -
+      Date.UTC(dt1.getFullYear(), dt1.getMonth(), dt1.getDate())) /
+      (1000 * 60 * 60 * 24)
+  );
+}
+
 /**
  * @func updateNext_paymentDateDrivers
  * Responsible for updating the driver's next payments date, only for those having a date start.
@@ -357,16 +367,16 @@ function updateNext_paymentDateDrivers(
                 //? Check if the date is not old, not behing of 24h
                 let refDate = new Date(chaineDateUTC);
                 let nextPaymentDate = new Date(referenceData.date_captured);
-                let dateDiffChecker = Math.abs(refDate - nextPaymentDate); //Milliseconds
-                dateDiffChecker /= 36e5;
+                let dateDiffChecker = date_diff_indays(
+                  refDate,
+                  nextPaymentDate
+                ); //In days
 
-                console.log(`DIFF FOUND ----> ${dateDiffChecker}`);
-
-                if (dateDiffChecker >= 32) {
+                if (dateDiffChecker <= -1) {
                   console.log("Found obsolete date, add 7 days");
-                  //! Day passed already by 32 hours - update - ADD 7 days
+                  //! Day passed already by 24 hours - update - ADD 7 days
                   let tmpDate = new Date(
-                    nextPaymentDate.getTime() +
+                    new Date(chaineDateUTC).getTime() +
                       parseFloat(process.env.TAXICONNECT_PAYMENT_FREQUENCY) *
                         3600 *
                         1000
@@ -376,12 +386,15 @@ function updateNext_paymentDateDrivers(
                   if (/(mon|tue)/i.test(tmpDate)) {
                     //For mondays and tuesdays - add 3 days
                     let tmpNextDate = new Date(
-                      nextPaymentDate +
-                        (parseFloat(process.env.TAXICONNECT_PAYMENT_FREQUENCY) +
-                          3) *
-                          3600000
+                      new Date(chaineDateUTC).getTime() +
+                        (3 +
+                          parseFloat(
+                            process.env.TAXICONNECT_PAYMENT_FREQUENCY
+                          )) *
+                          24 *
+                          3600 *
+                          1000
                     ).toISOString();
-                    console.log(tmpNextDate);
                     //...
                     collectionWalletTransactions_logs.updateOne(
                       {
@@ -404,11 +417,15 @@ function updateNext_paymentDateDrivers(
                   } //After wednesday - OK
                   else {
                     let dateNext = new Date(
-                      nextPaymentDate.getTime() +
-                        parseFloat(process.env.TAXICONNECT_PAYMENT_FREQUENCY) *
-                          3600000
+                      new Date(chaineDateUTC).getTime() +
+                        parseFloat(
+                          process.env.TAXICONNECT_PAYMENT_FREQUENCY *
+                            24 *
+                            3600 *
+                            1000
+                        )
                     ).toISOString();
-                    console.log(dateNext);
+                    //?----
                     collectionWalletTransactions_logs.updateOne(
                       {
                         flag_annotation: {

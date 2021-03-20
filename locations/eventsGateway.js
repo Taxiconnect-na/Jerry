@@ -1567,6 +1567,19 @@ io.on("connection", (socket) => {
    */
   socket.on("topUp_wallet_io", function (req) {
     console.log(req);
+    //? Make sure that the city and country are provided or - defaults them to Windhoek Namibia
+    req.city =
+      req.city !== undefined && req.city !== null && req.city !== false
+        ? req.city
+        : "Windhoek";
+    req.country =
+      req.country !== undefined &&
+      req.country !== null &&
+      req.country !== false &&
+      req.country.length <= 2
+        ? req.country
+        : "NA"; //! Required 2 digits for countries - DPO ref
+    //?....
     if (
       req.user_fp !== undefined &&
       req.user_fp !== null &&
@@ -1579,7 +1592,13 @@ io.on("connection", (socket) => {
       req.cvv !== undefined &&
       req.cvv !== null &&
       req.type !== undefined &&
-      req.type !== null
+      req.type !== null &&
+      req.name !== undefined &&
+      req.name !== null &&
+      req.city !== undefined &&
+      req.city !== null &&
+      req.country !== undefined &&
+      req.country !== null
     ) {
       let url =
         process.env.LOCAL_URL +
@@ -1596,7 +1615,13 @@ io.on("connection", (socket) => {
         "&type=" +
         req.type +
         "&number=" +
-        req.number;
+        req.number +
+        "&name=" +
+        req.name +
+        "&city=" +
+        req.city +
+        "&country=" +
+        req.country;
 
       requestAPI(url, function (error, response, body) {
         if (error === null) {

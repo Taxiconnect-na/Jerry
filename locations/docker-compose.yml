@@ -10,7 +10,7 @@ services:
   server_beta_v2:
     depends_on:
       - redis-server
-    image: taxiconnect/rider_beta_server:2.0.168
+    image: rider_beta_server
     ports:
       - "9097:9097"
       - "9090:9090"

@@ -1059,6 +1059,19 @@ clientMongo.connect(function (err) {
     };*/
     let params = urlParser.parse(req.url, true);
     req = params.query;
+    //? Make sure that the city and country are provided or - defaults them to Windhoek Namibia
+    req.city =
+      req.city !== undefined && req.city !== null && req.city !== false
+        ? req.city
+        : "Windhoek";
+    req.country =
+      req.country !== undefined &&
+      req.country !== null &&
+      req.country !== false &&
+      req.country.length <= 2
+        ? req.country
+        : "NA"; //! Required 2 digits for countries - DPO ref
+    //?....
     dataBundle = req;
 
     //! CHECK INPUTS
@@ -1074,7 +1087,13 @@ clientMongo.connect(function (err) {
       dataBundle.cvv !== undefined &&
       dataBundle.cvv !== null &&
       dataBundle.type !== undefined &&
-      dataBundle.type !== null
+      dataBundle.type !== null &&
+      dataBundle.name !== undefined &&
+      dataBundle.name !== null &&
+      dataBundle.city !== undefined &&
+      dataBundle.city !== null &&
+      dataBundle.country !== undefined &&
+      dataBundle.country !== null
     ) {
       //?PASSED
       //Get user's details
@@ -1082,6 +1101,7 @@ clientMongo.connect(function (err) {
         .find({ user_fingerprint: dataBundle.user_fp })
         .toArray(function (error, usersDetails) {
           if (error) {
+            console.log(error);
             res.send({ response: false, message: "transaction_error" });
           }
           //...
@@ -1091,11 +1111,14 @@ clientMongo.connect(function (err) {
             usersDetails[0].user_fingerprint !== null
           ) {
             //?Found some valid details
-            //Complete the user details with his/her username
-            dataBundle.name = usersDetails[0].username;
             //...
-            //! LIMIT THE TRANSACTION AMOUNT TO N$1000
-            if (parseFloat(dataBundle.amount) <= 1000) {
+            //! LIMIT THE TRANSACTION AMOUNT TO N$1000 (N$50-N$1000)
+            if (
+              parseFloat(dataBundle.amount) >= 50 &&
+              parseFloat(dataBundle.amount) <= 1000
+            ) {
+              //? Remove _ from the name
+              dataBundle.name = dataBundle.name.replace(/_/g, " ");
               //CREATE TOKEN
               new Promise((resolve) => {
                 //? XML TOKEN responsible for creating a transaction token before any payment.
@@ -1106,16 +1129,37 @@ clientMongo.connect(function (err) {
                 <Request>createToken</Request>
                 <Transaction>
                 <PaymentAmount>${dataBundle.amount}</PaymentAmount>
-                <PaymentCurrency>${process.env.PAYMENT_CURRENCY}</PaymentCurrency>
+                <customerCountry>${
+                  dataBundle.country !== undefined &&
+                  dataBundle.country !== null &&
+                  dataBundle.country !== "false"
+                    ? dataBundle.country
+                    : "Namibia"
+                }</customerCountry>
+                <customerCity>${
+                  dataBundle.city !== undefined &&
+                  dataBundle.city !== null &&
+                  dataBundle.city !== "false"
+                    ? dataBundle.city
+                    : "Windhoek"
+                }</customerCity>
+                <CardHolderName>${dataBundle.name}</CardHolderName>
+                <PaymentCurrency>${
+                  process.env.PAYMENT_CURRENCY
+                }</PaymentCurrency>
                 <CompanyRef>${process.env.COMPANY_DPO_REF}</CompanyRef>
-                <RedirectURL>${process.env.REDIRECT_URL_AFTER_PROCESSES}</RedirectURL>
+                <RedirectURL>${
+                  process.env.REDIRECT_URL_AFTER_PROCESSES
+                }</RedirectURL>
                 <BackURL>${process.env.REDIRECT_URL_AFTER_PROCESSES}</BackURL>
                 <CompanyRefUnique>0</CompanyRefUnique>
                 <PTL>5</PTL>
                 </Transaction>
                 <Services>
                   <Service>
-                    <ServiceType>${process.env.DPO_CREATETOKEN_SERVICE_TYPE}</ServiceType>
+                    <ServiceType>${
+                      process.env.DPO_CREATETOKEN_SERVICE_TYPE
+                    }</ServiceType>
                     <ServiceDescription>TaxiConnect wallet top-up</ServiceDescription>
                     <ServiceDate>${dateObjectImute}</ServiceDate>
                   </Service>
@@ -1187,6 +1231,7 @@ clientMongo.connect(function (err) {
             }
           } //?Strange - did not find a rider account linked to this request
           else {
+            console.log("Not found users");
             //Save error event log
             new Promise((resFailedTransaction) => {
               let faildTransObj = {

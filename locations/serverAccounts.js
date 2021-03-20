@@ -2680,7 +2680,7 @@ function execGet_driversDeepInsights_fromWalletData(
                       collectionWalletTransactions_logs
                         .find({
                           transaction_nature: {
-                            $regex: /weeklyPaidDriverAutomatic/,
+                            $regex: /startingPoint_forFreshPayouts/,
                             $options: "i",
                           },
                           recipient_fp: driver_fingerprint,
@@ -2695,53 +2695,10 @@ function execGet_driversDeepInsights_fromWalletData(
                             resultLastPayout.length > 0 &&
                             resultLastPayout[0].date_captured !== undefined
                           ) {
-                            //? Check if the difference betwen the current date and the lasp payout is not greater than the TaxiConnect payment frequency.
-                            let refDate = new Date(chaineDateUTC);
-                            let nextPaymentDate = new Date(
+                            let lastPayoutDate = new Date(
                               resultLastPayout[0].date_captured
                             );
-                            let dateDiffChecker = Math.abs(
-                              refDate - nextPaymentDate
-                            ); //Milliseconds
-                            dateDiffChecker /= 36e5; //Hours
-                            if (
-                              dateDiffChecker >
-                              parseFloat(
-                                process.env.TAXICONNECT_PAYMENT_FREQUENCY
-                              ) *
-                                24
-                            ) {
-                              //Add the hours + the payment cycle time
-                              //Found the llast payout date
-                              let lastPayoutDate = new Date(
-                                new Date(
-                                  resultLastPayout[0].date_captured
-                                ).getTime() +
-                                  parseFloat(
-                                    process.env.TAXICONNECT_PAYMENT_FREQUENCY
-                                  ) *
-                                    24 *
-                                    3600000 +
-                                  dateDiffChecker * 24 * 3600000
-                              );
-                              //....
-                              resFindNexyPayoutDate(lastPayoutDate);
-                            } //Add the usual payment cycle
-                            else {
-                              //Found the llast payout date
-                              let lastPayoutDate = new Date(
-                                new Date(
-                                  resultLastPayout[0].date_captured
-                                ).getTime() +
-                                  parseFloat(
-                                    process.env.TAXICONNECT_PAYMENT_FREQUENCY
-                                  ) *
-                                    24 *
-                                    3600000
-                              );
-                              //....
-                              resFindNexyPayoutDate(lastPayoutDate);
-                            }
+                            resFindNexyPayoutDate(lastPayoutDate);
                           } //? The driver was never paid before
                           else {
                             //!Check if a reference point exists - if not set one to NOW
