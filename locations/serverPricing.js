@@ -2151,4 +2151,4 @@ clientMongo.connect(function (err) {
   });
 });
 
-server.listen(process.env.PRICING_SERVICE_PORT, "23.92.26.59");
+server.listen(process.env.PRICING_SERVICE_PORT, "127.0.0.1");

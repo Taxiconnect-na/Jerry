@@ -604,5 +604,5 @@ clientMongo.connect(function (err) {
   });
 });
 
-server.listen(process.env.SEARCH_SERVICE_PORT, "23.92.26.59");
+server.listen(process.env.SEARCH_SERVICE_PORT, "127.0.0.1");
 //dash.monitor({server: server});
