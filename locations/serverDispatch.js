@@ -2904,7 +2904,7 @@ clientMongo.connect(function (err) {
                                     )
                                   ) {
                                     //! SAVE WALLET TRANSACTION ----------------------
-                                    new Promise((resolveWalletTrans) => {
+                                    /*new Promise((resolveWalletTrans) => {
                                       let tmpDate = new Date();
                                       //...
                                       let dataBundle = {
@@ -2937,7 +2937,7 @@ clientMongo.connect(function (err) {
                                       (error) => {
                                         console.log(error);
                                       }
-                                    );
+                                    );*/
                                     //! -----------------------------------------------
                                   }
                                   //...
