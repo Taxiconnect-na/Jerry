@@ -504,8 +504,19 @@ function updateRiderLocationsLog(
     collectionDrivers_profiles
       .find(filterDriver)
       .toArray(function (err, driverData) {
+        if (err) {
+          console.log(err);
+          resolve(false);
+        }
+        //...
         if (driverData.length > 0) {
           if (
+            driverData !== undefined &&
+            driverData !== null &&
+            driverData[0] !== undefined &&
+            driverData[0] !== null &&
+            driverData[0].operational_state !== undefined &&
+            driverData[0].operational_state !== null &&
             driverData[0].operational_state.last_location !== null &&
             driverData[0].operational_state.last_location !== undefined &&
             driverData[0].operational_state.last_location.coordinates !==

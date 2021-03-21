@@ -4323,10 +4323,19 @@ clientMongo.connect(function (err) {
             .find({ driver_fingerprint: req.driver_fingerprint })
             .toArray(function (err, driverData) {
               if (err) {
+                console.log(err);
                 res0({ response: "error_invalid_request" });
               }
               //...
-              if (driverData.length > 0) {
+              if (
+                driverData !== undefined &&
+                driverData !== null &&
+                driverData[0] !== undefined &&
+                driverData[0] !== null &&
+                driverData[0].operational_state !== undefined &&
+                driverData[0].operational_state !== null &&
+                driverData.length > 0
+              ) {
                 driverData = driverData[0];
                 //Valid driver
                 res0({
