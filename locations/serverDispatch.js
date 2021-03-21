@@ -1703,6 +1703,52 @@ function acceptRequest_driver(
                   if (err) {
                     resolve({ response: "unable_to_accept_request_error" });
                   }
+                  //?Notify the cllient
+                  //Send the push notifications - FOR Passengers
+                  new Promise((resSendNotif) => {
+                    //? Get the rider's details
+                    collectionPassengers_profiles
+                      .find({
+                        user_fingerprint: requestPrevData[0].client_id,
+                      })
+                      .toArray(function (err, ridersDetails) {
+                        if (err) {
+                          resSendNotif(false);
+                        }
+                        //...
+                        if (
+                          ridersDetails.length > 0 &&
+                          ridersDetails[0].user_fingerprint !== undefined &&
+                          ridersDetails[0].pushnotif_token !== null &&
+                          ridersDetails[0].pushnotif_token !== undefined &&
+                          ridersDetails[0].pushnotif_token.userId !== undefined
+                        ) {
+                          let message = {
+                            app_id: "05ebefef-e2b4-48e3-a154-9a00285e394b",
+                            android_channel_id:
+                              "6e8929ad-a744-48b4-b7ef-5e42b3a5eedf", //Ride or delivery channel
+                            priority: 10,
+                            contents: {
+                              en:
+                                "We've found a driver for your request. click here for more.",
+                            },
+                            headings: { en: "Request accepted" },
+                            content_available: true,
+                            include_player_ids: [
+                              String(ridersDetails[0].pushnotif_token.userId),
+                            ],
+                          };
+                          //Send
+                          sendPushUPNotification(message);
+                          resSendNotif(false);
+                        } else {
+                          resSendNotif(false);
+                        }
+                      });
+                  }).then(
+                    () => {},
+                    () => {}
+                  );
                   //? Update the accepted rides brief list in the driver's profile
                   new Promise((resUpdateDriverProfile) => {
                     //Get request infos
@@ -1761,59 +1807,6 @@ function acceptRequest_driver(
                               //...
                               resUpdateDriverProfile(true);
                             }
-                          );
-
-                          //?Notify the cllient
-                          //Send the push notifications - FOR Passengers
-                          new Promise((resSendNotif) => {
-                            //? Get the rider's details
-                            collectionPassengers_profiles
-                              .find({
-                                user_fingerprint: requestPrevData[0].client_id,
-                              })
-                              .toArray(function (err, ridersDetails) {
-                                if (err) {
-                                  resSendNotif(false);
-                                }
-                                //...
-                                if (
-                                  ridersDetails.length > 0 &&
-                                  ridersDetails[0].user_fingerprint !==
-                                    undefined &&
-                                  ridersDetails[0].pushnotif_token !== null &&
-                                  ridersDetails[0].pushnotif_token !==
-                                    undefined &&
-                                  ridersDetails[0].pushnotif_token.userId !==
-                                    undefined
-                                ) {
-                                  let message = {
-                                    app_id:
-                                      "05ebefef-e2b4-48e3-a154-9a00285e394b",
-                                    android_channel_id:
-                                      "6e8929ad-a744-48b4-b7ef-5e42b3a5eedf", //Ride or delivery channel
-                                    priority: 10,
-                                    contents: {
-                                      en:
-                                        "We've found a driver for your request. click here for more.",
-                                    },
-                                    headings: { en: "Request accepted" },
-                                    content_available: true,
-                                    include_player_ids: [
-                                      String(
-                                        ridersDetails[0].pushnotif_token.userId
-                                      ),
-                                    ],
-                                  };
-                                  //Send
-                                  sendPushUPNotification(message);
-                                  resSendNotif(false);
-                                } else {
-                                  resSendNotif(false);
-                                }
-                              });
-                          }).then(
-                            () => {},
-                            () => {}
                           );
                         } //Strange - no request found
                         else {

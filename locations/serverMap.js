@@ -391,6 +391,7 @@ function getRouteInfos(coordsInfos, resolve) {
 function updateRidersRealtimeLocationData(
   collectionRidersLocation_log,
   collectionDrivers_profiles,
+  collectionPassengers_profiles,
   locationData,
   resolve
 ) {
@@ -400,6 +401,7 @@ function updateRidersRealtimeLocationData(
     updateRiderLocationsLog(
       collectionRidersLocation_log,
       collectionDrivers_profiles,
+      collectionPassengers_profiles,
       locationData,
       res
     );
@@ -422,6 +424,7 @@ function updateRidersRealtimeLocationData(
 function updateRiderLocationsLog(
   collectionRidersLocation_log,
   collectionDrivers_profiles,
+  collectionPassengers_profiles,
   locationData,
   resolve
 ) {
@@ -429,6 +432,22 @@ function updateRiderLocationsLog(
   resolveDate();
   if (/rider/i.test(locationData.user_nature)) {
     //Riders handler
+    //! Update the pushnotfication token
+    collectionPassengers_profiles.updateOne(
+      {
+        user_fingerprint: locationData.user_fingerprint,
+      },
+      {
+        $set: {
+          pushnotif_token: locationData.pushnotif_token,
+        },
+      },
+      function (err, res) {
+        if (err) {
+          console.log(err);
+        }
+      }
+    );
     //Check if new
     collectionRidersLocation_log
       .find({
@@ -466,6 +485,21 @@ function updateRiderLocationsLog(
     let filterDriver = {
       driver_fingerprint: locationData.user_fingerprint,
     };
+    //! Update the pushnotfication token
+    collectionDrivers_profiles.updateOne(
+      filterDriver,
+      {
+        $set: {
+          "operational_state.push_notification_token":
+            locationData.pushnotif_token,
+        },
+      },
+      function (err, res) {
+        if (err) {
+          console.log(err);
+        }
+      }
+    );
     //First get the current coordinate
     collectionDrivers_profiles
       .find(filterDriver)
@@ -4198,6 +4232,7 @@ clientMongo.connect(function (err) {
         updateRidersRealtimeLocationData(
           collectionRidersLocation_log,
           collectionDrivers_profiles,
+          collectionPassengers_profiles,
           req,
           resolve2
         );
