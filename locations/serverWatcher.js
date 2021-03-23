@@ -1010,6 +1010,117 @@ function requestsDriverSubscriber_watcher(
                             resAge(false);
                           }
                           //...
+                          //SEND THE NOTIFICATIONS
+                          let parentPromises = driversFullData.map((driver) => {
+                            return new Promise((resSend) => {
+                              //Send the push notifications
+                              let message = {
+                                app_id: process.env.DRIVERS_APP_ID_ONESIGNAL,
+                                android_channel_id: /RIDE/i.test(
+                                  request.ride_mode
+                                )
+                                  ? process.env
+                                      .DRIVERS_ONESIGNAL_CHANNEL_NEW_NOTIFICATION
+                                  : process.env
+                                      .DRIVERS_ONESIGNAL_CHANNEL_NEW_NOTIFICATION, //Ride or delivery channel
+                                priority: 10,
+                                contents: /RIDE/i.test(request.ride_mode)
+                                  ? {
+                                      en:
+                                        "You have a new ride request " +
+                                        (request.pickup_location_infos
+                                          .suburb !== false
+                                          ? "from " +
+                                              request.pickup_location_infos
+                                                .suburb !==
+                                            undefined
+                                            ? request.pickup_location_infos
+                                                .suburb !== undefined &&
+                                              request.pickup_location_infos
+                                                .suburb !== false &&
+                                              request.pickup_location_infos
+                                                .suburb !== null
+                                              ? request.pickup_location_infos.suburb.toUpperCase()
+                                              : "near your location"
+                                            : "near your location" +
+                                                " to " +
+                                                request.pickup_location_infos
+                                                  .suburb !==
+                                              undefined
+                                            ? request.pickup_location_infos
+                                                .suburb !== undefined &&
+                                              request.pickup_location_infos
+                                                .suburb !== false &&
+                                              request.pickup_location_infos
+                                                .suburb !== null
+                                              ? request.pickup_location_infos.suburb.toUpperCase()
+                                              : "near your location"
+                                            : "near your location" +
+                                              ". Click here for more details."
+                                          : "near your location, click here for more details."),
+                                    }
+                                  : {
+                                      en:
+                                        "You have a new delivery request " +
+                                        (request.pickup_location_infos
+                                          .suburb !== false
+                                          ? "from " +
+                                              request.pickup_location_infos
+                                                .suburb !==
+                                            undefined
+                                            ? request.pickup_location_infos
+                                                .suburb !== undefined &&
+                                              request.pickup_location_infos
+                                                .suburb !== false &&
+                                              request.pickup_location_infos
+                                                .suburb !== null
+                                              ? request.pickup_location_infos.suburb.toUpperCase()
+                                              : "near your location"
+                                            : "near your location" +
+                                                " to " +
+                                                request.pickup_location_infos
+                                                  .suburb !==
+                                              undefined
+                                            ? request.pickup_location_infos
+                                                .suburb !== undefined &&
+                                              request.pickup_location_infos
+                                                .suburb !== false &&
+                                              request.pickup_location_infos
+                                                .suburb !== null
+                                              ? request.pickup_location_infos.suburb.toUpperCase()
+                                              : "near your location"
+                                            : "near your location" +
+                                              ". Click here for more details."
+                                          : "near your location, click here for more details."),
+                                    },
+                                headings: /RIDE/i.test(request.ride_mode)
+                                  ? {
+                                      en: "New ride request, N$" + request.fare,
+                                    }
+                                  : {
+                                      en:
+                                        "New delivery request, N$" +
+                                        request.fare,
+                                    },
+                                content_available: true,
+                                include_player_ids: [
+                                  driver.operational_state
+                                    .push_notification_token.userId,
+                                ],
+                              };
+                              //Send
+                              sendPushUPNotification(message);
+                              //...
+                              resSend(true);
+                            });
+                          });
+                          Promise.all(parentPromises)
+                            .then()
+                            .catch((error) => {
+                              console.log(error);
+                            });
+
+                          //...DONE
                           resAge(true);
                         }
                       );
