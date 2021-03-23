@@ -890,6 +890,172 @@ function scheduledRequestsWatcher_junky(
 }
 
 /**
+ * @func requestsDriverSubscriber_watcher
+ * Responsible to check if there's any driver subscribed to a specific request after about MAXIMUM_WAIT_TIME_BEFORE_GLOBAL_SUBSCRIPTION_SECONDS
+ * before subscribing to all the drivers.
+ * ! Only if after __MAXIMUM_WAIT_TIME_BEFORE_GLOBAL_SUBSCRIPTION_SECONDS__ there's no driver subscribed to the request.
+ * @param collectionRidesDeliveryData: the list of all the requests
+ * @param collectionDrivers_profiles: the list of all the drivers.
+ * @param resolve
+ */
+function requestsDriverSubscriber_watcher(
+  collectionRidesDeliveryData,
+  collectionDrivers_profiles,
+  resolve
+) {
+  //1. Get all the requests not accepted yet
+  let requestFilter0 = {
+    taxi_id: false,
+    isArrivedToDestination: false,
+    "ride_state_vars.isRideCompleted_driverSide": false,
+  };
+
+  collectionRidesDeliveryData
+    .find(requestFilter0)
+    .toArray(function (err, dataRequests) {
+      if (err) {
+        console.log(err);
+        resolve({ response: "An error occured", flag: err });
+      }
+      //...
+      if (dataRequests !== undefined && dataRequests.length > 0) {
+        //Found some scheduled requests
+        let parentPromises = dataRequests.map((request) => {
+          return new Promise((resAge) => {
+            //Check if there's no subscribed drivers yet
+            if (
+              request.allowed_drivers_see !== undefined &&
+              request.allowed_drivers_see !== null &&
+              request.allowed_drivers_see.length > 0
+            ) {
+              //Has some subscribers - SKIP
+              resAge(false);
+            } //No subscribers yet
+            else {
+              //? Get dates and convert from milliseconds to seconds
+              let dateRequested = new Date(request.date_requested);
+              let referenceDate = new Date(chaineDateUTC);
+              //...Compute the diff and convert to minutes
+              let diff =
+                diff_hours(dateRequested, referenceDate).difference * 3600; //? to seconds
+              console.log("SUBSCRIBELESS DIFF --------> ", diff);
+              //! Check the wait time
+              if (
+                diff >=
+                process.env.MAXIMUM_WAIT_TIME_BEFORE_GLOBAL_SUBSCRIPTION_SECONDS
+              ) {
+                //Auto subscribe all
+                //Get all the driver's fp of the same city and country
+                let driverFilter = {
+                  "operational_state.status": {
+                    $regex: /(offline|online)/,
+                    $options: "i",
+                  },
+                  "operational_state.last_location.city": {
+                    $regex: request.pickup_location_infos.city,
+                    $options: "i",
+                  },
+                  "operational_state.last_location.country": {
+                    $regex: request.country,
+                    $options: "i",
+                  },
+                  operation_clearances: {
+                    $regex: request.ride_mode,
+                    $options: "i",
+                  },
+                  //Filter the drivers based on the vehicle type if provided
+                  "operational_state.default_selected_car.vehicle_type":
+                    request.carTypeSelected !== undefined &&
+                    request.carTypeSelected !== false
+                      ? { $regex: request.carTypeSelected, $options: "i" }
+                      : { $regex: /[a-zA-Z]/, $options: "i" },
+                };
+                //...
+                collectionDrivers_profiles
+                  .find(driverFilter)
+                  .toArray(function (err, driversFullData) {
+                    if (err) {
+                      console.log(err);
+                      resAge(false);
+                    }
+                    //...
+                    if (
+                      driversFullData !== undefined &&
+                      driversFullData.length > 0
+                    ) {
+                      //Found some drivers
+                      //1. Gather all the fingerprints
+                      let driversFps = driversFullData.map(
+                        (driver) => driver.driver_fingerprint
+                      );
+                      let newSubscribedDrivers_array = [
+                        ...new Set([
+                          ...request.allowed_drivers_see,
+                          ...driversFps,
+                        ]),
+                      ];
+                      //2. Update  the subscribed driver array
+                      collectionRidesDeliveryData.updateOne(
+                        {
+                          request_fp: request.request_fp,
+                        },
+                        {
+                          $set: {
+                            allowed_drivers_see: newSubscribedDrivers_array,
+                          },
+                        },
+                        function (err, resultUpdate) {
+                          if (err) {
+                            console.log(err);
+                            resAge(false);
+                          }
+                          //...
+                          resAge(true);
+                        }
+                      );
+                    } //No drivers found
+                    else {
+                      resAge(false);
+                    }
+                  });
+              } //Do nothing
+              else {
+                resAge(false);
+              }
+            }
+          });
+        });
+        //DONE
+        Promise.all(parentPromises)
+          .then(
+            (reslt) => {
+              resolve({ response: "done_watching_subscribeless_requests" });
+            },
+            (error) => {
+              console.log(error);
+              resolve({
+                response: "error_watching_subscribeless_requests",
+                flag: error,
+              });
+            }
+          )
+          .catch((error) => {
+            console.log(error);
+            resolve({
+              response: "error_watching_subscribeless_requests",
+              flag: error,
+            });
+          });
+      } //No requests
+      else {
+        resolve({
+          response: "empty_watching_subscribeless_requests",
+        });
+      }
+    });
+}
+
+/**
  * MAIN
  */
 
@@ -985,6 +1151,26 @@ clientMongo.connect(function (err) {
         collectionDrivers_profiles,
         collectionPassengers_profiles,
         res3
+      );
+    })
+      .then(
+        (result) => {
+          console.log(result);
+        },
+        (error) => {
+          console.log(error);
+        }
+      )
+      .catch((error) => {
+        console.log(error);
+      });
+
+    //? 4. Observe all the subscribeless requests
+    new Promise((res4) => {
+      requestsDriverSubscriber_watcher(
+        collectionRidesDeliveryData,
+        collectionDrivers_profiles,
+        res4
       );
     })
       .then(
