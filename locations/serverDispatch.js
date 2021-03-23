@@ -978,10 +978,10 @@ function sendStagedNotificationsDrivers(
           function (err, reslt) {
             //Send the push notifications - FOR DRIVERS
             let message = {
-              app_id: "a7e445ea-0852-4bdc-afd0-345c9cd30095",
+              app_id: process.env.DRIVERS_APP_ID_ONESIGNAL,
               android_channel_id: /RIDE/i.test(snapshotTripInfos.ride_type)
-                ? "efbefa56-bb11-4b87-844a-6ed9981bd6ae"
-                : "efbefa56-bb11-4b87-844a-6ed9981bd6ae", //Ride or delivery channel
+                ? process.env.DRIVERS_ONESIGNAL_CHANNEL_NEW_NOTIFICATION
+                : process.env.DRIVERS_ONESIGNAL_CHANNEL_NEW_NOTIFICATION, //Ride or delivery channel
               priority: 10,
               contents: /RIDE/i.test(snapshotTripInfos.ride_type)
                 ? {
@@ -1333,10 +1333,10 @@ function registerAllowedDriversForRidesAndNotify(
             //Send notifications to the newly registered drivers to the allowed_drivers_see
             //Send the push notifications
             let message = {
-              app_id: "a7e445ea-0852-4bdc-afd0-345c9cd30095",
+              app_id: process.env.DRIVERS_APP_ID_ONESIGNAL,
               android_channel_id: /RIDE/i.test(snapshotTripInfos.ride_type)
-                ? "efbefa56-bb11-4b87-844a-6ed9981bd6ae"
-                : "efbefa56-bb11-4b87-844a-6ed9981bd6ae", //Ride or delivery channel
+                ? process.env.DRIVERS_ONESIGNAL_CHANNEL_NEW_NOTIFICATION
+                : process.env.DRIVERS_ONESIGNAL_CHANNEL_NEW_NOTIFICATION, //Ride or delivery channel
               priority: 10,
               contents: /RIDE/i.test(snapshotTripInfos.ride_type)
                 ? {
@@ -1747,9 +1747,10 @@ function acceptRequest_driver(
                           ridersDetails[0].pushnotif_token.userId !== undefined
                         ) {
                           let message = {
-                            app_id: "05ebefef-e2b4-48e3-a154-9a00285e394b",
+                            app_id: process.env.RIDERS_APP_ID_ONESIGNAL,
                             android_channel_id:
-                              "6e8929ad-a744-48b4-b7ef-5e42b3a5eedf", //Ride or delivery channel
+                              process.env
+                                .RIDERS_ONESIGNAL_CHANNEL_ACCEPTTEDD_REQUEST, //Ride or delivery channel
                             priority: 10,
                             contents: {
                               en:
@@ -2022,10 +2023,10 @@ function cancelRequest_driver(
                                     undefined
                                 ) {
                                   let message = {
-                                    app_id:
-                                      "05ebefef-e2b4-48e3-a154-9a00285e394b",
+                                    app_id: process.env.RIDERS_APP_ID_ONESIGNAL,
                                     android_channel_id:
-                                      "6e8929ad-a744-48b4-b7ef-5e42b3a5eedf", //Ride or delivery channel
+                                      process.env
+                                        .RIDERS_ONESIGNAL_CHANNEL_ACCEPTTEDD_REQUEST, //Ride or delivery channel
                                     priority: 10,
                                     contents: {
                                       en:
@@ -2312,10 +2313,10 @@ function confirmDropoffRequest_driver(
                                     undefined
                                 ) {
                                   let message = {
-                                    app_id:
-                                      "05ebefef-e2b4-48e3-a154-9a00285e394b",
+                                    app_id: process.env.RIDERS_APP_ID_ONESIGNAL,
                                     android_channel_id:
-                                      "6e8929ad-a744-48b4-b7ef-5e42b3a5eedf", //Ride or delivery channel
+                                      process.env
+                                        .RIDERS_ONESIGNAL_CHANNEL_ACCEPTTEDD_REQUEST, //Ride or delivery channel
                                     priority: 10,
                                     contents: {
                                       en:
@@ -2776,6 +2777,34 @@ clientMongo.connect(function (err) {
     else {
       res.send({ rides: 0, deliveries: 0, scheduled: 0 });
     }
+  });
+
+  /**
+   * RIDES OR DELIVERY DECOUPLED DISPATCHER
+   * Responsible for redispatching already parsed requests.
+   * @param requestStructured: already parsed request coming straight from Mongo
+   */
+  app.post("/redispatcherAlreadyParsedRequests", function (req, res) {
+    req = req.body;
+    new Promise((resInit) => {
+      INIT_RIDE_DELIVERY_DISPATCH_ENTRY(
+        req,
+        collectionDrivers_profiles,
+        collectionRidesDeliveryData,
+        resInit
+      );
+    }).then(
+      (resultDispatch) => {
+        //...
+        res.send(resultDispatch);
+      },
+      (error) => {
+        console.log(error);
+        res.send({
+          response: "Unable_to_redispatch_the_request",
+        });
+      }
+    );
   });
 
   /**

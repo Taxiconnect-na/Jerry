@@ -244,9 +244,10 @@ function removeOldRequests_madeWithoutBeingAttended(
                               //! Notify the rider
                               //Send the push notifications
                               let message = {
-                                app_id: "05ebefef-e2b4-48e3-a154-9a00285e394b",
+                                app_id: process.env.RIDERS_APP_ID_ONESIGNAL,
                                 android_channel_id:
-                                  "52d845a9-9064-4bc0-9fc6-2eb3802a380e", //Ride - Auto-cancelled group
+                                  process.env
+                                    .RIDERS_ONESIGNAL_CHANNEL_AUTOCANCELLED_REQUEST, //Ride - Auto-cancelled group
                                 priority: 10,
                                 contents: {
                                   en:
@@ -488,28 +489,20 @@ function updateNext_paymentDateDrivers(
   });
 }
 
-function diff_hours(dt1, dt2) {
-  //Get details from date 1
-  let year1 = dt1.getFullYear();
-  let month1 = dt1.getMonth() + 1;
-  let day1 = dt1.getDate();
-  let hour1 = dt1.getHours();
-  let minute1 = dt1.getMinutes();
-  let seconds1 = dt1.getSeconds();
-  //...
-  let year2 = dt2.getFullYear();
-  let month2 = dt2.getMonth() + 1;
-  let day2 = dt2.getDate();
-  let hour2 = dt2.getHours();
-  let minute2 = dt2.getMinutes();
-  let seconds2 = dt2.getSeconds();
+function getDaysInMonth(month, year) {
+  // Here January is 1 based
+  //Day 0 is the last day in the previous month
+  return new Date(year, month, 0).getDate();
+  // Here January is 0 based
+  // return new Date(year, month+1, 0).getDate();
+}
 
-  console.log(year1, year2);
-  console.log(month1, month2);
-  console.log(day1, day2);
-  console.log(hour1, hour2);
-  console.log(minute1, minute2);
-  console.log(seconds1, seconds2);
+function diff_hours(dt1, dt2) {
+  if (dt2 > dt1) {
+    return { difference: Math.abs(dt2 - dt1) / 3600000, state: "onTime" };
+  } else {
+    return { difference: Math.abs(dt2 - dt1) / 3600000, state: "late" };
+  }
 }
 
 /**
@@ -552,18 +545,14 @@ function scheduledRequestsWatcher_junky(
         let parentPromises = dataScheduledRequests.map((request) => {
           return new Promise((resAge) => {
             //? Get dates and convert from milliseconds to seconds
-            let dateRequested =
-              new Date(request.wished_pickup_time).getTime() / 1000;
-            let referenceDate = new Date(chaineDateUTC).getTime() / 1000;
+            let dateRequested = new Date(request.wished_pickup_time);
+            let referenceDate = new Date(chaineDateUTC);
             //...Compute the diff and convert to minutes
-            let diff = (referenceDate - dateRequested) / 60;
-            diff_hours(
-              new Date(request.wished_pickup_time),
-              new Date(chaineDateUTC)
-            );
+            let diff = diff_hours(referenceDate, dateRequested);
             //...Save
             let recordObj = {
-              age_minutes: diff,
+              age_minutes: diff.difference * 60,
+              onTime_state: diff.state,
               request_fp: request.request_fp,
               client_id: request.client_id,
               pushNotif_token: null,
@@ -611,7 +600,7 @@ function scheduledRequestsWatcher_junky(
                   //Has a linked driver
                   //Get the driver's infos
                   collectionDrivers_profiles
-                    .find({ taxi_id: request.taxi_id })
+                    .find({ driver_fingerprint: request.taxi_id })
                     .toArray(function (err, driverData) {
                       if (err) {
                         console.log(err);
@@ -660,6 +649,229 @@ function scheduledRequestsWatcher_junky(
           .then(
             (scheduledRequestsBulk) => {
               console.log(scheduledRequestsBulk);
+              if (scheduledRequestsBulk.length > 0) {
+                //Found some requests
+                let parentPromises2 = scheduledRequestsBulk.map((request) => {
+                  return new Promise((resCompute) => {
+                    if (/onTime/i.test(request.onTime_state)) {
+                      //? Still on time - remind the linked driver or redispatch when it's TIME_TO_WATCH_BEFORE_REMINDING_SCHEDULED_REQUEST_MINUTES
+                      let regChecker = new RegExp(
+                        `${process.env.TIME_TO_WATCH_BEFORE_REMINDING_SCHEDULED_REQUEST_MINUTES}`,
+                        "i"
+                      );
+                      if (regChecker.test(`${request.age_minutes}`)) {
+                        //1. Remind the driver if any
+                        if (
+                          request.driverInfos.driver_fp !== null &&
+                          request.driverInfos.driver_fp !== false
+                        ) {
+                          //Has a linked driver
+                          //Send the push notifications
+                          let message = {
+                            app_id: process.env.DRIVERS_APP_ID_ONESIGNAL,
+                            android_channel_id:
+                              process.env
+                                .DRIVERS_ONESIGNAL_CHANNEL_NEW_NOTIFICATION,
+                            priority: 10,
+                            contents: {
+                              en:
+                                "Hi, you have a scheduled request to attend in about 2 minutes.",
+                            },
+                            headings: { en: "Upcoming scheduled request" },
+                            content_available: true,
+                            include_player_ids: [
+                              request.driverInfos.pushNotif_token,
+                            ],
+                          };
+                          //Send
+                          sendPushUPNotification(message);
+                        } //! REDISPATCH
+                        else {
+                          new Promise((resRedispatch) => {
+                            //? Get the full request
+                            collectionRidesDeliveryData
+                              .find({ request_fp: result.request_fp })
+                              .toArray(function (err, fullRequestOriginals) {
+                                if (err) {
+                                  console.log(err);
+                                  resRedispatch(false);
+                                }
+                                //...
+                                if (
+                                  fullRequestOriginals !== undefined &&
+                                  fullRequestOriginals.length > 0
+                                ) {
+                                  //Found the request mother
+                                  let url =
+                                    process.env.LOCAL_URL +
+                                    ":" +
+                                    process.env.DISPATCH_SERVICE_PORT +
+                                    "/redispatcherAlreadyParsedRequests";
+
+                                  requestAPI.post(
+                                    { url, form: fullRequestOriginals[0] },
+                                    function (error, response, body) {
+                                      console.log(body);
+                                      if (error === null) {
+                                        try {
+                                          body = JSON.parse(body);
+                                          if (body.response !== undefined) {
+                                            //Error
+                                            resRedispatch(body);
+                                          } //SUCCESS
+                                          else {
+                                            resRedispatch(body);
+                                          }
+                                        } catch (error) {
+                                          console.log(error);
+                                          resRedispatch(false);
+                                        }
+                                      } else {
+                                        resRedispatch(false);
+                                      }
+                                    }
+                                  );
+                                } //No requests found - strange or maybe cancelled
+                                else {
+                                  resRedispatch(false);
+                                }
+                              });
+                          })
+                            .then(
+                              (resltRedispatch) => {
+                                console.log(resltRedispatch);
+                              },
+                              (error) => {
+                                console.log(error);
+                              }
+                            )
+                            .catch((error) => {
+                              console.log(error);
+                            });
+                        }
+
+                        //2. Remind the rider
+                        let message = {
+                          app_id: process.env.RIDERS_APP_ID_ONESIGNAL,
+                          android_channel_id:
+                            process.env
+                              .RIDERS_ONESIGNAL_CHANNEL_ACCEPTTEDD_REQUEST,
+                          priority: 10,
+                          contents: {
+                            en:
+                              "Hi, you have a scheduled request in about 2 minutes.",
+                          },
+                          headings: { en: "Upcoming scheduled request" },
+                          content_available: true,
+                          include_player_ids: [request.pushNotif_token],
+                        };
+                        //Send
+                        sendPushUPNotification(message);
+                        //? DONE ------------------------
+                        resCompute(true);
+                      } //Do nothing
+                      else {
+                        resCompute(true);
+                      }
+                    } //! Late, check that it doesn't stay after MAXIMUM_REQUEST_AGE_FOR_CLEANING_MINUTES
+                    else {
+                      if (
+                        request.age_minutes >
+                        process.env.MAXIMUM_REQUEST_AGE_FOR_CLEANING_MINUTES
+                      ) {
+                        //! AUTO-CANCEL
+                        //Geeather than the maximum age
+                        //! Auto cancel - and flag it as done by Junkstem
+                        let url =
+                          process.env.LOCAL_URL +
+                          ":" +
+                          process.env.DISPATCH_SERVICE_PORT +
+                          "/cancelRiders_request";
+
+                        requestAPI.post(
+                          {
+                            url,
+                            form: {
+                              user_fingerprint: request.client_id,
+                              request_fp: request.request_fp,
+                              flag: "Junkstem",
+                            },
+                          },
+                          function (error, response, body) {
+                            if (error === null) {
+                              try {
+                                body = JSON.parse(body);
+                                if (/successully/i.test(body.response)) {
+                                  //Successfully cancelled
+                                  console.log(
+                                    "notifying the rider of the cancellation of the request"
+                                  );
+                                  //! Notify the rider
+                                  //Send the push notifications
+                                  let message = {
+                                    app_id: process.env.RIDERS_APP_ID_ONESIGNAL,
+                                    android_channel_id:
+                                      process.env
+                                        .RIDERS_ONESIGNAL_CHANNEL_AUTOCANCELLED_REQUEST, //Ride - Auto-cancelled group
+                                    priority: 10,
+                                    contents: {
+                                      en:
+                                        "Sorry we couldn't find for you an available ride, please try again.",
+                                    },
+                                    headings: { en: "Unable to find a ride" },
+                                    content_available: true,
+                                    include_player_ids: [
+                                      request.pushNotif_token,
+                                    ],
+                                  };
+                                  //Send
+                                  sendPushUPNotification(message);
+                                  resCompute(true);
+                                } //error
+                                else {
+                                  console.log(body);
+                                  resCompute(true);
+                                }
+                              } catch (error) {
+                                console.log(error);
+                                resCompute(true);
+                              }
+                            } else {
+                              console.log(error);
+                              resCompute(true);
+                            }
+                          }
+                        );
+                      } //Do nothing
+                      else {
+                        resCompute(true);
+                      }
+                    }
+                  });
+                });
+                //DONE
+                Promise.all(parentPromises2)
+                  .then(
+                    (fullComputeReslt) => {
+                      console.log(fullComputeReslt);
+                      resolve({
+                        response:
+                          "successfully_wentThrough_scheduled_requestsFor_watch",
+                      });
+                    },
+                    (error) => {
+                      console.log(error);
+                      resolve({ response: "An error occured", flag: error });
+                    }
+                  )
+                  .catch((error) => {
+                    console.log(error);
+                    resolve({ response: "An error occured", flag: error });
+                  });
+              } //No requests found
+              else {
+                resolve({ response: "empty_scheduled_requestsFor_watch" });
+              }
             },
             (error) => {
               console.log(error);
