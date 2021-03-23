@@ -209,7 +209,7 @@ function parseRequestData(inputData, resolve) {
                 specifiedTIme[1] +
                 ":00";
               //...
-              parsedData.wished_pickup_time = tmpDateString;
+              parsedData.wished_pickup_time = new Date(tmpDateString);
               res1(true);
             } //TOmorrow
             else {
@@ -246,7 +246,7 @@ function parseRequestData(inputData, resolve) {
                 ":" +
                 tmpDateString.second();
               //...
-              parsedData.wished_pickup_time = tmpDateString;
+              parsedData.wished_pickup_time = new Date(tmpDateString);
               res1(true);
             }
           }
@@ -305,6 +305,29 @@ function parseRequestData(inputData, resolve) {
                   city: inputData.pickupData.city,
                   state: null,
                 };
+                //! APPLY BLUE OCEAN BUG FIX FOR THE PICKUP LOCATION COORDINATES
+                //? Get temporary vars
+                let pickLatitude =
+                  parsedData.pickup_location_infos.coordinates.latitude;
+                let pickLongitude =
+                  parsedData.pickup_location_infos.coordinates.longitude;
+                //! Coordinates order fix - major bug fix for ocean bug
+                if (
+                  pickLatitude !== undefined &&
+                  pickLatitude !== null &&
+                  pickLatitude !== 0 &&
+                  pickLongitude !== undefined &&
+                  pickLongitude !== null &&
+                  pickLongitude !== 0
+                ) {
+                  //? Switch latitude and longitude - check the negative sign
+                  if (parseFloat(pickLongitude) < 0) {
+                    //Negative - switch
+                    parsedData.pickup_location_infos.coordinates.latitude = pickLongitude;
+                    parsedData.pickup_location_infos.coordinates.longitude = pickLatitude;
+                  }
+                }
+                //!!!
                 //Auto complete the suburb
                 new Promise((res3) => {
                   let url =
@@ -320,9 +343,9 @@ function parseRequestData(inputData, resolve) {
                     "&country=" +
                     inputData.country +
                     "&latitude=" +
-                    inputData.pickupData.coordinates[0] +
+                    parsedData.pickup_location_infos.coordinates.latitude +
                     "&longitude=" +
-                    inputData.pickupData.coordinates[1] +
+                    parsedData.pickup_location_infos.coordinates.longitude +
                     "&user_fingerprint=" +
                     inputData.user_fingerprint +
                     "&make_new=true";

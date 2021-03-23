@@ -428,7 +428,6 @@ function updateRiderLocationsLog(
   locationData,
   resolve
 ) {
-  console.log("HHERE");
   resolveDate();
   if (/rider/i.test(locationData.user_nature)) {
     //Riders handler
@@ -479,7 +478,6 @@ function updateRiderLocationsLog(
         }
       });
   } else if (/driver/i.test(locationData.user_nature)) {
-    console.log("HEREE");
     //Drivers handler
     //Update the driver's operstional position
     let filterDriver = {
@@ -862,10 +860,19 @@ function tripChecker_Dispatcher(
           ride_mode:
             /scheduled/i.test(requestType) === false
               ? { $regex: requestType, $options: "i" }
-              : { $in: driverData.operation_clearances },
+              : {
+                  $in: [
+                    ...driverData.operation_clearances,
+                    ...driverData.operation_clearances.map((mode) =>
+                      mode.toUpperCase()
+                    ),
+                  ],
+                },
           allowed_drivers_see: user_fingerprint,
           intentional_request_decline: { $not: { $regex: user_fingerprint } },
         };
+
+        console.log(checkRide0);
 
         collectionRidesDeliveries_data
           .find(checkRide0)
@@ -886,7 +893,17 @@ function tripChecker_Dispatcher(
                 taxi_id: user_fingerprint,
                 connect_type: { $regex: "ConnectMe", $options: "i" },
                 "ride_state_vars.isRideCompleted_driverSide": false,
-                ride_mode: { $regex: requestType, $options: "i" },
+                ride_mode:
+                  /scheduled/i.test(requestType) === false
+                    ? { $regex: requestType, $options: "i" }
+                    : {
+                        $in: [
+                          ...driverData.operation_clearances,
+                          ...driverData.operation_clearances.map((mode) =>
+                            mode.toUpperCase()
+                          ),
+                        ],
+                      },
                 allowed_drivers_see: user_fingerprint,
                 intentional_request_decline: {
                   $not: { $regex: user_fingerprint },
@@ -1184,6 +1201,7 @@ function execGetDrivers_requests_and_provide(
       },
       request_type: { $regex: request_type_regex, $options: "i" }, //Shceduled or immediate rides/deliveries
     };
+    console.log(requestFilter);
     //...
     collectionRidesDeliveries_data
       .find(requestFilter)
@@ -1215,6 +1233,8 @@ function execGetDrivers_requests_and_provide(
             );
           }).then(
             (resultFinal) => {
+              console.log("REFINED");
+              console.log(resultFinal);
               resolve(resultFinal);
             },
             (error) => {
@@ -1677,7 +1697,6 @@ function computeRouteDetails_skeleton(
   collectionDrivers_profiles,
   resolve
 ) {
-  console.log(result);
   if (result.length > 0 && result[0].request_fp !== undefined) {
     //There is a ride
     let rideHistory = result[0];

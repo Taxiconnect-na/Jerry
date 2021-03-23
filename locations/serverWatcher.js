@@ -140,6 +140,7 @@ function removeOldRequests_madeWithoutBeingAttended(
   let requestFilter = {
     taxi_id: false,
     "ride_state_vars.isAccepted": false,
+    request_type: { $regex: /immediate/, $options: "i" }, //? Only handle immediate requests for now.
   };
   //..
   collectionRidesDeliveryData
@@ -487,6 +488,195 @@ function updateNext_paymentDateDrivers(
   });
 }
 
+function diff_hours(dt1, dt2) {
+  //Get details from date 1
+  let year1 = dt1.getFullYear();
+  let month1 = dt1.getMonth() + 1;
+  let day1 = dt1.getDate();
+  let hour1 = dt1.getHours();
+  let minute1 = dt1.getMinutes();
+  let seconds1 = dt1.getSeconds();
+  //...
+  let year2 = dt2.getFullYear();
+  let month2 = dt2.getMonth() + 1;
+  let day2 = dt2.getDate();
+  let hour2 = dt2.getHours();
+  let minute2 = dt2.getMinutes();
+  let seconds2 = dt2.getSeconds();
+
+  console.log(year1, year2);
+  console.log(month1, month2);
+  console.log(day1, day2);
+  console.log(hour1, hour2);
+  console.log(minute1, minute2);
+  console.log(seconds1, seconds2);
+}
+
+/**
+ * @func scheduledRequestsWatcher_junky
+ * Responsible for checking the wished pickup time for all the sheduled requests and alert
+ * the linked drivers 5 min before the ride or redispatch the request if no drivers has accepted it yet.
+ * ! If the wished pickup time exceeded __MAXIMUM_REQUEST_AGE_FOR_CLEANING_MINUTES__ (from the wished pickup time) of waiting time without being attended,
+ * ! auto-cancel the request and notify the client as usual.
+ * @param collectionRidesDeliveryData: the list of all the requests
+ * @param collectionDrivers_profiles: the list of all the drivers.
+ * @param collectionPassengers_profiles: the list of all the passengers.
+ * @param resolve
+ */
+function scheduledRequestsWatcher_junky(
+  collectionRidesDeliveryData,
+  collectionDrivers_profiles,
+  collectionPassengers_profiles,
+  resolve
+) {
+  //1. Get all the scheduled requests not done yet
+  let requestFilter0 = {
+    request_type: { $regex: /scheduled/, $options: "i" },
+    isArrivedToDestination: false,
+    "ride_state_vars.isRideCompleted_driverSide": false,
+  };
+
+  collectionRidesDeliveryData
+    .find(requestFilter0)
+    .toArray(function (err, dataScheduledRequests) {
+      if (err) {
+        console.log(err);
+        resolve({ response: "An error occured", flag: err });
+      }
+      //...
+      if (
+        dataScheduledRequests !== undefined &&
+        dataScheduledRequests.length > 0
+      ) {
+        //Found some scheduled requests
+        let parentPromises = dataScheduledRequests.map((request) => {
+          return new Promise((resAge) => {
+            //? Get dates and convert from milliseconds to seconds
+            let dateRequested =
+              new Date(request.wished_pickup_time).getTime() / 1000;
+            let referenceDate = new Date(chaineDateUTC).getTime() / 1000;
+            //...Compute the diff and convert to minutes
+            let diff = (referenceDate - dateRequested) / 60;
+            diff_hours(
+              new Date(request.wished_pickup_time),
+              new Date(chaineDateUTC)
+            );
+            //...Save
+            let recordObj = {
+              age_minutes: diff,
+              request_fp: request.request_fp,
+              client_id: request.client_id,
+              pushNotif_token: null,
+              driverInfos: {
+                driver_fp: null,
+                pushNotif_token: null,
+              },
+            };
+            //Get the push notif token
+            new Promise((resGetPassengerInfos) => {
+              collectionPassengers_profiles
+                .find({ user_fingerprint: request.client_id })
+                .toArray(function (err, riderProfile) {
+                  if (err) {
+                    resGetPassengerInfos(recordObj);
+                  }
+                  //...
+                  if (riderProfile.length > 0) {
+                    //Found the rider's profile
+                    //Update the pushNotif_token if found
+                    recordObj.pushNotif_token =
+                      riderProfile[0].pushnotif_token !== null &&
+                      riderProfile[0].pushnotif_token !== false
+                        ? riderProfile[0].pushnotif_token.userId !==
+                            undefined &&
+                          riderProfile[0].pushnotif_token.userId !== null
+                          ? riderProfile[0].pushnotif_token.userId
+                          : null
+                        : null;
+                    //DDone
+                    resGetPassengerInfos(recordObj);
+                  } //No profile found
+                  else {
+                    resGetPassengerInfos(recordObj);
+                  }
+                });
+            })
+              .then((passengerInfos) => {
+                //? Get the driver's infos
+                if (
+                  request.taxi_id !== false &&
+                  request.taxi_id !== "false" &&
+                  request.taxi_id !== null
+                ) {
+                  //Has a linked driver
+                  //Get the driver's infos
+                  collectionDrivers_profiles
+                    .find({ taxi_id: request.taxi_id })
+                    .toArray(function (err, driverData) {
+                      if (err) {
+                        console.log(err);
+                        resAge(passengerInfos);
+                      }
+                      //...
+                      if (driverData !== undefined && driverData.length > 0) {
+                        //Found the driver's profile
+                        //Update the driver's finggerprint
+                        passengerInfos.driverInfos.driver_fp =
+                          driverData[0].driver_fingerprint;
+                        //Update the pushNotif_token if found
+                        passengerInfos.driverInfos.pushNotif_token =
+                          driverData[0].operational_state
+                            .push_notification_token !== null &&
+                          driverData[0].operational_state
+                            .push_notification_token !== false
+                            ? driverData[0].operational_state
+                                .push_notification_token.userId !== undefined &&
+                              driverData[0].operational_state
+                                .push_notification_token.userId !== null
+                              ? driverData[0].operational_state
+                                  .push_notification_token.userId
+                              : null
+                            : null;
+                        //? DONE
+                        resAge(passengerInfos);
+                      } //No driver infos found - strange
+                      else {
+                        resAge(passengerInfos);
+                      }
+                    });
+                } //No linked driver - proceed
+                else {
+                  resAge(passengerInfos);
+                }
+              })
+              .catch((error) => {
+                console.log(error);
+                resAge(recordObj);
+              });
+          });
+        });
+        //...DONE
+        Promise.all(parentPromises)
+          .then(
+            (scheduledRequestsBulk) => {
+              console.log(scheduledRequestsBulk);
+            },
+            (error) => {
+              console.log(error);
+              resolve({ response: "An error occured", flag: error });
+            }
+          )
+          .catch((error) => {
+            console.log(error);
+            resolve({ response: "An error occured", flag: error });
+          });
+      } //No scheduled requests so far
+      else {
+        resolve({ response: "empty_scheduled_requestsFor_watch" });
+      }
+    });
+}
+
 /**
  * MAIN
  */
@@ -546,6 +736,26 @@ clientMongo.connect(function (err) {
     })
       .then(
         (result) => {
+          //console.log(result);
+        },
+        (error) => {
+          //console.log(error);
+        }
+      )
+      .catch((error) => {
+        //console.log(error);
+      });
+
+    //? 2. Keep the drivers next payment date UP TO DATE
+    new Promise((res2) => {
+      updateNext_paymentDateDrivers(
+        collectionDrivers_profiles,
+        collectionWalletTransactions_logs,
+        res2
+      );
+    })
+      .then(
+        (result) => {
           console.log(result);
         },
         (error) => {
@@ -556,12 +766,13 @@ clientMongo.connect(function (err) {
         console.log(error);
       });
 
-    //? 2. Keep the drivers next payment date UP TO DATE
-    new Promise((res2) => {
-      updateNext_paymentDateDrivers(
+    //? 3. Observe all the scheduled requests for executions
+    new Promise((res3) => {
+      scheduledRequestsWatcher_junky(
+        collectionRidesDeliveryData,
         collectionDrivers_profiles,
-        collectionWalletTransactions_logs,
-        res2
+        collectionPassengers_profiles,
+        res3
       );
     })
       .then(
