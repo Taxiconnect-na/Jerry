@@ -872,8 +872,6 @@ function tripChecker_Dispatcher(
           intentional_request_decline: { $not: { $regex: user_fingerprint } },
         };
 
-        console.log(checkRide0);
-
         collectionRidesDeliveries_data
           .find(checkRide0)
           .toArray(function (err, acceptedRidesArray) {
@@ -1415,6 +1413,7 @@ function execDriver_requests_parsing(
     },
     ride_basic_infos: {
       payment_method: null,
+      wished_pickup_time: null, //Very important for scheduled requests
       fare_amount: null,
       passengers_number: null,
       connect_type: null,
@@ -1463,6 +1462,8 @@ function execDriver_requests_parsing(
       //2. Add the basic trip infos
       parsedRequestsArray.ride_basic_infos.payment_method =
         request.payment_method;
+      parsedRequestsArray.ride_basic_infos.wished_pickup_time =
+        request.wished_pickup_time;
       parsedRequestsArray.ride_basic_infos.fare_amount = parseFloat(
         request.fare
       );

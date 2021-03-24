@@ -659,7 +659,7 @@ function scheduledRequestsWatcher_junky(
                         `${process.env.TIME_TO_WATCH_BEFORE_REMINDING_SCHEDULED_REQUEST_MINUTES}`,
                         "i"
                       );
-                      if (regChecker.test(`${request.age_minutes}`)) {
+                      if (/^2\.5/.test(`${request.age_minutes}`)) {
                         //1. Remind the driver if any
                         if (
                           request.driverInfos.driver_fp !== null &&
