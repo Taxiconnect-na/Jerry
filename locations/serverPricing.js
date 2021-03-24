@@ -28,7 +28,7 @@ var dateObject = null;
 const moment = require("moment");
 
 const clientMongo = new MongoClient(process.env.URL_MONGODB, {
-  useUnifiedTopology: false,
+  useUnifiedTopology: true,
 });
 
 function resolveDate() {

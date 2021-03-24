@@ -31,7 +31,7 @@ var _INTERVAL_PERSISTER_LATE_REQUESTS = null; //Will hold the interval for check
 //...
 
 const clientMongo = new MongoClient(process.env.URL_MONGODB, {
-  useUnifiedTopology: false,
+  useUnifiedTopology: true,
 });
 
 function resolveDate() {
