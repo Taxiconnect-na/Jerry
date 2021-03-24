@@ -1424,6 +1424,7 @@ function execDriver_requests_parsing(
       request_type: null, //immediate or scheduled
       pickup_note: null, //If not set - null
       rider_infos: null,
+      receiver_infos: null, //Receiver's infos
     },
     origin_destination_infos: {
       pickup_infos: {
@@ -1487,6 +1488,9 @@ function execDriver_requests_parsing(
         request.pickup_location_infos.pickup_note === false
           ? null
           : request.pickup_location_infos.pickup_note;
+      //...
+      parsedRequestsArray.ride_basic_infos.receiver_infos =
+        request.delivery_infos;
       //3. Compute the ETA to passenger
       new Promise((res0) => {
         getRouteInfosDestination(
