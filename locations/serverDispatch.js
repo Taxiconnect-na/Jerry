@@ -2387,7 +2387,7 @@ function INIT_RIDE_DELIVERY_DISPATCH_ENTRY(
 ) {
   //? Save the request in mongodb - EXTREMELY IMPORTANT
   let checkPrevRequest = {
-    client_id: req.user_fingerprint,
+    client_id: parsedReqest_data.client_id,
     "ride_state_vars.isRideCompleted_riderSide": false,
     isArrivedToDestination: false,
   };
