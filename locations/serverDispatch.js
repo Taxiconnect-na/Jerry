@@ -2899,12 +2899,16 @@ clientMongo.connect(function (err) {
       let checkPrevRequest = {
         client_id: req.user_fingerprint,
         "ride_state_vars.isRideCompleted_riderSide": false,
+        isArrivedToDestination: false,
       };
       collectionRidesDeliveryData
         .find(checkPrevRequest)
         .toArray(function (err, prevRequest) {
-          if (prevRequest !== undefined && prevRequest.length === 0) {
-            prevRequest = prevRequest[0];
+          if (
+            prevRequest !== null &&
+            prevRequest !== undefined &&
+            prevRequest.length === 0
+          ) {
             //No previous pending request - MAKE REQUEST VALID
             //Parse the data
             new Promise((res) => {
