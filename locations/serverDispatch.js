@@ -2395,8 +2395,8 @@ function INIT_RIDE_DELIVERY_DISPATCH_ENTRY(
   collectionRidesDeliveryData
     .find(checkPrevRequest)
     .toArray(function (err, prevRequest) {
-      if (error) {
-        console.log(error);
+      if (err) {
+        console.log(err);
         resolve({ response: "Unable_to_make_the_request" });
       }
       //....
