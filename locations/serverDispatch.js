@@ -2404,7 +2404,7 @@ function INIT_RIDE_DELIVERY_DISPATCH_ENTRY(
         prevRequest !== undefined &&
         prevRequest !== null &&
         prevRequest.length === 0 &&
-        prevRequest[0].request_fp === undefined
+        prevRequest[0] === undefined
       ) {
         collectionRidesDeliveryData.insertOne(
           parsedReqest_data,
@@ -2933,7 +2933,7 @@ clientMongo.connect(function (err) {
             prevRequest !== null &&
             prevRequest !== undefined &&
             prevRequest.length === 0 &&
-            prevRequest[0].request_fp === undefined
+            prevRequest[0] === undefined
           ) {
             //No previous pending request - MAKE REQUEST VALID
             //Parse the data
