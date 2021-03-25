@@ -2386,49 +2386,74 @@ function INIT_RIDE_DELIVERY_DISPATCH_ENTRY(
   resolve
 ) {
   //? Save the request in mongodb - EXTREMELY IMPORTANT
-  collectionRidesDeliveryData.insertOne(
-    parsedReqest_data,
-    function (err, requestDt) {
-      if (err) {
-        res.send({ response: "Unable_to_make_the_request" });
-      }
+  let checkPrevRequest = {
+    client_id: req.user_fingerprint,
+    "ride_state_vars.isRideCompleted_riderSide": false,
+    isArrivedToDestination: false,
+  };
 
-      //2. INITIATE STAGED toDrivers DISPATCH
-      new Promise((resStaged) => {
-        //FORM THE REQUEST SNAPSHOT
-        let snapshotTripInfos = {
-          user_fingerprint: parsedReqest_data.client_id,
-          city: parsedReqest_data.pickup_location_infos.city,
-          country: parsedReqest_data.country,
-          ride_type: parsedReqest_data.ride_mode,
-          vehicle_type: parsedReqest_data.carTypeSelected,
-          org_latitude:
-            parsedReqest_data.pickup_location_infos.coordinates.latitude,
-          org_longitude:
-            parsedReqest_data.pickup_location_infos.coordinates.longitude,
-          request_fp: parsedReqest_data.request_fp,
-          pickup_suburb: parsedReqest_data.pickup_location_infos.suburb,
-          destination_suburb: parsedReqest_data.destinationData[0].suburb,
-          fare: parsedReqest_data.fare,
-        };
-        intitiateStagedDispatch(
-          snapshotTripInfos,
-          collectionDrivers_profiles,
-          collectionRidesDeliveryData,
-          resStaged
+  collectionRidesDeliveryData
+    .find(checkPrevRequest)
+    .toArray(function (err, prevRequest) {
+      if (error) {
+        console.log(error);
+        resolve({ response: "Unable_to_make_the_request" });
+      }
+      //....
+      if (
+        prevRequest !== undefined &&
+        prevRequest !== null &&
+        prevRequest.length === 0 &&
+        prevRequest[0].request_fp === undefined
+      ) {
+        collectionRidesDeliveryData.insertOne(
+          parsedReqest_data,
+          function (err, requestDt) {
+            if (err) {
+              resolve({ response: "Unable_to_make_the_request" });
+            }
+
+            //2. INITIATE STAGED toDrivers DISPATCH
+            new Promise((resStaged) => {
+              //FORM THE REQUEST SNAPSHOT
+              let snapshotTripInfos = {
+                user_fingerprint: parsedReqest_data.client_id,
+                city: parsedReqest_data.pickup_location_infos.city,
+                country: parsedReqest_data.country,
+                ride_type: parsedReqest_data.ride_mode,
+                vehicle_type: parsedReqest_data.carTypeSelected,
+                org_latitude:
+                  parsedReqest_data.pickup_location_infos.coordinates.latitude,
+                org_longitude:
+                  parsedReqest_data.pickup_location_infos.coordinates.longitude,
+                request_fp: parsedReqest_data.request_fp,
+                pickup_suburb: parsedReqest_data.pickup_location_infos.suburb,
+                destination_suburb: parsedReqest_data.destinationData[0].suburb,
+                fare: parsedReqest_data.fare,
+              };
+              intitiateStagedDispatch(
+                snapshotTripInfos,
+                collectionDrivers_profiles,
+                collectionRidesDeliveryData,
+                resStaged
+              );
+            }).then(
+              (result) => {
+                console.log(result);
+              },
+              (error) => {
+                console.log(error);
+              }
+            );
+            //..Success - respond to the user
+            resolve({ response: "successfully_requested" });
+          }
         );
-      }).then(
-        (result) => {
-          console.log(result);
-        },
-        (error) => {
-          console.log(error);
-        }
-      );
-      //..Success - respond to the user
-      resolve({ response: "successfully_requested" });
-    }
-  );
+      } //Already have a request
+      else {
+        resolve({ response: "Unable_to_make_the_request" });
+      }
+    });
 }
 
 /**
@@ -2907,7 +2932,8 @@ clientMongo.connect(function (err) {
           if (
             prevRequest !== null &&
             prevRequest !== undefined &&
-            prevRequest.length === 0
+            prevRequest.length === 0 &&
+            prevRequest[0].request_fp === undefined
           ) {
             //No previous pending request - MAKE REQUEST VALID
             //Parse the data
