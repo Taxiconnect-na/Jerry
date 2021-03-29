@@ -923,15 +923,12 @@ function requestsDriverSubscriber_watcher(
         let parentPromises = dataRequests.map((request) => {
           return new Promise((resAge) => {
             //Check if there's no subscribed drivers yet
+            //No subscribers yet
             if (
-              request.allowed_drivers_see !== undefined &&
-              request.allowed_drivers_see !== null &&
-              request.allowed_drivers_see.length > 0
+              request.allowed_drivers_see.length <= 0 ||
+              request.allowed_drivers_see.includes(null) ||
+              request.allowed_drivers_see.includes(undefined)
             ) {
-              //Has some subscribers - SKIP
-              resAge(false);
-            } //No subscribers yet
-            else {
               //? Get dates and convert from milliseconds to seconds
               let dateRequested = new Date(request.date_requested);
               let referenceDate = new Date(chaineDateUTC);
@@ -988,12 +985,17 @@ function requestsDriverSubscriber_watcher(
                       let driversFps = driversFullData.map(
                         (driver) => driver.driver_fingerprint
                       );
+
                       let newSubscribedDrivers_array = [
                         ...new Set([
                           ...request.allowed_drivers_see,
                           ...driversFps,
                         ]),
                       ];
+                      //*. Remove the null
+                      newSubscribedDrivers_array = newSubscribedDrivers_array.filter(
+                        (data) => data !== null && data !== undefined
+                      );
                       //2. Update  the subscribed driver array
                       collectionRidesDeliveryData.updateOne(
                         {
@@ -1133,6 +1135,9 @@ function requestsDriverSubscriber_watcher(
               else {
                 resAge(false);
               }
+            } else {
+              //Has some subscribers - SKIP
+              resAge(false);
             }
           });
         });
