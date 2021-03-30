@@ -17,6 +17,7 @@ RUN pm2 set @easynvest/pm2-logstash:logstash_host 'taxiconnectna.com'
 RUN pm2 set @easynvest/pm2-logstash:logstash_port 9994
 RUN pm2 set @easynvest/pm2-logstash:logstash_type 'tcp'
 RUN yarn install
+RUN sh reload_proccesses.sh
 
 EXPOSE 9097
 EXPOSE 9090
