@@ -45,10 +45,10 @@ module.exports = {
     {
       name: "Map service",
       script: "serverMap.js",
-      instances: 4,
+      instances: 8,
       autorestart: true,
       watch: false,
-      max_memory_restart: "2G",
+      max_memory_restart: "4G",
       env: {
         NODE_ENV: "development",
       },
