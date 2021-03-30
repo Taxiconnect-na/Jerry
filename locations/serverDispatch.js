@@ -1675,6 +1675,7 @@ function acceptRequest_driver(
     })
     .toArray(function (err, result) {
       if (err) {
+        console.log(err);
         resolve({ response: "unable_to_accept_request_error" });
       }
       //...
@@ -1698,6 +1699,7 @@ function acceptRequest_driver(
           .find({ driver_fingerprint: bundleWorkingData.driver_fingerprint })
           .toArray(function (err, driverData) {
             if (err) {
+              console.log(err);
               resolve({ response: "unable_to_accept_request_error" });
             }
             //...
@@ -1724,6 +1726,7 @@ function acceptRequest_driver(
                 },
                 function (err, res) {
                   if (err) {
+                    console.log(err);
                     resolve({ response: "unable_to_accept_request_error" });
                   }
                   //?Notify the cllient
@@ -2410,6 +2413,7 @@ function INIT_RIDE_DELIVERY_DISPATCH_ENTRY(
           parsedReqest_data,
           function (err, requestDt) {
             if (err) {
+              console.log(err);
               resolve({ response: "Unable_to_make_the_request" });
             }
 
@@ -2451,7 +2455,8 @@ function INIT_RIDE_DELIVERY_DISPATCH_ENTRY(
         );
       } //Already have a request
       else {
-        resolve({ response: "Unable_to_make_the_request" });
+        console.log("ALEADY HAS A REQUEST");
+        resolve({ response: "already_have_a_pending_request" });
       }
     });
 }
