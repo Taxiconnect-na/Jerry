@@ -18,7 +18,7 @@ RUN pm2 set @easynvest/pm2-logstash:logstash_port 9994
 RUN pm2 set @easynvest/pm2-logstash:logstash_type 'tcp'
 RUN yarn install
 RUN chmod +x reload_proccesses.sh
-RUN /reload_proccesses.sh
+RUN ./reload_proccesses.sh
 
 EXPOSE 9097
 EXPOSE 9090
