@@ -30,6 +30,8 @@
     "redis": "^3.0.2",
     "request": "^2.88.2",
     "socket.io": "^4.0.1",
-    "xml2json": "^0.12.0"
+    "xml2json": "^0.12.0",
+    "@babel/core": "^7.12.10",
+    "@babel/runtime": "^7.12.5"
   }
 }
