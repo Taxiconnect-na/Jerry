@@ -12,15 +12,11 @@ RUN npm install yarn -g --force
 RUN yarn global add pm2
 RUN pm2 install pm2-logrotate
 RUN pm2 install @easynvest/pm2-logstash
-RUN pm2 set pm2-logrotate:max_size 500Mb
+RUN pm2 set pm2-logrotate:max_size 50Mb
 RUN pm2 set @easynvest/pm2-logstash:logstash_host 'taxiconnectna.com'
 RUN pm2 set @easynvest/pm2-logstash:logstash_port 9994
 RUN pm2 set @easynvest/pm2-logstash:logstash_type 'tcp'
 RUN yarn install
-#RUN chmod +x reload_proccesses.sh
-#RUN nohup sh reload_proccesses.sh &
-RUN nohup watch -n 900 -x pm2 reload all &
-RUN nohup watch -n 900 -x pm2 flush &
 
 EXPOSE 9097
 EXPOSE 9090
