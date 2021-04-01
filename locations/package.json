@@ -28,7 +28,7 @@
     "otp-generator": "^2.0.0",
     "redis": "^3.0.2",
     "request": "^2.88.2",
-    "socket.io": "^3.1.2",
+    "socket.io": "^4.0.1",
     "xml2json": "^0.12.0"
   }
 }
