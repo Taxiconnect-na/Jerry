@@ -31,7 +31,7 @@ module.exports = {
     {
       name: "Dispatch service",
       script: "serverDispatch.js",
-      instances: 4,
+      instances: 3,
       autorestart: true,
       watch: false,
       max_memory_restart: "2G",
@@ -45,7 +45,7 @@ module.exports = {
     {
       name: "Map service",
       script: "serverMap.js",
-      instances: 8,
+      instances: 3,
       autorestart: true,
       watch: false,
       max_memory_restart: "4G",
@@ -73,7 +73,7 @@ module.exports = {
     {
       name: "Search service",
       script: "serverSearch.js",
-      instances: 4,
+      instances: 3,
       autorestart: true,
       watch: false,
       max_memory_restart: "1G",
@@ -87,7 +87,7 @@ module.exports = {
     {
       name: "Payment service",
       script: "serverPayments.js",
-      instances: 4,
+      instances: 3,
       autorestart: true,
       watch: false,
       max_memory_restart: "2G",
