@@ -807,7 +807,6 @@ function tripChecker_Dispatcher(
           resolve(false);
           throw err;
         }
-        console.log(userDataRepr);
         if (userDataRepr.length <= 0) {
           //No data
           resolve(false);
@@ -2264,7 +2263,7 @@ function computeRouteDetails_skeleton(
     }
   } //No ride present
   else {
-    //console.log("No ride in progress");
+    console.log("No ride in progress");
     resolve(true);
   }
 }
