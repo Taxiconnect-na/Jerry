@@ -949,7 +949,11 @@ function requestsDriverSubscriber_watcher(
                     $options: "i",
                   },
                   "operational_state.last_location.city": {
-                    $regex: request.pickup_location_infos.city,
+                    $regex:
+                      /false/i.test(request.pickup_location_infos.city) ||
+                      request.pickup_location_infos.city === false
+                        ? "Windhoek"
+                        : request.pickup_location_infos.city,
                     $options: "i",
                   },
                   "operational_state.last_location.country": {
@@ -1221,7 +1225,7 @@ clientMongo.connect(function (err) {
     //...
     console.log(`[${chaineDateUTC}] - Watcher loopedi`);
     //? 1. Clean X hold requests
-    new Promise((res1) => {
+    /*new Promise((res1) => {
       removeOldRequests_madeWithoutBeingAttended(
         collectionPassengers_profiles,
         collectionRidesDeliveryData,
@@ -1238,7 +1242,7 @@ clientMongo.connect(function (err) {
       )
       .catch((error) => {
         //console.log(error);
-      });
+      });*/
 
     //? 2. Keep the drivers next payment date UP TO DATE
     new Promise((res2) => {
