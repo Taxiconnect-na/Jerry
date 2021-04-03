@@ -209,10 +209,7 @@ function parseRequestData(inputData, resolve) {
                 specifiedTIme[1] +
                 ":00";
               //...
-              //! Remove 2 hours
-              parsedData.wished_pickup_time = new Date(
-                new Date(tmpDateString).getTime() - 2 * 3600 * 1000
-              );
+              parsedData.wished_pickup_time = new Date(tmpDateString);
               res1(true);
             } //TOmorrow
             else {
@@ -249,10 +246,7 @@ function parseRequestData(inputData, resolve) {
                 ":" +
                 tmpDateString.second();
               //...
-              //! Remove 2 hours
-              parsedData.wished_pickup_time = new Date(
-                new Date(tmpDateString).getTime() - 2 * 3600 * 1000
-              );
+              parsedData.wished_pickup_time = new Date(tmpDateString);
               res1(true);
             }
           }

@@ -1225,7 +1225,7 @@ clientMongo.connect(function (err) {
     //...
     console.log(`[${chaineDateUTC}] - Watcher loopedi`);
     //? 1. Clean X hold requests
-    /*new Promise((res1) => {
+    new Promise((res1) => {
       removeOldRequests_madeWithoutBeingAttended(
         collectionPassengers_profiles,
         collectionRidesDeliveryData,
@@ -1242,7 +1242,7 @@ clientMongo.connect(function (err) {
       )
       .catch((error) => {
         //console.log(error);
-      });*/
+      });
 
     //? 2. Keep the drivers next payment date UP TO DATE
     new Promise((res2) => {
