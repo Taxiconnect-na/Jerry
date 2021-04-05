@@ -159,7 +159,10 @@ function parseRequestData(inputData, resolve) {
     })
       .then(
         (result) => {
-          parsedData.request_fp = result; //Update with the fingerprint;
+          parsedData.request_fp =
+            inputData.request_fp !== undefined && inputData.request_fp !== null
+              ? inputData.request_fp
+              : result; //Update with the fingerprint;
         },
         (error) => {
           console.log(error);
@@ -170,7 +173,10 @@ function parseRequestData(inputData, resolve) {
       .finally(() => {
         console.log("here");
         //Continue
-        parsedData.taxi_id = false;
+        parsedData.taxi_id =
+          inputData.taxi_id !== undefined && inputData.taxi_id !== null
+            ? inputData.taxi_id
+            : false;
         parsedData.payment_method = inputData.paymentMethod
           .trim()
           .toUpperCase();
@@ -181,7 +187,16 @@ function parseRequestData(inputData, resolve) {
         parsedData.request_type = /now/i.test(inputData.timeScheduled)
           ? "immediate"
           : "scheduled";
-        parsedData.allowed_drivers_see = []; //LIST OF THE DRIVERS WHO CAN SEE THE REQUEST IN THEIR APP.
+        parsedData.allowed_drivers_see =
+          inputData.taxi_id !== undefined && inputData.taxi_id !== null
+            ? [inputData.taxi_id]
+            : []; //LIST OF THE DRIVERS WHO CAN SEE THE REQUEST IN THEIR APP.
+        //? Add the ccar fingerprint if any
+        parsedData.car_fingerprint =
+          inputData.car_fingerprint !== undefined &&
+          inputData.car_fingerprint !== null
+            ? inputData.car_fingerprint
+            : false;
         //Resolve the pickup time
         new Promise((res1) => {
           if (/immediate/i.test(parsedData.request_type)) {
@@ -264,7 +279,11 @@ function parseRequestData(inputData, resolve) {
             })
               .then(
                 (result) => {
-                  parsedData.trip_simplified_id = result;
+                  parsedData.trip_simplified_id =
+                    inputData.trip_simplified_id !== undefined &&
+                    inputData.trip_simplified_id !== null
+                      ? inputData.trip_simplified_id
+                      : result;
                 },
                 (erro) => {
                   parsedData.trip_simplified_id =
@@ -277,20 +296,44 @@ function parseRequestData(inputData, resolve) {
                 parsedData.carTypeSelected = inputData.carTypeSelected;
                 parsedData.isAllGoingToSameDestination =
                   inputData.isAllGoingToSameDestination;
-                parsedData.isArrivedToDestination = false;
-                parsedData.date_dropoff = false;
-                parsedData.date_pickup = false;
-                parsedData.date_requested = new Date(chaineDateUTC);
-                parsedData.date_accepted = false;
+                parsedData.isArrivedToDestination =
+                  inputData.isArrivedToDestination !== undefined &&
+                  inputData.isArrivedToDestination !== null
+                    ? inputData.isArrivedToDestination
+                    : false;
+                parsedData.date_dropoff =
+                  inputData.date_dropoff !== undefined &&
+                  inputData.date_dropoff !== null
+                    ? inputData.date_dropoff
+                    : false;
+                parsedData.date_pickup =
+                  inputData.date_pickup !== undefined &&
+                  inputData.date_pickup !== null
+                    ? inputData.date_pickup
+                    : false;
+                parsedData.date_requested =
+                  inputData.date_requested !== undefined &&
+                  inputData.date_requested !== null
+                    ? inputData.date_requested
+                    : new Date(chaineDateUTC);
+                parsedData.date_accepted =
+                  inputData.date_accepted !== undefined &&
+                  inputData.date_accepted !== null
+                    ? inputData.date_accepted
+                    : false;
                 //Parse nested data
                 //1. Ride state vars
-                parsedData.ride_state_vars = {
-                  isAccepted: false,
-                  inRideToDestination: false,
-                  isRideCompleted_driverSide: false,
-                  isRideCompleted_riderSide: false,
-                  rider_driverRating: "notYet",
-                };
+                parsedData.ride_state_vars =
+                  inputData.ride_state_vars !== undefined &&
+                  inputData.ride_state_vars !== null
+                    ? inputData.ride_state_vars
+                    : {
+                        isAccepted: false,
+                        inRideToDestination: false,
+                        isRideCompleted_driverSide: false,
+                        isRideCompleted_riderSide: false,
+                        rider_driverRating: "notYet",
+                      };
                 //2.Pickup location infos
                 parsedData.pickup_location_infos = {
                   pickup_type: inputData.naturePickup,
@@ -2676,6 +2719,37 @@ clientMongo.connect(function (err) {
         extended: true,
       })
     );
+
+  /**
+   * PARSE DATA WITHOUT DISPATCH
+   * Responsible for parsing the raw data without any dispatch
+   */
+  app.post("/parseRequestData_withoutDispatch", function (req, res) {
+    req = req.body;
+    //...
+    if (req.request_fp !== undefined) {
+      //is present
+      new Promise((resParse) => {
+        parseRequestData(req, resParse);
+      })
+        .then(
+          (result) => {
+            res.send(result);
+          },
+          (error) => {
+            console.log(error);
+            res.send({ message: "Error parsing data", flag: error });
+          }
+        )
+        .catch((error) => {
+          console.log(error);
+          res.send({ message: "Error parsing data", flag: error });
+        });
+    } //No valid data received
+    else {
+      res.send({ message: "No valid data received" });
+    }
+  });
 
   /**
    * REQUESTS GRAPH ASSEMBLER
