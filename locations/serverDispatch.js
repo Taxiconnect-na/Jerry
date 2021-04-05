@@ -197,6 +197,13 @@ function parseRequestData(inputData, resolve) {
           inputData.car_fingerprint !== null
             ? inputData.car_fingerprint
             : false;
+        //? Add the delete date if any
+        if (
+          inputData.date_deleted !== undefined &&
+          inputData.date_deleted !== null
+        ) {
+          parsedData.date_deleted = inputData.date_deleted;
+        }
         //Resolve the pickup time
         new Promise((res1) => {
           if (/immediate/i.test(parsedData.request_type)) {
