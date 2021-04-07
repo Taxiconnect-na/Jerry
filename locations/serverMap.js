@@ -1470,17 +1470,17 @@ function execDriver_requests_parsing(
         //? Check if Today or Tomorrow Only for scheduled requests
         if (/scheduled/i.test(request.request_type)) {
           //Scheduled request
-          parsedRequestsArray.date_state_wishedPickup_time =
+          parsedRequestsArray.ride_basic_infos.date_state_wishedPickup_time =
             new Date(request.wished_pickup_time).getDate() ===
-            new Date(chaineDateUTC)
+            new Date(chaineDateUTC).getDate()
               ? "Today"
               : new Date(request.wished_pickup_time).getDate() >
-                new Date(chaineDateUTC)
+                new Date(chaineDateUTC).getDate()
               ? "Tomorrow"
               : "Yesterday";
         } //Immediate request
         else {
-          parsedRequestsArray.date_state_wishedPickup_time = null;
+          parsedRequestsArray.ride_basic_infos.date_state_wishedPickup_time = null;
         }
         //?---
         parsedRequestsArray.ride_basic_infos.fare_amount = parseFloat(
