@@ -27,6 +27,7 @@ var chaineDateUTC = null;
 var dateObject = null;
 const moment = require("moment");
 const e = require("express");
+const { stringify, parse } = require("flatted");
 
 const clientMongo = new MongoClient(process.env.URL_MONGODB, {
   useUnifiedTopology: true,
@@ -130,344 +131,646 @@ function generateUniqueFingerprint(str, encryption = false, resolve) {
 function parseRequestData(inputData, resolve) {
   resolveDate();
   console.log("INITIAL RECEIVED REQUEST");
-  console.log(inputData);
-  //Check data consistency
-  if (
-    inputData.destinationData !== undefined &&
-    inputData.destinationData.passenger1Destination !== undefined &&
-    inputData.fareAmount !== undefined &&
-    inputData.pickupData !== undefined &&
-    inputData.pickupData.coordinates !== undefined &&
-    inputData.user_fingerprint !== undefined &&
-    inputData.rideType !== undefined
-  ) {
-    //Valid input
-    let parsedData = {};
-    let tmpDate = new Date();
-    //Complete unnested data
-    parsedData.client_id = inputData.user_fingerprint;
-    parsedData.request_fp = dateObject.unix();
-    //Compute the request fp
-    let uniqueString =
-      inputData.user_fingerprint +
-      "-" +
-      inputData.passengersNo +
-      "-" +
-      chaineDateUTC;
-    new Promise((res) => {
-      generateUniqueFingerprint(uniqueString, false, res);
-    })
-      .then(
-        (result) => {
-          parsedData.request_fp =
-            inputData.request_fp !== undefined && inputData.request_fp !== null
-              ? inputData.request_fp
-              : result; //Update with the fingerprint;
-        },
-        (error) => {
-          console.log(error);
-          parsedData.request_fp =
-            parsedData.user_fingerprint + dateObject.unix(); //Make a fingerprint out of the timestamp
-        }
-      )
-      .finally(() => {
-        console.log("here");
-        //Continue
-        parsedData.taxi_id =
-          inputData.taxi_id !== undefined && inputData.taxi_id !== null
-            ? inputData.taxi_id
-            : false;
-        parsedData.payment_method = inputData.paymentMethod
-          .trim()
-          .toUpperCase();
-        parsedData.connect_type = inputData.connectType;
-        parsedData.ride_mode = inputData.rideType;
-        parsedData.fare = inputData.fareAmount;
-        parsedData.passengers_number = inputData.passengersNo;
-        parsedData.request_type = /now/i.test(inputData.timeScheduled)
-          ? "immediate"
-          : "scheduled";
-        parsedData.allowed_drivers_see =
-          inputData.taxi_id !== undefined && inputData.taxi_id !== null
-            ? [inputData.taxi_id]
-            : []; //LIST OF THE DRIVERS WHO CAN SEE THE REQUEST IN THEIR APP.
-        //? Add the ccar fingerprint if any
-        parsedData.car_fingerprint =
-          inputData.car_fingerprint !== undefined &&
-          inputData.car_fingerprint !== null
-            ? inputData.car_fingerprint
-            : false;
-        //? Add the delete date if any
-        if (
-          inputData.date_deleted !== undefined &&
-          inputData.date_deleted !== null
-        ) {
-          parsedData.date_deleted = inputData.date_deleted;
-        }
-        //Resolve the pickup time
-        new Promise((res1) => {
-          if (/immediate/i.test(parsedData.request_type)) {
-            //Now request - now date
-            parsedData.wished_pickup_time = new Date(chaineDateUTC);
-            res1(true);
-          } //Scheduled
-          else {
-            if (/today/i.test(inputData.timeScheduled)) {
-              //For today
-              //Generate a date mockup for today
-              //Timestring format of eg. Today at 14:30 - EXTREMELY IMPORTANT
-              let specifiedTIme = inputData.timeScheduled
-                .split(" ")[2]
-                .split(":");
-              let tmpDateString =
-                dateObject.year() +
-                "-" +
-                (dateObject.month() + 1) +
-                "-" +
-                dateObject.date() +
-                " " +
-                specifiedTIme[0] +
-                ":" +
-                specifiedTIme[1] +
-                ":00";
-              //...
-              parsedData.wished_pickup_time = new Date(tmpDateString);
-              res1(true);
-            } //TOmorrow
-            else {
-              //Generate a date mockup for tomorrow
-              //Timestring format of eg. Today at 14:30 - EXTREMELY IMPORTANT
-              let specifiedTIme = inputData.timeScheduled
-                .split(" ")[2]
-                .split(":");
-              let tmpDateString = new Date(
-                dateObject.year() +
-                  "-" +
-                  (dateObject.month() + 1) +
-                  "-" +
-                  dateObject.date() +
-                  " " +
-                  specifiedTIme[0] +
-                  ":" +
-                  specifiedTIme[1] +
-                  ":00"
-              );
-              tmpDateString = tmpDateString.getTime();
-              tmpDateString += 86400000; //Add a day in ms
-              tmpDateString = moment(tmpDateString);
-              tmpDateString =
-                tmpDateString.year() +
-                "-" +
-                (tmpDateString.month() + 1) +
-                "-" +
-                tmpDateString.date() +
-                " " +
-                tmpDateString.hour() +
-                ":" +
-                tmpDateString.minute() +
-                ":" +
-                tmpDateString.second();
-              //...
-              parsedData.wished_pickup_time = new Date(tmpDateString);
-              res1(true);
-            }
-          }
+  console.log("REQUEST DATA -> ", inputData);
+  //! CHECK FOR A POTENTIAL CACHED VALUE FOR recoveredd data (from mysql)
+  redisGet(
+    `${
+      inputData.request_fp !== undefined ? inputData.request_fp : "empty"
+    }-recoveredData`
+  ).then((resp) => {
+    if (resp !== null) {
+      //Has a cached value
+      resolve(parse(resp));
+    } //GO FRESH
+    else {
+      //Check data consistency
+      if (
+        inputData.destinationData !== undefined &&
+        inputData.destinationData.passenger1Destination !== undefined &&
+        inputData.fareAmount !== undefined &&
+        inputData.pickupData !== undefined &&
+        inputData.pickupData.coordinates !== undefined &&
+        inputData.user_fingerprint !== undefined &&
+        inputData.rideType !== undefined
+      ) {
+        //Valid input
+        let parsedData = {};
+        let tmpDate = new Date();
+        //Complete unnested data
+        parsedData.client_id = inputData.user_fingerprint;
+        parsedData.request_fp = dateObject.unix();
+        //Compute the request fp
+        let uniqueString =
+          inputData.user_fingerprint +
+          "-" +
+          inputData.passengersNo +
+          "-" +
+          chaineDateUTC;
+        new Promise((res) => {
+          generateUniqueFingerprint(uniqueString, false, res);
         })
           .then(
-            () => {},
-            () => {}
+            (result) => {
+              parsedData.request_fp =
+                inputData.request_fp !== undefined &&
+                inputData.request_fp !== null
+                  ? inputData.request_fp
+                  : result; //Update with the fingerprint;
+            },
+            (error) => {
+              console.log(error);
+              parsedData.request_fp =
+                parsedData.user_fingerprint + dateObject.unix(); //Make a fingerprint out of the timestamp
+            }
           )
           .finally(() => {
-            //COntinue
-            parsedData.country = inputData.country;
-            //Compute the simplified fingerprint
-            new Promise((res2) => {
-              generateUniqueFingerprint(uniqueString, "md5", res2);
+            //Continue
+            parsedData.taxi_id =
+              inputData.taxi_id !== undefined && inputData.taxi_id !== null
+                ? inputData.taxi_id
+                : false;
+            parsedData.payment_method = inputData.paymentMethod
+              .trim()
+              .toUpperCase();
+            parsedData.connect_type = inputData.connectType;
+            parsedData.ride_mode = inputData.rideType;
+            parsedData.fare = inputData.fareAmount;
+            parsedData.passengers_number = inputData.passengersNo;
+            parsedData.request_type = /now/i.test(inputData.timeScheduled)
+              ? "immediate"
+              : "scheduled";
+            parsedData.allowed_drivers_see =
+              inputData.taxi_id !== undefined && inputData.taxi_id !== null
+                ? [inputData.taxi_id]
+                : []; //LIST OF THE DRIVERS WHO CAN SEE THE REQUEST IN THEIR APP.
+            //? Add the ccar fingerprint if any
+            parsedData.car_fingerprint =
+              inputData.car_fingerprint !== undefined &&
+              inputData.car_fingerprint !== null
+                ? inputData.car_fingerprint
+                : false;
+            //? Add the delete date if any
+            if (
+              inputData.date_deleted !== undefined &&
+              inputData.date_deleted !== null
+            ) {
+              parsedData.date_deleted = inputData.date_deleted;
+            }
+            //Resolve the pickup time
+            new Promise((res1) => {
+              if (/immediate/i.test(parsedData.request_type)) {
+                //Now request - now date
+                parsedData.wished_pickup_time = new Date(chaineDateUTC);
+                res1(true);
+              } //Scheduled
+              else {
+                if (/today/i.test(inputData.timeScheduled)) {
+                  //For today
+                  //Generate a date mockup for today
+                  //Timestring format of eg. Today at 14:30 - EXTREMELY IMPORTANT
+                  let specifiedTIme = inputData.timeScheduled
+                    .split(" ")[2]
+                    .split(":");
+                  let tmpDateString =
+                    dateObject.year() +
+                    "-" +
+                    (dateObject.month() + 1) +
+                    "-" +
+                    dateObject.date() +
+                    " " +
+                    specifiedTIme[0] +
+                    ":" +
+                    specifiedTIme[1] +
+                    ":00";
+                  //...
+                  parsedData.wished_pickup_time = new Date(tmpDateString);
+                  res1(true);
+                } //TOmorrow
+                else {
+                  //Generate a date mockup for tomorrow
+                  //Timestring format of eg. Today at 14:30 - EXTREMELY IMPORTANT
+                  let specifiedTIme = inputData.timeScheduled
+                    .split(" ")[2]
+                    .split(":");
+                  let tmpDateString = new Date(
+                    dateObject.year() +
+                      "-" +
+                      (dateObject.month() + 1) +
+                      "-" +
+                      dateObject.date() +
+                      " " +
+                      specifiedTIme[0] +
+                      ":" +
+                      specifiedTIme[1] +
+                      ":00"
+                  );
+                  tmpDateString = tmpDateString.getTime();
+                  tmpDateString += 86400000; //Add a day in ms
+                  tmpDateString = moment(tmpDateString);
+                  tmpDateString =
+                    tmpDateString.year() +
+                    "-" +
+                    (tmpDateString.month() + 1) +
+                    "-" +
+                    tmpDateString.date() +
+                    " " +
+                    tmpDateString.hour() +
+                    ":" +
+                    tmpDateString.minute() +
+                    ":" +
+                    tmpDateString.second();
+                  //...
+                  parsedData.wished_pickup_time = new Date(tmpDateString);
+                  res1(true);
+                }
+              }
             })
               .then(
-                (result) => {
-                  parsedData.trip_simplified_id =
-                    inputData.trip_simplified_id !== undefined &&
-                    inputData.trip_simplified_id !== null
-                      ? inputData.trip_simplified_id
-                      : result;
-                },
-                (erro) => {
-                  parsedData.trip_simplified_id =
-                    parsedData.client_id.substring(0, 15) +
-                    dateObject.milliseconds();
-                }
+                () => {},
+                () => {}
               )
               .finally(() => {
-                //continue
-                parsedData.carTypeSelected = inputData.carTypeSelected;
-                parsedData.isAllGoingToSameDestination =
-                  inputData.isAllGoingToSameDestination;
-                parsedData.isArrivedToDestination =
-                  inputData.isArrivedToDestination !== undefined &&
-                  inputData.isArrivedToDestination !== null
-                    ? inputData.isArrivedToDestination
-                    : false;
-                parsedData.date_dropoff =
-                  inputData.date_dropoff !== undefined &&
-                  inputData.date_dropoff !== null
-                    ? inputData.date_dropoff
-                    : false;
-                parsedData.date_pickup =
-                  inputData.date_pickup !== undefined &&
-                  inputData.date_pickup !== null
-                    ? inputData.date_pickup
-                    : false;
-                parsedData.date_requested =
-                  inputData.date_requested !== undefined &&
-                  inputData.date_requested !== null
-                    ? inputData.date_requested
-                    : new Date(chaineDateUTC);
-                parsedData.date_accepted =
-                  inputData.date_accepted !== undefined &&
-                  inputData.date_accepted !== null
-                    ? inputData.date_accepted
-                    : false;
-                //Parse nested data
-                //1. Ride state vars
-                parsedData.ride_state_vars =
-                  inputData.ride_state_vars !== undefined &&
-                  inputData.ride_state_vars !== null
-                    ? inputData.ride_state_vars
-                    : {
-                        isAccepted: false,
-                        inRideToDestination: false,
-                        isRideCompleted_driverSide: false,
-                        isRideCompleted_riderSide: false,
-                        rider_driverRating: "notYet",
-                      };
-                //2.Pickup location infos
-                parsedData.pickup_location_infos = {
-                  pickup_type: inputData.naturePickup,
-                  coordinates: {
-                    latitude: inputData.pickupData.coordinates[0],
-                    longitude: inputData.pickupData.coordinates[1],
-                  },
-                  location_name: inputData.pickupData.location_name,
-                  street_name: inputData.pickupData.street_name,
-                  suburb: false,
-                  pickup_note: inputData.pickupNote,
-                  city: inputData.pickupData.city,
-                  state: null,
-                };
-                //! APPLY BLUE OCEAN BUG FIX FOR THE PICKUP LOCATION COORDINATES
-                //? Get temporary vars
-                let pickLatitude =
-                  parsedData.pickup_location_infos.coordinates.latitude;
-                let pickLongitude =
-                  parsedData.pickup_location_infos.coordinates.longitude;
-                //! Coordinates order fix - major bug fix for ocean bug
-                if (
-                  pickLatitude !== undefined &&
-                  pickLatitude !== null &&
-                  pickLatitude !== 0 &&
-                  pickLongitude !== undefined &&
-                  pickLongitude !== null &&
-                  pickLongitude !== 0
-                ) {
-                  //? Switch latitude and longitude - check the negative sign
-                  if (parseFloat(pickLongitude) < 0) {
-                    //Negative - switch
-                    parsedData.pickup_location_infos.coordinates.latitude = pickLongitude;
-                    parsedData.pickup_location_infos.coordinates.longitude = pickLatitude;
-                  }
-                }
-                //!!!
-                //Auto complete the suburb
-                new Promise((res3) => {
-                  let url =
-                    process.env.LOCAL_URL +
-                    ":" +
-                    process.env.PRICING_SERVICE_PORT +
-                    "/getCorrespondingSuburbInfos?location_name=" +
-                    inputData.pickupData.location_name +
-                    "&street_name=" +
-                    inputData.pickupData.street_name +
-                    "&city=" +
-                    inputData.pickupData.city +
-                    "&country=" +
-                    inputData.country +
-                    "&latitude=" +
-                    parsedData.pickup_location_infos.coordinates.latitude +
-                    "&longitude=" +
-                    parsedData.pickup_location_infos.coordinates.longitude +
-                    "&user_fingerprint=" +
-                    inputData.user_fingerprint +
-                    "&make_new=true";
-                  requestAPI(url, function (error, response, body) {
-                    if (error === null) {
-                      try {
-                        body = JSON.parse(body);
-                        parsedData.pickup_location_infos.suburb = body.suburb; //! Suburb
-                        parsedData.pickup_location_infos.state = body.state; //! State
-                        parsedData.pickup_location_infos.location_name =
-                          body.location_name; //! Location name
-                        parsedData.pickup_location_infos.street_name =
-                          body.street_name; //! Street name
-
-                        res3(true);
-                      } catch (error) {
-                        res3(false);
-                      }
-                    } else {
-                      res3(false);
-                    }
-                  });
+                //COntinue
+                parsedData.country = inputData.country;
+                //Compute the simplified fingerprint
+                new Promise((res2) => {
+                  generateUniqueFingerprint(uniqueString, "md5", res2);
                 })
                   .then(
-                    () => {},
-                    () => {}
+                    (result) => {
+                      parsedData.trip_simplified_id =
+                        inputData.trip_simplified_id !== undefined &&
+                        inputData.trip_simplified_id !== null
+                          ? inputData.trip_simplified_id
+                          : result;
+                    },
+                    (erro) => {
+                      parsedData.trip_simplified_id =
+                        parsedData.client_id.substring(0, 15) +
+                        dateObject.milliseconds();
+                    }
                   )
                   .finally(() => {
-                    //Continue
-                    //3. Delivery infos
-                    parsedData.delivery_infos = {
-                      receiverName_delivery: inputData.receiverName_delivery,
-                      receiverPhone_delivery: inputData.receiverPhone_delivery,
+                    //continue
+                    parsedData.carTypeSelected = inputData.carTypeSelected;
+                    parsedData.isAllGoingToSameDestination =
+                      inputData.isAllGoingToSameDestination;
+                    parsedData.isArrivedToDestination =
+                      inputData.isArrivedToDestination !== undefined &&
+                      inputData.isArrivedToDestination !== null
+                        ? inputData.isArrivedToDestination
+                        : false;
+                    parsedData.date_dropoff =
+                      inputData.date_dropoff !== undefined &&
+                      inputData.date_dropoff !== null
+                        ? inputData.date_dropoff
+                        : false;
+                    parsedData.date_pickup =
+                      inputData.date_pickup !== undefined &&
+                      inputData.date_pickup !== null
+                        ? inputData.date_pickup
+                        : false;
+                    parsedData.date_requested =
+                      inputData.date_requested !== undefined &&
+                      inputData.date_requested !== null
+                        ? inputData.date_requested
+                        : new Date(chaineDateUTC);
+                    parsedData.date_accepted =
+                      inputData.date_accepted !== undefined &&
+                      inputData.date_accepted !== null
+                        ? inputData.date_accepted
+                        : false;
+                    //Parse nested data
+                    //1. Ride state vars
+                    parsedData.ride_state_vars =
+                      inputData.ride_state_vars !== undefined &&
+                      inputData.ride_state_vars !== null
+                        ? inputData.ride_state_vars
+                        : {
+                            isAccepted: false,
+                            inRideToDestination: false,
+                            isRideCompleted_driverSide: false,
+                            isRideCompleted_riderSide: false,
+                            rider_driverRating: "notYet",
+                          };
+                    //2.Pickup location infos
+                    parsedData.pickup_location_infos = {
+                      pickup_type: inputData.naturePickup,
+                      coordinates: {
+                        latitude: inputData.pickupData.coordinates[0],
+                        longitude: inputData.pickupData.coordinates[1],
+                      },
+                      location_name: inputData.pickupData.location_name,
+                      street_name: inputData.pickupData.street_name,
+                      suburb: false,
+                      pickup_note: inputData.pickupNote,
+                      city: inputData.pickupData.city,
+                      state: null,
                     };
-                    //4. Rider infos
-                    parsedData.rider_infos = {
-                      actualRider: /^someonelese$/i.test(inputData.actualRider)
-                        ? "someoneelse"
-                        : "me",
-                      actualRiderPhone_number:
-                        inputData.actualRiderPhone_number,
-                    };
-                    console.log("DESTInation data autoc");
-                    //5. DESTINATION DATA
-                    let cleanInputData = { destinationData: null };
-                    //Resolve destination infos
-                    new Promise((res5) => {
-                      cleanInputData.destinationData = [];
-                      let tmpSchemaArray = new Array(
-                        parseInt(inputData.passengersNo)
-                      ).fill(1); //! Just for iterations, nothing more, instead of using for loop, but make it the right size - critical bug fix (Mandatory 4 passengers going to the same direction bug).
-                      if (inputData.passengersNo > 1) {
-                        //Many passengers
-                        //Check if all going to the same destination
-                        //? Clean the boolean
-                        inputData.isAllGoingToSameDestination = /string/i.test(
-                          typeof inputData.isAllGoingToSameDestination
-                        )
-                          ? inputData.isAllGoingToSameDestination === "true"
-                            ? true
-                            : false
-                          : inputData.isAllGoingToSameDestination;
-                        //? -----------
-                        if (
-                          inputData.isAllGoingToSameDestination &&
-                          inputData.isAllGoingToSameDestination !== false &&
-                          inputData.isAllGoingToSameDestination !== "false"
-                        ) {
-                          //yes
-                          tmpSchemaArray.map((element, index) => {
+                    //! APPLY BLUE OCEAN BUG FIX FOR THE PICKUP LOCATION COORDINATES
+                    //? Get temporary vars
+                    let pickLatitude =
+                      parsedData.pickup_location_infos.coordinates.latitude;
+                    let pickLongitude =
+                      parsedData.pickup_location_infos.coordinates.longitude;
+                    //! Coordinates order fix - major bug fix for ocean bug
+                    if (
+                      pickLatitude !== undefined &&
+                      pickLatitude !== null &&
+                      pickLatitude !== 0 &&
+                      pickLongitude !== undefined &&
+                      pickLongitude !== null &&
+                      pickLongitude !== 0
+                    ) {
+                      //? Switch latitude and longitude - check the negative sign
+                      if (parseFloat(pickLongitude) < 0) {
+                        //Negative - switch
+                        parsedData.pickup_location_infos.coordinates.latitude = pickLongitude;
+                        parsedData.pickup_location_infos.coordinates.longitude = pickLatitude;
+                      }
+                    }
+                    //!!!
+                    //Auto complete the suburb
+                    new Promise((res3) => {
+                      let url =
+                        process.env.LOCAL_URL +
+                        ":" +
+                        process.env.PRICING_SERVICE_PORT +
+                        "/getCorrespondingSuburbInfos?location_name=" +
+                        inputData.pickupData.location_name +
+                        "&street_name=" +
+                        inputData.pickupData.street_name +
+                        "&city=" +
+                        inputData.pickupData.city +
+                        "&country=" +
+                        inputData.country +
+                        "&latitude=" +
+                        parsedData.pickup_location_infos.coordinates.latitude +
+                        "&longitude=" +
+                        parsedData.pickup_location_infos.coordinates.longitude +
+                        "&user_fingerprint=" +
+                        inputData.user_fingerprint +
+                        "&make_new=true";
+                      requestAPI(url, function (error, response, body) {
+                        if (error === null) {
+                          try {
+                            body = JSON.parse(body);
+                            parsedData.pickup_location_infos.suburb =
+                              body.suburb; //! Suburb
+                            parsedData.pickup_location_infos.state = body.state; //! State
+                            parsedData.pickup_location_infos.location_name =
+                              body.location_name; //! Location name
+                            parsedData.pickup_location_infos.street_name =
+                              body.street_name; //! Street name
+
+                            res3(true);
+                          } catch (error) {
+                            res3(false);
+                          }
+                        } else {
+                          res3(false);
+                        }
+                      });
+                    })
+                      .then(
+                        () => {},
+                        () => {}
+                      )
+                      .finally(() => {
+                        //Continue
+                        //3. Delivery infos
+                        parsedData.delivery_infos = {
+                          receiverName_delivery:
+                            inputData.receiverName_delivery,
+                          receiverPhone_delivery:
+                            inputData.receiverPhone_delivery,
+                        };
+                        //4. Rider infos
+                        parsedData.rider_infos = {
+                          actualRider: /^someonelese$/i.test(
+                            inputData.actualRider
+                          )
+                            ? "someoneelse"
+                            : "me",
+                          actualRiderPhone_number:
+                            inputData.actualRiderPhone_number,
+                        };
+
+                        //5. DESTINATION DATA
+                        let cleanInputData = { destinationData: null };
+                        //Resolve destination infos
+                        new Promise((res5) => {
+                          cleanInputData.destinationData = [];
+                          let tmpSchemaArray = new Array(
+                            parseInt(inputData.passengersNo)
+                          ).fill(1); //! Just for iterations, nothing more, instead of using for loop, but make it the right size - critical bug fix (Mandatory 4 passengers going to the same direction bug).
+                          if (inputData.passengersNo > 1) {
+                            //Many passengers
+                            //Check if all going to the same destination
+                            //? Clean the boolean
+                            inputData.isAllGoingToSameDestination = /string/i.test(
+                              typeof inputData.isAllGoingToSameDestination
+                            )
+                              ? inputData.isAllGoingToSameDestination === "true"
+                                ? true
+                                : false
+                              : inputData.isAllGoingToSameDestination;
+                            //? -----------
+                            if (
+                              inputData.isAllGoingToSameDestination &&
+                              inputData.isAllGoingToSameDestination !== false &&
+                              inputData.isAllGoingToSameDestination !== "false"
+                            ) {
+                              //yes
+                              tmpSchemaArray.map((element, index) => {
+                                cleanInputData.destinationData.push({
+                                  passenger_number_id: index + 1,
+                                  dropoff_type: false,
+                                  coordinates: {
+                                    latitude:
+                                      inputData.destinationData
+                                        .passenger1Destination.coordinates[1],
+                                    longitude:
+                                      inputData.destinationData
+                                        .passenger1Destination.coordinates[0],
+                                  },
+                                  location_name:
+                                    inputData.destinationData
+                                      .passenger1Destination.location_name !==
+                                      undefined &&
+                                    inputData.destinationData
+                                      .passenger1Destination.location_name !==
+                                      false
+                                      ? inputData.destinationData
+                                          .passenger1Destination.location_name
+                                      : false,
+                                  street_name:
+                                    inputData.destinationData
+                                      .passenger1Destination.street !==
+                                      undefined &&
+                                    inputData.destinationData
+                                      .passenger1Destination.street !== false
+                                      ? inputData.destinationData
+                                          .passenger1Destination.street
+                                      : false,
+                                  suburb: false,
+                                  state: false,
+                                  city: inputData.pickupData.city,
+                                });
+                              });
+                              //Done
+                              res5(cleanInputData);
+                            } //Independent destinations,.....:(
+                            else {
+                              if (inputData.passengersNo == 2) {
+                                //Passenger1
+                                let passenger1Data =
+                                  inputData.destinationData
+                                    .passenger1Destination;
+                                cleanInputData.destinationData.push({
+                                  passenger_number_id: 1,
+                                  dropoff_type: false,
+                                  coordinates: {
+                                    latitude: passenger1Data.coordinates[1],
+                                    longitude: passenger1Data.coordinates[0],
+                                  },
+                                  location_name:
+                                    passenger1Data.location_name !==
+                                      undefined &&
+                                    passenger1Data.location_name !== false
+                                      ? passenger1Data.location_name
+                                      : false,
+                                  street_name:
+                                    passenger1Data.street !== undefined &&
+                                    passenger1Data.street !== false
+                                      ? passenger1Data.street
+                                      : false,
+                                  suburb: false,
+                                  state: false,
+                                  city: inputData.pickupData.city,
+                                });
+                                //Passenger2
+                                let passenger2Data =
+                                  inputData.destinationData
+                                    .passenger2Destination;
+                                cleanInputData.destinationData.push({
+                                  passenger_number_id: 2,
+                                  dropoff_type: false,
+                                  coordinates: {
+                                    latitude: passenger2Data.coordinates[1],
+                                    longitude: passenger2Data.coordinates[0],
+                                  },
+                                  location_name:
+                                    passenger2Data.location_name !==
+                                      undefined &&
+                                    passenger2Data.location_name !== false
+                                      ? passenger2Data.location_name
+                                      : false,
+                                  street_name:
+                                    passenger2Data.street !== undefined &&
+                                    passenger2Data.street !== false
+                                      ? passenger2Data.street
+                                      : false,
+                                  suburb: false,
+                                  state: false,
+                                  city: inputData.pickupData.city,
+                                });
+                                //Done
+                                res5(cleanInputData);
+                              } else if (inputData.passengersNo == 3) {
+                                //Passenger1
+                                let passenger1Data =
+                                  inputData.destinationData
+                                    .passenger1Destination;
+                                cleanInputData.destinationData.push({
+                                  passenger_number_id: 1,
+                                  dropoff_type: false,
+                                  coordinates: {
+                                    latitude: passenger1Data.coordinates[1],
+                                    longitude: passenger1Data.coordinates[0],
+                                  },
+                                  location_name:
+                                    passenger1Data.location_name !==
+                                      undefined &&
+                                    passenger1Data.location_name !== false
+                                      ? passenger1Data.location_name
+                                      : false,
+                                  street_name:
+                                    passenger1Data.street !== undefined &&
+                                    passenger1Data.street !== false
+                                      ? passenger1Data.street
+                                      : false,
+                                  suburb: false,
+                                  state: false,
+                                  city: inputData.pickupData.city,
+                                });
+                                //Passenger2
+                                let passenger2Data =
+                                  inputData.destinationData
+                                    .passenger2Destination;
+                                cleanInputData.destinationData.push({
+                                  passenger_number_id: 2,
+                                  dropoff_type: false,
+                                  coordinates: {
+                                    latitude: passenger2Data.coordinates[1],
+                                    longitude: passenger2Data.coordinates[0],
+                                  },
+                                  location_name:
+                                    passenger2Data.location_name !==
+                                      undefined &&
+                                    passenger2Data.location_name !== false
+                                      ? passenger2Data.location_name
+                                      : false,
+                                  street_name:
+                                    passenger2Data.street !== undefined &&
+                                    passenger2Data.street !== false
+                                      ? passenger2Data.street
+                                      : false,
+                                  suburb: false,
+                                  state: false,
+                                  city: inputData.pickupData.city,
+                                });
+                                //Passenger3
+                                let passenger3Data =
+                                  inputData.destinationData
+                                    .passenger3Destination;
+                                cleanInputData.destinationData.push({
+                                  passenger_number_id: 3,
+                                  dropoff_type: false,
+                                  coordinates: {
+                                    latitude: passenger3Data.coordinates[1],
+                                    longitude: passenger3Data.coordinates[0],
+                                  },
+                                  location_name:
+                                    passenger3Data.location_name !==
+                                      undefined &&
+                                    passenger3Data.location_name !== false
+                                      ? passenger3Data.location_name
+                                      : false,
+                                  street_name:
+                                    passenger3Data.street !== undefined &&
+                                    passenger3Data.street !== false
+                                      ? passenger3Data.street
+                                      : false,
+                                  suburb: false,
+                                  state: false,
+                                  city: inputData.pickupData.city,
+                                });
+                                //Done
+                                res5(cleanInputData);
+                              } else if (inputData.passengersNo == 4) {
+                                //Passenger1
+                                let passenger1Data =
+                                  inputData.destinationData
+                                    .passenger1Destination;
+                                cleanInputData.destinationData.push({
+                                  passenger_number_id: 1,
+                                  dropoff_type: false,
+                                  coordinates: {
+                                    latitude: passenger1Data.coordinates[1],
+                                    longitude: passenger1Data.coordinates[0],
+                                  },
+                                  location_name:
+                                    passenger1Data.location_name !==
+                                      undefined &&
+                                    passenger1Data.location_name !== false
+                                      ? passenger1Data.location_name
+                                      : false,
+                                  street_name:
+                                    passenger1Data.street !== undefined &&
+                                    passenger1Data.street !== false
+                                      ? passenger1Data.street
+                                      : false,
+                                  suburb: false,
+                                  state: false,
+                                  city: inputData.pickupData.city,
+                                });
+                                //Passenger2
+                                let passenger2Data =
+                                  inputData.destinationData
+                                    .passenger2Destination;
+                                cleanInputData.destinationData.push({
+                                  passenger_number_id: 2,
+                                  dropoff_type: false,
+                                  coordinates: {
+                                    latitude: passenger2Data.coordinates[1],
+                                    longitude: passenger2Data.coordinates[0],
+                                  },
+                                  location_name:
+                                    passenger2Data.location_name !==
+                                      undefined &&
+                                    passenger2Data.location_name !== false
+                                      ? passenger2Data.location_name
+                                      : false,
+                                  street_name:
+                                    passenger2Data.street !== undefined &&
+                                    passenger2Data.street !== false
+                                      ? passenger2Data.street
+                                      : false,
+                                  suburb: false,
+                                  state: false,
+                                  city: inputData.pickupData.city,
+                                });
+                                //Passenger3
+                                let passenger3Data =
+                                  inputData.destinationData
+                                    .passenger3Destination;
+                                cleanInputData.destinationData.push({
+                                  passenger_number_id: 3,
+                                  dropoff_type: false,
+                                  coordinates: {
+                                    latitude: passenger3Data.coordinates[1],
+                                    longitude: passenger3Data.coordinates[0],
+                                  },
+                                  location_name:
+                                    passenger3Data.location_name !==
+                                      undefined &&
+                                    passenger3Data.location_name !== false
+                                      ? passenger3Data.location_name
+                                      : false,
+                                  street_name:
+                                    passenger3Data.street !== undefined &&
+                                    passenger3Data.street !== false
+                                      ? passenger3Data.street
+                                      : false,
+                                  suburb: false,
+                                  state: false,
+                                  city: inputData.pickupData.city,
+                                });
+                                //Passenger4
+                                let passenger4Data =
+                                  inputData.destinationData
+                                    .passenger4Destination;
+                                cleanInputData.destinationData.push({
+                                  passenger_number_id: 4,
+                                  dropoff_type: false,
+                                  coordinates: {
+                                    latitude: passenger4Data.coordinates[1],
+                                    longitude: passenger4Data.coordinates[0],
+                                  },
+                                  location_name:
+                                    passenger4Data.location_name !==
+                                      undefined &&
+                                    passenger4Data.location_name !== false
+                                      ? passenger4Data.location_name
+                                      : false,
+                                  street_name:
+                                    passenger4Data.street !== undefined &&
+                                    passenger4Data.street !== false
+                                      ? passenger4Data.street
+                                      : false,
+                                  suburb: false,
+                                  state: false,
+                                  city: inputData.pickupData.city,
+                                });
+                                //Done
+                                res5(cleanInputData);
+                              }
+                            }
+                          } //Single passenger
+                          else {
                             cleanInputData.destinationData.push({
-                              passenger_number_id: index + 1,
+                              passenger_number_id: 1,
                               dropoff_type: false,
                               coordinates: {
                                 latitude:
@@ -497,331 +800,85 @@ function parseRequestData(inputData, resolve) {
                               state: false,
                               city: inputData.pickupData.city,
                             });
-                          });
-                          //Done
-                          res5(cleanInputData);
-                        } //Independent destinations,.....:(
-                        else {
-                          if (inputData.passengersNo == 2) {
-                            //Passenger1
-                            let passenger1Data =
-                              inputData.destinationData.passenger1Destination;
-                            cleanInputData.destinationData.push({
-                              passenger_number_id: 1,
-                              dropoff_type: false,
-                              coordinates: {
-                                latitude: passenger1Data.coordinates[1],
-                                longitude: passenger1Data.coordinates[0],
-                              },
-                              location_name:
-                                passenger1Data.location_name !== undefined &&
-                                passenger1Data.location_name !== false
-                                  ? passenger1Data.location_name
-                                  : false,
-                              street_name:
-                                passenger1Data.street !== undefined &&
-                                passenger1Data.street !== false
-                                  ? passenger1Data.street
-                                  : false,
-                              suburb: false,
-                              state: false,
-                              city: inputData.pickupData.city,
-                            });
-                            //Passenger2
-                            let passenger2Data =
-                              inputData.destinationData.passenger2Destination;
-                            cleanInputData.destinationData.push({
-                              passenger_number_id: 2,
-                              dropoff_type: false,
-                              coordinates: {
-                                latitude: passenger2Data.coordinates[1],
-                                longitude: passenger2Data.coordinates[0],
-                              },
-                              location_name:
-                                passenger2Data.location_name !== undefined &&
-                                passenger2Data.location_name !== false
-                                  ? passenger2Data.location_name
-                                  : false,
-                              street_name:
-                                passenger2Data.street !== undefined &&
-                                passenger2Data.street !== false
-                                  ? passenger2Data.street
-                                  : false,
-                              suburb: false,
-                              state: false,
-                              city: inputData.pickupData.city,
-                            });
-                            //Done
-                            res5(cleanInputData);
-                          } else if (inputData.passengersNo == 3) {
-                            //Passenger1
-                            let passenger1Data =
-                              inputData.destinationData.passenger1Destination;
-                            cleanInputData.destinationData.push({
-                              passenger_number_id: 1,
-                              dropoff_type: false,
-                              coordinates: {
-                                latitude: passenger1Data.coordinates[1],
-                                longitude: passenger1Data.coordinates[0],
-                              },
-                              location_name:
-                                passenger1Data.location_name !== undefined &&
-                                passenger1Data.location_name !== false
-                                  ? passenger1Data.location_name
-                                  : false,
-                              street_name:
-                                passenger1Data.street !== undefined &&
-                                passenger1Data.street !== false
-                                  ? passenger1Data.street
-                                  : false,
-                              suburb: false,
-                              state: false,
-                              city: inputData.pickupData.city,
-                            });
-                            //Passenger2
-                            let passenger2Data =
-                              inputData.destinationData.passenger2Destination;
-                            cleanInputData.destinationData.push({
-                              passenger_number_id: 2,
-                              dropoff_type: false,
-                              coordinates: {
-                                latitude: passenger2Data.coordinates[1],
-                                longitude: passenger2Data.coordinates[0],
-                              },
-                              location_name:
-                                passenger2Data.location_name !== undefined &&
-                                passenger2Data.location_name !== false
-                                  ? passenger2Data.location_name
-                                  : false,
-                              street_name:
-                                passenger2Data.street !== undefined &&
-                                passenger2Data.street !== false
-                                  ? passenger2Data.street
-                                  : false,
-                              suburb: false,
-                              state: false,
-                              city: inputData.pickupData.city,
-                            });
-                            //Passenger3
-                            let passenger3Data =
-                              inputData.destinationData.passenger3Destination;
-                            cleanInputData.destinationData.push({
-                              passenger_number_id: 3,
-                              dropoff_type: false,
-                              coordinates: {
-                                latitude: passenger3Data.coordinates[1],
-                                longitude: passenger3Data.coordinates[0],
-                              },
-                              location_name:
-                                passenger3Data.location_name !== undefined &&
-                                passenger3Data.location_name !== false
-                                  ? passenger3Data.location_name
-                                  : false,
-                              street_name:
-                                passenger3Data.street !== undefined &&
-                                passenger3Data.street !== false
-                                  ? passenger3Data.street
-                                  : false,
-                              suburb: false,
-                              state: false,
-                              city: inputData.pickupData.city,
-                            });
-                            //Done
-                            res5(cleanInputData);
-                          } else if (inputData.passengersNo == 4) {
-                            console.log("Foudn 4");
-                            //Passenger1
-                            let passenger1Data =
-                              inputData.destinationData.passenger1Destination;
-                            cleanInputData.destinationData.push({
-                              passenger_number_id: 1,
-                              dropoff_type: false,
-                              coordinates: {
-                                latitude: passenger1Data.coordinates[1],
-                                longitude: passenger1Data.coordinates[0],
-                              },
-                              location_name:
-                                passenger1Data.location_name !== undefined &&
-                                passenger1Data.location_name !== false
-                                  ? passenger1Data.location_name
-                                  : false,
-                              street_name:
-                                passenger1Data.street !== undefined &&
-                                passenger1Data.street !== false
-                                  ? passenger1Data.street
-                                  : false,
-                              suburb: false,
-                              state: false,
-                              city: inputData.pickupData.city,
-                            });
-                            //Passenger2
-                            let passenger2Data =
-                              inputData.destinationData.passenger2Destination;
-                            cleanInputData.destinationData.push({
-                              passenger_number_id: 2,
-                              dropoff_type: false,
-                              coordinates: {
-                                latitude: passenger2Data.coordinates[1],
-                                longitude: passenger2Data.coordinates[0],
-                              },
-                              location_name:
-                                passenger2Data.location_name !== undefined &&
-                                passenger2Data.location_name !== false
-                                  ? passenger2Data.location_name
-                                  : false,
-                              street_name:
-                                passenger2Data.street !== undefined &&
-                                passenger2Data.street !== false
-                                  ? passenger2Data.street
-                                  : false,
-                              suburb: false,
-                              state: false,
-                              city: inputData.pickupData.city,
-                            });
-                            //Passenger3
-                            let passenger3Data =
-                              inputData.destinationData.passenger3Destination;
-                            cleanInputData.destinationData.push({
-                              passenger_number_id: 3,
-                              dropoff_type: false,
-                              coordinates: {
-                                latitude: passenger3Data.coordinates[1],
-                                longitude: passenger3Data.coordinates[0],
-                              },
-                              location_name:
-                                passenger3Data.location_name !== undefined &&
-                                passenger3Data.location_name !== false
-                                  ? passenger3Data.location_name
-                                  : false,
-                              street_name:
-                                passenger3Data.street !== undefined &&
-                                passenger3Data.street !== false
-                                  ? passenger3Data.street
-                                  : false,
-                              suburb: false,
-                              state: false,
-                              city: inputData.pickupData.city,
-                            });
-                            //Passenger4
-                            let passenger4Data =
-                              inputData.destinationData.passenger4Destination;
-                            cleanInputData.destinationData.push({
-                              passenger_number_id: 4,
-                              dropoff_type: false,
-                              coordinates: {
-                                latitude: passenger4Data.coordinates[1],
-                                longitude: passenger4Data.coordinates[0],
-                              },
-                              location_name:
-                                passenger4Data.location_name !== undefined &&
-                                passenger4Data.location_name !== false
-                                  ? passenger4Data.location_name
-                                  : false,
-                              street_name:
-                                passenger4Data.street !== undefined &&
-                                passenger4Data.street !== false
-                                  ? passenger4Data.street
-                                  : false,
-                              suburb: false,
-                              state: false,
-                              city: inputData.pickupData.city,
-                            });
-                            //Done
                             res5(cleanInputData);
                           }
-                        }
-                      } //Single passenger
-                      else {
-                        cleanInputData.destinationData.push({
-                          passenger_number_id: 1,
-                          dropoff_type: false,
-                          coordinates: {
-                            latitude:
-                              inputData.destinationData.passenger1Destination
-                                .coordinates[1],
-                            longitude:
-                              inputData.destinationData.passenger1Destination
-                                .coordinates[0],
-                          },
-                          location_name:
-                            inputData.destinationData.passenger1Destination
-                              .location_name !== undefined &&
-                            inputData.destinationData.passenger1Destination
-                              .location_name !== false
-                              ? inputData.destinationData.passenger1Destination
-                                  .location_name
-                              : false,
-                          street_name:
-                            inputData.destinationData.passenger1Destination
-                              .street !== undefined &&
-                            inputData.destinationData.passenger1Destination
-                              .street !== false
-                              ? inputData.destinationData.passenger1Destination
-                                  .street
-                              : false,
-                          suburb: false,
-                          state: false,
-                          city: inputData.pickupData.city,
-                        });
-                        res5(cleanInputData);
-                      }
-                    }).then(
-                      (reslt) => {
-                        //DONE
-                        let url =
-                          process.env.LOCAL_URL +
-                          ":" +
-                          process.env.PRICING_SERVICE_PORT +
-                          "/manageAutoCompleteSuburbsAndLocationTypes";
+                        }).then(
+                          (reslt) => {
+                            //DONE
+                            let url =
+                              process.env.LOCAL_URL +
+                              ":" +
+                              process.env.PRICING_SERVICE_PORT +
+                              "/manageAutoCompleteSuburbsAndLocationTypes";
 
-                        requestAPI.post(
-                          {
-                            url,
-                            form: {
-                              locationData: reslt.destinationData,
-                              user_fingerprint: inputData.user_fingerprint,
-                            },
-                          },
-                          function (error, response, body) {
-                            console.log(body);
-                            if (error === null) {
-                              try {
-                                body = JSON.parse(body);
-                                if (body.response !== undefined) {
-                                  //Error
+                            requestAPI.post(
+                              {
+                                url,
+                                form: {
+                                  locationData: reslt.destinationData,
+                                  user_fingerprint: inputData.user_fingerprint,
+                                },
+                              },
+                              function (error, response, body) {
+                                console.log("here", body);
+                                if (error === null) {
+                                  try {
+                                    body = JSON.parse(body);
+                                    if (body.response !== undefined) {
+                                      //Error
+                                      resolve(false);
+                                    } //SUCCESS
+                                    else {
+                                      //Update the destination data
+                                      parsedData.destinationData = body;
+                                      //DONE
+                                      //! CACHE RECOVERED REQUEST
+                                      if (
+                                        inputData.recovered_request !==
+                                          undefined &&
+                                        inputData.recovered_request &&
+                                        parsedData !== false &&
+                                        parsedData !== undefined &&
+                                        parsedData !== null
+                                      ) {
+                                        new Promise((resCache) => {
+                                          client.setex(
+                                            `${inputData.request_fp}-recoveredData`,
+                                            process.env.REDIS_EXPIRATION_5MIN,
+                                            stringify(parsedData)
+                                          );
+                                          resCache(true);
+                                        })
+                                          .then()
+                                          .catch(() => {});
+                                      }
+                                      resolve(parsedData);
+                                    }
+                                  } catch (error) {
+                                    console.log(error);
+                                    resolve(false);
+                                  }
+                                } else {
                                   resolve(false);
-                                } //SUCCESS
-                                else {
-                                  //Update the destination data
-                                  parsedData.destinationData = body;
-                                  console.log("PARSED DATA");
-                                  console.log(parsedData);
-                                  //DONE
-                                  resolve(parsedData);
                                 }
-                              } catch (error) {
-                                console.log(error);
-                                resolve(false);
                               }
-                            } else {
-                              resolve(false);
-                            }
+                            );
+                          },
+                          (error) => {
+                            console.log(error);
+                            resolve(false);
                           }
                         );
-                      },
-                      (error) => {
-                        console.log(error);
-                        resolve(false);
-                      }
-                    );
+                      });
                   });
               });
           });
-      });
-  } //Invalid data
-  else {
-    resolve(false);
-  }
+      } //Invalid data
+      else {
+        resolve(false);
+      }
+    }
+  });
 }
 
 /**

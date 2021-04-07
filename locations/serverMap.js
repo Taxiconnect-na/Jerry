@@ -1413,6 +1413,7 @@ function execDriver_requests_parsing(
     ride_basic_infos: {
       payment_method: null,
       wished_pickup_time: null, //Very important for scheduled requests
+      date_state_wishedPickup_time: null, //To indicate "Today" or "Tomorrow" for the pickup time.
       fare_amount: null,
       passengers_number: null,
       connect_type: null,
@@ -1466,6 +1467,22 @@ function execDriver_requests_parsing(
           request.payment_method;
         parsedRequestsArray.ride_basic_infos.wished_pickup_time =
           request.wished_pickup_time;
+        //? Check if Today or Tomorrow Only for scheduled requests
+        if (/scheduled/i.test(request.request_type)) {
+          //Scheduled request
+          parsedRequestsArray.date_state_wishedPickup_time =
+            new Date(request.wished_pickup_time).getDate() ===
+            new Date(chaineDateUTC)
+              ? "Today"
+              : new Date(request.wished_pickup_time).getDate() >
+                new Date(chaineDateUTC)
+              ? "Tomorrow"
+              : "Yesterday";
+        } //Immediate request
+        else {
+          parsedRequestsArray.date_state_wishedPickup_time = null;
+        }
+        //?---
         parsedRequestsArray.ride_basic_infos.fare_amount = parseFloat(
           request.fare
         );

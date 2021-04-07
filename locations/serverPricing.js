@@ -403,6 +403,7 @@ function manageAutoCompleteDestinationLocations(
   });
   Promise.all(promiseParent).then(
     (result) => {
+      console.log(result);
       if (result !== false) {
         //Update the input data
         destinationLocations.map((prevLocation, index) => {
