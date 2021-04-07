@@ -2790,6 +2790,69 @@ clientMongo.connect(function (err) {
    */
   app.post("/parseRequestData_withoutDispatch", function (req, res) {
     req = req.body;
+    /*req = {
+      actualRider: "me",
+      actualRiderPhone_number: false,
+      carTypeSelected: "normalTaxiEconomy",
+      connectType: "ConnectMe",
+      country: "Namibia",
+      destinationData: {
+        passenger1Destination: {
+          averageGeo: 10,
+          city: "Windhoek",
+          coordinates: [-22.62009828325774, 17.093509613071824],
+          country: "Namibia",
+          location_id: 5428529857,
+          location_name: "The Grove Mall",
+          state: "Khomas Region",
+          street: "Chasie Street",
+          id: 1,
+          details: "Empty",
+        },
+        passenger2Destination: false,
+        passenger3Destination: false,
+        passenger4Destination: false,
+      },
+      fareAmount: 45,
+      isAllGoingToSameDestination: false,
+      naturePickup: "PrivateLocation",
+      passengersNo: 1,
+      pickupData: {
+        city: "Windhoek",
+        coordinates: [-22.563358987828945, 17.06632928612283],
+        location_name: "Best St Best Street, Windhoek West",
+        street_name: null,
+      },
+      pickupNote: "Best Street, Windhoek West",
+      receiverName_delivery: false,
+      receiverPhone_delivery: false,
+      rideType: "RIDE",
+      timeScheduled: "now",
+      paymentMethod: "CASH",
+      user_fingerprint:
+        "caf19f4180e98600e8e362d015c1bac8a2ac99aa086bcd8047284a7e06334b0a787a80248efe580b",
+      recovered_request: true,
+      request_fp:
+        "6e4a228382b7d6d6b9f8361f7adf16b388fbff1f265cccb6dd464ef75d9219decfe339e19af6a3c8",
+      taxi_id:
+        "a5a596c422195f5012076ce530b1e5144f39f800785de85293a91505be9b68b90e5ffe84ea7d7fc0",
+      date_requested: "2020-10-11T12:59:14.000Z",
+      trip_simplified_id: "TAMI0q3l_oXg2",
+      ride_state_vars: {
+        isAccepted: true,
+        inRideToDestination: true,
+        isRideCompleted_driverSide: true,
+        isRideCompleted_riderSide: true,
+        rider_driverRating: "5",
+      },
+      isArrivedToDestination: true,
+      date_dropoff: "2020-10-11T12:59:27.000Z",
+      date_pickup: "2020-10-11T12:59:27.000Z",
+      date_accepted: "2020-10-11T12:59:27.000Z",
+      flag: "here5",
+      car_fingerprint:
+        "7df7fdfd528c258a1a6da994941d1d5ca1e8a0c3452f3198d0725d8cf432e3ab2c325232df92f2af",
+    };*/
     //...
     if (req.request_fp !== undefined) {
       //is present

@@ -703,7 +703,11 @@ function execMongoSearchAutoComplete(
   collectionSavedSuburbResults
     .find(findPrevQuery)
     .toArray(function (err, result) {
-      if (result.length > 0 && locationInfos.make_new === false) {
+      if (
+        result !== undefined &&
+        result.length > 0 &&
+        locationInfos.make_new === false
+      ) {
         //Found previous record
         //! Make a fresh search
         let url =
