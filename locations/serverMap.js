@@ -19,7 +19,7 @@ const { promisify, inspect } = require("util");
 const urlParser = require("url");
 const redis = require("redis");
 const geolib = require("geolib");
-redis.createClient({
+const client = redis.createClient({
   host: process.env.REDIS_HOST,
   port: process.env.REDIS_PORT,
 });

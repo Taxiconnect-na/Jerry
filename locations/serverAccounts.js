@@ -23,7 +23,7 @@ const escapeStringRegexp = require("escape-string-regexp");
 const { promisify, inspect } = require("util");
 const urlParser = require("url");
 const redis = require("redis");
-redis.createClient({
+const client = redis.createClient({
   host: process.env.REDIS_HOST,
   port: process.env.REDIS_PORT,
 });
