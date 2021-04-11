@@ -4399,17 +4399,26 @@ clientMongo.connect(function (err) {
       }).then(
         (result) => {
           try {
+            result.wallet_state = process.env.USERS_WALLET_STATE;
+            //...
             let responseHolder = regModeLimiter.test("detailed")
               ? result
               : result.total !== undefined
-              ? { total: result.total }
-              : { total: 0 };
+              ? {
+                  total: result.total,
+                  wallet_state: process.env.USERS_WALLET_STATE,
+                }
+              : { total: 0, wallet_state: process.env.USERS_WALLET_STATE };
             if (/"transactions\_data"\:"0"/i.test(stringify(responseHolder))) {
               //! No records - send predefined - Major bug fix!
               res.send(
                 regModeLimiter.test("detailed")
-                  ? { total: 0, transactions_data: null }
-                  : { total: 0 }
+                  ? {
+                      total: 0,
+                      transactions_data: null,
+                      wallet_state: process.env.USERS_WALLET_STATE,
+                    }
+                  : { total: 0, wallet_state: process.env.USERS_WALLET_STATE }
               );
             } //Has some records
             else {
@@ -4417,16 +4426,23 @@ clientMongo.connect(function (err) {
                 regModeLimiter.test("detailed")
                   ? result
                   : result.total !== undefined
-                  ? { total: result.total }
-                  : { total: 0 }
+                  ? {
+                      total: result.total,
+                      wallet_state: process.env.USERS_WALLET_STATE,
+                    }
+                  : { total: 0, wallet_state: process.env.USERS_WALLET_STATE }
               );
             }
           } catch (error) {
             console.log(error);
             res.send(
               regModeLimiter.test("detailed")
-                ? { total: 0, transactions_data: null }
-                : { total: 0 }
+                ? {
+                    total: 0,
+                    transactions_data: null,
+                    wallet_state: process.env.USERS_WALLET_STATE,
+                  }
+                : { total: 0, wallet_state: process.env.USERS_WALLET_STATE }
             );
           }
         },
@@ -4434,8 +4450,12 @@ clientMongo.connect(function (err) {
           console.log(error);
           res.send(
             regModeLimiter.test("detailed")
-              ? { total: 0, transactions_data: null }
-              : { total: 0 }
+              ? {
+                  total: 0,
+                  transactions_data: null,
+                  wallet_state: process.env.USERS_WALLET_STATE,
+                }
+              : { total: 0, wallet_state: process.env.USERS_WALLET_STATE }
           );
         }
       );
@@ -4449,8 +4469,14 @@ clientMongo.connect(function (err) {
               transactions_data: null,
               response: "error",
               tag: "invalid_parameters",
+              wallet_state: process.env.USERS_WALLET_STATE,
             }
-          : { total: 0, response: "error", tag: "invalid_parameters" }
+          : {
+              total: 0,
+              response: "error",
+              tag: "invalid_parameters",
+              wallet_state: process.env.USERS_WALLET_STATE,
+            }
       );
     }
   });
