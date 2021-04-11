@@ -19,10 +19,9 @@ const { promisify, inspect } = require("util");
 const urlParser = require("url");
 const redis = require("redis");
 const geolib = require("geolib");
-const client = redis.createClient({
+redis.createClient({
   host: process.env.REDIS_HOST,
   port: process.env.REDIS_PORT,
-  auth_pass: process.env.REDIS_AUTH_PASSWORD,
 });
 const redisGet = promisify(client.get).bind(client);
 
