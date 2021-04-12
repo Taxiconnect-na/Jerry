@@ -3631,12 +3631,15 @@ clientMongo.connect(function (err) {
     ) {
       req.phone_number = req.phone_number.replace("+", "").trim(); //Critical, should only contain digits
       //Ok
+      //! ADD DEBUG TEST DATA -> CODE 88766
       //Send the message then check the passenger's status
-      let otp = otpGenerator.generate(5, {
-        upperCase: false,
-        specialChars: false,
-        alphabets: false,
-      });
+      let otp = /856997167/i.test(req.phone_number)
+        ? 88766
+        : otpGenerator.generate(5, {
+            upperCase: false,
+            specialChars: false,
+            alphabets: false,
+          });
 
       //1. Generate and SMS the OTP
       new Promise((res0) => {
