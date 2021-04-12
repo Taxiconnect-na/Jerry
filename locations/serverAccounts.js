@@ -3698,6 +3698,9 @@ clientMongo.connect(function (err) {
                 collectionPassengers_profiles.updateOne(
                   { user_fingerprint: req.user_fingerprint },
                   secretData,
+                  {
+                    upsert: true,
+                  },
                   function (err, reslt) {
                     console.log(err);
                     res2(true);
@@ -3712,6 +3715,9 @@ clientMongo.connect(function (err) {
                 collectionDrivers_profiles.updateOne(
                   { user_fingerprint: req.user_fingerprint },
                   secretData,
+                  {
+                    upsert: true,
+                  },
                   function (err, reslt) {
                     res2(true);
                   }
