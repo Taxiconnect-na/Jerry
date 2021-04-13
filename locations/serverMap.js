@@ -799,7 +799,7 @@ function tripChecker_Dispatcher(
       client_id: { $regex: user_fingerprint },
       "ride_state_vars.isRideCompleted_riderSide": false,
     };
-    console.log(rideChecker);
+
     collectionRidesDeliveries_data
       .find(rideChecker)
       .toArray(function (err, userDataRepr) {
@@ -808,8 +808,55 @@ function tripChecker_Dispatcher(
           throw err;
         }
         if (userDataRepr.length <= 0) {
-          //No data
-          resolve(false);
+          //Get the rider's inos
+          collectionPassengers_profiles
+            .find({
+              user_fingerprint: { $regex: user_fingerprint },
+            })
+            .toArray(function (err, riderData) {
+              if (err) {
+                resolve(false);
+              }
+              //...
+              if (riderData !== undefined && riderData.length > 0) {
+                //Found something
+                //? Check if the user is part of a delivery request iin which he is the receiver.
+                let rideChecker = {
+                  "ride_state_vars.isRideCompleted_riderSide": false,
+                  "delivery_infos.receiverPhone_delivery": {
+                    $regex: riderData[0].phone_number.replace("+", "").trim(),
+                    $options: "i",
+                  },
+                };
+                //...
+                collectionRidesDeliveries_data
+                  .find(rideChecker)
+                  .toArray(function (err, tripData) {
+                    if (err) {
+                      resolve(false);
+                    }
+                    //...
+                    if (tripData !== undefined && tripData.length > 0) {
+                      //Found the trip data
+                      //Check if there are any requests cached
+                      getMongoRecordTrip_cacheLater(
+                        collectionRidesDeliveries_data,
+                        collectionDrivers_profiles,
+                        tripData[0].client_id,
+                        user_nature,
+                        tripData[0].request_fp,
+                        resolve
+                      );
+                    } //No trip data
+                    else {
+                      resolve(false);
+                    }
+                  });
+              } //No rider data, strange
+              else {
+                resolve(false);
+              }
+            });
         } //Found a user record
         else {
           //...
@@ -1198,7 +1245,6 @@ function execGetDrivers_requests_and_provide(
       },
       request_type: { $regex: request_type_regex, $options: "i" }, //Shceduled or immediate rides/deliveries
     };
-    console.log(requestFilter);
     //...
     collectionRidesDeliveries_data
       .find(requestFilter)

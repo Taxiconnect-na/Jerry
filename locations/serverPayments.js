@@ -915,6 +915,26 @@ function execSendMoney_fromRiderWallet_transaction(
         if (err) {
           resolve({ response: "error", flag: "transaction_error" });
         }
+        //? NOTIFY THE RECEIVER
+        //Send the push notifications
+        /*let message = {
+          app_id: process.env.RIDERS_APP_ID_ONESIGNAL,
+          android_channel_id:
+            process.env
+              .RIDERS_ONESIGNAL_CHANNEL_ACCEPTTEDD_REQUEST, //Wallet transaction
+          priority: 10,
+          contents: {
+            en:
+              "Your wallet ",
+          },
+          headings: { en: "Unable to find a ride" },
+          content_available: true,
+          include_player_ids: [
+            recordData.pushNotif_token,
+          ],
+        };
+        //Send
+        sendPushUPNotification(message);*/
         //...
         resolve({
           response: "successful",
