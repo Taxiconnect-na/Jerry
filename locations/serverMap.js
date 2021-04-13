@@ -2227,7 +2227,9 @@ function computeRouteDetails_skeleton(
               confirmation_request_schema.driver_details.name =
                 driverProfile.name;
               confirmation_request_schema.driver_details.profile_picture = `${process.env.AWS_S3_DRIVERS_PROFILE_PICTURES_PATH}/${driverProfile.identification_data.profile_picture}`;
-
+              //! Add the requester fingerprint
+              confirmation_request_schema.requester_fp = rideHistory.client_id;
+              //!----
               //Done
               resolve(confirmation_request_schema);
             } //No action needed
@@ -2284,6 +2286,7 @@ function computeRouteDetails_skeleton(
                     rideHistory.pickup_location_infos.coordinates.longitude,
                     rideHistory.pickup_location_infos.coordinates.latitude,
                   ],
+                  requester_fp: rideHistory.client_id,
                   request_status: "pending",
                 };
                 //..
@@ -2309,6 +2312,7 @@ function computeRouteDetails_skeleton(
                       rideHistory.pickup_location_infos.coordinates.longitude,
                       rideHistory.pickup_location_infos.coordinates.latitude,
                     ],
+                    requester_fp: rideHistory.client_id,
                     request_status: "pending",
                   },
                 }),
@@ -2334,6 +2338,7 @@ function computeRouteDetails_skeleton(
           rideHistory.pickup_location_infos.coordinates.latitude,
         ],
         request_fp: rideHistory.request_fp,
+        requester_fp: rideHistory.client_id,
         request_status: "pending",
       });
     }
@@ -2569,6 +2574,8 @@ function computeAndCacheRouteDestination(
         rideHistory.trip_simplified_id;
       //! Add the ride fingerprint
       additionalInfos.basicTripDetails.request_fp = rideHistory.request_fp;
+      //! Add the requester fingerprint
+      additionalInfos.requester_fp = rideHistory.client_id;
 
       //Get the estimated time TO the destination (from the current's user position)
       new Promise((res4) => {

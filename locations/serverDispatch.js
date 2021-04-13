@@ -55,6 +55,47 @@ function resolveDate() {
 }
 resolveDate();
 
+function SendSMSTo(phone_number, message) {
+  let username = "taxiconnect";
+  let password = "Taxiconnect*1";
+
+  let postData = JSON.stringify({
+    to: phone_number,
+    body: message,
+  });
+
+  let options = {
+    hostname: "api.bulksms.com",
+    port: 443,
+    path: "/v1/messages",
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Content-Length": postData.length,
+      Authorization:
+        "Basic " + Buffer.from(username + ":" + password).toString("base64"),
+    },
+  };
+
+  let req = https.request(options, (resp) => {
+    console.log("statusCode:", resp.statusCode);
+    let data = "";
+    resp.on("data", (chunk) => {
+      data += chunk;
+    });
+    resp.on("end", () => {
+      console.log("Response:", data);
+    });
+  });
+
+  req.on("error", (e) => {
+    console.error(e);
+  });
+
+  req.write(postData);
+  req.end();
+}
+
 /**
  * Responsible for sending push notification to devices
  */
@@ -2737,6 +2778,14 @@ function getRequests_graphPreview_forDrivers(
     });
 }
 
+function diff_hours(dt1, dt2) {
+  if (dt2 > dt1) {
+    return { difference: Math.abs(dt2 - dt1) / 3600000, state: "onTime" };
+  } else {
+    return { difference: Math.abs(dt2 - dt1) / 3600000, state: "late" };
+  }
+}
+
 /**
  * MAIN
  */
@@ -3039,6 +3088,20 @@ clientMongo.connect(function (err) {
   });
 
   /**
+   * @func ucFirst
+   * Responsible to uppercase only the first character and lowercase the rest.
+   * @param stringData: the string to be processed.
+   */
+  function ucFirst(stringData) {
+    try {
+      return `${stringData[0].toUpperCase()}${stringData.substr(1).toLowerCase()}`;
+    } catch (error) {
+      console.log(error);
+      return stringData;
+    }
+  }
+
+  /**
    * RIDES OR DELIVERY DISPATCHER
    * Responsible for sending staged ride or delivery requests to the drivers in the best position
    * of accepting it.
@@ -3147,8 +3210,8 @@ clientMongo.connect(function (err) {
               parseRequestData(req, res);
             }).then(
               (result) => {
+                let parsedRequest = result;
                 if (result !== false) {
-                  console.log(result);
                   //! IF WALLET SELECTED - CHECK THE BALANCE, it should be >= to the trip fare, else ERROR_UNSIFFICIENT_FUNDS
                   if (/wallet/i.test(result.payment_method)) {
                     //? WALLET PAYMENT METHOD
@@ -3156,7 +3219,6 @@ clientMongo.connect(function (err) {
                     ${process.env.LOCAL_URL}:${process.env.ACCOUNTS_SERVICE_PORT}/getRiders_walletInfos?user_fingerprint=${req.user_fingerprint}&mode=total&avoidCached_data=true
                     `;
                     requestAPI(url, function (error, response, body) {
-                      console.log(error, body);
                       if (error === null) {
                         try {
                           body = JSON.parse(body);
@@ -3184,42 +3246,127 @@ clientMongo.connect(function (err) {
                                       resultDispatch.response
                                     )
                                   ) {
-                                    //! SAVE WALLET TRANSACTION ----------------------
-                                    /*new Promise((resolveWalletTrans) => {
-                                      let tmpDate = new Date();
-                                      //...
-                                      let dataBundle = {
-                                        user_fingerprint: req.user_fingerprint,
-                                        request_fp: result.request_fp,
-                                        amount: result.fare,
-                                        payment_currency:
-                                          process.env.PAYMENT_CURRENCY,
-                                        transaction_nature: "paidDriver",
-                                        date_captured: new Date(chaineDateUTC),
-                                        timestamp: tmpDate.getTime(),
-                                      };
-                                      //...
-                                      collectionWalletTransactions_logs.insertOne(
-                                        dataBundle,
-                                        function (err, res) {
-                                          if (err) {
-                                            console.log(err);
-                                            resolveWalletTrans(false);
-                                          }
-                                          resolveWalletTrans(true);
-                                        }
-                                      );
-                                    }).then(
-                                      () => {
-                                        console.log(
-                                          "Ride wallet transaction saved."
+                                    //? CHECK IF IT'S A DELIVERY REQUEST TO NOTIFY THE RECEIVER
+                                    if (
+                                      /delivery/i.test(parsedRequest.ride_mode)
+                                    ) {
+                                      //Delivery
+                                      new Promise((resNotifyReceiver) => {
+                                        let receiversPhone = parsedRequest.delivery_infos.receiverPhone_delivery.replace(
+                                          "+",
+                                          ""
                                         );
-                                      },
-                                      (error) => {
-                                        console.log(error);
-                                      }
-                                    );*/
-                                    //! -----------------------------------------------
+                                        let receiverName = ucFirst(
+                                          parsedRequest.delivery_infos.receiverName_delivery.trim()
+                                        );
+                                        let message = `Hello ${receiverName}, a package is being delivered to you via TaxiConnect, you can track it by creating a TaxiConnect account with your current number.\n\nThe TaxiConnect teams.`;
+                                        //!Check if the receiver is a current user
+                                        collectionPassengers_profiles
+                                          .find({
+                                            phone_number: {
+                                              $regex: receiversPhone,
+                                              $options: "i",
+                                            },
+                                          })
+                                          .toArray(function (
+                                            err,
+                                            userReceiverData
+                                          ) {
+                                            if (err) {
+                                              resNotifyReceiver(false);
+                                            }
+                                            //...
+                                            if (
+                                              userReceiverData !== undefined &&
+                                              userReceiverData.length > 0
+                                            ) {
+                                              //Is a TaxiConnect user, check for how long the app has not been used.
+                                              resolveDate();
+                                              if (
+                                                userReceiverData.last_updated !==
+                                                  undefined &&
+                                                userReceiverData.last_updated !==
+                                                  null
+                                              ) {
+                                                //Check the time
+                                                let lastUserUpdated = new Date(
+                                                  userReceiverData.last_updated
+                                                );
+                                                let refNowDate = new Date(
+                                                  chaineDateUTC
+                                                );
+                                                //...
+                                                if (
+                                                  diff_hours(
+                                                    refNowDate,
+                                                    lastUserUpdated
+                                                  ).difference >
+                                                  7 * 24
+                                                ) {
+                                                  //If greater than 7 days - send SMS
+                                                  SendSMSTo(
+                                                    receiversPhone,
+                                                    message
+                                                  );
+                                                  resNotifyReceiver(true);
+                                                } //Send push notification
+                                                else {
+                                                  let messageNotify = {
+                                                    app_id:
+                                                      process.env
+                                                        .RIDERS_APP_ID_ONESIGNAL,
+                                                    android_channel_id:
+                                                      process.env
+                                                        .RIDERS_ONESIGNAL_CHANNEL_ACCEPTTEDD_REQUEST, //Ride - Accepted request
+                                                    priority: 10,
+                                                    contents: {
+                                                      en: message,
+                                                    },
+                                                    headings: {
+                                                      en:
+                                                        "Delivery in progress",
+                                                    },
+                                                    content_available: true,
+                                                    include_player_ids: [
+                                                      userReceiverData.pushnotif_token !==
+                                                        false &&
+                                                      userReceiverData.pushnotif_token !==
+                                                        null &&
+                                                      userReceiverData.pushnotif_token !==
+                                                        "false"
+                                                        ? userReceiverData
+                                                            .pushnotif_token
+                                                            .userId
+                                                        : null,
+                                                    ],
+                                                  };
+                                                  //Send
+                                                  sendPushUPNotification(
+                                                    messageNotify
+                                                  );
+                                                  resNotifyReceiver(true);
+                                                }
+                                              } //Send an SMS, not logged in yet
+                                              else {
+                                                SendSMSTo(
+                                                  receiversPhone,
+                                                  message
+                                                );
+                                                resNotifyReceiver(true);
+                                              }
+                                            } //Not a TaxiConnect user, Send an SMS
+                                            else {
+                                              SendSMSTo(
+                                                receiversPhone,
+                                                message
+                                              );
+                                              resNotifyReceiver(true);
+                                            }
+                                          });
+                                      })
+                                        .then()
+                                        .catch(() => {});
+                                    }
                                   }
                                   //...
                                   res.send(resultDispatch);
