@@ -1172,9 +1172,10 @@ function exec_computeDaily_amountMade(
             amount: amount,
             currency: "NAD",
             currency_symbol: "N$",
-            supported_requests_types: driverProfile.operation_clearances.join(
-              "-"
-            ),
+            supported_requests_types:
+              driverProfile !== undefined && driverProfile !== null
+                ? driverProfile.operation_clearances.join("-")
+                : "Ride",
             response: "success",
           });
         });
