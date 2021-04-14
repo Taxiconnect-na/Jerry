@@ -2597,6 +2597,8 @@ function computeAndCacheRouteDestination(
               rideHistory.delivery_infos.packageSize !== null
                 ? rideHistory.delivery_infos.packageSize
                 : null;
+            additionalInfos.delivery_information.receiver_infos =
+              rideHistory.delivery_infos;
             //Found the requester data
             //Get the estimated time TO the destination (from the current's user position)
             new Promise((res4) => {
