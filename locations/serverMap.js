@@ -2576,128 +2576,153 @@ function computeAndCacheRouteDestination(
       additionalInfos.basicTripDetails.request_fp = rideHistory.request_fp;
       //! Add the requester fingerprint
       additionalInfos.requester_fp = rideHistory.client_id;
-
-      //Get the estimated time TO the destination (from the current's user position)
-      new Promise((res4) => {
-        let url =
-          process.env.LOCAL_URL +
-          ":" +
-          process.env.MAP_SERVICE_PORT +
-          "/getRouteToDestinationSnapshot?org_latitude=" +
-          rideHistory.pickup_location_infos.coordinates.latitude +
-          "&org_longitude=" +
-          rideHistory.pickup_location_infos.coordinates.longitude +
-          "&dest_latitude=" +
-          rideHistory.destinationData[0].coordinates.longitude +
-          "&dest_longitude=" +
-          rideHistory.destinationData[0].coordinates.latitude +
-          "&user_fingerprint=" +
-          rideHistory.client_id;
-        requestAPI(url, function (error, response, body) {
-          if (error === null) {
-            try {
-              body = JSON.parse(body);
-              res4(body.eta);
-            } catch (error) {
-              res4(false);
-            }
-          } else {
-            res4(false);
+      //! Get the requester details
+      collectionPassengers_profiles
+        .find({ user_fingerprint: rideHistory.client_id })
+        .toArray(function (err, requesterData) {
+          if (requesterData !== undefined && requesterData.length > 0) {
+            //? Add the requester's name and phone
+            additionalInfos["requester_infos"] = {};
+            additionalInfos.requester_infos.requester_name =
+              requesterData[0].name;
+            additionalInfos.requester_infos.requester_surname =
+              requesterData[0].surname;
+            additionalInfos.requester_infos.phone =
+              requesterData[0].phone_number;
+            //? --------
+            //? Add the delivery details
+            additionalInfos["delivery_information"]["packageSize"] =
+              rideHistory.delivery_infos.packageSize !== undefined &&
+              rideHistory.delivery_infos.packageSize !== null
+                ? rideHistory.delivery_infos.packageSize
+                : null;
+            //Found the requester data
+            //Get the estimated time TO the destination (from the current's user position)
+            new Promise((res4) => {
+              let url =
+                process.env.LOCAL_URL +
+                ":" +
+                process.env.MAP_SERVICE_PORT +
+                "/getRouteToDestinationSnapshot?org_latitude=" +
+                rideHistory.pickup_location_infos.coordinates.latitude +
+                "&org_longitude=" +
+                rideHistory.pickup_location_infos.coordinates.longitude +
+                "&dest_latitude=" +
+                rideHistory.destinationData[0].coordinates.longitude +
+                "&dest_longitude=" +
+                rideHistory.destinationData[0].coordinates.latitude +
+                "&user_fingerprint=" +
+                rideHistory.client_id;
+              requestAPI(url, function (error, response, body) {
+                if (error === null) {
+                  try {
+                    body = JSON.parse(body);
+                    res4(body.eta);
+                  } catch (error) {
+                    res4(false);
+                  }
+                } else {
+                  res4(false);
+                }
+              });
+            }).then(
+              (estimated_travel_time) => {
+                //Add the eta to destination
+                additionalInfos.ETA_toDestination = estimated_travel_time;
+                additionalInfos.request_status = request_status;
+                result = { ...result, ...additionalInfos }; //Merge all the data
+                //Cache-
+                //Cache computed result
+                new Promise((resPromiseresult) => {
+                  redisGet(rideHistory.request_fp).then(
+                    (cachedTripData) => {
+                      if (cachedTripData !== null) {
+                        client.set(
+                          rideHistory.request_fp,
+                          JSON.stringify(result),
+                          redis.print
+                        );
+                        resPromiseresult(true);
+                      } //Update cache anyways
+                      else {
+                        //console.log("Update cache");
+                        client.set(
+                          rideHistory.request_fp,
+                          JSON.stringify(result),
+                          redis.print
+                        );
+                        resPromiseresult(true);
+                      }
+                    },
+                    (errorGet) => {
+                      //console.log("Update cache");
+                      client.set(
+                        rideHistory.request_fp,
+                        JSON.stringify(result),
+                        redis.print
+                      );
+                      resPromiseresult(true);
+                    }
+                  );
+                }).then(
+                  () => {},
+                  () => {}
+                );
+                //...
+                ///DONE
+                resolve(result);
+              },
+              (error) => {
+                console.log(error);
+                //If couldn't get the ETA to destination - just leave it as null
+                result = { ...result, ...additionalInfos }; //Merge all the data
+                //Cache-
+                //Cache computed result
+                new Promise((resPromiseresult) => {
+                  redisGet(rideHistory.request_fp).then(
+                    (cachedTripData) => {
+                      if (cachedTripData !== null) {
+                        client.set(
+                          rideHistory.request_fp,
+                          JSON.stringify(result),
+                          redis.print
+                        );
+                        resPromiseresult(true);
+                      } //Update cache anyways
+                      else {
+                        //console.log("Update cache");
+                        client.set(
+                          rideHistory.request_fp,
+                          JSON.stringify(result),
+                          redis.print
+                        );
+                        resPromiseresult(true);
+                      }
+                    },
+                    (errorGet) => {
+                      //console.log("Update cache");
+                      client.set(
+                        rideHistory.request_fp,
+                        JSON.stringify(result),
+                        redis.print
+                      );
+                      resPromiseresult(true);
+                    }
+                  );
+                }).then(
+                  () => {},
+                  () => {}
+                );
+                //...
+                ///DONE
+                resolve(result);
+              }
+            );
+          } //No requester data found
+          else {
+            resolve(false);
           }
         });
-      }).then(
-        (estimated_travel_time) => {
-          //Add the eta to destination
-          additionalInfos.ETA_toDestination = estimated_travel_time;
-          additionalInfos.request_status = request_status;
-          result = { ...result, ...additionalInfos }; //Merge all the data
-          //Cache-
-          //Cache computed result
-          new Promise((resPromiseresult) => {
-            redisGet(rideHistory.request_fp).then(
-              (cachedTripData) => {
-                if (cachedTripData !== null) {
-                  client.set(
-                    rideHistory.request_fp,
-                    JSON.stringify(result),
-                    redis.print
-                  );
-                  resPromiseresult(true);
-                } //Update cache anyways
-                else {
-                  //console.log("Update cache");
-                  client.set(
-                    rideHistory.request_fp,
-                    JSON.stringify(result),
-                    redis.print
-                  );
-                  resPromiseresult(true);
-                }
-              },
-              (errorGet) => {
-                //console.log("Update cache");
-                client.set(
-                  rideHistory.request_fp,
-                  JSON.stringify(result),
-                  redis.print
-                );
-                resPromiseresult(true);
-              }
-            );
-          }).then(
-            () => {},
-            () => {}
-          );
-          //...
-          ///DONE
-          resolve(result);
-        },
-        (error) => {
-          console.log(error);
-          //If couldn't get the ETA to destination - just leave it as null
-          result = { ...result, ...additionalInfos }; //Merge all the data
-          //Cache-
-          //Cache computed result
-          new Promise((resPromiseresult) => {
-            redisGet(rideHistory.request_fp).then(
-              (cachedTripData) => {
-                if (cachedTripData !== null) {
-                  client.set(
-                    rideHistory.request_fp,
-                    JSON.stringify(result),
-                    redis.print
-                  );
-                  resPromiseresult(true);
-                } //Update cache anyways
-                else {
-                  //console.log("Update cache");
-                  client.set(
-                    rideHistory.request_fp,
-                    JSON.stringify(result),
-                    redis.print
-                  );
-                  resPromiseresult(true);
-                }
-              },
-              (errorGet) => {
-                //console.log("Update cache");
-                client.set(
-                  rideHistory.request_fp,
-                  JSON.stringify(result),
-                  redis.print
-                );
-                resPromiseresult(true);
-              }
-            );
-          }).then(
-            () => {},
-            () => {}
-          );
-          //...
-          ///DONE
-          resolve(result);
-        }
-      );
     },
     (error) => {
       //console.log(error);
@@ -4024,26 +4049,30 @@ function getFreshProximity_driversList(
 /**
  * MAIN
  */
+var collectionRidesDeliveries_data = null;
+var collectionRelativeDistances = null;
+var collectionRidersLocation_log = null;
+var collectionDrivers_profiles = null;
+var collectionGlobalEvents = null;
+var collectionWalletTransactions_logs = null;
 
 clientMongo.connect(function (err) {
   //if (err) throw err;
   console.log("[+] MAP services active.");
   const dbMongo = clientMongo.db(process.env.DB_NAME_MONGODDB);
-  const collectionRidesDeliveries_data = dbMongo.collection(
+  collectionRidesDeliveries_data = dbMongo.collection(
     "rides_deliveries_requests"
   ); //Hold all the requests made (rides and deliveries)
-  const collectionRelativeDistances = dbMongo.collection(
+  collectionRelativeDistances = dbMongo.collection(
     "relative_distances_riders_drivers"
   ); //Hold the relative distances between rider and the drivers (online, same city, same country) at any given time
-  const collectionRidersLocation_log = dbMongo.collection(
+  collectionRidersLocation_log = dbMongo.collection(
     "historical_positioning_logs"
   ); //Hold all the location updated from the rider
-  const collectionDrivers_profiles = dbMongo.collection("drivers_profiles"); //Hold all the drivers profiles
-  const collectionPassengers_profiles = dbMongo.collection(
-    "passengers_profiles"
-  ); //Hold all the passengers profiles.
-  const collectionGlobalEvents = dbMongo.collection("global_events"); //Hold all the random events that happened somewhere.
-  const collectionWalletTransactions_logs = dbMongo.collection(
+  collectionDrivers_profiles = dbMongo.collection("drivers_profiles"); //Hold all the drivers profiles
+  collectionPassengers_profiles = dbMongo.collection("passengers_profiles"); //Hold all the passengers profiles.
+  collectionGlobalEvents = dbMongo.collection("global_events"); //Hold all the random events that happened somewhere.
+  collectionWalletTransactions_logs = dbMongo.collection(
     "wallet_transactions_logs"
   ); //Hold the latest information about the riders topups
   //-------------

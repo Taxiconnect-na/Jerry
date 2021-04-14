@@ -427,14 +427,97 @@ function getBachRidesHistory(
               );
             } //Empty
             else {
-              resolve({
-                response: "success",
-                ride_type:
-                  req.ride_type !== undefined
-                    ? req.ride_type.trim().toUpperCase()
-                    : "Targeted",
-                data: [],
-              });
+              //Get the rider's inos
+              collectionPassengers_profiles
+                .find({
+                  user_fingerprint: { $regex: req.user_fingerprint },
+                })
+                .toArray(function (err, riderData) {
+                  if (err) {
+                    resolve(false);
+                  }
+                  //...
+                  if (riderData !== undefined && riderData.length > 0) {
+                    //Found something
+                    //? Check if the user is part of a delivery request iin which he is the receiver.
+                    let rideChecker = {
+                      "ride_state_vars.isRideCompleted_riderSide": true,
+                      "delivery_infos.receiverPhone_delivery": {
+                        $regex: riderData[0].phone_number
+                          .replace("+", "")
+                          .trim(),
+                        $options: "i",
+                      },
+                    };
+                    //...
+                    collectionRidesDeliveryData
+                      .find(rideChecker)
+                      .toArray(function (err, tripData) {
+                        if (err) {
+                          resolve(false);
+                        }
+                        //...
+                        if (tripData !== undefined && tripData.length > 0) {
+                          let ridesData = tripData;
+                          //Found the trip data
+                          //Check if there are any requests cached
+                          //Found something - reformat
+                          let parentPromises = ridesData.map(
+                            (requestSingle) => {
+                              return new Promise((res1) => {
+                                shrinkDataSchema_forBatchRidesHistory(
+                                  requestSingle,
+                                  collectionDrivers_profiles,
+                                  res1,
+                                  req.target !== undefined ? true : false
+                                );
+                              });
+                            }
+                          );
+                          //Done
+                          Promise.all(parentPromises).then(
+                            (batchResults) => {
+                              console.log(batchResults);
+                              resolve({
+                                response: "success",
+                                ride_type:
+                                  req.ride_type !== undefined
+                                    ? req.ride_type.trim().toUpperCase()
+                                    : "Targeted",
+                                data: batchResults,
+                              });
+                            },
+                            (error) => {
+                              console.log(error);
+                              resolve({
+                                response: "error_authentication_failed",
+                              });
+                            }
+                          );
+                        } //No trip data
+                        else {
+                          resolve({
+                            response: "success",
+                            ride_type:
+                              req.ride_type !== undefined
+                                ? req.ride_type.trim().toUpperCase()
+                                : "Targeted",
+                            data: [],
+                          });
+                        }
+                      });
+                  } //No rider data, strange
+                  else {
+                    resolve({
+                      response: "success",
+                      ride_type:
+                        req.ride_type !== undefined
+                          ? req.ride_type.trim().toUpperCase()
+                          : "Targeted",
+                      data: [],
+                    });
+                  }
+                });
             }
           });
       } //invalid data
@@ -3578,21 +3661,24 @@ function updateRiders_generalProfileInfos(
 /**
  * MAIN
  */
+var collectionPassengers_profiles = null;
+var collectionRidesDeliveryData = null;
+var collection_OTP_dispatch_map = null;
+var collectionDrivers_profiles = null;
+var collectionDrivers_profiles = null;
+var collectionGlobalEvents = null;
+var collectionWalletTransactions_logs = null;
 
 clientMongo.connect(function (err) {
   //if (err) throw err;
   console.log("[+] Account services active.");
   const dbMongo = clientMongo.db(process.env.DB_NAME_MONGODDB);
-  const collectionPassengers_profiles = dbMongo.collection(
-    "passengers_profiles"
-  ); //Hold all the passengers profiles
-  const collectionRidesDeliveryData = dbMongo.collection(
-    "rides_deliveries_requests"
-  ); //Hold all the requests made (rides and deliveries)
-  const collection_OTP_dispatch_map = dbMongo.collection("OTP_dispatch_map");
-  const collectionDrivers_profiles = dbMongo.collection("drivers_profiles"); //Hold all the drivers profiles
-  const collectionGlobalEvents = dbMongo.collection("global_events"); //Hold all the random events that happened somewhere.
-  const collectionWalletTransactions_logs = dbMongo.collection(
+  collectionPassengers_profiles = dbMongo.collection("passengers_profiles"); //Hold all the passengers profiles
+  collectionRidesDeliveryData = dbMongo.collection("rides_deliveries_requests"); //Hold all the requests made (rides and deliveries)
+  collection_OTP_dispatch_map = dbMongo.collection("OTP_dispatch_map");
+  collectionDrivers_profiles = dbMongo.collection("drivers_profiles"); //Hold all the drivers profiles
+  collectionGlobalEvents = dbMongo.collection("global_events"); //Hold all the random events that happened somewhere.
+  collectionWalletTransactions_logs = dbMongo.collection(
     "wallet_transactions_logs"
   ); //Hold all the wallet transactions (exlude rides/deliveries records which are in the rides/deliveries collection)
   //-------------

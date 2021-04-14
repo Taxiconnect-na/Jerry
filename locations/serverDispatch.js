@@ -172,7 +172,7 @@ function generateUniqueFingerprint(str, encryption = false, resolve) {
 function parseRequestData(inputData, resolve) {
   resolveDate();
   console.log("INITIAL RECEIVED REQUEST");
-  console.log("REQUEST DATA -> ", inputData);
+  //console.log("REQUEST DATA -> ", inputData);
   //! CHECK FOR A POTENTIAL CACHED VALUE FOR recoveredd data (from mysql)
   redisGet(
     `${
@@ -485,6 +485,7 @@ function parseRequestData(inputData, resolve) {
                             inputData.receiverName_delivery,
                           receiverPhone_delivery:
                             inputData.receiverPhone_delivery,
+                          packageSize: inputData.packageSizeDelivery,
                         };
                         //4. Rider infos
                         parsedData.rider_infos = {
