@@ -442,6 +442,12 @@ function getBachRidesHistory(
                     //? Check if the user is part of a delivery request iin which he is the receiver.
                     let rideChecker = {
                       "ride_state_vars.isRideCompleted_riderSide": true,
+                      request_type: /scheduled/i.test(req.ride_type)
+                        ? { $regex: /^scheduled$/, $options: "i" }
+                        : {
+                            $regex: /(scheduled|business|immediate)/,
+                            $options: "i",
+                          },
                       "delivery_infos.receiverPhone_delivery": {
                         $regex: riderData[0].phone_number
                           .replace("+", "")
