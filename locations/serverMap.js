@@ -2591,6 +2591,7 @@ function computeAndCacheRouteDestination(
               requesterData[0].phone_number;
             //? --------
             //? Add the delivery details
+            additionalInfos["delivery_information"] = {};
             additionalInfos["delivery_information"]["packageSize"] =
               rideHistory.delivery_infos.packageSize !== undefined &&
               rideHistory.delivery_infos.packageSize !== null
