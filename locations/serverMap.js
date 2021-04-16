@@ -2528,24 +2528,30 @@ function computeAndCacheRouteDestination(
       //Add pickup name and destination name
       additionalInfos.basicTripDetails.pickup_name =
         rideHistory.pickup_location_infos.location_name !== false &&
-        rideHistory.pickup_location_infos.location_name !== undefined
+        rideHistory.pickup_location_infos.location_name !== undefined &&
+        rideHistory.pickup_location_infos.location_name !== null
           ? rideHistory.pickup_location_infos.location_name
           : rideHistory.pickup_location_infos.street_name !== false &&
-            rideHistory.pickup_location_infos.street_name !== undefined
+            rideHistory.pickup_location_infos.street_name !== undefined &&
+            rideHistory.pickup_location_infos.street_name !== null
           ? rideHistory.pickup_location_infos.street_name
           : rideHistory.pickup_location_infos.suburb !== false &&
-            rideHistory.pickup_location_infos.suburb !== undefined
+            rideHistory.pickup_location_infos.suburb !== undefined &&
+            rideHistory.pickup_location_infos.suburb !== null
           ? rideHistory.pickup_location_infos.suburb
-          : "unclear location.";
+          : "Close to you";
       //Add ddestination name(s)
       rideHistory.destinationData.map((location) => {
         if (additionalInfos.basicTripDetails.destination_name === null) {
           //Still empty
           additionalInfos.basicTripDetails.destination_name =
             location.location_name !== false &&
-            location.location_name !== undefined
+            location.location_name !== undefined &&
+            location.location_name !== null
               ? location.location_name
-              : location.suburb !== false && location.suburb !== undefined
+              : location.suburb !== false &&
+                location.suburb !== undefined &&
+                location.suburb !== null
               ? location.suburb
               : "Click for more";
         } //Add
@@ -2553,9 +2559,12 @@ function computeAndCacheRouteDestination(
           additionalInfos.basicTripDetails.destination_name +=
             ", " +
             (location.location_name !== false &&
-            location.location_name !== undefined
+            location.location_name !== undefined &&
+            location.location_name !== null
               ? location.location_name
-              : location.suburb !== false && location.suburb !== undefined
+              : location.suburb !== false &&
+                location.suburb !== undefined &&
+                location.suburb !== null
               ? location.suburb
               : "Click for more");
         }
