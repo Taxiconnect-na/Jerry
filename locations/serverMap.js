@@ -2290,8 +2290,9 @@ function computeRouteDetails_skeleton(
                   request_status: "pending",
                 };
                 //..
-                client.set(
+                client.setex(
                   rideHistory.client_id,
+                  process.env.REDIS_EXPIRATION_5MIN * 6,
                   JSON.stringify(reslt),
                   redis.print
                 );
@@ -2302,8 +2303,9 @@ function computeRouteDetails_skeleton(
               }
             } //Create fresh record
             else {
-              client.set(
+              client.setex(
                 rideHistory.request_fp,
+                process.env.REDIS_EXPIRATION_5MIN * 6,
                 JSON.stringify({
                   rides_history: {
                     pickupLocation_name:
