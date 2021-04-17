@@ -248,6 +248,9 @@ function getRouteInfos(coordsInfos, resolve) {
   /*if (coordsInfos.destination !== undefined) {
     destinationPosition = coordsInfos.destination;
   }*/
+  console.log(`DRIVER POSITION -> ${JSON.stringify(driverPosition)}`);
+  console.log(`PASSENGER POSITION -> ${JSON.stringify(passengerPosition)}`);
+  console.log(`DESTINATION POSITION -> ${JSON.stringify(destinationPosition)}`);
 
   url =
     process.env.URL_ROUTE_SERVICES +
@@ -261,7 +264,11 @@ function getRouteInfos(coordsInfos, resolve) {
     passengerPosition.longitude +
     "&heading_penalty=0&avoid=residential&avoid=ferry&ch.disable=true&locale=en&details=street_name&details=time&optimize=true&points_encoded=false&details=max_speed&snap_prevention=ferry&profile=car&pass_through=true&instructions=false";
 
+  console.log(url);
+
   requestAPI(url, function (error, response, body) {
+    console.log(error);
+    console.log(body);
     if (body != undefined) {
       if (body.length > 20) {
         try {
@@ -2374,40 +2381,44 @@ function computeAndCacheRouteDestination(
   //Compute next route update ---------------------------------------------------
   let resp = JSON.parse(driverInfos); //The coordinates
   let bundle = {};
-  let redisKey = rideHistory.client_id + "-" + rideHistory.taxi_id;
-  if (request_status === "inRouteToPickup") {
-    //For to pickup only
-    bundle = {
-      driver: {
-        latitude: resp.latitude,
-        longitude: resp.longitude,
-      },
-      passenger: {
-        latitude: riderCoords.latitude,
-        longitude: riderCoords.longitude,
-      },
-      redisKey: redisKey,
-      //Take the passenger's 1 destination as reference
-      //destination: rideHistory.destinationData[0].coordinates,
-    };
-  } else if (request_status === "inRouteToDestination") {
-    console.log("in route to destination");
-    //For to drop off only
-    bundle = {
-      passenger_origin: {
-        latitude: riderCoords.latitude,
-        longitude: riderCoords.longitude,
-      },
-      redisKey: redisKey,
-      passenger_destination: {
-        latitude: rideHistory.destinationData[0].coordinates.longitude,
-        longitude: rideHistory.destinationData[0].coordinates.latitude,
-      },
-    };
-  }
 
   new Promise((reslv) => {
-    getRouteInfos(bundle, reslv);
+    let redisKey = rideHistory.client_id + "-" + rideHistory.taxi_id;
+    if (request_status === "inRouteToPickup") {
+      console.log("In route to pickup quick!");
+      //For to pickup only
+      bundle = {
+        driver: {
+          latitude: resp.latitude,
+          longitude: resp.longitude,
+        },
+        passenger: {
+          latitude: riderCoords.latitude,
+          longitude: riderCoords.longitude,
+        },
+        redisKey: redisKey,
+        //Take the passenger's 1 destination as reference
+        //destination: rideHistory.destinationData[0].coordinates,
+      };
+      //...
+      getRouteInfos(bundle, reslv);
+    } else if (request_status === "inRouteToDestination") {
+      console.log("in route to destination");
+      //For to drop off only
+      bundle = {
+        passenger_origin: {
+          latitude: riderCoords.latitude,
+          longitude: riderCoords.longitude,
+        },
+        redisKey: redisKey,
+        passenger_destination: {
+          latitude: rideHistory.destinationData[0].coordinates.longitude,
+          longitude: rideHistory.destinationData[0].coordinates.latitude,
+        },
+      };
+      //...
+      getRouteInfos(bundle, reslv);
+    }
   }).then(
     (result) => {
       //Do the preliminary caching
@@ -2460,10 +2471,16 @@ function computeAndCacheRouteDestination(
           }
         );
         //--------
-      }).then(
-        () => {},
-        () => {}
-      );
+      })
+        .then(
+          () => {},
+          (error) => {
+            console.trace(error);
+          }
+        )
+        .catch((error) => {
+          console.trace(error);
+        });
       //console.log("HEEEEEEEE->", result);
       //console.log(rideHistory.destinationData);
       //Add request status variable - inRouteToPickup, inRouteToDestination
@@ -2639,26 +2656,37 @@ function computeAndCacheRouteDestination(
                   res4(false);
                 }
               });
-            }).then(
-              (estimated_travel_time) => {
-                //Add the eta to destination
-                additionalInfos.ETA_toDestination = estimated_travel_time;
-                additionalInfos.request_status = request_status;
-                result = { ...result, ...additionalInfos }; //Merge all the data
-                //Cache-
-                //Cache computed result
-                new Promise((resPromiseresult) => {
-                  redisGet(rideHistory.request_fp).then(
-                    (cachedTripData) => {
-                      if (cachedTripData !== null) {
-                        client.set(
-                          rideHistory.request_fp,
-                          JSON.stringify(result),
-                          redis.print
-                        );
-                        resPromiseresult(true);
-                      } //Update cache anyways
-                      else {
+            })
+              .then(
+                (estimated_travel_time) => {
+                  //Add the eta to destination
+                  additionalInfos.ETA_toDestination = estimated_travel_time;
+                  additionalInfos.request_status = request_status;
+                  result = { ...result, ...additionalInfos }; //Merge all the data
+                  //Cache-
+                  //Cache computed result
+                  new Promise((resPromiseresult) => {
+                    redisGet(rideHistory.request_fp).then(
+                      (cachedTripData) => {
+                        if (cachedTripData !== null) {
+                          client.set(
+                            rideHistory.request_fp,
+                            JSON.stringify(result),
+                            redis.print
+                          );
+                          resPromiseresult(true);
+                        } //Update cache anyways
+                        else {
+                          //console.log("Update cache");
+                          client.set(
+                            rideHistory.request_fp,
+                            JSON.stringify(result),
+                            redis.print
+                          );
+                          resPromiseresult(true);
+                        }
+                      },
+                      (errorGet) => {
                         //console.log("Update cache");
                         client.set(
                           rideHistory.request_fp,
@@ -2667,43 +2695,43 @@ function computeAndCacheRouteDestination(
                         );
                         resPromiseresult(true);
                       }
-                    },
-                    (errorGet) => {
-                      //console.log("Update cache");
-                      client.set(
-                        rideHistory.request_fp,
-                        JSON.stringify(result),
-                        redis.print
-                      );
-                      resPromiseresult(true);
-                    }
+                    );
+                  }).then(
+                    () => {},
+                    () => {}
                   );
-                }).then(
-                  () => {},
-                  () => {}
-                );
-                //...
-                ///DONE
-                resolve(result);
-              },
-              (error) => {
-                console.log(error);
-                //If couldn't get the ETA to destination - just leave it as null
-                result = { ...result, ...additionalInfos }; //Merge all the data
-                //Cache-
-                //Cache computed result
-                new Promise((resPromiseresult) => {
-                  redisGet(rideHistory.request_fp).then(
-                    (cachedTripData) => {
-                      if (cachedTripData !== null) {
-                        client.set(
-                          rideHistory.request_fp,
-                          JSON.stringify(result),
-                          redis.print
-                        );
-                        resPromiseresult(true);
-                      } //Update cache anyways
-                      else {
+                  //...
+                  ///DONE
+                  resolve(result);
+                },
+                (error) => {
+                  console.trace(error);
+                  //If couldn't get the ETA to destination - just leave it as null
+                  result = { ...result, ...additionalInfos }; //Merge all the data
+                  //Cache-
+                  //Cache computed result
+                  new Promise((resPromiseresult) => {
+                    redisGet(rideHistory.request_fp).then(
+                      (cachedTripData) => {
+                        if (cachedTripData !== null) {
+                          client.set(
+                            rideHistory.request_fp,
+                            JSON.stringify(result),
+                            redis.print
+                          );
+                          resPromiseresult(true);
+                        } //Update cache anyways
+                        else {
+                          //console.log("Update cache");
+                          client.set(
+                            rideHistory.request_fp,
+                            JSON.stringify(result),
+                            redis.print
+                          );
+                          resPromiseresult(true);
+                        }
+                      },
+                      (errorGet) => {
                         //console.log("Update cache");
                         client.set(
                           rideHistory.request_fp,
@@ -2712,26 +2740,19 @@ function computeAndCacheRouteDestination(
                         );
                         resPromiseresult(true);
                       }
-                    },
-                    (errorGet) => {
-                      //console.log("Update cache");
-                      client.set(
-                        rideHistory.request_fp,
-                        JSON.stringify(result),
-                        redis.print
-                      );
-                      resPromiseresult(true);
-                    }
+                    );
+                  }).then(
+                    () => {},
+                    () => {}
                   );
-                }).then(
-                  () => {},
-                  () => {}
-                );
-                //...
-                ///DONE
-                resolve(result);
-              }
-            );
+                  //...
+                  ///DONE
+                  resolve(result);
+                }
+              )
+              .catch((error) => {
+                console.trace(error);
+              });
           } //No requester data found
           else {
             resolve(false);
@@ -2739,7 +2760,7 @@ function computeAndCacheRouteDestination(
         });
     },
     (error) => {
-      //console.log(error);
+      console.trace(error);
       resolve(false);
     }
   );

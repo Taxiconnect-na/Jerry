@@ -3766,10 +3766,11 @@ clientMongo.connect(function (err) {
       }).then(
         (result) => {
           //Save otp in profile if the user was already registered
+          console.log(result);
           if (
             result.response !== undefined &&
-            req.user_fingerprint !== undefined &&
-            req.user_fingerprint !== null
+            result.user_fp !== undefined &&
+            result.user_fp !== null
           ) {
             //Registered user
             new Promise((res2) => {
@@ -3789,11 +3790,8 @@ clientMongo.connect(function (err) {
                 /passenger/i.test(req.user_nature)
               ) {
                 collectionPassengers_profiles.updateOne(
-                  { user_fingerprint: req.user_fingerprint },
+                  { user_fingerprint: result.user_fp },
                   secretData,
-                  {
-                    upsert: true,
-                  },
                   function (err, reslt) {
                     console.log(err);
                     res2(true);
@@ -3806,22 +3804,21 @@ clientMongo.connect(function (err) {
               ) {
                 //2. Drivers
                 collectionDrivers_profiles.updateOne(
-                  { user_fingerprint: req.user_fingerprint },
+                  { driver_fingerprint: result.user_fp },
                   secretData,
-                  {
-                    upsert: true,
-                  },
                   function (err, reslt) {
+                    console.log(err);
                     res2(true);
                   }
                 );
               }
             }).then(
-              () => {},
+              () => {
+                //...
+              },
               () => {}
             );
           }
-          //...
           res.send(result);
         },
         (error) => {
@@ -3850,12 +3847,13 @@ clientMongo.connect(function (err) {
       req.otp !== undefined &&
       req.otp !== null
     ) {
+      console.log(req);
       req.phone_number = req.phone_number.replace("+", "").trim(); //Critical, should only contain digits
       new Promise((res0) => {
         if (
-          req.userType === undefined ||
-          req.userType === null ||
-          /^unregistered$/i.test(req.userType.trim())
+          req.user_nature === undefined ||
+          req.user_nature === null ||
+          /^unregistered$/i.test(req.user_nature.trim())
         ) {
           //Checking for unregistered users
           let checkOTP = {
@@ -3883,13 +3881,15 @@ clientMongo.connect(function (err) {
           //! Will need the user_fingerprint to be provided.
           //1. Passengers
           if (
-            req.user_nature === undefined ||
-            req.user_nature === null ||
+            req.user_nature !== undefined &&
+            req.user_nature !== null &&
             /passenger/i.test(req.user_nature)
           ) {
             let checkOTP = {
-              user_fingerprint: req.user_fingerprint,
-              "account_verifications.phone_verification_secrets.otp": req.otp,
+              phone_number: { $regex: req.phone_number, $options: "i" },
+              "account_verifications.phone_verification_secrets.otp": parseInt(
+                req.otp
+              ),
             };
             //Check if it exists for this number
             collectionPassengers_profiles
@@ -3912,10 +3912,13 @@ clientMongo.connect(function (err) {
             req.user_nature !== null &&
             /driver/i.test(req.user_nature)
           ) {
+            console.log(req);
             //2. Drivers
             let checkOTP = {
-              driver_fingerprint: req.user_fingerprint,
-              "account_verifications.phone_verification_secrets.otp": req.otp,
+              phone_number: { $regex: req.phone_number, $options: "i" },
+              "account_verifications.phone_verification_secrets.otp": parseInt(
+                req.otp
+              ),
             };
             //Check if it exists for this number
             collectionDrivers_profiles
