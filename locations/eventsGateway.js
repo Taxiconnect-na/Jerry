@@ -1,11 +1,16 @@
 require("dotenv").config();
 //var dash = require("appmetrics-dash");
 var express = require("express");
-const http = require("http");
+const https = require("https");
 const path = require("path");
+const fs = require("fs");
+const SSLOptions = {
+  key: fs.readFileSync(process.env.SSL_PRIVATEKEY_PATH_AND_NAME),
+  cert: fs.readFileSync(process.env.SSL_CERTIFICATE_PATH_AND_NAME),
+};
 
 var app = express();
-var server = http.createServer(app);
+var server = https.createServer(SSLOptions, app);
 var cors = require("cors");
 var helmet = require("helmet");
 const io = require("socket.io")(server, {

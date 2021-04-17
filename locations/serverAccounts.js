@@ -195,7 +195,7 @@ function checkUserStatus(
   new Promise((res) => {
     let dispatchMap = {
       phone_number: userData.phone_number,
-      otp: otp,
+      otp: parseInt(otp),
       date_sent: new Date(chaineDateUTC),
     };
     collection_OTP_dispatch_map.insertOne(dispatchMap, function (error, reslt) {
@@ -3777,7 +3777,7 @@ clientMongo.connect(function (err) {
               let secretData = {
                 $set: {
                   "account_verifications.phone_verification_secrets": {
-                    otp: otp,
+                    otp: parseInt(otp),
                     date_sent: new Date(chaineDateUTC),
                   },
                 },
@@ -3847,18 +3847,13 @@ clientMongo.connect(function (err) {
       req.otp !== undefined &&
       req.otp !== null
     ) {
-      console.log(req);
       req.phone_number = req.phone_number.replace("+", "").trim(); //Critical, should only contain digits
       new Promise((res0) => {
-        if (
-          req.user_nature === undefined ||
-          req.user_nature === null ||
-          /^unregistered$/i.test(req.user_nature.trim())
-        ) {
+        if (/^unregistered$/i.test(req.user_nature.trim())) {
           //Checking for unregistered users
           let checkOTP = {
             phone_number: req.phone_number,
-            otp: req.otp,
+            otp: parseFloat(req.otp),
           };
           //Check if it exists for this number
           collection_OTP_dispatch_map
@@ -3885,6 +3880,7 @@ clientMongo.connect(function (err) {
             req.user_nature !== null &&
             /passenger/i.test(req.user_nature)
           ) {
+            console.log("Passenger");
             let checkOTP = {
               phone_number: { $regex: req.phone_number, $options: "i" },
               "account_verifications.phone_verification_secrets.otp": parseInt(
