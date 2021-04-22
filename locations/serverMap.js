@@ -1163,7 +1163,12 @@ function execGetDrivers_requests_and_provide(
           //1. Filter the requests based on the clearances of the driver - ride/delivery
           let clearancesString = driverData.operation_clearances.join(",");
           let max_passengers_capacity =
-            driverData.operational_state.default_selected_car.max_passengers;
+            driverData.operational_state.default_selected_car.max_passengers !==
+              undefined &&
+            driverData.operational_state.default_selected_car.max_passengers !==
+              null
+              ? driverData.operational_state.default_selected_car.max_passengers
+              : 4;
           //...
           let refinedRequests = requestsData.filter((request) => {
             let tmpReg = new RegExp(request.ride_mode, "i");
@@ -1172,7 +1177,7 @@ function execGetDrivers_requests_and_provide(
           //2. ADD THE ALREADY ACCEPTED REQUESTS IN FRONT
           refinedRequests = [...alreadyFetchedData, ...refinedRequests];
           //Slice based on the max capacity
-          //refinedRequests = refinedRequests.slice(0, max_passengers_capacity);
+          refinedRequests = refinedRequests.slice(0, max_passengers_capacity);
           //...
           //PARSE THE FINAL REQUESTS
           new Promise((res) => {
@@ -1271,14 +1276,16 @@ function execGetDrivers_requests_and_provide(
             driverData.operational_state.default_selected_car.max_passengers !==
               undefined &&
             driverData.operational_state.default_selected_car.max_passengers !==
-              null;
+              null
+              ? driverData.operational_state.default_selected_car.max_passengers
+              : 4;
           //...
           let refinedRequests = requestsData.filter((request) => {
             let tmpReg = new RegExp(request.ride_mode, "i");
             return tmpReg.test(clearancesString);
           });
           //Slice based on the max capacity
-          //refinedRequests = refinedRequests.slice(0, max_passengers_capacity);
+          refinedRequests = refinedRequests.slice(0, max_passengers_capacity);
           //PARSE THE FINAL REQUESTS
           new Promise((res) => {
             parseRequests_forDrivers_view(
@@ -1354,7 +1361,7 @@ function parseRequests_forDrivers_view(
               //Quickly return the cached result
               res(resp);
             } catch (error) {
-              console.log(error);
+              console.trace(error);
               //Error make a fresh request
               new Promise((resFresh) => {
                 execDriver_requests_parsing(
@@ -1369,7 +1376,7 @@ function parseRequests_forDrivers_view(
                   res(resultParsed);
                 },
                 (error) => {
-                  console.log(error);
+                  console.trace(error);
                   res(false);
                 }
               );
@@ -1389,7 +1396,7 @@ function parseRequests_forDrivers_view(
                 res(resultParsed);
               },
               (error) => {
-                console.log(error);
+                console.trace(error);
                 res(false);
               }
             );
@@ -1411,7 +1418,7 @@ function parseRequests_forDrivers_view(
               res(resultParsed);
             },
             (error) => {
-              console.log(error);
+              console.trace(error);
               res(false);
             }
           );
@@ -1431,12 +1438,12 @@ function parseRequests_forDrivers_view(
         resolve(batchRequestsResults);
       },
       (error) => {
-        console.log(error);
+        console.trace(error);
         resolve(false);
       }
     )
     .catch((error) => {
-      console.log(error);
+      console.trace(error);
       resolve(false);
     });
 }

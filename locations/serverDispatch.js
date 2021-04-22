@@ -2587,9 +2587,9 @@ function INIT_RIDE_DELIVERY_DISPATCH_ENTRY(
       }
       //....
       if (
-        prevRequest !== undefined &&
-        prevRequest !== null &&
-        prevRequest.length === 0 &&
+        prevRequest === undefined ||
+        prevRequest === null ||
+        prevRequest.length <= 0 ||
         prevRequest[0] === undefined
       ) {
         collectionRidesDeliveryData.insertOne(
@@ -3233,9 +3233,9 @@ clientMongo.connect(function (err) {
         .find(checkPrevRequest)
         .toArray(function (err, prevRequest) {
           if (
-            prevRequest !== null &&
-            prevRequest !== undefined &&
-            prevRequest.length === 0 &&
+            prevRequest === undefined ||
+            prevRequest === null ||
+            prevRequest.length <= 0 ||
             prevRequest[0] === undefined
           ) {
             //No previous pending request - MAKE REQUEST VALID
