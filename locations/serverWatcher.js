@@ -925,9 +925,10 @@ function requestsDriverSubscriber_watcher(
             //Check if there's no subscribed drivers yet
             //No subscribers yet
             if (
-              request.allowed_drivers_see.length <= 0 ||
+              request.allowed_drivers_see.length <=
+              0 /* ||
               request.allowed_drivers_see.includes(null) ||
-              request.allowed_drivers_see.includes(undefined)
+              request.allowed_drivers_see.includes(undefined)*/
             ) {
               //? Get dates and convert from milliseconds to seconds
               let dateRequested = new Date(request.date_requested);

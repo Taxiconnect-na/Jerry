@@ -333,7 +333,22 @@ function parseRequestData(inputData, resolve) {
               )
               .finally(() => {
                 //COntinue
-                parsedData.country = inputData.country;
+                //! Clean the country of invalid values
+                inputData.country =
+                  inputData.country !== "false" &&
+                  inputData.country !== false &&
+                  inputData.country !== null &&
+                  inputData.country !== undefined
+                    ? inputData.country
+                    : "Namibia";
+                //...
+                parsedData.country =
+                  inputData.country !== "false" &&
+                  inputData.country !== false &&
+                  inputData.country !== null &&
+                  inputData.country !== undefined
+                    ? inputData.country
+                    : "Namibia";
                 //Compute the simplified fingerprint
                 new Promise((res2) => {
                   generateUniqueFingerprint(uniqueString, "md5", res2);
@@ -396,6 +411,15 @@ function parseRequestData(inputData, resolve) {
                             rider_driverRating: "notYet",
                           };
                     //2.Pickup location infos
+                    //! Clean the city of invalid values
+                    inputData.pickupData.city =
+                      inputData.pickupData.city !== "false" &&
+                      inputData.pickupData.city !== false &&
+                      inputData.pickupData.city !== null &&
+                      inputData.pickupData.city !== undefined
+                        ? inputData.pickupData.city
+                        : "Windhoek";
+                    //...
                     parsedData.pickup_location_infos = {
                       pickup_type: inputData.naturePickup,
                       coordinates: {
@@ -406,7 +430,13 @@ function parseRequestData(inputData, resolve) {
                       street_name: inputData.pickupData.street_name,
                       suburb: false,
                       pickup_note: inputData.pickupNote,
-                      city: inputData.pickupData.city,
+                      city:
+                        inputData.pickupData.city !== "false" &&
+                        inputData.pickupData.city !== false &&
+                        inputData.pickupData.city !== null &&
+                        inputData.pickupData.city !== undefined
+                          ? inputData.pickupData.city
+                          : "Windhoek",
                       state: null,
                     };
                     //! APPLY BLUE OCEAN BUG FIX FOR THE PICKUP LOCATION COORDINATES
