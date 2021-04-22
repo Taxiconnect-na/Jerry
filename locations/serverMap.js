@@ -1,4 +1,5 @@
 require("dotenv").config();
+console.log = function () {};
 //var dash = require("appmetrics-dash");
 var express = require("express");
 const http = require("http");
@@ -1252,6 +1253,7 @@ function execGetDrivers_requests_and_provide(
       },
       request_type: { $regex: request_type_regex, $options: "i" }, //Shceduled or immediate rides/deliveries
     };
+    console.log(requestFilter);
     //...
     collectionRidesDeliveries_data
       .find(requestFilter)
@@ -1259,13 +1261,17 @@ function execGetDrivers_requests_and_provide(
         if (err) {
           resolve(false);
         }
+        console.log(requestsData);
         //...
         if (requestsData !== undefined && requestsData.length > 0) {
           //Found some data
           //! 1. Filter the requests based on the clearances of the driver - ride/delivery
           let clearancesString = driverData.operation_clearances.join(",");
           let max_passengers_capacity =
-            driverData.operational_state.default_selected_car.max_passengers;
+            driverData.operational_state.default_selected_car.max_passengers !==
+              undefined &&
+            driverData.operational_state.default_selected_car.max_passengers !==
+              null;
           //...
           let refinedRequests = requestsData.filter((request) => {
             let tmpReg = new RegExp(request.ride_mode, "i");

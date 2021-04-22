@@ -1,4 +1,5 @@
 require("dotenv").config();
+console.log = function () {};
 var express = require("express");
 const http = require("http");
 const https = require("https");
@@ -3726,13 +3727,11 @@ clientMongo.connect(function (err) {
       //Ok
       //! ADD DEBUG TEST DATA -> CODE 88766
       //Send the message then check the passenger's status
-      let otp = /856997167/i.test(req.phone_number)
-        ? 88766
-        : otpGenerator.generate(5, {
-            upperCase: false,
-            specialChars: false,
-            alphabets: false,
-          });
+      let otp = otpGenerator.generate(5, {
+        upperCase: false,
+        specialChars: false,
+        alphabets: false,
+      });
 
       //1. Generate and SMS the OTP
       new Promise((res0) => {
@@ -3815,11 +3814,13 @@ clientMongo.connect(function (err) {
             }).then(
               () => {
                 //...
+                res.send(result);
               },
-              () => {}
+              () => {
+                res.send(result);
+              }
             );
           }
-          res.send(result);
         },
         (error) => {
           console.log(error);
@@ -3921,6 +3922,7 @@ clientMongo.connect(function (err) {
               .find(checkOTP)
               .toArray(function (error, result) {
                 if (error) {
+                  console.log(error);
                   res0({ response: "error_checking_otp" });
                 }
                 //...

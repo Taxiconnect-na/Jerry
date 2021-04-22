@@ -1,4 +1,5 @@
 require("dotenv").config();
+console.log = function () {};
 var express = require("express");
 const http = require("http");
 const fs = require("fs");
@@ -3192,8 +3193,7 @@ clientMongo.connect(function (err) {
       //1. CHECK THAT THIS RIDER DOESN'T ALREADY HAVE AN ACTIVE RIDE/DELIVERY
       //Request is considered as completed when the rider has submited a rating.
       let checkPrevRequest = {
-        client_id: req.user_fingerprint,
-        "ride_state_vars.isRideCompleted_riderSide": false,
+        client_id: { $regex: req.user_fingerprint },
         isArrivedToDestination: false,
       };
       collectionRidesDeliveryData
