@@ -1,5 +1,5 @@
 require("dotenv").config();
-console.log = function () {};
+//console.log = function () {};
 //var dash = require("appmetrics-dash");
 var express = require("express");
 const http = require("http");
@@ -900,7 +900,7 @@ function tripChecker_Dispatcher(
           resolve(false);
         }
         //
-        if (driverData.length <= 0) {
+        if (driverData !== undefined && driverData.length <= 0) {
           resolve(false);
         }
         driverData = driverData[0];
@@ -1172,7 +1172,7 @@ function execGetDrivers_requests_and_provide(
           //2. ADD THE ALREADY ACCEPTED REQUESTS IN FRONT
           refinedRequests = [...alreadyFetchedData, ...refinedRequests];
           //Slice based on the max capacity
-          refinedRequests = refinedRequests.slice(0, max_passengers_capacity);
+          //refinedRequests = refinedRequests.slice(0, max_passengers_capacity);
           //...
           //PARSE THE FINAL REQUESTS
           new Promise((res) => {
@@ -1278,7 +1278,7 @@ function execGetDrivers_requests_and_provide(
             return tmpReg.test(clearancesString);
           });
           //Slice based on the max capacity
-          refinedRequests = refinedRequests.slice(0, max_passengers_capacity);
+          //refinedRequests = refinedRequests.slice(0, max_passengers_capacity);
           //PARSE THE FINAL REQUESTS
           new Promise((res) => {
             parseRequests_forDrivers_view(

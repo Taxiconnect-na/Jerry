@@ -13,9 +13,9 @@ RUN yarn global add pm2
 RUN pm2 install pm2-logrotate
 RUN pm2 install @easynvest/pm2-logstash
 RUN pm2 set pm2-logrotate:max_size 50Mb
-RUN pm2 set @easynvest/pm2-logstash:logstash_host 'taxiconnectna.com'
-RUN pm2 set @easynvest/pm2-logstash:logstash_port 9994
-RUN pm2 set @easynvest/pm2-logstash:logstash_type 'tcp'
+#RUN pm2 set @easynvest/pm2-logstash:logstash_host 'taxiconnectna.com'
+#RUN pm2 set @easynvest/pm2-logstash:logstash_port 9994
+#RUN pm2 set @easynvest/pm2-logstash:logstash_type 'tcp'
 RUN yarn install
 #nohup watch -n 900 -x pm2 reload all &
 

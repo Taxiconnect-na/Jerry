@@ -1147,7 +1147,10 @@ function sendStagedNotificationsDrivers(
         let driversFp = driversProfiles.map((data) => data.driver_fp); //Drivers fingerprints
         let driversPushNotif_token = driversProfiles.map((data) => {
           if (/online/i.test(data.operational_state.status)) {
-            return data.operational_state.push_notification_token.userId;
+            return data.operational_state.push_notification_token !== null &&
+              data.operational_state.push_notification_token !== undefined
+              ? data.operational_state.push_notification_token.userId
+              : null;
           } else {
             return null; //Only notify the drivers that are online.
           }
