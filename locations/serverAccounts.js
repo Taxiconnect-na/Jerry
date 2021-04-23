@@ -3734,7 +3734,7 @@ clientMongo.connect(function (err) {
       });
 
       //1. Generate and SMS the OTP
-      /*new Promise((res0) => {
+      new Promise((res0) => {
         let message =
           `<#> ` +
           otp +
@@ -3751,7 +3751,7 @@ clientMongo.connect(function (err) {
         (error) => {
           console.log(error);
         }
-      );*/
+      );
       //2. Check the user's status
       new Promise((res1) => {
         checkUserStatus(
@@ -3814,13 +3814,12 @@ clientMongo.connect(function (err) {
             }).then(
               () => {
                 //...
-                res.send(result);
               },
-              () => {
-                res.send(result);
-              }
+              () => {}
             );
           }
+          ///....
+          res.send(result);
         },
         (error) => {
           console.log(error);

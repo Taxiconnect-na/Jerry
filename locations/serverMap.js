@@ -4498,7 +4498,7 @@ clientMongo.connect(function (err) {
       );
 
       //Update rider's location - promise always
-      /*new Promise((resolve2) => {
+      new Promise((resolve2) => {
         updateRidersRealtimeLocationData(
           collectionRidersLocation_log,
           collectionDrivers_profiles,
@@ -4511,7 +4511,7 @@ clientMongo.connect(function (err) {
           //console.log("Location updated [rider]");
         },
         () => {}
-      );*/
+      );
     } //Invalid data
     else {
       res.send({ request_status: "no_rides" });
