@@ -209,7 +209,7 @@ function checkUserStatus(
   //...Check the user's status
   let checkUser = {
     phone_number: { $regex: userData.phone_number, $options: "i" },
-  };
+  }; //?Indexed
 
   //1. Passengers
   if (
@@ -380,7 +380,7 @@ function getBachRidesHistory(
           : {
               taxi_id: req.user_fingerprint,
               request_fp: req.request_fp,
-            };
+            }; //?Indexed
       //...
       res0(resolveResponse);
     }
@@ -455,7 +455,7 @@ function getBachRidesHistory(
                           .trim(),
                         $options: "i",
                       },
-                    };
+                    }; //?Indexed
                     //...
                     collectionRidesDeliveryData
                       .find(rideChecker)
@@ -1630,7 +1630,7 @@ function execGet_ridersDrivers_walletSummary(
         $regex: /(sentToFriend|paidDriver|sentToDriver|weeklyPaidDriverAutomatic|commissionTCSubtracted)/,
         $options: "i",
       },
-    };
+    }; //?Indexed
     //...
     collectionWalletTransactions_logs
       .find(filterReceived)
@@ -1680,7 +1680,7 @@ function execGet_ridersDrivers_walletSummary(
             $regex: /(topup|paidDriver|sentToDriver|sentToFriend)/,
             $options: "i",
           },
-        };
+        }; //?Indexed
         //...
         collectionWalletTransactions_logs
           .find(filterTopups)
@@ -3734,7 +3734,7 @@ clientMongo.connect(function (err) {
       });
 
       //1. Generate and SMS the OTP
-      new Promise((res0) => {
+      /*new Promise((res0) => {
         let message =
           `<#> ` +
           otp +
@@ -3751,7 +3751,7 @@ clientMongo.connect(function (err) {
         (error) => {
           console.log(error);
         }
-      );
+      );*/
       //2. Check the user's status
       new Promise((res1) => {
         checkUserStatus(
@@ -3887,7 +3887,7 @@ clientMongo.connect(function (err) {
               "account_verifications.phone_verification_secrets.otp": parseInt(
                 req.otp
               ),
-            };
+            }; //?Indexed
             //Check if it exists for this number
             collectionPassengers_profiles
               .find(checkOTP)
@@ -4447,7 +4447,11 @@ clientMongo.connect(function (err) {
                 });
               } //Unknown driver
               else {
-                res0({ response: "error_invalid_request" });
+                //res0({ response: "error_invalid_request" });
+                res0({
+                  response: "successfully_got",
+                  flag: driverData.operational_state.status,
+                });
               }
             });
         }).then(

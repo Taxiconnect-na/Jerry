@@ -141,7 +141,7 @@ function removeOldRequests_madeWithoutBeingAttended(
     taxi_id: false,
     "ride_state_vars.isAccepted": false,
     request_type: { $regex: /immediate/, $options: "i" }, //? Only handle immediate requests for now.
-  };
+  }; //?Indexed
   //..
   collectionRidesDeliveryData
     .find(requestFilter)
@@ -527,7 +527,7 @@ function scheduledRequestsWatcher_junky(
     request_type: { $regex: /scheduled/, $options: "i" },
     isArrivedToDestination: false,
     "ride_state_vars.isRideCompleted_driverSide": false,
-  };
+  }; //?Indexed
 
   collectionRidesDeliveryData
     .find(requestFilter0)

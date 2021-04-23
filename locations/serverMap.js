@@ -33,9 +33,11 @@ const e = require("express");
 const { resolve } = require("dns");
 const { stringify, parse } = require("flatted");
 
-const clientMongo = new MongoClient(process.env.URL_MONGODB, {
+const clientMongo = new MongoClient(
+  process.env.URL_MONGODB /*, {
   useUnifiedTopology: true,
-});
+}*/
+);
 
 function resolveDate() {
   //Resolve date
@@ -926,6 +928,8 @@ function tripChecker_Dispatcher(
           intentional_request_decline: { $not: { $regex: user_fingerprint } },
         };
 
+        //-----
+
         collectionRidesDeliveries_data
           .find(checkRide0)
           .toArray(function (err, acceptedRidesArray) {
@@ -1223,7 +1227,78 @@ function execGetDrivers_requests_and_provide(
     let request_type_regex = /scheduled/i.test(requestType)
       ? "scheduled"
       : "immediate"; //For scheduled requests display or not.
+
+    /*let requestFilter = {
+      taxi_id: false, //ok
+      isArrivedToDestination: false,
+      "pickup_location_infos.city": {
+        $regex:
+          driverData.operational_state.last_location !== null &&
+          driverData.operational_state.last_location.city &&
+          driverData.operational_state.last_location.city !== undefined
+            ? driverData.operational_state.last_location.city
+            : "Windhoek",
+        $options: "i",
+      },
+      country: {
+        $regex:
+          driverData.operational_state.last_location !== null &&
+          driverData.operational_state.last_location.country &&
+          driverData.operational_state.last_location.country !== undefined
+            ? driverData.operational_state.last_location.country
+            : "Namibia",
+        $options: "i",
+      },
+      carTypeSelected: {
+        $regex: driverData.operational_state.default_selected_car.vehicle_type,
+        $options: "i",
+      },
+      allowed_drivers_see: driverData.driver_fingerprint, //ok
+      intentional_request_decline: {
+        $not: { $regex: driverData.driver_fingerprint },
+      },
+      request_type: {
+        $regex: /scheduled/i.test(requestType) ? "scheduled" : "immediate",
+        $options: "i",
+      }, //Shceduled or immediate rides/deliveries
+    };*/
     let requestFilter = {
+      taxi_id: false, //ok
+      isArrivedToDestination: false,
+      /*"pickup_location_infos.city": {
+        $regex:
+          driverData.operational_state.last_location !== null &&
+          driverData.operational_state.last_location.city &&
+          driverData.operational_state.last_location.city !== undefined
+            ? driverData.operational_state.last_location.city
+            : "Windhoek",
+        $options: "i",
+      },
+      country: {
+        $regex:
+          driverData.operational_state.last_location !== null &&
+          driverData.operational_state.last_location.country &&
+          driverData.operational_state.last_location.country !== undefined
+            ? driverData.operational_state.last_location.country
+            : "Namibia",
+        $options: "i",
+      },*/
+      carTypeSelected: {
+        $regex: driverData.operational_state.default_selected_car.vehicle_type,
+        $options: "i",
+      },
+      allowed_drivers_see: driverData.driver_fingerprint, //ok
+      intentional_request_decline: {
+        $not: { $regex: driverData.driver_fingerprint },
+      },
+      /*request_type: {
+        $regex: /scheduled/i.test(requestType) ? "scheduled" : "immediate",
+        $options: "i",
+      },*/ //Shceduled or immediate rides/deliveries
+    };
+
+    //---
+    /*let requestFilter = {
       taxi_id: false,
       "ride_state_vars.isAccepted": false,
       "ride_state_vars.isRideCompleted_driverSide": false,
@@ -1257,7 +1332,7 @@ function execGetDrivers_requests_and_provide(
         $options: "i",
       },
       request_type: { $regex: request_type_regex, $options: "i" }, //Shceduled or immediate rides/deliveries
-    };
+    };*/
     console.log(requestFilter);
     //...
     collectionRidesDeliveries_data
@@ -1773,7 +1848,7 @@ function getMongoRecordTrip_cacheLater(
   let queryFilter = {
     client_id: user_fingerprint,
     request_fp: request_fp,
-  };
+  }; //? Indexed
   collectionRidesDeliveries_data
     .find(queryFilter)
     .toArray(function (err, result) {
@@ -1804,6 +1879,7 @@ function computeRouteDetails_skeleton(
     if (rideHistory.ride_state_vars.isAccepted) {
       console.log("request accepted");
       //Get all the driver's informations
+      //? Indexed
       collectionDrivers_profiles
         .find({ driver_fingerprint: rideHistory.taxi_id })
         .toArray(function (err, driverProfile) {
@@ -3439,7 +3515,7 @@ function getFreshProximity_driversList(
       req.vehicle_type !== undefined && req.vehicle_type !== false
         ? { $regex: req.vehicle_type, $options: "i" }
         : { $regex: /[a-zA-Z]/, $options: "i" },
-  };
+  }; //?Indexed
   //...
   collectionDrivers_profiles
     .find(driverFilter)
@@ -4422,7 +4498,7 @@ clientMongo.connect(function (err) {
       );
 
       //Update rider's location - promise always
-      new Promise((resolve2) => {
+      /*new Promise((resolve2) => {
         updateRidersRealtimeLocationData(
           collectionRidersLocation_log,
           collectionDrivers_profiles,
@@ -4435,7 +4511,7 @@ clientMongo.connect(function (err) {
           //console.log("Location updated [rider]");
         },
         () => {}
-      );
+      );*/
     } //Invalid data
     else {
       res.send({ request_status: "no_rides" });

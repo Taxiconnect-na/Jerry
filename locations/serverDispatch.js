@@ -1489,7 +1489,7 @@ function registerAllowedDriversForRidesAndNotify(
   let checkAcceptance = {
     "ride_state_vars.isAccepted": false,
     request_fp: request_fp,
-  };
+  }; //?Indexed
   collectionRidesDeliveryData
     .find(checkAcceptance)
     .toArray(function (err, requestInfos) {
@@ -1589,7 +1589,7 @@ function registerAllowedDriversForRidesAndNotify(
         let checkAcceptance = {
           "ride_state_vars.isRideCompleted_driverSide": false,
           request_fp: request_fp,
-        };
+        }; //?Indexed
         collectionRidesDeliveryData
           .find(checkAcceptance)
           .toArray(function (err, requestInfos) {
@@ -3228,7 +3228,7 @@ clientMongo.connect(function (err) {
       let checkPrevRequest = {
         client_id: { $regex: req.user_fingerprint },
         isArrivedToDestination: false,
-      };
+      }; //?Indexed
       collectionRidesDeliveryData
         .find(checkPrevRequest)
         .toArray(function (err, prevRequest) {
