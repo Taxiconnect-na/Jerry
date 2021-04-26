@@ -140,11 +140,12 @@ function removeOldRequests_madeWithoutBeingAttended(
   let requestFilter = {
     taxi_id: false,
     "ride_state_vars.isAccepted": false,
-    request_type: { $regex: /immediate/, $options: "i" }, //? Only handle immediate requests for now.
+    request_type: "immediate", //? Only handle immediate requests for now.
   }; //?Indexed
   //..
   collectionRidesDeliveryData
     .find(requestFilter)
+    .collation({ locale: "en", strength: 2 })
     .toArray(function (err, holdRequests) {
       if (err) {
         resolve({ response: "error", flag: "unable_to_clean_x_hold_requests" });
@@ -349,12 +350,10 @@ function updateNext_paymentDateDrivers(
 
           collectionWalletTransactions_logs
             .find({
-              flag_annotation: {
-                $regex: /startingPoint_forFreshPayouts/,
-                $options: "i",
-              },
+              flag_annotation: "startingPoint_forFreshPayouts",
               user_fingerprint: driverData.driver_fingerprint,
             })
+            .collation({ locale: "en", strength: 2 })
             .toArray(function (err, referenceData) {
               if (err) {
                 resPaymentCycle(false);
@@ -400,10 +399,7 @@ function updateNext_paymentDateDrivers(
                     //...
                     collectionWalletTransactions_logs.updateOne(
                       {
-                        flag_annotation: {
-                          $regex: /startingPoint_forFreshPayouts/,
-                          $options: "i",
-                        },
+                        flag_annotation: "startingPoint_forFreshPayouts",
                         user_fingerprint: driverData.driver_fingerprint,
                       },
                       {
@@ -430,10 +426,7 @@ function updateNext_paymentDateDrivers(
                     //?----
                     collectionWalletTransactions_logs.updateOne(
                       {
-                        flag_annotation: {
-                          $regex: /startingPoint_forFreshPayouts/,
-                          $options: "i",
-                        },
+                        flag_annotation: "startingPoint_forFreshPayouts",
                         user_fingerprint: driverData.driver_fingerprint,
                       },
                       {
@@ -524,13 +517,14 @@ function scheduledRequestsWatcher_junky(
 ) {
   //1. Get all the scheduled requests not done yet
   let requestFilter0 = {
-    request_type: { $regex: /scheduled/, $options: "i" },
+    request_type: "scheduled",
     isArrivedToDestination: false,
     "ride_state_vars.isRideCompleted_driverSide": false,
   }; //?Indexed
 
   collectionRidesDeliveryData
     .find(requestFilter0)
+    .collation({ locale: "en", strength: 2 })
     .toArray(function (err, dataScheduledRequests) {
       if (err) {
         console.log(err);
@@ -946,36 +940,38 @@ function requestsDriverSubscriber_watcher(
                 //Auto subscribe all
                 //Get all the driver's fp of the same city and country
                 let driverFilter = {
-                  "operational_state.status": {
-                    $regex: /(offline|online)/,
-                    $options: "i",
-                  },
-                  "operational_state.last_location.city": {
-                    $regex:
-                      /false/i.test(request.pickup_location_infos.city) ||
-                      request.pickup_location_infos.city === false
-                        ? "Windhoek"
-                        : request.pickup_location_infos.city,
-                    $options: "i",
-                  },
-                  "operational_state.last_location.country": {
-                    $regex: request.country,
-                    $options: "i",
-                  },
-                  operation_clearances: {
-                    $regex: request.ride_mode,
-                    $options: "i",
-                  },
+                  "operational_state.status": { $in: ["offline", "online"] },
+                  "operational_state.last_location.city":
+                    /false/i.test(request.pickup_location_infos.city) ||
+                    request.pickup_location_infos.city === false
+                      ? "Windhoek"
+                      : request.pickup_location_infos.city,
+                  "operational_state.last_location.country": request.country,
+                  operation_clearances: request.ride_mode,
                   //Filter the drivers based on the vehicle type if provided
                   "operational_state.default_selected_car.vehicle_type":
                     request.carTypeSelected !== undefined &&
                     request.carTypeSelected !== false
-                      ? { $regex: request.carTypeSelected, $options: "i" }
-                      : { $regex: /[a-zA-Z]/, $options: "i" },
+                      ? request.carTypeSelected
+                      : {
+                          $in: [
+                            "normalTaxiEconomy",
+                            "electricEconomy",
+                            "comfortNormalRide",
+                            "comfortElectricRide",
+                            "luxuryNormalRide",
+                            "luxuryElectricRide",
+                            "electricBikes",
+                            "bikes",
+                            "carDelivery",
+                            "vanDelivery",
+                          ],
+                        },
                 };
                 //...
                 collectionDrivers_profiles
                   .find(driverFilter)
+                  .collation({ locale: "en", strength: 2 })
                   .toArray(function (err, driversFullData) {
                     if (err) {
                       console.log(err);
@@ -1288,7 +1284,7 @@ clientMongo.connect(function (err) {
       });
 
     //? 4. Observe all the subscribeless requests
-    new Promise((res4) => {
+    /*new Promise((res4) => {
       requestsDriverSubscriber_watcher(
         collectionRidesDeliveryData,
         collectionDrivers_profiles,
@@ -1305,7 +1301,7 @@ clientMongo.connect(function (err) {
       )
       .catch((error) => {
         console.log(error);
-      });
+      });*/
   }, process.env.INTERVAL_PERSISTER_MAIN_WATCHER_MILLISECONDS);
 });
 

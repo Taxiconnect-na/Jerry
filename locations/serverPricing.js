@@ -697,9 +697,9 @@ function execMongoSearchAutoComplete(
   resolveDate();
   //Check mongodb for previous record
   let findPrevQuery = {
-    location_name: { $regex: locationInfos.location_name },
-    city: { $regex: locationInfos.city },
-    street_name: { $regex: locationInfos.street_name },
+    location_name: locationInfos.location_name,
+    city: locationInfos.city,
+    street_name: locationInfos.street_name,
   };
   collectionSavedSuburbResults
     .find(findPrevQuery)
@@ -1046,120 +1046,120 @@ function estimateFullVehiclesCatPrices(
     //Check
     //Get the list of all the vehicles corresponding to the ride type (RIDE or DELIVERY), country, city and availability (AVAILABLE)
     let filterQuery = {
-      ride_type: { $regex: completedInputData.ride_mode, $options: "i" },
-      country: { $regex: completedInputData.country, $options: "i" },
-      city: {
-        $regex: completedInputData.pickup_location_infos.city,
-        $options: "i",
-      },
-      availability: { $regex: "available", $options: "i" },
+      ride_type: completedInputData.ride_mode,
+      country: completedInputData.country,
+      city: completedInputData.pickup_location_infos.city,
+      availability: { $in: ["available", "unavailable"] },
     };
-    collectionVehiclesInfos.find(filterQuery).toArray(function (err, result) {
-      if (result.length > 0) {
-        //Found something
-        let genericRidesInfos = result;
-        //Get all the city's price map (cirteria: city, country and pickup)
-        new Promise((res) => {
-          filterQuery = {
-            country: completedInputData.country,
-            city: completedInputData.pickup_location_infos.city,
-            pickup_suburb: completedInputData.pickup_location_infos.suburb
-              .toUpperCase()
-              .trim(),
-          };
-          collectionPricesLocationsMap
-            .find(filterQuery)
-            .toArray(function (err, result) {
-              if (result.length > 0) {
-                //Found corresponding prices maps
-                res(result);
-              } //No prices map found - Set default prices NAD 12 - non realistic and fixed prices
-              else {
-                //Did not find suburbs with mathing suburbs included
-                //Register in mongo
-                new Promise((resX) => {
-                  //Schema
-                  //{point1_suburb:XXXX, point2_suburb:XXXX, city:XXX, country:XXX, date:XXX}
-                  let queryNoMatch = {
-                    point1_suburb:
-                      completedInputData.pickup_location_infos.suburb,
-                    point2_suburb: "ANY",
-                    city: completedInputData.pickup_location_infos.city,
-                    country: completedInputData.country,
-                    date: new Date(chaineDateUTC),
-                  };
-                  let checkQuery = {
-                    point1_suburb:
-                      completedInputData.pickup_location_infos.suburb,
-                    point2_suburb: "ANY",
-                    city: completedInputData.pickup_location_infos.city,
-                    country: completedInputData.country,
-                  };
-                  //Check to avoid duplicates
-                  collectionNotFoundSubursPricesMap
-                    .find(checkQuery)
-                    .toArray(function (err, resultX) {
-                      if (resultX.length <= 0) {
-                        //New record
-                        collectionNotFoundSubursPricesMap.insertOne(
-                          queryNoMatch,
-                          function (err, res) {
-                            console.log("New record added");
-                            resX(true);
-                          }
-                        );
-                      }
-                    });
-                }).then(
-                  () => {},
-                  () => {}
-                );
-                res([
-                  { pickup_suburb: false, fare: 12 },
-                  { pickup_suburb: false, fare: 12 },
-                  { pickup_suburb: false, fare: 12 },
-                  { pickup_suburb: false, fare: 12 },
-                ]);
-              }
-            });
-        }).then(
-          (reslt) => {
-            let globalPricesMap = reslt;
-            //call computeInDepthPricesMap
-            new Promise((res) => {
-              computeInDepthPricesMap(
-                res,
-                completedInputData,
-                globalPricesMap,
-                genericRidesInfos,
-                collectionNotFoundSubursPricesMap
-              );
-            }).then(
-              (reslt) => {
-                //DONE
-                if (reslt !== false) {
-                  resolve(reslt);
-                } //Error
+    collectionVehiclesInfos
+      .find(filterQuery)
+      .collation({ locale: "en", strength: 2 })
+      .toArray(function (err, result) {
+        if (result.length > 0) {
+          //Found something
+          let genericRidesInfos = result;
+          //Get all the city's price map (cirteria: city, country and pickup)
+          new Promise((res) => {
+            filterQuery = {
+              country: completedInputData.country,
+              city: completedInputData.pickup_location_infos.city,
+              pickup_suburb: completedInputData.pickup_location_infos.suburb
+                .toUpperCase()
+                .trim(),
+            };
+            collectionPricesLocationsMap
+              .find(filterQuery)
+              .toArray(function (err, result) {
+                if (result.length > 0) {
+                  //Found corresponding prices maps
+                  res(result);
+                } //No prices map found - Set default prices NAD 12 - non realistic and fixed prices
                 else {
+                  //Did not find suburbs with mathing suburbs included
+                  //Register in mongo
+                  new Promise((resX) => {
+                    //Schema
+                    //{point1_suburb:XXXX, point2_suburb:XXXX, city:XXX, country:XXX, date:XXX}
+                    let queryNoMatch = {
+                      point1_suburb:
+                        completedInputData.pickup_location_infos.suburb,
+                      point2_suburb: "ANY",
+                      city: completedInputData.pickup_location_infos.city,
+                      country: completedInputData.country,
+                      date: new Date(chaineDateUTC),
+                    };
+                    let checkQuery = {
+                      point1_suburb:
+                        completedInputData.pickup_location_infos.suburb,
+                      point2_suburb: "ANY",
+                      city: completedInputData.pickup_location_infos.city,
+                      country: completedInputData.country,
+                    };
+                    //Check to avoid duplicates
+                    collectionNotFoundSubursPricesMap
+                      .find(checkQuery)
+                      .toArray(function (err, resultX) {
+                        if (resultX.length <= 0) {
+                          //New record
+                          collectionNotFoundSubursPricesMap.insertOne(
+                            queryNoMatch,
+                            function (err, res) {
+                              console.log("New record added");
+                              resX(true);
+                            }
+                          );
+                        }
+                      });
+                  }).then(
+                    () => {},
+                    () => {}
+                  );
+                  res([
+                    { pickup_suburb: false, fare: 12 },
+                    { pickup_suburb: false, fare: 12 },
+                    { pickup_suburb: false, fare: 12 },
+                    { pickup_suburb: false, fare: 12 },
+                  ]);
+                }
+              });
+          }).then(
+            (reslt) => {
+              let globalPricesMap = reslt;
+              //call computeInDepthPricesMap
+              new Promise((res) => {
+                computeInDepthPricesMap(
+                  res,
+                  completedInputData,
+                  globalPricesMap,
+                  genericRidesInfos,
+                  collectionNotFoundSubursPricesMap
+                );
+              }).then(
+                (reslt) => {
+                  //DONE
+                  if (reslt !== false) {
+                    resolve(reslt);
+                  } //Error
+                  else {
+                    resolve(false);
+                  }
+                },
+                (error) => {
+                  console.log(error);
                   resolve(false);
                 }
-              },
-              (error) => {
-                console.log(error);
-                resolve(false);
-              }
-            );
-          },
-          (error) => {
-            console.log(error);
-            resolve(false);
-          }
-        );
-      } //No rides at all
-      else {
-        resolve({ response: "no_available_rides" });
-      }
-    });
+              );
+            },
+            (error) => {
+              console.log(error);
+              resolve(false);
+            }
+          );
+        } //No rides at all
+        else {
+          resolve({ response: "no_available_rides" });
+        }
+      });
   } //Invalid data
   else {
     console.log("Invalid data");

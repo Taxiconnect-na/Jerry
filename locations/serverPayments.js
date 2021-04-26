@@ -710,14 +710,11 @@ function checkReceipient_walletTransaction(
   //...
   if (/friend/i.test(dataBundle.user_nature)) {
     //To friends/family - check the phone number
-    dataBundle.payNumberOrPhoneNumber = dataBundle.payNumberOrPhoneNumber
+    let phoneWithoutPlusSigne = dataBundle.payNumberOrPhoneNumber
       .replace("+", "")
       .trim(); //? Critical, should only contain digits
     let regFiler = {
-      phone_number: {
-        $regex: dataBundle.payNumberOrPhoneNumber,
-        $options: "i",
-      },
+      phone_number: dataBundle.payNumberOrPhoneNumber.trim(),
     };
     //...
     collectionPassengers_profiles
@@ -992,10 +989,7 @@ function checkNonSelf_sendingFunds_user(
     //To friend - check
     collectionPassengers_profiles
       .find({
-        phone_number: {
-          $regex: payNumberOrPhoneNumber.replace("+", "").trim(),
-          $options: "i",
-        },
+        phone_number: payNumberOrPhoneNumber.trim(),
       })
       .toArray(function (err, senderDetails) {
         if (err) {

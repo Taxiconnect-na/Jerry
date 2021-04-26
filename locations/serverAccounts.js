@@ -208,8 +208,10 @@ function checkUserStatus(
   );
   //...Check the user's status
   let checkUser = {
-    phone_number: { $regex: userData.phone_number, $options: "i" },
+    phone_number: { $regex: userData.phone_number.replace("+", "").trim() },
   }; //?Indexed
+
+  console.log(checkUser);
 
   //1. Passengers
   if (
@@ -338,11 +340,11 @@ function getBachRidesHistory(
           /rider/i.test(req.user_nature)
             ? {
                 client_id: req.user_fingerprint,
-                request_type: { $regex: /^scheduled$/, $options: "i" },
+                request_type: "scheduled",
               }
             : {
                 taxi_id: req.user_fingerprint,
-                request_type: { $regex: /^scheduled$/, $options: "i" },
+                request_type: "scheduled",
               };
         //...
         res0(resolveResponse);
@@ -354,11 +356,11 @@ function getBachRidesHistory(
           /rider/i.test(req.user_nature)
             ? {
                 client_id: req.user_fingerprint,
-                ride_flag: { $regex: /business/, $options: "i" },
+                ride_flag: "business",
               }
             : {
                 taxi_id: req.user_fingerprint,
-                ride_flag: { $regex: /business/, $options: "i" },
+                ride_flag: "business",
               };
         //...
         res0(resolveResponse);
@@ -391,6 +393,7 @@ function getBachRidesHistory(
         //Get the mongodb data
         collectionRidesDeliveryData
           .find(result)
+          .collation({ locale: "en", strength: 2 })
           .toArray(function (error, ridesData) {
             if (error) {
               resolve({ response: "error_authentication_failed" });
@@ -431,7 +434,7 @@ function getBachRidesHistory(
               //Get the rider's inos
               collectionPassengers_profiles
                 .find({
-                  user_fingerprint: { $regex: req.user_fingerprint },
+                  user_fingerprint: req.user_fingerprint.trim(),
                 })
                 .toArray(function (err, riderData) {
                   if (err) {
@@ -444,21 +447,16 @@ function getBachRidesHistory(
                     let rideChecker = {
                       "ride_state_vars.isRideCompleted_riderSide": true,
                       request_type: /scheduled/i.test(req.ride_type)
-                        ? { $regex: /^scheduled$/, $options: "i" }
+                        ? "scheduled"
                         : {
-                            $regex: /(scheduled|business|immediate)/,
-                            $options: "i",
+                            $in: ["scheduled", "business", "immediate"],
                           },
-                      "delivery_infos.receiverPhone_delivery": {
-                        $regex: riderData[0].phone_number
-                          .replace("+", "")
-                          .trim(),
-                        $options: "i",
-                      },
+                      "delivery_infos.receiverPhone_delivery": riderData[0].phone_number.trim(),
                     }; //?Indexed
                     //...
                     collectionRidesDeliveryData
                       .find(rideChecker)
+                      .collation({ locale: "en", strength: 2 })
                       .toArray(function (err, tripData) {
                         if (err) {
                           resolve(false);
@@ -1627,13 +1625,19 @@ function execGet_ridersDrivers_walletSummary(
     let filterReceived = {
       recipient_fp: requestObj.user_fingerprint,
       transaction_nature: {
-        $regex: /(sentToFriend|paidDriver|sentToDriver|weeklyPaidDriverAutomatic|commissionTCSubtracted)/,
-        $options: "i",
+        $in: [
+          "sentToFriend",
+          "paidDriver",
+          "sentToDriver",
+          "weeklyPaidDriverAutomatic",
+          "commissionTCSubtracted",
+        ],
       },
     }; //?Indexed
     //...
     collectionWalletTransactions_logs
       .find(filterReceived)
+      .collation({ locale: "en", strength: 2 })
       .toArray(function (err, resultTransactionsReceived) {
         if (err) {
           console.log(err);
@@ -1677,13 +1681,13 @@ function execGet_ridersDrivers_walletSummary(
         let filterTopups = {
           user_fingerprint: requestObj.user_fingerprint,
           transaction_nature: {
-            $regex: /(topup|paidDriver|sentToDriver|sentToFriend)/,
-            $options: "i",
+            $in: ["topup", "paidDriver", "sentToDriver", "sentToFriend"],
           },
         }; //?Indexed
         //...
         collectionWalletTransactions_logs
           .find(filterTopups)
+          .collation({ locale: "en", strength: 2 })
           .toArray(function (err, resultTransactions) {
             if (err) {
               console.log(err);
@@ -2770,12 +2774,10 @@ function execGet_driversDeepInsights_fromWalletData(
                       //? Find the last payout and from there - compute the next one
                       collectionWalletTransactions_logs
                         .find({
-                          transaction_nature: {
-                            $regex: /startingPoint_forFreshPayouts/,
-                            $options: "i",
-                          },
+                          transaction_nature: "startingPoint_forFreshPayouts",
                           recipient_fp: driver_fingerprint,
                         })
+                        .collation({ locale: "en", strength: 2 })
                         .toArray(function (err, resultLastPayout) {
                           if (err) {
                             resFindNexyPayoutDate(false);
@@ -2796,12 +2798,11 @@ function execGet_driversDeepInsights_fromWalletData(
                             //! Annotation string: startingPoint_forFreshPayouts
                             collectionWalletTransactions_logs
                               .find({
-                                flag_annotation: {
-                                  $regex: /startingPoint_forFreshPayouts/,
-                                  $options: "i",
-                                },
+                                flag_annotation:
+                                  "startingPoint_forFreshPayouts",
                                 user_fingerprint: driver_fingerprint,
                               })
+                              .collation({ locale: "en", strength: 2 })
                               .toArray(function (err, referenceData) {
                                 if (err) {
                                   resFindNexyPayoutDate(false);
@@ -2942,12 +2943,10 @@ function execGet_driversDeepInsights_fromWalletData(
       //? Find the last payout and from there - compute the next one
       collectionWalletTransactions_logs
         .find({
-          transaction_nature: {
-            $regex: /weeklyPaidDriverAutomatic/,
-            $options: "i",
-          },
+          transaction_nature: "weeklyPaidDriverAutomatic",
           recipient_fp: driver_fingerprint,
         })
+        .collation({ locale: "en", strength: 2 })
         .toArray(function (err, resultLastPayout) {
           if (err) {
             resFindNexyPayoutDate(false);
@@ -2971,12 +2970,10 @@ function execGet_driversDeepInsights_fromWalletData(
             //! Annotation string: startingPoint_forFreshPayouts
             collectionWalletTransactions_logs
               .find({
-                flag_annotation: {
-                  $regex: /startingPoint_forFreshPayouts/,
-                  $options: "i",
-                },
+                flag_annotation: "startingPoint_forFreshPayouts",
                 user_fingerprint: driver_fingerprint,
               })
+              .collation({ locale: "en", strength: 2 })
               .toArray(function (err, referenceData) {
                 if (err) {
                   resFindNexyPayoutDate(false);
@@ -3666,6 +3663,59 @@ function updateRiders_generalProfileInfos(
 }
 
 /**
+ * @func getDriver_onlineOffline_status
+ * GET DRIVER ONLINE OR OFFLINE STATUS
+ * Responsible for getting the driver's online or offline status.
+ * @param req: request generic data
+ * @param resolve
+ */
+function getDriver_onlineOffline_status(req, resolve) {
+  //Get information about the state
+  new Promise((res0) => {
+    collectionDrivers_profiles
+      .find({ driver_fingerprint: req.driver_fingerprint })
+      .toArray(function (err, driverData) {
+        if (err) {
+          console.log(err);
+          res0({ response: "error_invalid_request" });
+        }
+        //...
+        if (
+          driverData !== undefined &&
+          driverData !== null &&
+          driverData[0] !== undefined &&
+          driverData[0] !== null &&
+          driverData[0].operational_state !== undefined &&
+          driverData[0].operational_state !== null &&
+          driverData.length > 0
+        ) {
+          driverData = driverData[0];
+          //Valid driver
+          res0({
+            response: "successfully_got",
+            flag: driverData.operational_state.status,
+          });
+        } //Unknown driver
+        else {
+          //res0({ response: "error_invalid_request" });
+          res0({
+            response: "successfully_got",
+            flag: driverData.operational_state.status,
+          });
+        }
+      });
+  }).then(
+    (result) => {
+      resolve(result);
+    },
+    (error) => {
+      console.log(error);
+      resolve({ response: "error_invalid_request" });
+    }
+  );
+}
+
+/**
  * MAIN
  */
 var collectionPassengers_profiles = null;
@@ -3723,7 +3773,8 @@ clientMongo.connect(function (err) {
       req.phone_number !== null &&
       req.phone_number.length > 8
     ) {
-      req.phone_number = req.phone_number.replace("+", "").trim(); //Critical, should only contain digits
+      req.phone_number = req.phone_number.trim();
+      let onlyDigitsPhone = req.phone_number.replace("+", "").trim(); //Critical, should only contain digits
       //Ok
       //! ADD DEBUG TEST DATA -> CODE 88766
       //Send the message then check the passenger's status
@@ -3743,7 +3794,7 @@ clientMongo.connect(function (err) {
               ? req.smsHashLinker
               : "QEg7axwB9km"
           }`;
-        SendSMSTo(req.phone_number, message);
+        SendSMSTo(onlyDigitsPhone, message);
         res0(true);
         //SMS
       }).then(
@@ -3848,11 +3899,12 @@ clientMongo.connect(function (err) {
       req.otp !== null
     ) {
       req.phone_number = req.phone_number.replace("+", "").trim(); //Critical, should only contain digits
+
       new Promise((res0) => {
         if (/^unregistered$/i.test(req.user_nature.trim())) {
           //Checking for unregistered users
           let checkOTP = {
-            phone_number: req.phone_number,
+            phone_number: { $regex: req.phone_number },
             otp: parseFloat(req.otp),
           };
           //Check if it exists for this number
@@ -3882,7 +3934,7 @@ clientMongo.connect(function (err) {
           ) {
             console.log("Passenger");
             let checkOTP = {
-              phone_number: { $regex: req.phone_number, $options: "i" },
+              phone_number: { $regex: req.phone_number },
               "account_verifications.phone_verification_secrets.otp": parseInt(
                 req.otp
               ),
@@ -3911,7 +3963,7 @@ clientMongo.connect(function (err) {
             console.log(req);
             //2. Drivers
             let checkOTP = {
-              phone_number: { $regex: req.phone_number, $options: "i" },
+              phone_number: { $regex: req.phone_number },
               "account_verifications.phone_verification_secrets.otp": parseInt(
                 req.otp
               ),
@@ -4273,6 +4325,7 @@ clientMongo.connect(function (err) {
   /**
    * Go ONLINE/OFFLINE FOR DRIVERS
    * Responsible for going online or offline for drivers / or getting the operational status of drivers (online/offline).
+   * ! Use Caching
    * @param driver_fingerprint
    * @param state: online or offline
    */
@@ -4281,6 +4334,7 @@ clientMongo.connect(function (err) {
     let params = urlParser.parse(req.url, true);
     req = params.query;
     console.log(req);
+    let redisKey = "offline_online_status-" + req.driver_fingerprint;
 
     if (
       req.driver_fingerprint !== undefined &&
@@ -4419,47 +4473,70 @@ clientMongo.connect(function (err) {
           }
         );
       } else if (/get/i.test(req.action)) {
-        //Get information about the state
-        new Promise((res0) => {
-          collectionDrivers_profiles
-            .find({ driver_fingerprint: req.driver_fingerprint })
-            .toArray(function (err, driverData) {
-              if (err) {
-                console.log(err);
-                res0({ response: "error_invalid_request" });
-              }
-              //...
-              if (
-                driverData !== undefined &&
-                driverData !== null &&
-                driverData[0] !== undefined &&
-                driverData[0] !== null &&
-                driverData[0].operational_state !== undefined &&
-                driverData[0].operational_state !== null &&
-                driverData.length > 0
-              ) {
-                driverData = driverData[0];
-                //Valid driver
-                res0({
-                  response: "successfully_got",
-                  flag: driverData.operational_state.status,
+        //Check the cache first
+        redisGet(redisKey).then(
+          (resp) => {
+            if (resp !== null) {
+              //Found a cached result
+              //? Update the cache in background
+              new Promise((resGetStatus) => {
+                getDriver_onlineOffline_status(req, resGetStatus);
+              })
+                .then(
+                  (result) => {
+                    //!Cache the result
+                    client.set(redisKey, stringify(result));
+                  },
+                  (error) => {}
+                )
+                .catch();
+              //Quickly return result
+              res.send(parse(resp));
+            } //Make a fresh request
+            else {
+              new Promise((resGetStatus) => {
+                getDriver_onlineOffline_status(req, resGetStatus);
+              })
+                .then(
+                  (result) => {
+                    //!Cache the result
+                    client.set(redisKey, stringify(result));
+                    //...
+                    res.send(result);
+                  },
+                  (error) => {
+                    console.log(error);
+                    res.send({ response: "error_invalid_request" });
+                  }
+                )
+                .catch((error) => {
+                  console.log(error);
+                  res.send({ response: "error_invalid_request" });
                 });
-              } //Unknown driver
-              else {
-                //res0({ response: "error_invalid_request" });
-                res0({
-                  response: "successfully_got",
-                  flag: driverData.operational_state.status,
-                });
-              }
-            });
-        }).then(
-          (result) => {
-            res.send(result);
+            }
           },
           (error) => {
+            //Make a fresh request
             console.log(error);
-            res.send({ response: "error_invalid_request" });
+            new Promise((resGetStatus) => {
+              getDriver_onlineOffline_status(req, resGetStatus);
+            })
+              .then(
+                (result) => {
+                  //!Cache the result
+                  client.set(redisKey, stringify(result));
+                  //...
+                  res.send(result);
+                },
+                (error) => {
+                  console.log(error);
+                  res.send({ response: "error_invalid_request" });
+                }
+              )
+              .catch((error) => {
+                console.log(error);
+                res.send({ response: "error_invalid_request" });
+              });
           }
         );
       }

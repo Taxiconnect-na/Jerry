@@ -981,7 +981,25 @@ function intitiateStagedDispatch(
   /**
    * Can use @param includeOfflineDrivers to also subscribe offline drivers to a request.
    */
-  let url =
+  new Promise((res) => {
+    sendStagedNotificationsDrivers(
+      false,
+      snapshotTripInfos,
+      collectionDrivers_profiles,
+      collectionRidesDeliveryData,
+      res
+    );
+  }).then(
+    (result) => {
+      console.log(result);
+      resolve(result);
+    },
+    (error) => {
+      console.log(error);
+      resolve(false);
+    }
+  );
+  /*let url =
     process.env.LOCAL_URL +
     ":" +
     process.env.MAP_SERVICE_PORT +
@@ -1067,7 +1085,7 @@ function intitiateStagedDispatch(
         }
       );
     }
-  });
+  });*/
 }
 
 /**
@@ -1097,34 +1115,26 @@ function sendStagedNotificationsDrivers(
   collectionRidesDeliveryData,
   resolve
 ) {
-  if (closestDriversList === false || closestDriversList[0] === undefined) {
+  if (
+    true /*closestDriversList === false || closestDriversList[0] === undefined*/
+  ) {
     //Send to all the drivers
     //1. Filter the drivers based on trip requirements
     //2. Register their fp in the allowed_drivers_see on the requests
     //3. Send the notifications to each selected one.
     let driverFilter = {
-      "operational_state.status": { $regex: /(offline|online)/i },
-      "operational_state.last_location.city": {
-        $regex: snapshotTripInfos.city,
-        $options: "i",
-      },
-      "operational_state.last_location.country": {
-        $regex: snapshotTripInfos.country,
-        $options: "i",
-      },
-      operation_clearances: {
-        $regex: snapshotTripInfos.ride_type,
-        $options: "i",
-      },
+      "operational_state.status": { $in: ["offline", "online"] },
+      /*"operational_state.last_location.city": snapshotTripInfos.city,
+      "operational_state.last_location.country": snapshotTripInfos.country,
+      operation_clearances: snapshotTripInfos.ride_type,*/
       //Filter the drivers based on the vehicle type if provided
-      "operational_state.default_selected_car.vehicle_type": {
-        $regex: snapshotTripInfos.vehicle_type,
-        $options: "i",
-      },
+      "operational_state.default_selected_car.vehicle_type":
+        snapshotTripInfos.vehicle_type,
     };
     //..
     collectionDrivers_profiles
       .find(driverFilter)
+      .collation({ locale: "en", strength: 2 })
       .toArray(function (err, driversProfiles) {
         //Filter the drivers based on their car's maximum capacity (the amount of passengers it can handle)
         //They can receive 3 additional requests on top of the limit of sits in their selected cars.
@@ -1852,9 +1862,9 @@ function acceptRequest_driver(
     .find({
       request_fp: bundleWorkingData.request_fp,
       taxi_id: false,
-      intentional_request_decline: {
-        $not: { $regex: bundleWorkingData.driver_fingerprint },
-      },
+      /*intentional_request_decline: {
+        $not: bundleWorkingData.driver_fingerprint,
+      },*/
     })
     .toArray(function (err, result) {
       if (err) {
@@ -1893,9 +1903,9 @@ function acceptRequest_driver(
                 {
                   request_fp: bundleWorkingData.request_fp,
                   taxi_id: false,
-                  intentional_request_decline: {
-                    $not: { $regex: bundleWorkingData.driver_fingerprint },
-                  },
+                  /*intentional_request_decline: {
+                    $not: bundleWorkingData.driver_fingerprint,
+                  },*/
                 },
                 {
                   $set: {
@@ -2695,42 +2705,31 @@ function getRequests_graphPreview_forDrivers(
           collectionRidesDeliveryData
             .find({
               taxi_id: false,
-              "pickup_location_infos.city": {
-                $regex:
-                  driverData[0].operational_state.last_location !== null &&
-                  driverData[0].operational_state.last_location.city &&
-                  driverData[0].operational_state.last_location.city !==
-                    undefined
-                    ? driverData[0].operational_state.last_location.city
-                    : "Windhoek",
-                $options: "i",
-              },
-              country: {
-                $regex:
-                  driverData[0].operational_state.last_location !== null &&
-                  driverData[0].operational_state.last_location.country &&
-                  driverData[0].operational_state.last_location.country !==
-                    undefined
-                    ? driverData[0].operational_state.last_location.country
-                    : "Namibia",
-                $options: "i",
-              },
-              carTypeSelected: {
-                $regex:
-                  driverData[0].operational_state.default_selected_car
-                    .vehicle_type,
-                $options: "i",
-              },
+              "pickup_location_infos.city":
+                driverData[0].operational_state.last_location !== null &&
+                driverData[0].operational_state.last_location.city &&
+                driverData[0].operational_state.last_location.city !== undefined
+                  ? driverData[0].operational_state.last_location.city
+                  : "Windhoek",
+              country:
+                driverData[0].operational_state.last_location !== null &&
+                driverData[0].operational_state.last_location.country &&
+                driverData[0].operational_state.last_location.country !==
+                  undefined
+                  ? driverData[0].operational_state.last_location.country
+                  : "Namibia",
+              carTypeSelected:
+                driverData[0].operational_state.default_selected_car
+                  .vehicle_type,
               ride_mode: {
                 $in: driverData[0].operation_clearances.map((clearance) =>
                   clearance.toUpperCase().trim()
                 ),
               },
-              allowed_drivers_see: driver_fingerprint,
-              intentional_request_decline: {
-                $not: { $regex: driver_fingerprint },
-              },
+              /*allowed_drivers_see: driver_fingerprint,
+              intentional_request_decline: driver_fingerprint,*/
             })
+            .collation({ locale: "en", strength: 2 })
             .toArray(function (err, filteredRequests) {
               if (err) {
                 resolve({
@@ -2739,6 +2738,7 @@ function getRequests_graphPreview_forDrivers(
                   scheduled: 0,
                 });
               }
+              console.log(filteredRequests);
               //...
               if (filteredRequests.length > 0) {
                 //? Auto segregate rides, deliveries and scheduled rides
@@ -3226,7 +3226,7 @@ clientMongo.connect(function (err) {
       //1. CHECK THAT THIS RIDER DOESN'T ALREADY HAVE AN ACTIVE RIDE/DELIVERY
       //Request is considered as completed when the rider has submited a rating.
       let checkPrevRequest = {
-        client_id: { $regex: req.user_fingerprint },
+        client_id: req.user_fingerprint,
         isArrivedToDestination: false,
       }; //?Indexed
       collectionRidesDeliveryData
@@ -3297,10 +3297,7 @@ clientMongo.connect(function (err) {
                                         //!Check if the receiver is a current user
                                         collectionPassengers_profiles
                                           .find({
-                                            phone_number: {
-                                              $regex: receiversPhone,
-                                              $options: "i",
-                                            },
+                                            phone_number: parsedRequest.delivery_infos.receiverPhone_delivery.trim(),
                                           })
                                           .toArray(function (
                                             err,

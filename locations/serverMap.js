@@ -458,7 +458,7 @@ function updateRiderLocationsLog(
       }
     );
     //Check if new
-    collectionRidersLocation_log
+    /*collectionRidersLocation_log
       .find({
         user_fingerprint: locationData.user_fingerprint,
         coordinates: {
@@ -486,7 +486,7 @@ function updateRiderLocationsLog(
         } else {
           resolve(true);
         }
-      });
+      });*/
   } else if (/driver/i.test(locationData.user_nature)) {
     //Drivers handler
     //Update the driver's operstional position
@@ -806,7 +806,7 @@ function tripChecker_Dispatcher(
   if (/^rider$/i.test(user_nature)) {
     //Check if the user has a pending request
     let rideChecker = {
-      client_id: { $regex: user_fingerprint },
+      client_id: user_fingerprint,
       "ride_state_vars.isRideCompleted_riderSide": false,
     };
 
@@ -821,7 +821,7 @@ function tripChecker_Dispatcher(
           //Get the rider's inos
           collectionPassengers_profiles
             .find({
-              user_fingerprint: { $regex: user_fingerprint },
+              user_fingerprint: user_fingerprint,
             })
             .toArray(function (err, riderData) {
               if (err) {
@@ -833,10 +833,7 @@ function tripChecker_Dispatcher(
                 //? Check if the user is part of a delivery request iin which he is the receiver.
                 let rideChecker = {
                   "ride_state_vars.isRideCompleted_riderSide": false,
-                  "delivery_infos.receiverPhone_delivery": {
-                    $regex: riderData[0].phone_number.replace("+", "").trim(),
-                    $options: "i",
-                  },
+                  "delivery_infos.receiverPhone_delivery": riderData[0].phone_number.trim(),
                 };
                 //...
                 collectionRidesDeliveries_data
@@ -895,7 +892,7 @@ function tripChecker_Dispatcher(
     collectionDrivers_profiles
       .find({
         driver_fingerprint: user_fingerprint,
-        "operational_state.status": { $regex: /online/, $options: "i" },
+        "operational_state.status": "online",
       })
       .toArray(function (err, driverData) {
         if (err) {
@@ -915,7 +912,7 @@ function tripChecker_Dispatcher(
           isArrivedToDestination: false,
           ride_mode:
             /scheduled/i.test(requestType) === false
-              ? { $regex: requestType, $options: "i" }
+              ? requestType
               : {
                   $in: [
                     ...driverData.operation_clearances,
@@ -924,14 +921,15 @@ function tripChecker_Dispatcher(
                     ),
                   ],
                 },
-          allowed_drivers_see: user_fingerprint,
-          intentional_request_decline: { $not: { $regex: user_fingerprint } },
+          /*allowed_drivers_see: user_fingerprint,
+          intentional_request_decline: { $not: user_fingerprint },*/
         };
 
         //-----
 
         collectionRidesDeliveries_data
           .find(checkRide0)
+          .collation({ locale: "en", strength: 2 })
           .toArray(function (err, acceptedRidesArray) {
             if (err) {
               resolve(false);
@@ -947,11 +945,11 @@ function tripChecker_Dispatcher(
               //b. If not, send the current accepted requests AND add on top additional new allowed see rides.
               let checkRide1 = {
                 taxi_id: user_fingerprint,
-                connect_type: { $regex: "ConnectMe", $options: "i" },
+                connect_type: "ConnectMe",
                 "ride_state_vars.isRideCompleted_driverSide": false,
                 ride_mode:
                   /scheduled/i.test(requestType) === false
-                    ? { $regex: requestType, $options: "i" }
+                    ? requestType
                     : {
                         $in: [
                           ...driverData.operation_clearances,
@@ -960,10 +958,10 @@ function tripChecker_Dispatcher(
                           ),
                         ],
                       },
-                allowed_drivers_see: user_fingerprint,
+                /*allowed_drivers_see: user_fingerprint,
                 intentional_request_decline: {
-                  $not: { $regex: user_fingerprint },
-                },
+                  $not: user_fingerprint,
+                },*/
               };
               collectionRidesDeliveries_data
                 .find(checkRide1)
@@ -1135,28 +1133,22 @@ function execGetDrivers_requests_and_provide(
       "ride_state_vars.isAccepted": false,
       "ride_state_vars.isRideCompleted_driverSide": false,
       isArrivedToDestination: false,
-      allowed_drivers_see: driverData.driver_fingerprint,
+      /*allowed_drivers_see: driverData.driver_fingerprint,
       intentional_request_decline: {
-        $not: { $regex: driverData.driver_fingerprint },
-      },
-      carTypeSelected: {
-        $regex: driverData.operational_state.default_selected_car.vehicle_type,
-        $options: "i",
-      },
-      country: {
-        $regex: driverData.operational_state.last_location.country,
-        $options: "i",
-      },
-      "pickup_location_infos.city": {
-        $regex: driverData.operational_state.last_location.city,
-        $options: "i",
-      },
+        $not: driverData.driver_fingerprint,
+      },*/
+      carTypeSelected:
+        driverData.operational_state.default_selected_car.vehicle_type,
+      country: driverData.operational_state.last_location.country,
+      "pickup_location_infos.city":
+        driverData.operational_state.last_location.city,
       //ride_mode: { $regex: requestType, $options: "i" }, //ride, delivery
-      request_type: { $regex: request_type_regex, $options: "i" }, //Shceduled or now rides/deliveries
+      request_type: request_type_regex, //Shceduled or now rides/deliveries
     };
     //...
     collectionRidesDeliveries_data
       .find(requestFilter)
+      .collation({ locale: "en", strength: 2 })
       .toArray(function (err, requestsData) {
         if (err) {
           resolve(false);
@@ -1181,7 +1173,7 @@ function execGetDrivers_requests_and_provide(
           //2. ADD THE ALREADY ACCEPTED REQUESTS IN FRONT
           refinedRequests = [...alreadyFetchedData, ...refinedRequests];
           //Slice based on the max capacity
-          refinedRequests = refinedRequests.slice(0, max_passengers_capacity);
+          //refinedRequests = refinedRequests.slice(0, max_passengers_capacity);
           //...
           //PARSE THE FINAL REQUESTS
           new Promise((res) => {
@@ -1263,38 +1255,32 @@ function execGetDrivers_requests_and_provide(
       }, //Shceduled or immediate rides/deliveries
     };*/
     let requestFilter = {
-      taxi_id: false, //ok
-      isArrivedToDestination: false,
-      /*"pickup_location_infos.city": {
-        $regex:
-          driverData.operational_state.last_location !== null &&
-          driverData.operational_state.last_location.city &&
-          driverData.operational_state.last_location.city !== undefined
-            ? driverData.operational_state.last_location.city
-            : "Windhoek",
-        $options: "i",
-      },
-      country: {
-        $regex:
-          driverData.operational_state.last_location !== null &&
-          driverData.operational_state.last_location.country &&
-          driverData.operational_state.last_location.country !== undefined
-            ? driverData.operational_state.last_location.country
-            : "Namibia",
-        $options: "i",
-      },*/
-      carTypeSelected: {
-        $regex: driverData.operational_state.default_selected_car.vehicle_type,
-        $options: "i",
-      },
-      allowed_drivers_see: driverData.driver_fingerprint, //ok
+      taxi_id: false,
+      "pickup_location_infos.city":
+        driverData.operational_state.last_location !== null &&
+        driverData.operational_state.last_location.city &&
+        driverData.operational_state.last_location.city !== undefined
+          ? driverData.operational_state.last_location.city
+          : "Windhoek",
+      country:
+        driverData.operational_state.last_location !== null &&
+        driverData.operational_state.last_location.country &&
+        driverData.operational_state.last_location.country !== undefined
+          ? driverData.operational_state.last_location.country
+          : "Namibia",
+      /*allowed_drivers_see: driverData.driver_fingerprint,
       intentional_request_decline: {
-        $not: { $regex: driverData.driver_fingerprint },
+        $not: driverData.driver_fingerprint,
+      },*/
+      carTypeSelected:
+        driverData.operational_state.default_selected_car.vehicle_type,
+      ride_mode: {
+        $in: driverData.operation_clearances.map((clearance) =>
+          clearance.toUpperCase().trim()
+        ),
       },
-      /*request_type: {
-        $regex: /scheduled/i.test(requestType) ? "scheduled" : "immediate",
-        $options: "i",
-      },*/ //Shceduled or immediate rides/deliveries
+      //ride_mode: { $regex: requestType, $options: "i" }, //ride, delivery
+      //request_type: request_type_regex, //Shceduled or now rides/deliveries
     };
 
     //---
@@ -1337,6 +1323,7 @@ function execGetDrivers_requests_and_provide(
     //...
     collectionRidesDeliveries_data
       .find(requestFilter)
+      .collation({ locale: "en", strength: 2 })
       .toArray(function (err, requestsData) {
         if (err) {
           resolve(false);
@@ -1360,7 +1347,7 @@ function execGetDrivers_requests_and_provide(
             return tmpReg.test(clearancesString);
           });
           //Slice based on the max capacity
-          refinedRequests = refinedRequests.slice(0, max_passengers_capacity);
+          //refinedRequests = refinedRequests.slice(0, max_passengers_capacity);
           //PARSE THE FINAL REQUESTS
           new Promise((res) => {
             parseRequests_forDrivers_view(
@@ -1585,7 +1572,7 @@ function execDriver_requests_parsing(
   //Start the individual parsing
   //1. Add the passenger infos
   collectionPassengers_profiles
-    .find({ user_fingerprint: { $regex: request.client_id, $options: "i" } })
+    .find({ user_fingerprint: request.client_id })
     .toArray(function (err, passengerData) {
       if (err) {
         res(false);
@@ -3493,28 +3480,32 @@ function getFreshProximity_driversList(
 ) {
   //Get the list of drivers match the availability criteria
   let driverFilter = {
-    "operational_state.status": {
-      $regex:
-        req.includeOfflineDrivers !== undefined &&
-        req.includeOfflineDrivers !== null
-          ? /(offline|online)/
-          : /online/,
-      $options: "i",
-    },
-    "operational_state.last_location.city": {
-      $regex: req.city,
-      $options: "i",
-    },
-    "operational_state.last_location.country": {
-      $regex: req.country,
-      $options: "i",
-    },
-    operation_clearances: { $regex: req.ride_type, $options: "i" },
+    "operational_state.status":
+      req.includeOfflineDrivers !== undefined &&
+      req.includeOfflineDrivers !== null
+        ? { $in: ["offline", "online"] }
+        : "online",
+    "operational_state.last_location.city": req.city,
+    "operational_state.last_location.country": req.country,
+    operation_clearances: req.ride_type,
     //Filter the drivers based on the vehicle type if provided
     "operational_state.default_selected_car.vehicle_type":
       req.vehicle_type !== undefined && req.vehicle_type !== false
-        ? { $regex: req.vehicle_type, $options: "i" }
-        : { $regex: /[a-zA-Z]/, $options: "i" },
+        ? req.vehicle_type
+        : {
+            $in: [
+              "normalTaxiEconomy",
+              "electricEconomy",
+              "comfortNormalRide",
+              "comfortElectricRide",
+              "luxuryNormalRide",
+              "luxuryElectricRide",
+              "electricBikes",
+              "bikes",
+              "carDelivery",
+              "vanDelivery",
+            ],
+          },
   }; //?Indexed
   //...
   collectionDrivers_profiles
@@ -4340,10 +4331,7 @@ clientMongo.connect(function (err) {
               //! Annotation string: startingPoint_forFreshPayouts
               collectionWalletTransactions_logs
                 .find({
-                  flag_annotation: {
-                    $regex: /startingPoint_forFreshPayouts/,
-                    $options: "i",
-                  },
+                  flag_annotation: "startingPoint_forFreshPayouts",
                   user_fingerprint: req.user_fingerprint,
                 })
                 .toArray(function (err, referenceData) {
