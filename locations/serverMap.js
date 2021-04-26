@@ -1,5 +1,5 @@
 require("dotenv").config();
-//console.log = function () {};
+console.log = function () {};
 //var dash = require("appmetrics-dash");
 var express = require("express");
 const http = require("http");
@@ -517,7 +517,7 @@ function updateRiderLocationsLog(
           resolve(false);
         }
         //...
-        if (driverData.length > 0) {
+        if (driverData !== undefined && driverData.length > 0) {
           if (
             driverData !== undefined &&
             driverData !== null &&
@@ -894,6 +894,7 @@ function tripChecker_Dispatcher(
         driver_fingerprint: user_fingerprint,
         "operational_state.status": "online",
       })
+      .collation({ locale: "en", strength: 2 })
       .toArray(function (err, driverData) {
         if (err) {
           resolve(false);
@@ -1280,7 +1281,7 @@ function execGetDrivers_requests_and_provide(
         ),
       },
       //ride_mode: { $regex: requestType, $options: "i" }, //ride, delivery
-      //request_type: request_type_regex, //Shceduled or now rides/deliveries
+      request_type: request_type_regex, //Shceduled or now rides/deliveries
     };
 
     //---
@@ -3483,7 +3484,7 @@ function getFreshProximity_driversList(
     "operational_state.status":
       req.includeOfflineDrivers !== undefined &&
       req.includeOfflineDrivers !== null
-        ? { $in: ["offline", "online"] }
+        ? { $in: ["online"] }
         : "online",
     "operational_state.last_location.city": req.city,
     "operational_state.last_location.country": req.country,
@@ -3510,6 +3511,7 @@ function getFreshProximity_driversList(
   //...
   collectionDrivers_profiles
     .find(driverFilter)
+    .collation({ locale: "en", strength: 2 })
     .toArray(function (err, driversProfiles) {
       //check that some drivers where found
       if (driversProfiles.length > 0) {
@@ -4123,12 +4125,7 @@ function getFreshProximity_driversList(
               (reslt) => {
                 //! Cache the list for 10minutes
                 new Promise((resCacheDriversList) => {
-                  client.setex(
-                    redisKey,
-                    process.env.REDIS_EXPIRATION_5MIN,
-                    stringify(reslt),
-                    redis.print
-                  );
+                  client.set(redisKey, stringify(reslt), redis.print);
                   resCacheDriversList(true);
                 })
                   .then(

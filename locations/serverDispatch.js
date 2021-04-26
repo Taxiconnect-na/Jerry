@@ -1123,7 +1123,7 @@ function sendStagedNotificationsDrivers(
     //2. Register their fp in the allowed_drivers_see on the requests
     //3. Send the notifications to each selected one.
     let driverFilter = {
-      "operational_state.status": { $in: ["offline", "online"] },
+      "operational_state.status": { $in: ["online"] },
       /*"operational_state.last_location.city": snapshotTripInfos.city,
       "operational_state.last_location.country": snapshotTripInfos.country,
       operation_clearances: snapshotTripInfos.ride_type,*/

@@ -3784,6 +3784,7 @@ clientMongo.connect(function (err) {
         specialChars: false,
         alphabets: false,
       });
+      otp = String(otp).length < 5 ? parseInt(otp) * 10 : otp;
 
       //1. Generate and SMS the OTP
       new Promise((res0) => {
