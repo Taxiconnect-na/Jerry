@@ -1229,6 +1229,7 @@ function exec_computeDaily_amountMade(
 
       collectionRidesDeliveryData
         .find(filterRequest)
+        .collation({ locale: "en", strength: 2 })
         .toArray(function (err, requestsArray) {
           if (err) {
             resolve({

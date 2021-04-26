@@ -2297,6 +2297,7 @@ function confirmPickupRequest_driver(
       request_fp: bundleWorkingData.request_fp,
       taxi_id: bundleWorkingData.driver_fingerprint,
     })
+    .collation({ locale: "en", strength: 2 })
     .toArray(function (err, result) {
       if (err) {
         resolve({ response: "unable_to_confirm_pickup_request_error" });
