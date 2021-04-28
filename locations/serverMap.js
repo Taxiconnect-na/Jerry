@@ -900,147 +900,149 @@ function tripChecker_Dispatcher(
           resolve(false);
         }
         //
-        if (driverData !== undefined && driverData.length <= 0) {
+        if (driverData === undefined || driverData.length <= 0) {
           resolve(false);
-        }
-        driverData = driverData[0];
-        //...
-        //Check if the driver has an accepted and not completed request already
-        let checkRide0 = {
-          taxi_id: user_fingerprint,
-          "ride_state_vars.isAccepted": true,
-          "ride_state_vars.isRideCompleted_driverSide": false,
-          isArrivedToDestination: false,
-          ride_mode:
-            /scheduled/i.test(requestType) === false
-              ? requestType
-              : {
-                  $in: [
-                    ...driverData.operation_clearances,
-                    ...driverData.operation_clearances.map((mode) =>
-                      mode.toUpperCase()
-                    ),
-                  ],
-                },
-          /*allowed_drivers_see: user_fingerprint,
+        } //Found data
+        else {
+          driverData = driverData[0];
+          //...
+          //Check if the driver has an accepted and not completed request already
+          let checkRide0 = {
+            taxi_id: user_fingerprint,
+            "ride_state_vars.isAccepted": true,
+            "ride_state_vars.isRideCompleted_driverSide": false,
+            isArrivedToDestination: false,
+            ride_mode:
+              /scheduled/i.test(requestType) === false
+                ? requestType
+                : {
+                    $in: [
+                      ...driverData.operation_clearances,
+                      ...driverData.operation_clearances.map((mode) =>
+                        mode.toUpperCase()
+                      ),
+                    ],
+                  },
+            /*allowed_drivers_see: user_fingerprint,
           intentional_request_decline: { $not: user_fingerprint },*/
-        };
+          };
 
-        //-----
+          //-----
 
-        collectionRidesDeliveries_data
-          .find(checkRide0)
-          .collation({ locale: "en", strength: 2 })
-          .toArray(function (err, acceptedRidesArray) {
-            if (err) {
-              resolve(false);
-            }
-            //...
-            if (
-              acceptedRidesArray !== undefined &&
-              acceptedRidesArray.length > 0
-            ) {
-              //Has accepted some rides already
-              //1. Check if he has accepted an unconfirmed driver's side connectMe request or not.
-              //a. If yes, only send the uncompleted connectMe request
-              //b. If not, send the current accepted requests AND add on top additional new allowed see rides.
-              let checkRide1 = {
-                taxi_id: user_fingerprint,
-                connect_type: "ConnectMe",
-                "ride_state_vars.isRideCompleted_driverSide": false,
-                ride_mode:
-                  /scheduled/i.test(requestType) === false
-                    ? requestType
-                    : {
-                        $in: [
-                          ...driverData.operation_clearances,
-                          ...driverData.operation_clearances.map((mode) =>
-                            mode.toUpperCase()
-                          ),
-                        ],
-                      },
-                /*allowed_drivers_see: user_fingerprint,
+          collectionRidesDeliveries_data
+            .find(checkRide0)
+            .collation({ locale: "en", strength: 2 })
+            .toArray(function (err, acceptedRidesArray) {
+              if (err) {
+                resolve(false);
+              }
+              //...
+              if (
+                acceptedRidesArray !== undefined &&
+                acceptedRidesArray.length > 0
+              ) {
+                //Has accepted some rides already
+                //1. Check if he has accepted an unconfirmed driver's side connectMe request or not.
+                //a. If yes, only send the uncompleted connectMe request
+                //b. If not, send the current accepted requests AND add on top additional new allowed see rides.
+                let checkRide1 = {
+                  taxi_id: user_fingerprint,
+                  connect_type: "ConnectMe",
+                  "ride_state_vars.isRideCompleted_driverSide": false,
+                  ride_mode:
+                    /scheduled/i.test(requestType) === false
+                      ? requestType
+                      : {
+                          $in: [
+                            ...driverData.operation_clearances,
+                            ...driverData.operation_clearances.map((mode) =>
+                              mode.toUpperCase()
+                            ),
+                          ],
+                        },
+                  /*allowed_drivers_see: user_fingerprint,
                 intentional_request_decline: {
                   $not: user_fingerprint,
                 },*/
-              };
-              collectionRidesDeliveries_data
-                .find(checkRide1)
-                .toArray(function (err, result1) {
-                  if (err) {
+                };
+                collectionRidesDeliveries_data
+                  .find(checkRide1)
+                  .toArray(function (err, result1) {
+                    if (err) {
+                      resolve(false);
+                    }
+                    //...
+                    if (result1.length > 0) {
+                      console.log("PENDING_CONNECTME");
+                      //Has an uncompleted connectMe request - only send this connectMe request until it is completed
+                      new Promise((res) => {
+                        execGetDrivers_requests_and_provide(
+                          driverData,
+                          requestType,
+                          "PENDING_CONNECTME",
+                          result1,
+                          collectionRidesDeliveries_data,
+                          collectionPassengers_profiles,
+                          res
+                        );
+                      }).then(
+                        (resultFinal) => {
+                          resolve(resultFinal);
+                        },
+                        (error) => {
+                          console.log(error);
+                          resolve(false);
+                        }
+                      );
+                    } //Has no uncompleted connectMe requests - so, send the accepted requests and add additional virgin allowed to see rides
+                    else {
+                      console.log("ACCEPTED_AND_ADDITIONAL_REQUESTS");
+                      new Promise((res) => {
+                        execGetDrivers_requests_and_provide(
+                          driverData,
+                          requestType,
+                          "ACCEPTED_AND_ADDITIONAL_REQUESTS",
+                          acceptedRidesArray,
+                          collectionRidesDeliveries_data,
+                          collectionPassengers_profiles,
+                          res
+                        );
+                      }).then(
+                        (resultFinal) => {
+                          resolve(resultFinal);
+                        },
+                        (error) => {
+                          console.log(error);
+                          resolve(false);
+                        }
+                      );
+                    }
+                  });
+              } //NO rides already accepted yet - send full list of allowed to see rides
+              else {
+                console.log("FULL_ALLLOWEDTOSEE_REQUESTS");
+                new Promise((res) => {
+                  execGetDrivers_requests_and_provide(
+                    driverData,
+                    requestType,
+                    "FULL_ALLLOWEDTOSEE_REQUESTS",
+                    false,
+                    collectionRidesDeliveries_data,
+                    collectionPassengers_profiles,
+                    res
+                  );
+                }).then(
+                  (resultFinal) => {
+                    resolve(resultFinal);
+                  },
+                  (error) => {
+                    console.log(error);
                     resolve(false);
                   }
-                  //...
-                  if (result1.length > 0) {
-                    console.log("PENDING_CONNECTME");
-                    //Has an uncompleted connectMe request - only send this connectMe request until it is completed
-                    new Promise((res) => {
-                      execGetDrivers_requests_and_provide(
-                        driverData,
-                        requestType,
-                        "PENDING_CONNECTME",
-                        result1,
-                        collectionRidesDeliveries_data,
-                        collectionPassengers_profiles,
-                        res
-                      );
-                    }).then(
-                      (resultFinal) => {
-                        resolve(resultFinal);
-                      },
-                      (error) => {
-                        console.log(error);
-                        resolve(false);
-                      }
-                    );
-                  } //Has no uncompleted connectMe requests - so, send the accepted requests and add additional virgin allowed to see rides
-                  else {
-                    console.log("ACCEPTED_AND_ADDITIONAL_REQUESTS");
-                    new Promise((res) => {
-                      execGetDrivers_requests_and_provide(
-                        driverData,
-                        requestType,
-                        "ACCEPTED_AND_ADDITIONAL_REQUESTS",
-                        acceptedRidesArray,
-                        collectionRidesDeliveries_data,
-                        collectionPassengers_profiles,
-                        res
-                      );
-                    }).then(
-                      (resultFinal) => {
-                        resolve(resultFinal);
-                      },
-                      (error) => {
-                        console.log(error);
-                        resolve(false);
-                      }
-                    );
-                  }
-                });
-            } //NO rides already accepted yet - send full list of allowed to see rides
-            else {
-              console.log("FULL_ALLLOWEDTOSEE_REQUESTS");
-              new Promise((res) => {
-                execGetDrivers_requests_and_provide(
-                  driverData,
-                  requestType,
-                  "FULL_ALLLOWEDTOSEE_REQUESTS",
-                  false,
-                  collectionRidesDeliveries_data,
-                  collectionPassengers_profiles,
-                  res
                 );
-              }).then(
-                (resultFinal) => {
-                  resolve(resultFinal);
-                },
-                (error) => {
-                  console.log(error);
-                  resolve(false);
-                }
-              );
-            }
-          });
+              }
+            });
+        }
       });
   }
   //Malformed
@@ -3051,64 +3053,93 @@ function reverseGeocoderExec(resolve, req, updateCache = false, redisKey) {
 function findoutPickupLocationNature(resolve, point) {
   let radius = 2; //meters
   let locationIdentity = { locationType: "PrivateLocation" }; //Default private location
-  taxiRanksDb.map((location) => {
-    let centerLat = parseFloat(location.central_coord.split(",")[0]);
-    let centerLng = parseFloat(location.central_coord.split(",")[1]);
-    //...
-    const center = { lat: parseFloat(centerLat), lon: parseFloat(centerLng) };
-    let checkPosition = geolocationUtlis.insideCircle(
-      { lat: parseFloat(point.latitude), lon: parseFloat(point.longitude) },
-      center,
-      radius
-    );
-    if (checkPosition) {
-      locationIdentity = location;
-      //Can be changed here to include more places detections
-      location = { locationType: "TaxiRank" }; //Set to taxi rank only
+  new Promise((resCheck) => {
+    taxiRanksDb.map((location) => {
+      let centerLat = parseFloat(location.central_coord.split(",")[0]);
+      let centerLng = parseFloat(location.central_coord.split(",")[1]);
       //...
-      resolve(location);
-    } //Private location
-    else {
-      locationIdentity = { locationType: "PrivateLocation" };
-    }
-  });
-  //Check for airport if Private location
-  if (locationIdentity.locationType !== "TaxiRank") {
-    //Check if it's an airport -reverse geocode and deduct from the name of the place
-    new Promise((res) => {
-      reverseGeocodeUserLocation(res, point);
-    }).then(
+      const center = { lat: parseFloat(centerLat), lon: parseFloat(centerLng) };
+      let checkPosition = geolocationUtlis.insideCircle(
+        { lat: parseFloat(point.latitude), lon: parseFloat(point.longitude) },
+        center,
+        radius
+      );
+      if (checkPosition) {
+        locationIdentity = location;
+        //Can be changed here to include more places detections
+        location = { locationType: "TaxiRank" }; //Set to taxi rank only
+        //...
+        resCheck(location);
+      } //Private location
+      else {
+        locationIdentity = { locationType: "PrivateLocation" };
+      }
+    });
+    //...Send private location by default
+    resCheck(locationIdentity);
+  })
+    .then(
       (result) => {
-        if (result !== false) {
-          if (result.name !== undefined) {
-            if (/airport/i.test(result.name)) {
-              //Airport detected
-              locationIdentity = { locationType: "Airport", name: result.name };
-              resolve(locationIdentity);
-            } //Private location
-            else {
-              locationIdentity = { locationType: "PrivateLocation" };
-              resolve(locationIdentity);
-            }
-          } else {
-            locationIdentity = { locationType: "PrivateLocation" };
-            resolve(locationIdentity);
-          }
-        } else {
-          locationIdentity = { locationType: "PrivateLocation" };
+        let locationIdentityRSLT = result;
+        //Check for airport if Private location
+        if (locationIdentityRSLT.locationType !== "TaxiRank") {
+          //Check if it's an airport -reverse geocode and deduct from the name of the place
+          new Promise((res) => {
+            reverseGeocodeUserLocation(res, point);
+          })
+            .then(
+              (result) => {
+                if (result !== false) {
+                  if (result.name !== undefined) {
+                    if (/airport/i.test(result.name)) {
+                      //Airport detected
+                      locationIdentityRSLT = {
+                        locationType: "Airport",
+                        name: result.name,
+                      };
+                      resolve(locationIdentityRSLT);
+                    } //Private location
+                    else {
+                      locationIdentityRSLT = {
+                        locationType: "PrivateLocation",
+                      };
+                      resolve(locationIdentityRSLT);
+                    }
+                  } else {
+                    locationIdentityRSLT = { locationType: "PrivateLocation" };
+                    resolve(locationIdentityRSLT);
+                  }
+                } else {
+                  locationIdentityRSLT = { locationType: "PrivateLocation" };
+                  resolve(locationIdentityRSLT);
+                }
+              },
+              (error) => {
+                locationIdentityRSLT = { locationType: "PrivateLocation" };
+                resolve(locationIdentityRSLT);
+              }
+            )
+            .catch((error) => {
+              locationIdentityRSLT = { locationType: "PrivateLocation" };
+              resolve(locationIdentityRSLT);
+            });
+        } //Taxirank
+        else {
+          //...
           resolve(locationIdentity);
         }
       },
       (error) => {
+        //Defaults to private location
         locationIdentity = { locationType: "PrivateLocation" };
         resolve(locationIdentity);
       }
-    );
-  } //Taxirank
-  else {
-    //...
-    resolve(locationIdentity);
-  }
+    )
+    .catch((error) => {
+      //Defaults to private location
+      locationIdentity = { locationType: "PrivateLocation" };
+      resolve(locationIdentity);
+    });
 }
 
 /**
@@ -4557,15 +4588,19 @@ clientMongo.connect(function (err) {
     ) {
       new Promise((res) => {
         findoutPickupLocationNature(res, req);
-      }).then(
-        (result) => {
-          res.send(result);
-        },
-        (error) => {
-          //Default to private location on error
+      })
+        .then(
+          (result) => {
+            res.send(result);
+          },
+          (error) => {
+            //Default to private location on error
+            res.send({ locationType: "PrivateLocation" });
+          }
+        )
+        .catch((error) => {
           res.send({ locationType: "PrivateLocation" });
-        }
-      );
+        });
     } //Default to private location - invalid params
     else {
       res.send({ locationType: "PrivateLocation" });
