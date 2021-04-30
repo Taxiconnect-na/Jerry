@@ -19,6 +19,7 @@ const client = redis.createClient({
 const redisGet = promisify(client.get).bind(client);
 //....
 var fastFilter = require("fast-filter");
+const escapeStringRegexp = require("escape-string-regexp");
 const urlParser = require("url");
 var chaineDateUTC = null;
 var dateObject = null;
@@ -437,7 +438,10 @@ function getLocationList_five(
             element.city != undefined &&
             element.query != undefined
           ) {
-            let regCheckerQuery = new RegExp(queryOR.toLowerCase().trim(), "i");
+            let regCheckerQuery = new RegExp(
+              escapeStringRegexp(queryOR.toLowerCase().trim()),
+              "i"
+            );
             return (
               regCheckerQuery.test(element.query) &&
               element.country.toLowerCase().trim() ==

@@ -1157,7 +1157,7 @@ function execGetDrivers_requests_and_provide(
           resolve(false);
         }
         //...
-        if (requestsData.length > 0) {
+        if (requestsData !== undefined && requestsData.length > 0) {
           //Found some data
           //1. Filter the requests based on the clearances of the driver - ride/delivery
           let clearancesString = driverData.operation_clearances.join(",");
