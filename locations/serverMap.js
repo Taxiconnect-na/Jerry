@@ -906,6 +906,10 @@ function tripChecker_Dispatcher(
         else {
           driverData = driverData[0];
           //...
+          let request_type_regex = /scheduled/i.test(requestType)
+            ? "scheduled"
+            : "immediate"; //For scheduled requests display or not.
+          //....
           //Check if the driver has an accepted and not completed request already
           let checkRide0 = {
             taxi_id: user_fingerprint,
@@ -923,6 +927,7 @@ function tripChecker_Dispatcher(
                       ),
                     ],
                   },
+            request_type: request_type_regex, //Shceduled or now rides/deliveries
             /*allowed_drivers_see: user_fingerprint,
           intentional_request_decline: { $not: user_fingerprint },*/
           };
