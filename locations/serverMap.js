@@ -74,7 +74,7 @@ resolveDate();
 client.set(
   driverCacheData.user_fingerprint,
   JSON.stringify(driverCacheData),
-  redis.print
+  
 );*/
 //-----------------------------------------------------------------------------------------------------
 
@@ -100,6 +100,48 @@ function getRouteInfosDestination(
 ) {
   let destinationPosition = coordsInfos.destination;
   let passengerPosition = coordsInfos.passenger;
+  //! APPLY BLUE OCEAN BUG FIX FOR THE PICKUP LOCATION COORDINATES
+  //? 1. Destination
+  //? Get temporary vars
+  let pickLatitude1 = parseFloat(destinationPosition.latitude);
+  let pickLongitude1 = parseFloat(destinationPosition.longitude);
+  //! Coordinates order fix - major bug fix for ocean bug
+  if (
+    pickLatitude1 !== undefined &&
+    pickLatitude1 !== null &&
+    pickLatitude1 !== 0 &&
+    pickLongitude1 !== undefined &&
+    pickLongitude1 !== null &&
+    pickLongitude1 !== 0
+  ) {
+    //? Switch latitude and longitude - check the negative sign
+    if (parseFloat(pickLongitude1) < 0) {
+      //Negative - switch
+      destinationPosition.latitude = pickLongitude1;
+      destinationPosition.longitude = pickLatitude1;
+    }
+  }
+  //? 2. Passenger
+  //? Get temporary vars
+  let pickLatitude2 = parseFloat(passengerPosition.latitude);
+  let pickLongitude2 = parseFloat(passengerPosition.longitude);
+  //! Coordinates order fix - major bug fix for ocean bug
+  if (
+    pickLatitude2 !== undefined &&
+    pickLatitude2 !== null &&
+    pickLatitude2 !== 0 &&
+    pickLongitude2 !== undefined &&
+    pickLongitude2 !== null &&
+    pickLongitude2 !== 0
+  ) {
+    //? Switch latitude and longitude - check the negative sign
+    if (parseFloat(pickLongitude2) < 0) {
+      //Negative - switch
+      passengerPosition.latitude = pickLongitude2;
+      passengerPosition.longitude = pickLatitude2;
+    }
+  }
+  //!!! --------------------------
   let url =
     process.env.URL_ROUTE_SERVICES +
     "point=" +
@@ -721,7 +763,7 @@ function completeLastLoccation_infosSubsAndRest(
           if (error === null) {
             try {
               body = JSON.parse(body);
-              console.log(body);
+              //console.log(body);
               //? Complete the suburb data
               objFinal.suburb = body.suburb !== undefined ? body.suburb : false;
               //Update the user's profile
@@ -972,6 +1014,7 @@ function tripChecker_Dispatcher(
                 };
                 collectionRidesDeliveries_data
                   .find(checkRide1)
+                  .collation({ locale: "en", strength: 2 })
                   .toArray(function (err, result1) {
                     if (err) {
                       resolve(false);
@@ -1025,7 +1068,7 @@ function tripChecker_Dispatcher(
                   });
               } //NO rides already accepted yet - send full list of allowed to see rides
               else {
-                console.log("FULL_ALLLOWEDTOSEE_REQUESTS");
+                //console.log("FULL_ALLLOWEDTOSEE_REQUESTS");
                 new Promise((res) => {
                   execGetDrivers_requests_and_provide(
                     driverData,
@@ -1327,7 +1370,6 @@ function execGetDrivers_requests_and_provide(
       },
       request_type: { $regex: request_type_regex, $options: "i" }, //Shceduled or immediate rides/deliveries
     };*/
-    console.log(requestFilter);
     //...
     collectionRidesDeliveries_data
       .find(requestFilter)
@@ -1336,7 +1378,6 @@ function execGetDrivers_requests_and_provide(
         if (err) {
           resolve(false);
         }
-        console.log(requestsData);
         //...
         if (requestsData !== undefined && requestsData.length > 0) {
           //Found some data
@@ -1366,8 +1407,8 @@ function execGetDrivers_requests_and_provide(
             );
           }).then(
             (resultFinal) => {
-              console.log("REFINED");
-              console.log(resultFinal);
+              //console.log("REFINED");
+              console.log("REFINED -> ", resultFinal);
               resolve(resultFinal);
             },
             (error) => {
@@ -1581,10 +1622,13 @@ function execDriver_requests_parsing(
   //1. Add the passenger infos
   collectionPassengers_profiles
     .find({ user_fingerprint: request.client_id })
+    .collation({ locale: "en", strength: 2 })
     .toArray(function (err, passengerData) {
       if (err) {
+        console.log(err);
         res(false);
       }
+
       if (passengerData !== undefined && passengerData.length > 0) {
         //Found some data
         //...
@@ -1677,100 +1721,96 @@ function execDriver_requests_parsing(
         })
           .then(
             (resultEtaToPassenger) => {
-              if (resultEtaToPassenger !== false) {
-                //Save the eta and distancee
-                parsedRequestsArray.eta_to_passenger_infos.eta =
-                  resultEtaToPassenger.eta;
-                parsedRequestsArray.eta_to_passenger_infos.distance =
-                  resultEtaToPassenger.distance;
-                //4. Add the destination informations
-                parsedRequestsArray.origin_destination_infos.pickup_infos.location_name =
-                  request.pickup_location_infos.location_name !== undefined &&
-                  request.pickup_location_infos.location_name !== false
-                    ? request.pickup_location_infos.location_name
-                    : request.pickup_location_infos.street_name;
-                parsedRequestsArray.origin_destination_infos.pickup_infos.street_name =
-                  request.pickup_location_infos.street_name;
-                parsedRequestsArray.origin_destination_infos.pickup_infos.suburb =
-                  request.pickup_location_infos.suburb;
-                parsedRequestsArray.origin_destination_infos.pickup_infos.coordinates =
-                  request.pickup_location_infos.coordinates;
+              //Save the eta and distancee
+              parsedRequestsArray.eta_to_passenger_infos.eta =
+                resultEtaToPassenger !== false
+                  ? resultEtaToPassenger.eta
+                  : "Awaiting";
+              parsedRequestsArray.eta_to_passenger_infos.distance =
+                resultEtaToPassenger !== false
+                  ? resultEtaToPassenger.distance
+                  : "Awaiting";
+              //4. Add the destination informations
+              parsedRequestsArray.origin_destination_infos.pickup_infos.location_name =
+                request.pickup_location_infos.location_name !== undefined &&
+                request.pickup_location_infos.location_name !== false
+                  ? request.pickup_location_infos.location_name
+                  : request.pickup_location_infos.street_name;
+              parsedRequestsArray.origin_destination_infos.pickup_infos.street_name =
+                request.pickup_location_infos.street_name;
+              parsedRequestsArray.origin_destination_infos.pickup_infos.suburb =
+                request.pickup_location_infos.suburb;
+              parsedRequestsArray.origin_destination_infos.pickup_infos.coordinates =
+                request.pickup_location_infos.coordinates;
 
-                //ADD THE REQUEST TYPE
-                parsedRequestsArray.request_type = /(now|immediate)/i.test(
-                  request.request_type
-                )
-                  ? request.ride_mode
-                  : "scheduled";
+              //ADD THE REQUEST TYPE
+              parsedRequestsArray.request_type = /(now|immediate)/i.test(
+                request.request_type
+              )
+                ? request.ride_mode
+                : "scheduled";
 
-                //Compute the ETA to destination details
-                new Promise((res1) => {
-                  getRouteInfosDestination(
-                    {
-                      destination: {
-                        latitude: parseFloat(
-                          request.destinationData[0].coordinates.longitude
-                        ),
-                        longitude: parseFloat(
-                          request.destinationData[0].coordinates.latitude
-                        ),
-                      },
-                      passenger: {
-                        latitude: parseFloat(
-                          request.pickup_location_infos.coordinates.latitude
-                        ),
-                        longitude: parseFloat(
-                          request.pickup_location_infos.coordinates.longitude
-                        ),
-                      },
+              //Compute the ETA to destination details
+              new Promise((res1) => {
+                getRouteInfosDestination(
+                  {
+                    destination: {
+                      latitude: parseFloat(
+                        request.destinationData[0].coordinates.longitude
+                      ),
+                      longitude: parseFloat(
+                        request.destinationData[0].coordinates.latitude
+                      ),
                     },
-                    res1,
-                    true,
-                    request.request_fp + "-cached-etaToDestination-requests"
-                  );
-                }).then(
-                  (resultETAToDestination) => {
-                    if (resultETAToDestination !== false) {
-                      //Save the ETA to destination data
-                      parsedRequestsArray.origin_destination_infos.eta_to_destination_infos.eta =
-                        resultETAToDestination.eta;
-                      parsedRequestsArray.origin_destination_infos.eta_to_destination_infos.distance =
-                        resultETAToDestination.distance;
-                      //4. Save the destination data
-                      parsedRequestsArray.origin_destination_infos.destination_infos =
-                        request.destinationData;
-                      //Add the request fingerprint
-                      parsedRequestsArray.request_fp = request.request_fp;
-                      //DONE
-                      //CACHE
-                      new Promise((resCache) => {
-                        client.set(
-                          redisKey,
-                          JSON.stringify(parsedRequestsArray)
-                        );
-                        resCache(true);
-                      }).then(
-                        () => {
-                          console.log("Single processing cached!");
-                        },
-                        () => {}
-                      );
-                      //Return the answer
-                      res(parsedRequestsArray);
-                    } //Error
-                    else {
-                      res(false);
-                    }
+                    passenger: {
+                      latitude: parseFloat(
+                        request.pickup_location_infos.coordinates.latitude
+                      ),
+                      longitude: parseFloat(
+                        request.pickup_location_infos.coordinates.longitude
+                      ),
+                    },
                   },
-                  (error) => {
-                    console.log(error);
+                  res1,
+                  true,
+                  request.request_fp + "-cached-etaToDestination-requests"
+                );
+              }).then(
+                (resultETAToDestination) => {
+                  if (resultETAToDestination !== false) {
+                    //Save the ETA to destination data
+                    parsedRequestsArray.origin_destination_infos.eta_to_destination_infos.eta =
+                      resultETAToDestination.eta;
+                    parsedRequestsArray.origin_destination_infos.eta_to_destination_infos.distance =
+                      resultETAToDestination.distance;
+                    //4. Save the destination data
+                    parsedRequestsArray.origin_destination_infos.destination_infos =
+                      request.destinationData;
+                    //Add the request fingerprint
+                    parsedRequestsArray.request_fp = request.request_fp;
+                    //DONE
+                    //CACHE
+                    new Promise((resCache) => {
+                      client.set(redisKey, JSON.stringify(parsedRequestsArray));
+                      resCache(true);
+                    }).then(
+                      () => {
+                        console.log("Single processing cached!");
+                      },
+                      () => {}
+                    );
+                    //Return the answer
+                    res(parsedRequestsArray);
+                  } //Error
+                  else {
                     res(false);
                   }
-                );
-              } //EError
-              else {
-                res(false);
-              }
+                },
+                (error) => {
+                  console.log(error);
+                  res(false);
+                }
+              );
             },
             (error) => {
               console.log(error);
@@ -1904,7 +1944,6 @@ function computeRouteDetails_skeleton(
               redisGet(rideHistory.taxi_id).then(
                 (resp) => {
                   if (resp !== null) {
-                    console.log(rideHistory.taxi_id);
                     //Check for any trip record related to the route infos in the cache
                     //KEY: request_fp
                     redisGet(rideHistory.request_fp).then(
@@ -2384,8 +2423,7 @@ function computeRouteDetails_skeleton(
                 client.setex(
                   rideHistory.client_id,
                   process.env.REDIS_EXPIRATION_5MIN * 6,
-                  JSON.stringify(reslt),
-                  redis.print
+                  JSON.stringify(reslt)
                 );
                 res(true);
               } catch (error) {
@@ -2408,8 +2446,7 @@ function computeRouteDetails_skeleton(
                     requester_fp: rideHistory.client_id,
                     request_status: "pending",
                   },
-                }),
-                redis.print
+                })
               );
               res(true);
             }
@@ -2516,8 +2553,7 @@ function computeAndCacheRouteDestination(
                 prevDriverCache.rides_history = rideHistory;
                 client.set(
                   resp.user_fingerprint,
-                  JSON.stringify(prevDriverCache),
-                  redis.print
+                  JSON.stringify(prevDriverCache)
                 );
                 //Update rider old trip cached ride history
                 redisGet(rideHistory.client_id).then(
@@ -2528,8 +2564,7 @@ function computeAndCacheRouteDestination(
                         prevRiderCache.rides_history = rideHistory;
                         client.set(
                           rideHistory.client_id,
-                          JSON.stringify(prevRiderCache),
-                          redis.print
+                          JSON.stringify(prevRiderCache)
                         );
                         resolvePreli(true);
                       } catch (error) {
@@ -2755,8 +2790,7 @@ function computeAndCacheRouteDestination(
                         if (cachedTripData !== null) {
                           client.set(
                             rideHistory.request_fp,
-                            JSON.stringify(result),
-                            redis.print
+                            JSON.stringify(result)
                           );
                           resPromiseresult(true);
                         } //Update cache anyways
@@ -2764,8 +2798,7 @@ function computeAndCacheRouteDestination(
                           //console.log("Update cache");
                           client.set(
                             rideHistory.request_fp,
-                            JSON.stringify(result),
-                            redis.print
+                            JSON.stringify(result)
                           );
                           resPromiseresult(true);
                         }
@@ -2774,8 +2807,7 @@ function computeAndCacheRouteDestination(
                         //console.log("Update cache");
                         client.set(
                           rideHistory.request_fp,
-                          JSON.stringify(result),
-                          redis.print
+                          JSON.stringify(result)
                         );
                         resPromiseresult(true);
                       }
@@ -2800,8 +2832,7 @@ function computeAndCacheRouteDestination(
                         if (cachedTripData !== null) {
                           client.set(
                             rideHistory.request_fp,
-                            JSON.stringify(result),
-                            redis.print
+                            JSON.stringify(result)
                           );
                           resPromiseresult(true);
                         } //Update cache anyways
@@ -2809,8 +2840,7 @@ function computeAndCacheRouteDestination(
                           //console.log("Update cache");
                           client.set(
                             rideHistory.request_fp,
-                            JSON.stringify(result),
-                            redis.print
+                            JSON.stringify(result)
                           );
                           resPromiseresult(true);
                         }
@@ -2819,8 +2849,7 @@ function computeAndCacheRouteDestination(
                         //console.log("Update cache");
                         client.set(
                           rideHistory.request_fp,
-                          JSON.stringify(result),
-                          redis.print
+                          JSON.stringify(result)
                         );
                         resPromiseresult(true);
                       }
@@ -2872,11 +2901,7 @@ function updateRiderLocationInfosCache(req, resolve) {
           prevCache.latitude = req.latitude;
           prevCache.longitude = req.longitude;
           prevCache.date_logged = req.date_logged; //Updated cache data
-          client.set(
-            req.user_fingerprint.trim(),
-            JSON.stringify(prevCache),
-            redis.print
-          );
+          client.set(req.user_fingerprint.trim(), JSON.stringify(prevCache));
           resolve(true);
         } catch (error) {
           resolve(false);
@@ -3702,7 +3727,6 @@ function getFreshProximity_driversList(
                         })
                           .then(
                             (result) => {
-                              console.log("HERRRRRE");
                               //Update the relative mongo records
                               if (
                                 result !== false &&
@@ -4161,13 +4185,11 @@ function getFreshProximity_driversList(
               (reslt) => {
                 //! Cache the list for 10minutes
                 new Promise((resCacheDriversList) => {
-                  client.set(redisKey, stringify(reslt), redis.print);
+                  client.set(redisKey, stringify(reslt));
                   resCacheDriversList(true);
                 })
                   .then(
-                    () => {
-                      console.log("DRIVERS LIST CACHED");
-                    },
+                    () => {},
                     () => {}
                   )
                   .catch((error) => {
@@ -4316,7 +4338,6 @@ clientMongo.connect(function (err) {
     //DEBUG
     //let params = urlParser.parse(req.url, true);
     req = req.body;
-    console.log(req);
 
     if (
       req !== undefined &&

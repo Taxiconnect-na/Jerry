@@ -1,5 +1,6 @@
 require("dotenv").config();
 //var dash = require("appmetrics-dash");
+console.log = function () {};
 var express = require("express");
 const http = require("http");
 const fs = require("fs");

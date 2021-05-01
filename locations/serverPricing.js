@@ -1391,6 +1391,7 @@ function computeInDepthPricesMap(
                       }
                     } else if (
                       suburbToSuburbInfo.pickup_suburb !== false &&
+                      destination.suburb !== false &&
                       new RegExp(
                         suburbToSuburbInfo.pickup_suburb.toUpperCase().trim(),
                         "i"
@@ -1400,7 +1401,7 @@ function computeInDepthPricesMap(
                           .toUpperCase()
                           .trim(),
                         "i"
-                      ).test(tmpDestinationSuburb.toUpperCase().trim())
+                      ).test(destination.suburb.toUpperCase().trim())
                     ) {
                       lockPorgress = false;
                       didFindRegisteredSuburbs = true; //Found registered suburbs.
