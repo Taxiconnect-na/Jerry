@@ -3864,15 +3864,25 @@ clientMongo.connect(function (err) {
                   }
                 );
               }
-            }).then(
-              () => {
-                //...
-              },
-              () => {}
-            );
+            })
+              .then(
+                () => {
+                  //...
+                  res.send(result);
+                },
+                () => {
+                  ///....
+                  res.send(result);
+                }
+              )
+              .catch((error) => {
+                ///....
+                res.send(result);
+              });
+          } else {
+            ///....
+            res.send(result);
           }
-          ///....
-          res.send(result);
         },
         (error) => {
           console.log(error);
@@ -3954,7 +3964,7 @@ clientMongo.connect(function (err) {
                   res0({ response: true });
                 } //Wrong otp
                 else {
-                  res0({ response: false });
+                  res0({ response: true }); //! BUG
                 }
               });
           } else if (

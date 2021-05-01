@@ -391,9 +391,27 @@ function manageAutoCompleteDestinationLocations(
   let promiseParent = destinationLocations.map((destination) => {
     return new Promise((res) => {
       //! Swap latitude and longitude (cause they were reversed)- MAJOR FIX! --IS IT???
-      let tmp = destination.coordinates.latitude;
-      destination.coordinates.latitude = destination.coordinates.longitude;
-      destination.coordinates.longitude = tmp;
+      //! APPLY BLUE OCEAN BUG FIX FOR THE PICKUP LOCATION COORDINATES
+      //? Get temporary vars
+      let pickLatitude = parseFloat(destination.coordinates.latitude);
+      let pickLongitude = parseFloat(destination.coordinates.longitude);
+      //! Coordinates order fix - major bug fix for ocean bug
+      if (
+        pickLatitude !== undefined &&
+        pickLatitude !== null &&
+        pickLatitude !== 0 &&
+        pickLongitude !== undefined &&
+        pickLongitude !== null &&
+        pickLongitude !== 0
+      ) {
+        //? Switch latitude and longitude - check the negative sign
+        if (parseFloat(pickLongitude) < 0) {
+          //Negative - switch
+          destination.coordinates.latitude = pickLongitude;
+          destination.coordinates.longitude = pickLatitude;
+        }
+      }
+      //!!!
       doMongoSearchForAutocompletedSuburbs(
         res,
         destination,
@@ -607,7 +625,7 @@ function doMongoSearchForAutocompletedSuburbs(
             locationInfos.passenger_number_id !== undefined &&
             locationInfos.passenger_number_id !== null
               ? locationInfos.passenger_number_id
-              : null;
+              : 1;
           resolve(resp);
         } catch (
           error //Error parsing -get from mongodb
@@ -811,7 +829,7 @@ function execMongoSearchAutoComplete(
                     locationInfos.passenger_number_id !== undefined &&
                     locationInfos.passenger_number_id !== null
                       ? passenger_number_id
-                      : null,
+                      : 1,
                   suburb: body.address.suburb,
                   state: body.address.state,
                   location_name:
@@ -967,7 +985,7 @@ function execMongoSearchAutoComplete(
                       locationInfos.passenger_number_id !== undefined &&
                       locationInfos.passenger_number_id !== null
                         ? passenger_number_id
-                        : null,
+                        : 1,
                     suburb: body.address.suburb,
                     state: body.address.state,
                     location_name:
@@ -1069,6 +1087,7 @@ function estimateFullVehiclesCatPrices(
             };
             collectionPricesLocationsMap
               .find(filterQuery)
+              .collation({ locale: "en", strength: 2 })
               .toArray(function (err, result) {
                 if (result.length > 0) {
                   //Found corresponding prices maps
@@ -1355,7 +1374,7 @@ function computeInDepthPricesMap(
                     //Same suburb -> fare = base ride price
                     basePrice += vehicle.base_fare;
                   }
-                  let didFindRegisteredSuburbs = false; //To know whether or not has found registered suburs or else did not find matching suburbs.
+                  let didFindRegisteredSuburbs = false; //To know whether or not has found registered suburbs or else did not find matching suburbs.
                   //...
                   globalPricesMap.map((suburbToSuburbInfo) => {
                     if (
@@ -1372,22 +1391,29 @@ function computeInDepthPricesMap(
                       }
                     } else if (
                       suburbToSuburbInfo.pickup_suburb !== false &&
-                      suburbToSuburbInfo.pickup_suburb.toUpperCase().trim() ===
-                        tmpPickupPickup.toUpperCase().trim() &&
-                      suburbToSuburbInfo.destination_suburb
-                        .toUpperCase()
-                        .trim() === tmpDestinationSuburb.toUpperCase().trim()
+                      new RegExp(
+                        suburbToSuburbInfo.pickup_suburb.toUpperCase().trim(),
+                        "i"
+                      ).test(tmpPickupPickup.toUpperCase().trim()) &&
+                      new RegExp(
+                        suburbToSuburbInfo.destination_suburb
+                          .toUpperCase()
+                          .trim(),
+                        "i"
+                      ).test(tmpDestinationSuburb.toUpperCase().trim())
                     ) {
                       lockPorgress = false;
                       didFindRegisteredSuburbs = true; //Found registered suburbs.
                       //If the car type is economy electric, add its base price
                       if (/electricEconomy/i.test(vehicle.car_type)) {
                         console.log(vehicle.base_fare);
-                        basePrice += vehicle.base_fare;
+                        //basePrice += vehicle.base_fare;
+                        //? Remove N$2 discount for electric rides
+                        basePrice += parseFloat(suburbToSuburbInfo.fare) - 2;
                       } //Normal taxis
                       else {
                         console.log(suburbToSuburbInfo.fare);
-                        basePrice += suburbToSuburbInfo.fare;
+                        basePrice += parseFloat(suburbToSuburbInfo.fare);
                       }
                     }
                   });
@@ -1528,12 +1554,9 @@ function parsePricingInputData(resolve, inputData) {
       new Promise((res) => {
         //..Deduct the pickup time if scheduled
         if (/scheduled/i.test(cleanInputData.request_type)) {
-          let timeExtracted = inputData.timeScheduled
-            .split(" ")[2]
-            .trim()
-            .split(":");
-          let hourExtracted = timeExtracted[0];
-          let minutesExtracted = timeExtracted[1];
+          let timeExtracted = new Date(inputData.timeScheduled);
+          let hourExtracted = timeExtracted.getHours();
+          let minutesExtracted = timeExtracted.getMinutes();
           //Recreate now time
           let dateTMP = new Date();
 
@@ -1590,7 +1613,7 @@ function parsePricingInputData(resolve, inputData) {
 
           new Promise((res) => {
             cleanInputData.destination_location_infos = [];
-            let tmpSchemaArray = [1, 2, 3, 4]; //Just for iterations, nothing more, instead of using for loop
+            let tmpSchemaArray = [1, 2, 3, 4]; //? Just for iterations, nothing more, instead of using for loop
             if (cleanInputData.passengers_number > 1) {
               //Many passengers
               //Check if all going to the same destination
@@ -1966,35 +1989,46 @@ clientMongo.connect(function (err) {
   app.post("/getOverallPricingAndAvailabilityDetails", function (req, res) {
     resolveDate();
     //DELIVERY TEST DATA - DEBUG
-    /*let deliveryPricingInputDataRaw = {
+    let deliveryPricingInputDataRaw = {
       user_fingerprint:
         "4ec9a3cac550584cfe04108e63b61961af32f9162ca09bee59bc0fc264c6dd1d61dbd97238a27e147e1134e9b37299d160c0f0ee1c620c9f012e3a08a4505fd6",
       connectType: "ConnectUs",
       country: "Namibia",
       isAllGoingToSameDestination: false,
       naturePickup: "PrivateLocation", //Force PrivateLocation type if nothing found
-      passengersNo: 1, //Default 1 possible destination
-      rideType: "DELIVERY",
+      passengersNo: 3, //Default 2 possible destination
+      rideType: "RIDE",
       timeScheduled: "Now",
       pickupData: {
-        coordinates: [-22.576655, 17.083548],
-        location_name: "Wecke Street",
-        street_name: "Street name",
+        coordinates: [-22.611291, 17.071366],
+        location_name: "Academia",
+        street_name: "Academia",
         city: "Windhoek",
       },
       destinationData: {
         passenger1Destination: {
-          coordinates: [-22.576655, 17.083548],
-          location_name: "Wecke Street",
-          street: "Street name",
+          coordinates: [-22.605981, 17.096875],
+          location_name: "Suiderhof",
+          street: "Suiderhof",
           city: "Windhoek",
         },
-        passenger2Destination: false,
-        passenger3Destination: false,
+        passenger2Destination: {
+          coordinates: [-22.522764, 17.056328],
+          location_name: "Katutura",
+          street: "Police station",
+          city: "Windhoek",
+        },
+        passenger3Destination: {
+          coordinates: [-22.522764, 17.056328],
+          location_name: "Katutura",
+          street: "Police station",
+          city: "Windhoek",
+        },
         passenger4Destination: false,
       },
     };
-    req.body = deliveryPricingInputDataRaw;*/
+    req.body = deliveryPricingInputDataRaw;
+    console.log(req.body);
     //...
 
     try {
@@ -2009,7 +2043,7 @@ clientMongo.connect(function (err) {
             let parsedData = reslt; //Clean parsed data
             if (checkInputIntegrity(parsedData)) {
               //Check inetgrity
-              console.log("Passenged the integrity test.");
+              console.log("Passed the integrity test.");
               //Valid input
               //Autocomplete the input data
               new Promise((res) => {
@@ -2027,7 +2061,6 @@ clientMongo.connect(function (err) {
                     console.log(
                       "Computing prices metadata of relevant car categories"
                     );
-                    console.log(result);
                     new Promise((res) => {
                       estimateFullVehiclesCatPrices(
                         res,
@@ -2039,7 +2072,6 @@ clientMongo.connect(function (err) {
                     }).then(
                       (result) => {
                         console.log("DOne computing fares");
-                        console.log(result);
                         res.send(result);
                       },
                       (error) => {
