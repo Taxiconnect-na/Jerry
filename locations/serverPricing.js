@@ -1409,13 +1409,16 @@ function computeInDepthPricesMap(
                       didFindRegisteredSuburbs = true; //Found registered suburbs.
                       //If the car type is economy electric, add its base price
                       if (/electricEconomy/i.test(vehicle.car_type)) {
-                        console.log(vehicle.base_fare);
+                        //console.log(vehicle.base_fare);
                         //basePrice += vehicle.base_fare;
                         //? Remove N$2 discount for electric rides
                         basePrice += parseFloat(suburbToSuburbInfo.fare) - 2;
                       } //Normal taxis
                       else {
                         console.log(suburbToSuburbInfo.fare);
+                        console.log(
+                          completedInputData.destination_location_infos
+                        );
                         basePrice += parseFloat(suburbToSuburbInfo.fare);
                       }
                     }
@@ -1616,7 +1619,9 @@ function parsePricingInputData(resolve, inputData) {
 
           new Promise((res) => {
             cleanInputData.destination_location_infos = [];
-            let tmpSchemaArray = [1, 2, 3, 4]; //? Just for iterations, nothing more, instead of using for loop
+            let tmpSchemaArray = new Array(
+              parseInt(cleanInputData.passengers_number)
+            ).fill(1); //? Just for iterations, nothing more, instead of using for loop
             if (cleanInputData.passengers_number > 1) {
               //Many passengers
               //Check if all going to the same destination
@@ -1997,7 +2002,7 @@ clientMongo.connect(function (err) {
         "4ec9a3cac550584cfe04108e63b61961af32f9162ca09bee59bc0fc264c6dd1d61dbd97238a27e147e1134e9b37299d160c0f0ee1c620c9f012e3a08a4505fd6",
       connectType: "ConnectUs",
       country: "Namibia",
-      isAllGoingToSameDestination: false,
+      isAllGoingToSameDestination: true,
       naturePickup: "PrivateLocation", //Force PrivateLocation type if nothing found
       passengersNo: 3, //Default 2 possible destination
       rideType: "RIDE",
@@ -2015,7 +2020,7 @@ clientMongo.connect(function (err) {
           street: "Suiderhof",
           city: "Windhoek",
         },
-        passenger2Destination: {
+        /*passenger2Destination: {
           coordinates: [-22.522764, 17.056328],
           location_name: "Katutura",
           street: "Police station",
@@ -2027,10 +2032,12 @@ clientMongo.connect(function (err) {
           street: "Police station",
           city: "Windhoek",
         },
+        passenger2Destination: false,
+        passenger3Destination: false,
         passenger4Destination: false,
       },
     };
-    req.body = deliveryPricingInputDataRaw;*/
+    req.body = deliveryPricingInputDataRaw;**/
     console.log(req.body);
     //...
 
