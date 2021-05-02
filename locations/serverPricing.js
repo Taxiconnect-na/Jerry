@@ -1,5 +1,5 @@
 require("dotenv").config();
-console.log = function () {};
+//console.log = function () {};
 //var dash = require("appmetrics-dash");
 var express = require("express");
 const http = require("http");
@@ -1069,11 +1069,13 @@ function estimateFullVehiclesCatPrices(
       city: completedInputData.pickup_location_infos.city,
       availability: { $in: ["available", "unavailable"] },
     };
+
     collectionVehiclesInfos
       .find(filterQuery)
       .collation({ locale: "en", strength: 2 })
       .toArray(function (err, result) {
-        if (result.length > 0) {
+        console.log(err);
+        if (result !== undefined && result.length > 0) {
           //Found something
           let genericRidesInfos = result;
           //Get all the city's price map (cirteria: city, country and pickup)
@@ -1990,7 +1992,7 @@ clientMongo.connect(function (err) {
   app.post("/getOverallPricingAndAvailabilityDetails", function (req, res) {
     resolveDate();
     //DELIVERY TEST DATA - DEBUG
-    let deliveryPricingInputDataRaw = {
+    /*let deliveryPricingInputDataRaw = {
       user_fingerprint:
         "4ec9a3cac550584cfe04108e63b61961af32f9162ca09bee59bc0fc264c6dd1d61dbd97238a27e147e1134e9b37299d160c0f0ee1c620c9f012e3a08a4505fd6",
       connectType: "ConnectUs",
@@ -2028,7 +2030,7 @@ clientMongo.connect(function (err) {
         passenger4Destination: false,
       },
     };
-    req.body = deliveryPricingInputDataRaw;
+    req.body = deliveryPricingInputDataRaw;*/
     console.log(req.body);
     //...
 
