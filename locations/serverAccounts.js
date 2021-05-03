@@ -1317,13 +1317,15 @@ function getRiders_wallet_summary(
             );
           }).then(
             (result) => {
-              if (avoidCached_data) {
+              //? Cache
+              client.set(redisKey, stringify(result));
+              if (avoidCached_data !== false && avoidCached_data === true) {
                 //Avoid cache
                 resolve(result);
               }
             },
             (error) => {
-              if (avoidCached_data) {
+              if (avoidCached_data !== false && avoidCached_data === true) {
                 //Avoid cache
                 console.log(error);
                 resolve({ total: 0, transactions_data: null });
@@ -1331,7 +1333,7 @@ function getRiders_wallet_summary(
             }
           );
           //...Immediatly reply
-          if (avoidCached_data === false) {
+          if (avoidCached_data === false || avoidCached_data === undefined) {
             resp = parse(resp);
             resolve(resp);
           }
@@ -1351,6 +1353,8 @@ function getRiders_wallet_summary(
             );
           }).then(
             (result) => {
+              //? Cache
+              client.set(redisKey, stringify(result));
               resolve(result);
             },
             (error) => {
@@ -1375,6 +1379,8 @@ function getRiders_wallet_summary(
           );
         }).then(
           (result) => {
+            //? Cache
+            client.set(redisKey, stringify(result));
             resolve(result);
           },
           (error) => {
@@ -1400,6 +1406,8 @@ function getRiders_wallet_summary(
         );
       }).then(
         (result) => {
+          //? Cache
+          client.set(redisKey, stringify(result));
           resolve(result);
         },
         (error) => {
@@ -1605,6 +1613,142 @@ function parseDetailed_walletGetData(
  * ? The wallet payments for rides are stored in the rides/deliveries collection.
  */
 function execGet_ridersDrivers_walletSummary(
+  requestObj,
+  collectionRidesDeliveryData,
+  collectionWalletTransactions_logs,
+  collectionDrivers_profiles,
+  collectionPassengers_profiles,
+  redisKey,
+  resolve,
+  user_type = "rider"
+) {
+  let redisKeyHere = `${redisKey}-forExecRiders_drivers_summary`;
+  redisGet(redisKeyHere)
+    .then(
+      (resp) => {
+        if (resp !== null) {
+          //? Refresh the cached data
+          new Promise((resFresh) => {
+            truelyExec_ridersDrivers_walletSummary(
+              requestObj,
+              collectionRidesDeliveryData,
+              collectionWalletTransactions_logs,
+              collectionDrivers_profiles,
+              collectionPassengers_profiles,
+              redisKey,
+              resFresh,
+              (user_type = "rider")
+            );
+          })
+            .then(
+              (result) => {
+                client.set(redisKeyHere, stringify(result));
+              },
+              () => {}
+            )
+            .catch(() => {});
+          //....Quickly reply
+          resp = parse(resp);
+          resolve(resp);
+        } //Make a fresh request
+        else {
+          new Promise((resFresh) => {
+            truelyExec_ridersDrivers_walletSummary(
+              requestObj,
+              collectionRidesDeliveryData,
+              collectionWalletTransactions_logs,
+              collectionDrivers_profiles,
+              collectionPassengers_profiles,
+              redisKey,
+              resFresh,
+              (user_type = "rider")
+            );
+          })
+            .then(
+              (result) => {
+                client.set(redisKeyHere, stringify(result));
+                resolve(result);
+              },
+              () => {
+                resolve({ total: 0, transactions_data: null });
+              }
+            )
+            .catch(() => {
+              resolve({ total: 0, transactions_data: null });
+            });
+        }
+      },
+      (error) => {
+        console.log(error);
+        //Make a fresh request
+        new Promise((resFresh) => {
+          truelyExec_ridersDrivers_walletSummary(
+            requestObj,
+            collectionRidesDeliveryData,
+            collectionWalletTransactions_logs,
+            collectionDrivers_profiles,
+            collectionPassengers_profiles,
+            redisKey,
+            resFresh,
+            (user_type = "rider")
+          );
+        })
+          .then(
+            (result) => {
+              client.set(redisKeyHere, stringify(result));
+              resolve(result);
+            },
+            () => {
+              resolve({ total: 0, transactions_data: null });
+            }
+          )
+          .catch(() => {
+            resolve({ total: 0, transactions_data: null });
+          });
+      }
+    )
+    .catch((error) => {
+      console.log(error);
+      //Make a fresh request
+      new Promise((resFresh) => {
+        truelyExec_ridersDrivers_walletSummary(
+          requestObj,
+          collectionRidesDeliveryData,
+          collectionWalletTransactions_logs,
+          collectionDrivers_profiles,
+          collectionPassengers_profiles,
+          redisKey,
+          resFresh,
+          (user_type = "rider")
+        );
+      })
+        .then(
+          (result) => {
+            client.set(redisKeyHere, stringify(result));
+            resolve(result);
+          },
+          () => {
+            resolve({ total: 0, transactions_data: null });
+          }
+        )
+        .catch(() => {
+          resolve({ total: 0, transactions_data: null });
+        });
+    });
+}
+
+/**
+ * @func truelyExec_ridersDrivers_walletSummary
+ * Responsible for truly run the get operations for the wallets summary for the riders and drivers.
+ * @param requestObj: contains the user_fingerprint and the mode: total or detailed.
+ * @param collectionRidesDeliveryData: the collection of all the requests.
+ * @param collectionWalletTransactions_logs: the collection of all the possible wallet transactions.
+ * @param collectionDrivers_profiles: collection of all the drivers
+ * @param collectionPassengers_profiles: collection of all the passengers.
+ * @param resolve
+ * @param user_type: rider or driver (the type of user for which to show the wallet details).
+ */
+function truelyExec_ridersDrivers_walletSummary(
   requestObj,
   collectionRidesDeliveryData,
   collectionWalletTransactions_logs,
@@ -2124,20 +2268,15 @@ function execGet_ridersDrivers_walletSummary(
                 //! ONLY OVERWRITE THE TRANSACTIONS DATA
                 result.transactions_data = resultCleansedData;
                 //Cache and reply
-                client.setex(
-                  redisKey,
-                  process.env.REDIS_EXPIRATION_5MIN,
-                  stringify(result)
-                );
+                client.set(redisKey, stringify(result));
                 //Reply
                 resolve(result);
               },
               (error) => {
                 console.log(error);
                 //Error - empty wallet -cache
-                client.setex(
+                client.set(
                   redisKey,
-                  process.env.REDIS_EXPIRATION_5MIN,
                   JSON.stringify({ total: 0, transactions_data: null })
                 );
                 //Reply
@@ -2147,9 +2286,8 @@ function execGet_ridersDrivers_walletSummary(
             .catch((error) => {
               console.log(error);
               //Error - empty wallet -cache
-              client.setex(
+              client.set(
                 redisKey,
-                process.env.REDIS_EXPIRATION_5MIN,
                 JSON.stringify({ total: 0, transactions_data: null })
               );
               //Reply
@@ -2160,9 +2298,8 @@ function execGet_ridersDrivers_walletSummary(
         (error) => {
           console.log(error);
           //Error - empty wallet -cache
-          client.setex(
+          client.set(
             redisKey,
-            process.env.REDIS_EXPIRATION_5MIN,
             JSON.stringify({ total: 0, transactions_data: null })
           );
           //Reply
@@ -2176,6 +2313,7 @@ function execGet_ridersDrivers_walletSummary(
     }
   );
 }
+
 /**
  * @func computeDriver_walletDeepInsights
  * Responsible for getting deep insights about the driver's wallet about all the payments during each week
