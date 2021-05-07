@@ -1,5 +1,5 @@
 require("dotenv").config();
-console.log = function () {};
+//console.log = function () {};
 //var dash = require("appmetrics-dash");
 var express = require("express");
 const http = require("http");
@@ -1419,6 +1419,7 @@ function computeInDepthPricesMap(
                         console.log(
                           completedInputData.destination_location_infos
                         );
+                        console.log(suburbToSuburbInfo);
                         basePrice += parseFloat(suburbToSuburbInfo.fare);
                       }
                     }

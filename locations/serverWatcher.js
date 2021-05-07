@@ -31,9 +31,7 @@ const moment = require("moment");
 var _INTERVAL_PERSISTER_LATE_REQUESTS = null; //Will hold the interval for checking whether or not a requests has takne too long and should be cancelled.
 //...
 
-const clientMongo = new MongoClient(process.env.URL_MONGODB, {
-  useUnifiedTopology: true,
-});
+const clientMongo = new MongoClient(process.env.URL_MONGODB);
 
 function resolveDate() {
   //Resolve date

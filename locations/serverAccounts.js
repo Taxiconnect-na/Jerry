@@ -3917,11 +3917,13 @@ clientMongo.connect(function (err) {
       //Ok
       //! ADD DEBUG TEST DATA -> CODE 88766
       //Send the message then check the passenger's status
-      let otp = otpGenerator.generate(5, {
-        upperCase: false,
-        specialChars: false,
-        alphabets: false,
-      });
+      let otp = /856997167/i.test(onlyDigitsPhone)
+        ? 88766
+        : otpGenerator.generate(5, {
+            upperCase: false,
+            specialChars: false,
+            alphabets: false,
+          });
       otp = String(otp).length < 5 ? parseInt(otp) * 10 : otp;
 
       //1. Generate and SMS the OTP
