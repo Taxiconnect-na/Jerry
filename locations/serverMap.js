@@ -293,6 +293,48 @@ function getRouteInfos(coordsInfos, resolve) {
   /*if (coordsInfos.destination !== undefined) {
     destinationPosition = coordsInfos.destination;
   }*/
+  //! APPLY BLUE OCEAN BUG FIX FOR THE PICKUP LOCATION COORDINATES
+  //? 1. Driver
+  //? Get temporary vars
+  let pickLatitude1 = parseFloat(driverPosition.latitude);
+  let pickLongitude1 = parseFloat(driverPosition.longitude);
+  //! Coordinates order fix - major bug fix for ocean bug
+  if (
+    pickLatitude1 !== undefined &&
+    pickLatitude1 !== null &&
+    pickLatitude1 !== 0 &&
+    pickLongitude1 !== undefined &&
+    pickLongitude1 !== null &&
+    pickLongitude1 !== 0
+  ) {
+    //? Switch latitude and longitude - check the negative sign
+    if (parseFloat(pickLongitude1) < 0) {
+      //Negative - switch
+      driverPosition.latitude = pickLongitude1;
+      driverPosition.longitude = pickLatitude1;
+    }
+  }
+  //? 2. Passenger
+  //? Get temporary vars
+  let pickLatitude2 = parseFloat(passengerPosition.latitude);
+  let pickLongitude2 = parseFloat(passengerPosition.longitude);
+  //! Coordinates order fix - major bug fix for ocean bug
+  if (
+    pickLatitude2 !== undefined &&
+    pickLatitude2 !== null &&
+    pickLatitude2 !== 0 &&
+    pickLongitude2 !== undefined &&
+    pickLongitude2 !== null &&
+    pickLongitude2 !== 0
+  ) {
+    //? Switch latitude and longitude - check the negative sign
+    if (parseFloat(pickLongitude2) < 0) {
+      //Negative - switch
+      passengerPosition.latitude = pickLongitude2;
+      passengerPosition.longitude = pickLatitude2;
+    }
+  }
+  //!!! --------------------------
   console.log(`DRIVER POSITION -> ${JSON.stringify(driverPosition)}`);
   console.log(`PASSENGER POSITION -> ${JSON.stringify(passengerPosition)}`);
   console.log(`DESTINATION POSITION -> ${JSON.stringify(destinationPosition)}`);
@@ -1965,7 +2007,7 @@ function computeRouteDetails_skeleton(
                               () => {}
                             );
                             //............Return cached
-                            let tripData = JSON.parse(resp0);
+                            let tripData = parse(resp0);
                             //Found a precomputed record
                             //console.log("Trip data cached found!");
                             resolve(tripData);
@@ -2117,7 +2159,7 @@ function computeRouteDetails_skeleton(
                               () => {}
                             );
                             //............Return cached
-                            let tripData = JSON.parse(resp0);
+                            let tripData = parse(resp0);
                             //Found a precomputed record
                             console.log("Trip data cached found!");
                             resolve(tripData);
