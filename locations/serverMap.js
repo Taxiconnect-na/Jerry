@@ -334,10 +334,32 @@ function getRouteInfos(coordsInfos, resolve) {
       passengerPosition.longitude = pickLatitude2;
     }
   }
+  //? 3. Destination
+  //? Get temporary vars
+  if (destinationPosition !== false && destinationPosition !== undefined) {
+    var pickLatitude3 = parseFloat(passengerPosition.latitude);
+    var pickLongitude3 = parseFloat(passengerPosition.longitude);
+    //! Coordinates order fix - major bug fix for ocean bug
+    if (
+      pickLatitude3 !== undefined &&
+      pickLatitude3 !== null &&
+      pickLatitude3 !== 0 &&
+      pickLongitude3 !== undefined &&
+      pickLongitude3 !== null &&
+      pickLongitude3 !== 0
+    ) {
+      //? Switch latitude and longitude - check the negative sign
+      if (parseFloat(pickLongitude3) < 0) {
+        //Negative - switch
+        destinationPosition.latitude = pickLongitude3;
+        destinationPosition.longitude = pickLatitude3;
+      }
+    }
+  }
   //!!! --------------------------
-  console.log(`DRIVER POSITION -> ${JSON.stringify(driverPosition)}`);
-  console.log(`PASSENGER POSITION -> ${JSON.stringify(passengerPosition)}`);
-  console.log(`DESTINATION POSITION -> ${JSON.stringify(destinationPosition)}`);
+  //console.log(`DRIVER POSITION -> ${JSON.stringify(driverPosition)}`);
+  //console.log(`PASSENGER POSITION -> ${JSON.stringify(passengerPosition)}`);
+  //console.log(`DESTINATION POSITION -> ${JSON.stringify(destinationPosition)}`);
 
   url =
     process.env.URL_ROUTE_SERVICES +
@@ -351,11 +373,9 @@ function getRouteInfos(coordsInfos, resolve) {
     passengerPosition.longitude +
     "&heading_penalty=0&avoid=residential&avoid=ferry&ch.disable=true&locale=en&details=street_name&details=time&optimize=true&points_encoded=false&details=max_speed&snap_prevention=ferry&profile=car&pass_through=true&instructions=false";
 
-  console.log(url);
+  //console.log(url);
 
   requestAPI(url, function (error, response, body) {
-    console.log(error);
-    console.log(body);
     if (body != undefined) {
       if (body.length > 20) {
         try {
@@ -1954,7 +1974,6 @@ function computeRouteDetails_skeleton(
     let rideHistory = result[0];
     let riderCoords = rideHistory.pickup_location_infos.coordinates;
     if (rideHistory.ride_state_vars.isAccepted) {
-      console.log("request accepted");
       //Get all the driver's informations
       //? Indexed
       collectionDrivers_profiles
@@ -1977,7 +1996,7 @@ function computeRouteDetails_skeleton(
               rideHistory.ride_state_vars.inRideToDestination === false &&
               rideHistory.ride_state_vars.isRideCompleted_driverSide === false
             ) {
-              console.log("IN ROUTE TO PICKUP");
+              console.log("IN ROUTE TO PICKUP -- HERE");
               //In route to pickup
               //console.log("In  route to pickup");
               let requestStatusMain = "inRouteToPickup";
@@ -2007,12 +2026,13 @@ function computeRouteDetails_skeleton(
                               () => {}
                             );
                             //............Return cached
-                            let tripData = parse(resp0);
+                            let tripData = JSON.parse(resp0);
                             //Found a precomputed record
                             //console.log("Trip data cached found!");
+                            console.log(tripData);
                             resolve(tripData);
                           } catch (error) {
-                            //console.log(error);
+                            console.log(error);
                             resolve(false);
                           }
                         } //no record create a new one
@@ -2032,6 +2052,7 @@ function computeRouteDetails_skeleton(
                               //Get route infos from cache.
                               redisGet(rideHistory.request_fp).then(
                                 (result) => {
+                                  console.log(result);
                                   resolve(result);
                                 },
                                 (error) => {
@@ -2047,7 +2068,7 @@ function computeRouteDetails_skeleton(
                         }
                       },
                       (err0) => {
-                        //console.log(err0);
+                        console.log(err0);
                         //Compute next route update ---------------------------------------------------
                         new Promise((reslv) => {
                           computeAndCacheRouteDestination(
@@ -2159,7 +2180,7 @@ function computeRouteDetails_skeleton(
                               () => {}
                             );
                             //............Return cached
-                            let tripData = parse(resp0);
+                            let tripData = JSON.parse(resp0);
                             //Found a precomputed record
                             console.log("Trip data cached found!");
                             resolve(tripData);
@@ -2548,7 +2569,7 @@ function computeAndCacheRouteDestination(
   new Promise((reslv) => {
     let redisKey = rideHistory.client_id + "-" + rideHistory.taxi_id;
     if (request_status === "inRouteToPickup") {
-      console.log("In route to pickup quick!");
+      //console.log("In route to pickup quick!");
       //For to pickup only
       bundle = {
         driver: {
@@ -3224,7 +3245,6 @@ function findoutPickupLocationNature(resolve, point) {
  * value: [{...}, {...}]
  */
 function findDestinationPathPreview(resolve, pointData) {
-  console.log("entered");
   if (pointData.origin !== undefined && pointData.destination !== undefined) {
     //Create the redis key
     let redisKey =
