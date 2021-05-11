@@ -887,7 +887,7 @@ function proceedTargeted_requestHistory_fetcher(
             if (request.car_fingerprint === car.car_fingerprint) {
               console.log(car);
               car_brand = car.car_brand;
-              car_picture = car.taxi_picture;
+              car_picture = `${process.env.AWS_S3_VEHICLES_PICTURES_PATH}/${car.taxi_picture}`;
               taxi_number = car.taxi_number;
               vehicle_type = /Economy/i.test(car.vehicle_type)
                 ? "Economy"
@@ -3855,6 +3855,40 @@ function getDriver_onlineOffline_status(req, resolve) {
 }
 
 /**
+ * @func getAdsManagerRunningInfos
+ * Responsible for getting the only visible Ad based on the city.
+ * @param req: input data from the user (must include for sure the user's fingerprint and the user's nature and the city)
+ * @param resolve
+ */
+function getAdsManagerRunningInfos(req, resolve) {
+  resolveDate();
+  //? Save the GET request for this user.
+  new Promise((resSaveRecord) => {
+    let eventBundle = {
+      event_name: "Ad_GET_event",
+      user_fingerprint: req.user_fingerprint,
+      user_nature: req.user_nature,
+      city: req.city,
+      date: new Date(chaineDateUTC),
+    };
+    //! -----
+    collectionGlobalEvents.insertOne(eventBundle, function (err, result) {
+      if (err) {
+        console.log(err);
+      }
+      //...
+      resSaveRecord(true);
+    });
+  }).then(
+    () => {},
+    () => {}
+  );
+  //?------------------------------------
+  //? Get all the companies with visibility "true"
+  collectionAdsCompanies_central.find({ visibility: true });
+}
+
+/**
  * MAIN
  */
 var collectionPassengers_profiles = null;
@@ -3864,6 +3898,7 @@ var collectionDrivers_profiles = null;
 var collectionDrivers_profiles = null;
 var collectionGlobalEvents = null;
 var collectionWalletTransactions_logs = null;
+var collectionAdsCompanies_central = null;
 
 clientMongo.connect(function (err) {
   //if (err) throw err;
@@ -3877,6 +3912,7 @@ clientMongo.connect(function (err) {
   collectionWalletTransactions_logs = dbMongo.collection(
     "wallet_transactions_logs"
   ); //Hold all the wallet transactions (exlude rides/deliveries records which are in the rides/deliveries collection)
+  collectionAdsCompanies_central = dbMongo.collection("ads_companies_central"); //Hold all the companies that subscribed for the Ad program.
   //-------------
   const bodyParser = require("body-parser");
   app
@@ -4734,7 +4770,16 @@ clientMongo.connect(function (err) {
       }).then(
         (result) => {
           try {
-            result.wallet_state = process.env.USERS_WALLET_STATE;
+            //! ADD EXCEPTIONS
+            let exceptions_users_to_wallet = [
+              "5b29bb1b9ac69d884f13fd4be2badcd22b72b98a69189bfab806dcf7c5f5541b6cbe8087cf60c791",
+              "48aecfa6a98979574c6db8a77fd0a9e09dd4f37b2e4811343c65d31a88c404f46169466ff0e03e46",
+            ];
+            result.wallet_state = exceptions_users_to_wallet.includes(
+              req.user_fingerprint
+            )
+              ? "unlocked"
+              : process.env.USERS_WALLET_STATE;
             //...
             let responseHolder = regModeLimiter.test("detailed")
               ? result
@@ -5013,6 +5058,97 @@ clientMongo.connect(function (err) {
           res.send({ response: "error", flag: "invalid_data" });
         }
       );
+    } //Invalid data
+    else {
+      res.send({ response: "error", flag: "invalid_data" });
+    }
+  });
+
+  /**
+   * GATHER ADS ANALYTICS FOR RIDERS
+   * ? Responsible for ccollecting all the Ads events from the riders/drivers app.
+   * ? Information: user fingerprint, user nature (rider, driver), screen identifier, company identifier, campaign identifier
+   */
+  app.post("/gatherAdsManagerAnalytics", function (req, res) {
+    resolveDate();
+    req = req.body;
+
+    if (
+      req.user_fingerprint !== undefined &&
+      req.user_fingerprint !== null &&
+      req.user_nature !== undefined &&
+      req.user_nature !== null &&
+      req.screen_identifier !== undefined &&
+      req.screen_identifier !== null &&
+      req.company_indentifier !== undefined &&
+      req.company_indentifier !== null &&
+      req.campaign_identifier !== undefined &&
+      req.campaign_identifier !== null
+    ) {
+      new Promise((resolve) => {
+        //! Save the Ad event
+        let eventBundle = {
+          event_name: "Ad_gathering",
+          user_fingerprint: req.user_fingerprint,
+          user_nature: req.user_nature,
+          ad_infos: {
+            screen_identifier: req.screen_identifier,
+            company_indentifier: req.company_indentifier,
+            campaign_identifier: req.campaign_identifier,
+          },
+          date: new Date(chaineDateUTC),
+        };
+        //! -----
+        collectionGlobalEvents.insertOne(eventBundle, function (err, result) {
+          if (err) {
+            console.log(err);
+          }
+          //...
+          resolve(true);
+        });
+      })
+        .then(
+          (result) => {
+            console.log(result);
+            res.send({ response: "success" });
+          },
+          (error) => {
+            console.log(error);
+            res.send({ response: "error", flag: "invalid_data" });
+          }
+        )
+        .catch((error) => {
+          console.log(error);
+          res.send({ response: "error", flag: "invalid_data" });
+        });
+    } //Invalid data
+    else {
+      res.send({ response: "error", flag: "invalid_data" });
+    }
+  });
+
+  /**
+   * GET AD INFORMATION
+   * ? Responsible for getting the ad infos for the companies based on the operating city to the riders/drivers
+   * ? Required infos: user_fingerprint.
+   * ! Cache as much as possible.
+   */
+  app.get("/getAdsManagerRunningInfos", function (req, res) {
+    resolveDate();
+    let params = urlParser.parse(req.url, true);
+    req = params.query;
+    console.log(req);
+
+    if (
+      req.user_fingerprint !== undefined &&
+      req.user_fingerprint !== null &&
+      req.user_nature !== undefined &&
+      req.user_nature !== null &&
+      req.city !== undefined &&
+      req.city !== null
+    ) {
+      //Valid
+      //? Get the only visible Ad campaign based on the operation city
     } //Invalid data
     else {
       res.send({ response: "error", flag: "invalid_data" });

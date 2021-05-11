@@ -1284,7 +1284,7 @@ function execGetDrivers_requests_and_provide(
             return tmpReg.test(clearancesString);
           });
           //2. ADD THE ALREADY ACCEPTED REQUESTS IN FRONT
-          refinedRequests = [...alreadyFetchedData, ...refinedRequests];
+          refinedRequests = [...refinedRequests, ...alreadyFetchedData];
           //Slice based on the max capacity
           //refinedRequests = refinedRequests.slice(0, max_passengers_capacity);
           //...
@@ -2724,7 +2724,7 @@ function computeAndCacheRouteDestination(
       //Complete the car's infos
       additionalInfos.carDetails.taxi_number = currentVehicle.taxi_number;
       additionalInfos.carDetails.car_brand = currentVehicle.car_brand;
-      additionalInfos.carDetails.car_image = currentVehicle.taxi_picture;
+      additionalInfos.carDetails.car_image = `${process.env.AWS_S3_VEHICLES_PICTURES_PATH}/${currentVehicle.taxi_picture}`;
       additionalInfos.carDetails.plate_number = currentVehicle.plate_number;
       //Add pickup name and destination name
       additionalInfos.basicTripDetails.pickup_name =
