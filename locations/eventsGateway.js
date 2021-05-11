@@ -1241,6 +1241,107 @@ io.on("connection", (socket) => {
 
   /**
    * ACCOUNTS SERVICE, port 9696
+   * Route: gatherAdsManagerAnalytics
+   * event: gatherAdsManagerAnalytics_io
+   * Save all the ads events collected from the users devices (riders/drivers)
+   */
+  socket.on("gatherAdsManagerAnalytics_io", function (req) {
+    console.trace(req);
+    if (
+      req.user_fingerprint !== undefined &&
+      req.user_fingerprint !== null &&
+      req.user_nature !== undefined &&
+      req.user_nature !== null &&
+      req.screen_identifier !== undefined &&
+      req.screen_identifier !== null &&
+      req.company_identifier !== undefined &&
+      req.company_identifier !== null &&
+      req.campaign_identifier !== undefined &&
+      req.campaign_identifier !== null
+    ) {
+      let url =
+        process.env.LOCAL_URL +
+        ":" +
+        process.env.ACCOUNTS_SERVICE_PORT +
+        "/gatherAdsManagerAnalytics";
+
+      requestAPI.post({ url, form: req }, function (error, response, body) {
+        console.log(body);
+        if (error === null) {
+          try {
+            body = JSON.parse(body);
+            socket.emit("gatherAdsManagerAnalytics_io-response", body);
+          } catch (error) {
+            socket.emit("gatherAdsManagerAnalytics_io-response", {
+              response: "error_noAds",
+            });
+          }
+        } else {
+          socket.emit("gatherAdsManagerAnalytics_io-response", {
+            response: "error_noAds",
+          });
+        }
+      });
+    } else {
+      socket.emit("gatherAdsManagerAnalytics_io-response", {
+        response: "error_noAds",
+      });
+    }
+  });
+
+  /**
+   * ACCOUNTS SERVICE, port 9696
+   * Route: getAdsManagerRunningInfos
+   * event: getAdsManagerRunningInfos_io
+   * Get all the running Ads campaigns (usually just one at the time) in the current city.
+   */
+  socket.on("getAdsManagerRunningInfos_io", function (req) {
+    console.log(req);
+    if (
+      req.user_fingerprint !== undefined &&
+      req.user_fingerprint !== null &&
+      req.user_nature !== undefined &&
+      req.user_nature !== null &&
+      req.city !== undefined &&
+      req.city !== null
+    ) {
+      let url =
+        process.env.LOCAL_URL +
+        ":" +
+        process.env.ACCOUNTS_SERVICE_PORT +
+        "/getAdsManagerRunningInfos?user_fingerprint=" +
+        req.user_fingerprint +
+        "&user_nature=" +
+        req.user_nature +
+        "&city=" +
+        req.city;
+
+      requestAPI(url, function (error, response, body) {
+        console.log(body);
+        if (error === null) {
+          try {
+            body = JSON.parse(body);
+            socket.emit("getAdsManagerRunningInfos_io-response", body);
+          } catch (error) {
+            socket.emit("getAdsManagerRunningInfos_io-response", {
+              response: "error_noAds",
+            });
+          }
+        } else {
+          socket.emit("getAdsManagerRunningInfos_io-response", {
+            response: "error_noAds",
+          });
+        }
+      });
+    } else {
+      socket.emit("gatherAdsManagerAnalytics_io-response", {
+        response: "error_noAds",
+      });
+    }
+  });
+
+  /**
+   * ACCOUNTS SERVICE, port 9696
    * Route: updateRiders_profileInfos
    * event: updateRiders_profileInfos_io
    * Responsible for updating ANY information related to the passengers profile.

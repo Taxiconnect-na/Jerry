@@ -3859,9 +3859,92 @@ function getDriver_onlineOffline_status(req, resolve) {
  * Responsible for getting the only visible Ad based on the city.
  * @param req: input data from the user (must include for sure the user's fingerprint and the user's nature and the city)
  * @param resolve
+ * ? Visibility true means that there is a campaign going on.
  */
 function getAdsManagerRunningInfos(req, resolve) {
   resolveDate();
+  let redisKey = `${req.user_fingerprint}-${req.city}-adDisplayable`;
+  redisGet(redisKey).then(
+    (resp) => {
+      if (resp !== null) {
+        try {
+          //? Rehydrate data
+          new Promise((resExec) => {
+            TrulyGetAdsManagerRunningInfos(req, redisKey, resExec);
+          })
+            .then(
+              () => {},
+              (error) => {
+                console.log(error);
+              }
+            )
+            .catch((error) => {
+              console.log(error);
+            });
+          //? Quickly return
+          resp = parse(resp);
+          resolve(resp);
+        } catch (error) {
+          console.log(error);
+          //Get fresh record
+          new Promise((resExec) => {
+            TrulyGetAdsManagerRunningInfos(req, redisKey, resExec);
+          })
+            .then(
+              (result) => {
+                resolve(result);
+              },
+              (error) => {
+                console.log(error);
+                resolve({ response: "error", flag: "error_get_data" });
+              }
+            )
+            .catch((error) => {
+              console.log(error);
+              resolve({ response: "error", flag: "error_get_data" });
+            });
+        }
+      } //No record - get a fresh one
+      else {
+        new Promise((resExec) => {
+          TrulyGetAdsManagerRunningInfos(req, redisKey, resExec);
+        })
+          .then(
+            (result) => {
+              resolve(result);
+            },
+            (error) => {
+              console.log(error);
+              resolve({ response: "error", flag: "error_get_data" });
+            }
+          )
+          .catch((error) => {
+            console.log(error);
+            resolve({ response: "error", flag: "error_get_data" });
+          });
+      }
+    },
+    (error) => {
+      console.log(error);
+      //Get a fresh record
+      new Promise((resExec) => {
+        TrulyGetAdsManagerRunningInfos(req, redisKey, resExec);
+      })
+        .then(
+          (result) => {
+            resolve(result);
+          },
+          (error) => {
+            console.log(error);
+            resolve({ response: "error", flag: "error_get_data" });
+          }
+        )
+        .catch((error) => {
+          console.log(error);
+          resolve({ response: "error", flag: "error_get_data" });
+        });
+    }
+  );
   //? Save the GET request for this user.
   new Promise((resSaveRecord) => {
     let eventBundle = {
@@ -3883,9 +3966,78 @@ function getAdsManagerRunningInfos(req, resolve) {
     () => {},
     () => {}
   );
+}
+
+/**
+ * @func TrulyGetAdsManagerRunningInfos
+ * ! Truly runs the executions
+ * Responsible for getting the only visible Ad based on the city.
+ * @param req: input data from the user (must include for sure the user's fingerprint and the user's nature and the city)
+ * @param redisKey: the redis key to save the data to for 25 min
+ * @param resolve
+ * ? Visibility true means that there is a campaign going on.
+ */
+function TrulyGetAdsManagerRunningInfos(req, redisKey, resolve) {
   //?------------------------------------
   //? Get all the companies with visibility "true"
-  collectionAdsCompanies_central.find({ visibility: true });
+  collectionAdsCompanies_central
+    .find({
+      visibility: true,
+      are_terms_and_conditions_accepted: true,
+      "ad_specs.is_expired": false,
+      city: req.city,
+    })
+    .collation({ locale: "en", strength: 2 })
+    .toArray(function (err, companiesData) {
+      if (err) {
+        console.log(err);
+        resolve({ response: "error", flag: "invalid_data" });
+      }
+      //....
+      if (companiesData !== undefined && companiesData.length > 0) {
+        //Found some data
+        let companyData = companiesData[0];
+        //...
+        let adsData = companyData.ad_specs.sort((a, b) =>
+          a.expiration_date > b.expiration_date
+            ? 1
+            : b.expiration_date > a.expiration_date
+            ? -1
+            : 0
+        );
+        //? Only get the valid campaigns
+        adsData = adsData.filter((campaign) =>
+          campaign.is_expired === false ? true : false
+        );
+        //! Rewrite the logo web path
+        adsData[0].media.logo = `${process.env.AWS_S3_COMPANIES_AD_DATA_LOGOS}/${adsData[0].media.logo}`;
+        //! Remove the dates infos
+        adsData[0].date_created = null;
+        adsData[0].expiration_date = null;
+        //! Add the company id
+        adsData[0]["company_id"] = companyData.company_id;
+        //? Objectify the data
+        adsData = adsData[0];
+        //? Cache data
+        client.setex(
+          redisKey,
+          process.env.REDIS_EXPIRATION_5MIN * 9,
+          stringify(adsData)
+        );
+        //..DONE
+        resolve({ response: adsData });
+      } //No data
+      else {
+        client.setex(
+          redisKey,
+          process.env.REDIS_EXPIRATION_5MIN * 9,
+          stringify({
+            response: "No_ad_infos",
+          })
+        );
+        resolve({ response: "No_ad_infos" });
+      }
+    });
 }
 
 /**
@@ -5072,6 +5224,7 @@ clientMongo.connect(function (err) {
   app.post("/gatherAdsManagerAnalytics", function (req, res) {
     resolveDate();
     req = req.body;
+    //console.trace(req);
 
     if (
       req.user_fingerprint !== undefined &&
@@ -5080,32 +5233,37 @@ clientMongo.connect(function (err) {
       req.user_nature !== null &&
       req.screen_identifier !== undefined &&
       req.screen_identifier !== null &&
-      req.company_indentifier !== undefined &&
-      req.company_indentifier !== null &&
+      req.company_identifier !== undefined &&
+      req.company_identifier !== null &&
       req.campaign_identifier !== undefined &&
       req.campaign_identifier !== null
     ) {
       new Promise((resolve) => {
-        //! Save the Ad event
-        let eventBundle = {
-          event_name: "Ad_gathering",
-          user_fingerprint: req.user_fingerprint,
-          user_nature: req.user_nature,
-          ad_infos: {
-            screen_identifier: req.screen_identifier,
-            company_indentifier: req.company_indentifier,
-            campaign_identifier: req.campaign_identifier,
-          },
-          date: new Date(chaineDateUTC),
-        };
-        //! -----
-        collectionGlobalEvents.insertOne(eventBundle, function (err, result) {
-          if (err) {
-            console.log(err);
-          }
-          //...
-          resolve(true);
-        });
+        try {
+          //! Save the Ad event
+          let eventBundle = {
+            event_name: "Ad_gathering",
+            user_fingerprint: req.user_fingerprint,
+            user_nature: req.user_nature,
+            ad_infos: {
+              screen_identifier: req.screen_identifier,
+              company_identifier: req.company_identifier,
+              campaign_identifier: req.campaign_identifier,
+            },
+            date: new Date(chaineDateUTC),
+          };
+          //! -----
+          collectionGlobalEvents.insertOne(eventBundle, function (err, result) {
+            if (err) {
+              console.trace(err);
+            }
+            //...
+            resolve(true);
+          });
+        } catch (error) {
+          console.trace(error);
+          resolve(false);
+        }
       })
         .then(
           (result) => {
@@ -5149,6 +5307,22 @@ clientMongo.connect(function (err) {
     ) {
       //Valid
       //? Get the only visible Ad campaign based on the operation city
+      new Promise((resGet) => {
+        getAdsManagerRunningInfos(req, resGet);
+      })
+        .then(
+          (result) => {
+            res.send(result);
+          },
+          (error) => {
+            console.log(error);
+            res.send({ response: "error", flag: "invalid_data" });
+          }
+        )
+        .catch((error) => {
+          console.log(error);
+          res.send({ response: "error", flag: "invalid_data" });
+        });
     } //Invalid data
     else {
       res.send({ response: "error", flag: "invalid_data" });
