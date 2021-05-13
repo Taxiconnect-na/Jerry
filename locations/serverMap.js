@@ -649,7 +649,8 @@ function updateRiderLocationsLog(
                     latitude: locationData.latitude,
                     longitude: locationData.longitude,
                   },
-                  "operational_state.last_location.prev_coordinates": prevCoordsWhichWasNewHere,
+                  "operational_state.last_location.prev_coordinates":
+                    prevCoordsWhichWasNewHere,
                   "operational_state.last_location.date_updated": new Date(
                     chaineDateUTC
                   ),
@@ -937,7 +938,8 @@ function tripChecker_Dispatcher(
                 //? Check if the user is part of a delivery request iin which he is the receiver.
                 let rideChecker = {
                   "ride_state_vars.isRideCompleted_riderSide": false,
-                  "delivery_infos.receiverPhone_delivery": riderData[0].phone_number.trim(),
+                  "delivery_infos.receiverPhone_delivery":
+                    riderData[0].phone_number.trim(),
                 };
                 //...
                 collectionRidesDeliveries_data
@@ -1722,7 +1724,8 @@ function execDriver_requests_parsing(
               : "Yesterday";
         } //Immediate request
         else {
-          parsedRequestsArray.ride_basic_infos.date_state_wishedPickup_time = null;
+          parsedRequestsArray.ride_basic_infos.date_state_wishedPickup_time =
+            null;
         }
         //?---
         parsedRequestsArray.ride_basic_infos.fare_amount = parseFloat(
@@ -2388,7 +2391,8 @@ function computeRouteDetails_skeleton(
                 }
               });
               //3. Add ride mode
-              confirmation_request_schema.trip_details.ride_mode = rideHistory.ride_mode.toUpperCase();
+              confirmation_request_schema.trip_details.ride_mode =
+                rideHistory.ride_mode.toUpperCase();
               //4. Add the date requested
               //Reformat the data
               let dateRequest = new Date(rideHistory.date_requested);
@@ -2412,7 +2416,8 @@ function computeRouteDetails_skeleton(
                   ? dateRequest.minute()
                   : "0" + dateRequest.minute());
               //Save
-              confirmation_request_schema.trip_details.date_requested = dateRequest;
+              confirmation_request_schema.trip_details.date_requested =
+                dateRequest;
               //5. Add the request_fp - Very important
               confirmation_request_schema.trip_details.request_fp =
                 rideHistory.request_fp;
@@ -2771,14 +2776,16 @@ function computeAndCacheRouteDestination(
         }
       });
       //Add payment method
-      additionalInfos.basicTripDetails.payment_method = rideHistory.payment_method.toUpperCase();
+      additionalInfos.basicTripDetails.payment_method =
+        rideHistory.payment_method.toUpperCase();
       //Addd fare amount
       additionalInfos.basicTripDetails.fare_amount = rideHistory.fare;
       //Add the number of passengers
       additionalInfos.basicTripDetails.passengers_number =
         rideHistory.passengers_number;
       //Add the ride mode
-      additionalInfos.basicTripDetails.ride_mode = rideHistory.ride_mode.toUpperCase();
+      additionalInfos.basicTripDetails.ride_mode =
+        rideHistory.ride_mode.toUpperCase();
       //Add the simplified id
       additionalInfos.basicTripDetails.ride_simplified_id =
         rideHistory.trip_simplified_id;
@@ -4646,7 +4653,17 @@ clientMongo.connect(function (err) {
         reverseGeocodeUserLocation(resolve, request);
       }).then(
         (result) => {
-          res.send(result);
+          //! Replace Samora Machel Constituency by Wanaheda
+          if (
+            result.suburb !== undefined &&
+            result.suburb !== null &&
+            /Samora Machel Constituency/i.test(result.suburb)
+          ) {
+            result.suburb = "Wanaheda";
+            res.send(result);
+          } else {
+            res.send(result);
+          }
         },
         (error) => {
           res.send(false);

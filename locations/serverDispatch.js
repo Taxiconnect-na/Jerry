@@ -457,8 +457,10 @@ function parseRequestData(inputData, resolve) {
                       //? Switch latitude and longitude - check the negative sign
                       if (parseFloat(pickLongitude) < 0) {
                         //Negative - switch
-                        parsedData.pickup_location_infos.coordinates.latitude = pickLongitude;
-                        parsedData.pickup_location_infos.coordinates.longitude = pickLatitude;
+                        parsedData.pickup_location_infos.coordinates.latitude =
+                          pickLongitude;
+                        parsedData.pickup_location_infos.coordinates.longitude =
+                          pickLatitude;
                       }
                     }
                     //!!!
@@ -488,7 +490,9 @@ function parseRequestData(inputData, resolve) {
                           try {
                             body = JSON.parse(body);
                             parsedData.pickup_location_infos.suburb =
-                              body.suburb; //! Suburb
+                              /Samora Machel Constituency/i.test(body.suburb)
+                                ? "Wanaheda"
+                                : body.suburb; //! Suburb
                             parsedData.pickup_location_infos.state = body.state; //! State
                             parsedData.pickup_location_infos.location_name =
                               body.location_name; //! Location name
@@ -541,13 +545,15 @@ function parseRequestData(inputData, resolve) {
                             //Many passengers
                             //Check if all going to the same destination
                             //? Clean the boolean
-                            inputData.isAllGoingToSameDestination = /string/i.test(
-                              typeof inputData.isAllGoingToSameDestination
-                            )
-                              ? inputData.isAllGoingToSameDestination === "true"
-                                ? true
-                                : false
-                              : inputData.isAllGoingToSameDestination;
+                            inputData.isAllGoingToSameDestination =
+                              /string/i.test(
+                                typeof inputData.isAllGoingToSameDestination
+                              )
+                                ? inputData.isAllGoingToSameDestination ===
+                                  "true"
+                                  ? true
+                                  : false
+                                : inputData.isAllGoingToSameDestination;
                             //? -----------
                             if (
                               inputData.isAllGoingToSameDestination &&
@@ -904,28 +910,58 @@ function parseRequestData(inputData, resolve) {
                                     else {
                                       //Update the destination data
                                       parsedData.destinationData = body;
-                                      //DONE
-                                      //! CACHE RECOVERED REQUEST
-                                      if (
-                                        inputData.recovered_request !==
-                                          undefined &&
-                                        inputData.recovered_request &&
-                                        parsedData !== false &&
-                                        parsedData !== undefined &&
-                                        parsedData !== null
-                                      ) {
-                                        new Promise((resCache) => {
-                                          client.setex(
-                                            `${inputData.request_fp}-recoveredData`,
-                                            process.env.REDIS_EXPIRATION_5MIN,
-                                            stringify(parsedData)
-                                          );
-                                          resCache(true);
-                                        })
-                                          .then()
-                                          .catch(() => {});
-                                      }
-                                      resolve(parsedData);
+                                      //! Replace Samora Machel Constituency by Wanaheda
+                                      new Promise((resReformat) => {
+                                        parsedData.destinationData.map(
+                                          (destination, index) => {
+                                            if (
+                                              /Samora Machel Constituency/i.test(
+                                                destination.suburb
+                                              )
+                                            ) {
+                                              parsedData.destinationData[
+                                                index
+                                              ].suburb = "Wanaheda";
+                                            }
+                                          }
+                                        );
+                                        resReformat(true);
+                                      })
+                                        .then(
+                                          () => {
+                                            //! CACHE RECOVERED REQUEST
+                                            if (
+                                              inputData.recovered_request !==
+                                                undefined &&
+                                              inputData.recovered_request &&
+                                              parsedData !== false &&
+                                              parsedData !== undefined &&
+                                              parsedData !== null
+                                            ) {
+                                              new Promise((resCache) => {
+                                                client.setex(
+                                                  `${inputData.request_fp}-recoveredData`,
+                                                  process.env
+                                                    .REDIS_EXPIRATION_5MIN,
+                                                  stringify(parsedData)
+                                                );
+                                                resCache(true);
+                                              })
+                                                .then()
+                                                .catch(() => {});
+                                            }
+                                            //? DONE
+                                            resolve(parsedData);
+                                          },
+                                          (error) => {
+                                            console.log(error);
+                                            resolve(parsedData);
+                                          }
+                                        )
+                                        .catch((error) => {
+                                          console.log(error);
+                                          resolve(parsedData);
+                                        });
                                     }
                                   } catch (error) {
                                     console.log(error);
@@ -1949,8 +1985,7 @@ function acceptRequest_driver(
                                 .RIDERS_ONESIGNAL_CHANNEL_ACCEPTTEDD_REQUEST, //Ride or delivery channel
                             priority: 10,
                             contents: {
-                              en:
-                                "We've found a driver for your request. click here for more.",
+                              en: "We've found a driver for your request. click here for more.",
                             },
                             headings: { en: "Request accepted" },
                             content_available: true,
@@ -2016,7 +2051,8 @@ function acceptRequest_driver(
                             },
                             {
                               $set: {
-                                "operational_state.accepted_requests_infos": prevAcceptedData,
+                                "operational_state.accepted_requests_infos":
+                                  prevAcceptedData,
                                 date_updated: chaineDateUTC,
                               },
                             },
@@ -2182,7 +2218,8 @@ function cancelRequest_driver(
                             },
                             {
                               $set: {
-                                "operational_state.accepted_requests_infos": prevAcceptedData,
+                                "operational_state.accepted_requests_infos":
+                                  prevAcceptedData,
                                 date_updated: chaineDateUTC,
                               },
                             },
@@ -2225,8 +2262,7 @@ function cancelRequest_driver(
                                         .RIDERS_ONESIGNAL_CHANNEL_ACCEPTTEDD_REQUEST, //Ride or delivery channel
                                     priority: 10,
                                     contents: {
-                                      en:
-                                        "Your previous driver has cancelled the trip, we're looking for a new one.",
+                                      en: "Your previous driver has cancelled the trip, we're looking for a new one.",
                                     },
                                     headings: { en: "Finding you a ride" },
                                     content_available: true,
@@ -2473,7 +2509,8 @@ function confirmDropoffRequest_driver(
                             },
                             {
                               $set: {
-                                "operational_state.accepted_requests_infos": prevAcceptedData,
+                                "operational_state.accepted_requests_infos":
+                                  prevAcceptedData,
                                 date_updated: chaineDateUTC,
                               },
                             },
@@ -2516,8 +2553,7 @@ function confirmDropoffRequest_driver(
                                         .RIDERS_ONESIGNAL_CHANNEL_ACCEPTTEDD_REQUEST, //Ride or delivery channel
                                     priority: 10,
                                     contents: {
-                                      en:
-                                        "Don't forget to confirm your drop off and rate your driver. Click here to do so.",
+                                      en: "Don't forget to confirm your drop off and rate your driver. Click here to do so.",
                                     },
                                     headings: { en: "Your trip is completed" },
                                     content_available: true,
@@ -3287,10 +3323,11 @@ clientMongo.connect(function (err) {
                                     ) {
                                       //Delivery
                                       new Promise((resNotifyReceiver) => {
-                                        let receiversPhone = parsedRequest.delivery_infos.receiverPhone_delivery.replace(
-                                          "+",
-                                          ""
-                                        );
+                                        let receiversPhone =
+                                          parsedRequest.delivery_infos.receiverPhone_delivery.replace(
+                                            "+",
+                                            ""
+                                          );
                                         let receiverName = ucFirst(
                                           parsedRequest.delivery_infos.receiverName_delivery.trim()
                                         );
@@ -3298,7 +3335,8 @@ clientMongo.connect(function (err) {
                                         //!Check if the receiver is a current user
                                         collectionPassengers_profiles
                                           .find({
-                                            phone_number: parsedRequest.delivery_infos.receiverPhone_delivery.trim(),
+                                            phone_number:
+                                              parsedRequest.delivery_infos.receiverPhone_delivery.trim(),
                                           })
                                           .toArray(function (
                                             err,
@@ -3355,8 +3393,7 @@ clientMongo.connect(function (err) {
                                                       en: message,
                                                     },
                                                     headings: {
-                                                      en:
-                                                        "Delivery in progress",
+                                                      en: "Delivery in progress",
                                                     },
                                                     content_available: true,
                                                     include_player_ids: [
