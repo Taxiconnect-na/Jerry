@@ -1368,118 +1368,132 @@ function computeInDepthPricesMap(
             } //Private location or taxi ranks - only for Economy and COnnectUS since for Luxury and comfort (connectMe) the price is already computed
             else {
               if (/ConnectUS/i.test(connectType)) {
-                if (/Economy/i.test(vehicle.category)) {
-                  //Added up all the suburb related infos based on connect me of connectUS
-                  let lockPorgress = false; //Reponsible for avoiding repetitive removeal in case of FALSE suburb
-                  //Add base ride fare if the user is found to be going to the same suburb
-                  if (tmpPickupPickup === tmpDestinationSuburb) {
-                    //Same suburb -> fare = base ride price
-                    basePrice += vehicle.base_fare;
-                  }
-                  let didFindRegisteredSuburbs = false; //To know whether or not has found registered suburbs or else did not find matching suburbs.
-                  //...
-                  globalPricesMap.map((suburbToSuburbInfo) => {
-                    if (
-                      suburbToSuburbInfo.pickup_suburb === false &&
-                      lockPorgress === false
-                    ) {
-                      //Add once
-                      if (basePrice > 0) {
-                        //Add basic vehicle price instead of false suburb fare
-                        //basePrice += suburbToSuburbInfo.fare;
-                        basePrice += vehicle.base_fare;
-                        lockPorgress = true;
-                        didFindRegisteredSuburbs = true; //Found false suburbs-consider as registered.
-                      }
-                    } else if (
-                      suburbToSuburbInfo.pickup_suburb !== false &&
-                      destination.suburb !== false &&
-                      new RegExp(
-                        suburbToSuburbInfo.pickup_suburb.toUpperCase().trim(),
-                        "i"
-                      ).test(tmpPickupPickup.toUpperCase().trim()) &&
-                      new RegExp(
-                        suburbToSuburbInfo.destination_suburb
-                          .toUpperCase()
-                          .trim(),
-                        "i"
-                      ).test(destination.suburb.toUpperCase().trim())
-                    ) {
-                      lockPorgress = false;
-                      didFindRegisteredSuburbs = true; //Found registered suburbs.
-                      //If the car type is economy electric, add its base price
-                      if (/electricEconomy/i.test(vehicle.car_type)) {
-                        //console.log(vehicle.base_fare);
-                        //basePrice += vehicle.base_fare;
-                        //? Remove N$2 discount for electric rides
-                        basePrice += parseFloat(suburbToSuburbInfo.fare) - 2;
-                      } //Normal taxis
-                      else {
-                        console.log(suburbToSuburbInfo.fare);
-                        console.log(
-                          completedInputData.destination_location_infos
-                        );
-                        console.log(suburbToSuburbInfo);
-                        basePrice += parseFloat(suburbToSuburbInfo.fare);
-                      }
+                if (/RIDE/i.test(vehicle.ride_type)) {
+                  //RIDES
+                  if (/Economy/i.test(vehicle.category)) {
+                    //Added up all the suburb related infos based on connect me of connectUS
+                    let lockPorgress = false; //Reponsible for avoiding repetitive removeal in case of FALSE suburb
+                    //Add base ride fare if the user is found to be going to the same suburb
+                    if (tmpPickupPickup === tmpDestinationSuburb) {
+                      //Same suburb -> fare = base ride price
+                      basePrice += vehicle.base_fare;
                     }
-                  });
-                  //...
-                  if (didFindRegisteredSuburbs === false) {
-                    //Did not find suburbs with mathing suburbs included
-                    //Register in mongo
-                    new Promise((resX) => {
-                      //Schema
-                      //{point1_suburb:XXXX, point2_suburb:XXXX, city:XXX, country:XXX, date:XXX}
-                      let queryNoMatch = {
-                        point1_suburb: tmpPickupPickup,
-                        point2_suburb: tmpDestinationSuburb,
-                        city: destination.city,
-                        country: request_country,
-                        date: new Date(chaineDateUTC),
-                      };
-                      let checkQuery = {
-                        point1_suburb: tmpPickupPickup,
-                        point2_suburb: tmpDestinationSuburb,
-                        city: destination.city,
-                        country: request_country,
-                      };
-                      //Check to avoid duplicates
-                      collectionNotFoundSubursPricesMap
-                        .find(checkQuery)
-                        .toArray(function (err, resultX) {
-                          if (resultX.length <= 0) {
-                            //New record
-                            collectionNotFoundSubursPricesMap.insertOne(
-                              queryNoMatch,
-                              function (err, res) {
-                                console.log("New record added");
-                                resX(true);
-                              }
-                            );
-                          }
-                        });
-                    }).then(
-                      () => {},
-                      () => {}
-                    );
-                    //Estimate a realistic price for now - EXTREMELY URGENT
-                    //Assign ride base price
+                    let didFindRegisteredSuburbs = false; //To know whether or not has found registered suburbs or else did not find matching suburbs.
+                    //...
+                    globalPricesMap.map((suburbToSuburbInfo) => {
+                      if (
+                        suburbToSuburbInfo.pickup_suburb === false &&
+                        lockPorgress === false
+                      ) {
+                        //Add once
+                        if (basePrice > 0) {
+                          //Add basic vehicle price instead of false suburb fare
+                          //basePrice += suburbToSuburbInfo.fare;
+                          basePrice += vehicle.base_fare;
+                          lockPorgress = true;
+                          didFindRegisteredSuburbs = true; //Found false suburbs-consider as registered.
+                        }
+                      } else if (
+                        suburbToSuburbInfo.pickup_suburb !== false &&
+                        destination.suburb !== false &&
+                        new RegExp(
+                          suburbToSuburbInfo.pickup_suburb.toUpperCase().trim(),
+                          "i"
+                        ).test(tmpPickupPickup.toUpperCase().trim()) &&
+                        new RegExp(
+                          suburbToSuburbInfo.destination_suburb
+                            .toUpperCase()
+                            .trim(),
+                          "i"
+                        ).test(destination.suburb.toUpperCase().trim())
+                      ) {
+                        lockPorgress = false;
+                        didFindRegisteredSuburbs = true; //Found registered suburbs.
+                        //If the car type is economy electric, add its base price
+                        if (/electricEconomy/i.test(vehicle.car_type)) {
+                          //console.log(vehicle.base_fare);
+                          //basePrice += vehicle.base_fare;
+                          //? Remove N$2 discount for electric rides
+                          basePrice += parseFloat(suburbToSuburbInfo.fare) - 2;
+                        } //Normal taxis
+                        else {
+                          console.log(suburbToSuburbInfo.fare);
+                          console.log(
+                            completedInputData.destination_location_infos
+                          );
+                          console.log(suburbToSuburbInfo);
+                          basePrice += parseFloat(suburbToSuburbInfo.fare);
+                        }
+                      }
+                    });
+                    //...
+                    if (didFindRegisteredSuburbs === false) {
+                      //Did not find suburbs with mathing suburbs included
+                      //Register in mongo
+                      new Promise((resX) => {
+                        //Schema
+                        //{point1_suburb:XXXX, point2_suburb:XXXX, city:XXX, country:XXX, date:XXX}
+                        let queryNoMatch = {
+                          point1_suburb: tmpPickupPickup,
+                          point2_suburb: tmpDestinationSuburb,
+                          city: destination.city,
+                          country: request_country,
+                          date: new Date(chaineDateUTC),
+                        };
+                        let checkQuery = {
+                          point1_suburb: tmpPickupPickup,
+                          point2_suburb: tmpDestinationSuburb,
+                          city: destination.city,
+                          country: request_country,
+                        };
+                        //Check to avoid duplicates
+                        collectionNotFoundSubursPricesMap
+                          .find(checkQuery)
+                          .toArray(function (err, resultX) {
+                            if (resultX.length <= 0) {
+                              //New record
+                              collectionNotFoundSubursPricesMap.insertOne(
+                                queryNoMatch,
+                                function (err, res) {
+                                  console.log("New record added");
+                                  resX(true);
+                                }
+                              );
+                            }
+                          });
+                      }).then(
+                        () => {},
+                        () => {}
+                      );
+                      //Estimate a realistic price for now - EXTREMELY URGENT
+                      //Assign ride base price
+                      basePrice += vehicle.base_fare;
+                    }
+                  } else if (
+                    /Comfort/i.test(vehicle.category) ||
+                    /Luxury/i.test(vehicle.category)
+                  ) {
+                    //Add base fare for one person
                     basePrice += vehicle.base_fare;
                   }
-                } else if (
-                  /Comfort/i.test(vehicle.category) ||
-                  /Luxury/i.test(vehicle.category)
-                ) {
+                } else if (/DELIVERY/i.test(vehicle.ride_type)) {
+                  //DELIVERIES
                   //Add base fare for one person
                   basePrice += vehicle.base_fare;
                 }
               } //ConnectMe - for comfort and luxury only
               else {
-                if (
-                  /Comfort/i.test(vehicle.category) ||
-                  /Luxury/i.test(vehicle.category)
-                ) {
+                if (/RIDE/i.test(vehicle.ride_type)) {
+                  //RIDES
+                  if (
+                    /Comfort/i.test(vehicle.category) ||
+                    /Luxury/i.test(vehicle.category)
+                  ) {
+                    //Add base fare for one person
+                    basePrice += vehicle.base_fare;
+                  }
+                } else if (/DELIVERY/i.test(vehicle.ride_type)) {
+                  //DELIVERIES
                   //Add base fare for one person
                   basePrice += vehicle.base_fare;
                 }
