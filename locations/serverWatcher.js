@@ -1,6 +1,6 @@
 require("dotenv").config();
 //var dash = require("appmetrics-dash");
-console.log = function () {};
+//console.log = function () {};
 var express = require("express");
 const http = require("http");
 const fs = require("fs");
@@ -250,8 +250,7 @@ function removeOldRequests_madeWithoutBeingAttended(
                                     .RIDERS_ONESIGNAL_CHANNEL_AUTOCANCELLED_REQUEST, //Ride - Auto-cancelled group
                                 priority: 10,
                                 contents: {
-                                  en:
-                                    "Sorry we couldn't find for you an available ride, please try again.",
+                                  en: "Sorry we couldn't find for you an available ride, please try again.",
                                 },
                                 headings: { en: "Unable to find a ride" },
                                 content_available: true,
@@ -667,8 +666,7 @@ function scheduledRequestsWatcher_junky(
                                 .DRIVERS_ONESIGNAL_CHANNEL_NEW_NOTIFICATION,
                             priority: 10,
                             contents: {
-                              en:
-                                "Hi, you have a scheduled request to attend in about 2 minutes.",
+                              en: "Hi, you have a scheduled request to attend in about 2 minutes.",
                             },
                             headings: { en: "Upcoming scheduled request" },
                             content_available: true,
@@ -751,8 +749,7 @@ function scheduledRequestsWatcher_junky(
                               .RIDERS_ONESIGNAL_CHANNEL_ACCEPTTEDD_REQUEST,
                           priority: 10,
                           contents: {
-                            en:
-                              "Hi, you have a scheduled request in about 2 minutes.",
+                            en: "Hi, you have a scheduled request in about 2 minutes.",
                           },
                           headings: { en: "Upcoming scheduled request" },
                           content_available: true,
@@ -808,8 +805,7 @@ function scheduledRequestsWatcher_junky(
                                         .RIDERS_ONESIGNAL_CHANNEL_AUTOCANCELLED_REQUEST, //Ride - Auto-cancelled group
                                     priority: 10,
                                     contents: {
-                                      en:
-                                        "Sorry we couldn't find for you an available ride, please try again.",
+                                      en: "Sorry we couldn't find for you an available ride, please try again.",
                                     },
                                     headings: { en: "Unable to find a ride" },
                                     content_available: true,
@@ -919,9 +915,7 @@ function requestsDriverSubscriber_watcher(
             //No subscribers yet
             if (
               request.allowed_drivers_see.length <= 0 ||
-              request.allowed_drivers_see.includes(
-                null
-              ) /* ||
+              request.allowed_drivers_see.includes(null) /* ||
               request.allowed_drivers_see.includes(undefined)*/
             ) {
               //? Get dates and convert from milliseconds to seconds
@@ -994,9 +988,10 @@ function requestsDriverSubscriber_watcher(
                         ]),
                       ];
                       //*. Remove the null
-                      newSubscribedDrivers_array = newSubscribedDrivers_array.filter(
-                        (data) => data !== null && data !== undefined
-                      );
+                      newSubscribedDrivers_array =
+                        newSubscribedDrivers_array.filter(
+                          (data) => data !== null && data !== undefined
+                        );
                       //2. Update  the subscribed driver array
                       collectionRidesDeliveryData.updateOne(
                         {

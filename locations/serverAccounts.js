@@ -451,7 +451,8 @@ function getBachRidesHistory(
                         : {
                             $in: ["scheduled", "business", "immediate"],
                           },
-                      "delivery_infos.receiverPhone_delivery": riderData[0].phone_number.trim(),
+                      "delivery_infos.receiverPhone_delivery":
+                        riderData[0].phone_number.trim(),
                     }; //?Indexed
                     //...
                     collectionRidesDeliveryData
@@ -980,7 +981,8 @@ function proceedTargeted_requestHistory_fetcher(
         full_request_schema.country = request.country;
         full_request_schema.city = null;
         //9. Add payment method
-        full_request_schema.payment_method = request.payment_method.toUpperCase();
+        full_request_schema.payment_method =
+          request.payment_method.toUpperCase();
         //10. Add ride mode
         full_request_schema.ride_mode = request.ride_mode;
         //11. Add the ride rating
@@ -1236,9 +1238,8 @@ function exec_computeDaily_amountMade(
               amount: 0,
               currency: "NAD",
               currency_symbol: "N$",
-              supported_requests_types: driverProfile.operation_clearances.join(
-                "-"
-              ),
+              supported_requests_types:
+                driverProfile.operation_clearances.join("-"),
               response: "error",
             });
           }
@@ -1491,6 +1492,16 @@ function parseDetailed_walletGetData(
             //? 7. Get the recipient name for any other non ride/delivery transactions in nature.
             if (!/(ride|delivery)/i.test(transaction.transaction_nature)) {
               //Everything except rides/deliveries
+              if (
+                /(topup|weeklyPaidDriverAutomatic|commissionTCSubtracted)/i.test(
+                  tmpClean.transaction_nature
+                )
+              ) {
+                //TOpups
+                //? DONE FOR TOPUPS
+                res(tmpClean);
+              }
+
               if (/sentToFriend/i.test(tmpClean.transaction_nature)) {
                 //Check the name from the passenger collection
                 collectionPassengers_profiles
@@ -1539,15 +1550,8 @@ function parseDetailed_walletGetData(
                       res(false);
                     }
                   });
-              } else if (
-                /(topup|weeklyPaidDriverAutomatic|commissionTCSubtracted)/i.test(
-                  tmpClean.transaction_nature
-                )
-              ) {
-                //TOpups
-                //? DONE FOR TOPUPS
-                res(tmpClean);
               } else {
+                console.trace("EMPTY");
                 res(false);
               }
             }
@@ -1556,7 +1560,7 @@ function parseDetailed_walletGetData(
               res(tmpClean);
             }
           } catch (error) {
-            console.log(error);
+            console.trace(error);
             res(false);
           }
         });
@@ -1637,7 +1641,7 @@ function execGet_ridersDrivers_walletSummary(
               collectionPassengers_profiles,
               redisKey,
               resFresh,
-              (user_type = "rider")
+              user_type
             );
           })
             .then(
@@ -1661,7 +1665,7 @@ function execGet_ridersDrivers_walletSummary(
               collectionPassengers_profiles,
               redisKey,
               resFresh,
-              (user_type = "rider")
+              user_type
             );
           })
             .then(
@@ -1690,7 +1694,7 @@ function execGet_ridersDrivers_walletSummary(
             collectionPassengers_profiles,
             redisKey,
             resFresh,
-            (user_type = "rider")
+            user_type
           );
         })
           .then(
@@ -1719,7 +1723,7 @@ function execGet_ridersDrivers_walletSummary(
           collectionPassengers_profiles,
           redisKey,
           resFresh,
-          (user_type = "rider")
+          user_type
         );
       })
         .then(
@@ -1767,6 +1771,7 @@ function truelyExec_ridersDrivers_walletSummary(
   //...
   //? 0. Get all the transactions received from other users
   new Promise((resReceivedTransactions) => {
+    //! Should be user_fingerprint instead of recipient_fp for DRIVERS
     let filterReceived = {
       recipient_fp: requestObj.user_fingerprint,
       transaction_nature: {
@@ -1802,11 +1807,14 @@ function truelyExec_ridersDrivers_walletSummary(
           resultTransactionsReceived.map((transaction) => {
             //! Add all except the TaxiConnect commission
             if (
-              !/commissionTCSubtracted/i.test(transaction.transaction_nature)
+              !/(commissionTCSubtracted|weeklyPaidDriverAutomatic)/i.test(
+                transaction.transaction_nature
+              )
             ) {
               receivedDataShot.total += parseFloat(transaction.amount);
             } //! Substract the commission
             else {
+              console.log(transaction);
               receivedDataShot.total -= parseFloat(transaction.amount);
             }
             //Save he record
@@ -1819,412 +1827,257 @@ function truelyExec_ridersDrivers_walletSummary(
           resReceivedTransactions({ total: 0, transactions_data: null });
         }
       });
-  }).then(
-    (receivedTransactionsData) => {
-      //1. Get the total topups
-      new Promise((res) => {
-        let filterTopups = {
-          user_fingerprint: requestObj.user_fingerprint,
-          transaction_nature: {
-            $in: ["topup", "paidDriver", "sentToDriver", "sentToFriend"],
-          },
-        }; //?Indexed
-        //...
-        collectionWalletTransactions_logs
-          .find(filterTopups)
-          .collation({ locale: "en", strength: 2 })
-          .toArray(function (err, resultTransactions) {
-            if (err) {
-              console.log(err);
-              res({ total: 0, transactions_data: null });
-            }
-            //..
-            if (
-              (resultTransactions !== undefined &&
-                resultTransactions.length > 0) ||
-              /driver/i.test(user_type)
-            ) {
-              //Found some records
-              //Save the transactions data
-              detailsData.transactions_data = resultTransactions;
-              //? Find the sum of all the transactions: topup (not including rides/deliveries)
-              //! Remove the paidDriver, sentToDriver and sentToFriend.
-              resultTransactions.map((transaction) => {
-                if (
-                  /topup/i.test(transaction.transaction_nature) &&
-                  /rider/i.test(user_type)
-                ) {
-                  //! Add
-                  detailsData.topedupAmount += parseFloat(transaction.amount);
-                } else if (
-                  /(paidDriver|sentToDriver|sentToFriend)/i.test(
-                    transaction.transaction_nature
-                  ) &&
-                  /rider/i.test(user_type)
-                ) {
-                  //!Remove
-                  detailsData.topedupAmount -= parseFloat(transaction.amount);
-                }
-              });
-              //Find the sum of all the paid transactions (rides/deliveries) - for wallet only
-              //? Happend the cash data to the transaction data as well.
-              let filterPaidRequests = /rider/i.test(user_type)
-                ? {
-                    client_id: requestObj.user_fingerprint,
-                    isArrivedToDestination: true,
-                  }
-                : {
-                    taxi_id: requestObj.user_fingerprint,
-                    isArrivedToDestination: true,
-                  };
-              //...Only consider the completed requests
-              collectionRidesDeliveryData
-                .find(filterPaidRequests)
-                .toArray(function (err, resultPaidRequests) {
-                  if (err) {
-                    console.log(err);
-                    res({ total: 0, transactions_data: null });
-                  }
-                  //...
-                  if (resultPaidRequests.length > 0) {
-                    //Found some records
-                    //Save the requests transaction data and find the sum of the paid transactions
-                    let completedDataPromise = resultPaidRequests.map(
-                      (paidRequests) => {
-                        return new Promise((partialResolver) => {
-                          //Get driver infos : for Taxis - taxi number / for private cars - drivers name
-                          collectionDrivers_profiles
-                            .find({ driver_fingerprint: paidRequests.taxi_id })
-                            .toArray(function (err, driverProfile) {
-                              if (err) {
-                                console.log(err);
-                                partialResolver({
-                                  total: 0,
-                                  transactions_data: null,
-                                });
-                              }
-                              //...
-                              //Gather driver data
-                              let driverData = {
-                                name: null,
-                                car_brand: null,
-                                taxi_number: null,
-                              };
-                              if (driverProfile.length > 0) {
-                                driverProfile = driverProfile[0];
-                                if (driverProfile.cars_data !== undefined) {
-                                  //Add name
-                                  driverData.name = driverProfile.name;
-                                  //Get car infos
-                                  driverProfile.cars_data.map((car) => {
-                                    if (
-                                      car.car_fingerprint ===
-                                      paidRequests.car_fingerprint
-                                    ) {
-                                      //Found car
-                                      //Save car brand and/or fingerprint
-                                      driverData.car_brand = car.car_brand;
-                                      driverData.taxi_number = car.taxi_number;
-                                    }
-                                  });
-                                }
-                              }
-
-                              //1. Reformat the data
-                              let dateRequest = new Date(
-                                paidRequests.date_requested
-                              );
-                              dateRequest = moment(dateRequest.getTime());
-                              dateRequest =
-                                (String(dateRequest.date()).length > 1
-                                  ? dateRequest.date()
-                                  : "0" + dateRequest.date()) +
-                                "-" +
-                                (String(dateRequest.month() + 1).length > 1
-                                  ? dateRequest.month() + 1
-                                  : "0" + (dateRequest.month() + 1)) +
-                                "-" +
-                                dateRequest.year() +
-                                ", " +
-                                (String(dateRequest.hour()).length > 1
-                                  ? dateRequest.hour()
-                                  : "0" + dateRequest.hour()) +
-                                ":" +
-                                (String(dateRequest.minute()).length > 1
-                                  ? dateRequest.minute()
-                                  : "0" + dateRequest.minute());
-
-                              //Only get the sum for the wallets requests
-                              if (/wallet/i.test(paidRequests.payment_method)) {
-                                //Wallet - add the sum and save record to transaction data
-                                detailsData.paid_totalAmount += parseFloat(
-                                  paidRequests.fare
-                                );
-                                //Save record
-                                partialResolver({
-                                  amount: parseFloat(paidRequests.fare),
-                                  transaction_nature: paidRequests.ride_mode,
-                                  payment_method: paidRequests.payment_method,
-                                  driverData: driverData,
-                                  date_captured: dateRequest,
-                                  date_requestedRaw:
-                                    paidRequests.date_requested,
-                                });
-                              } //Cash - only save transaction data
-                              else {
-                                partialResolver({
-                                  amount: parseFloat(paidRequests.fare),
-                                  transaction_nature: paidRequests.ride_mode,
-                                  payment_method: paidRequests.payment_method,
-                                  driverData: driverData,
-                                  date_captured: dateRequest,
-                                  date_requestedRaw:
-                                    paidRequests.date_requested,
-                                });
-                              }
-                              //...
-                            });
-                        });
-                      }
-                    );
-
-                    //..DONE
-                    Promise.all(completedDataPromise).then(
-                      (finalData) => {
-                        //Update the transaction data
-                        detailsData.transactions_data =
-                          detailsData.transactions_data !== null &&
-                          detailsData.transactions_data !== undefined
-                            ? [...detailsData.transactions_data, ...finalData]
-                            : finalData;
-                        //! Add the total received
-                        detailsData.transactions_data =
-                          receivedTransactionsData.transactions_data !== null &&
-                          receivedTransactionsData.transactions_data !==
-                            undefined
-                            ? [
-                                ...detailsData.transactions_data,
-                                ...receivedTransactionsData.transactions_data,
-                              ]
-                            : detailsData.transactions_data;
-                        //! DONE - First Logic for the riders - second for drivers!
-                        res(
-                          /rider/i.test(user_type)
-                            ? {
-                                total:
-                                  detailsData.topedupAmount +
-                                  receivedTransactionsData.total -
-                                  detailsData.paid_totalAmount,
-                                transactions_data:
-                                  detailsData.transactions_data,
-                              }
-                            : {
-                                total:
-                                  detailsData.topedupAmount +
-                                  receivedTransactionsData.total +
-                                  detailsData.paid_totalAmount,
-                                transactions_data:
-                                  detailsData.transactions_data,
-                              }
-                        );
-                      },
-                      (error) => {
-                        console.log(error);
-                        //Done
-                        res({ total: 0, transactions_data: null });
-                      }
-                    );
-                  } //No paid requests yet - send the current total found
-                  else {
-                    res({
-                      total:
-                        detailsData.topedupAmount +
-                        receivedTransactionsData.total -
-                        detailsData.paid_totalAmount,
-                      transactions_data:
-                        receivedTransactionsData.transactions_data !== null &&
-                        receivedTransactionsData.transactions_data !== undefined
-                          ? [
-                              ...detailsData.transactions_data,
-                              ...receivedTransactionsData.transactions_data,
-                            ]
-                          : detailsData.transactions_data,
-                    });
+  })
+    .then(
+      (receivedTransactionsData) => {
+        //1. Get the total topups
+        //? Or the drivers weekly payouts.
+        new Promise((res) => {
+          let filterTopups = {
+            user_fingerprint: requestObj.user_fingerprint,
+            transaction_nature: {
+              $in: [
+                "topup",
+                "paidDriver",
+                "sentToDriver",
+                "sentToFriend",
+                "weeklyPaidDriverAutomatic",
+              ],
+            },
+          }; //?Indexed
+          //...
+          collectionWalletTransactions_logs
+            .find(filterTopups)
+            .collation({ locale: "en", strength: 2 })
+            .toArray(function (err, resultTransactions) {
+              if (err) {
+                console.log(err);
+                res({ total: 0, transactions_data: null });
+              }
+              //..
+              if (
+                (resultTransactions !== undefined &&
+                  resultTransactions.length > 0) ||
+                /driver/i.test(user_type)
+              ) {
+                //Found some records
+                //Save the transactions data
+                detailsData.transactions_data = resultTransactions;
+                //? Find the sum of all the transactions: topup (not including rides/deliveries)
+                //! Remove the paidDriver, sentToDriver and sentToFriend.
+                resultTransactions.map((transaction) => {
+                  if (
+                    /topup/i.test(transaction.transaction_nature) &&
+                    /rider/i.test(user_type)
+                  ) {
+                    //! Add
+                    detailsData.topedupAmount += parseFloat(transaction.amount);
+                  } else if (
+                    /(paidDriver|sentToDriver|sentToFriend)/i.test(
+                      transaction.transaction_nature
+                    ) &&
+                    /rider/i.test(user_type)
+                  ) {
+                    //!Remove
+                    detailsData.topedupAmount -= parseFloat(transaction.amount);
+                  } else if (
+                    /(weeklyPaidDriverAutomatic)/i.test(
+                      transaction.transaction_nature
+                    ) &&
+                    /driver/i.test(user_type)
+                  ) {
+                    //! Remove automatic weekly payments from the total for the drivers
+                    detailsData.topedupAmount += parseFloat(transaction.amount);
+                    //Save he record
+                    receivedTransactionsData.transactions_data =
+                      receivedTransactionsData.transactions_data !==
+                        undefined &&
+                      receivedTransactionsData.transactions_data !== null
+                        ? receivedTransactionsData.transactions_data
+                        : [];
+                    //...
+                    /*receivedTransactionsData.transactions_data.push(
+                      transaction
+                    );*/
                   }
                 });
-            } //No topups records found - so return the transactions data
-            else {
-              //Find the sum of all the paid transactions (rides/deliveries) - for wallet only
-              //? Happend the cash data to the transaction data as well.
-              let filterPaidRequests = /rider/i.test(user_type)
-                ? {
-                    client_id: requestObj.user_fingerprint,
-                    isArrivedToDestination: true,
-                  }
-                : {
-                    taxi_id: requestObj.user_fingerprint,
-                    isArrivedToDestination: true,
-                  };
-              //...Only consider the completed requests
-              collectionRidesDeliveryData
-                .find(filterPaidRequests)
-                .toArray(function (err, resultPaidRequests) {
-                  if (err) {
-                    console.log(err);
-                    res({ total: 0, transactions_data: null });
-                  }
-                  //...
-                  if (resultPaidRequests.length > 0) {
-                    //Found some records
-                    //Save the requests transaction data and find the sum of the paid transactions
-                    let completedDataPromise = resultPaidRequests.map(
-                      (paidRequests) => {
-                        return new Promise((partialResolver) => {
-                          //Get driver infos : for Taxis - taxi number / for private cars - drivers name
-                          collectionDrivers_profiles
-                            .find({ driver_fingerprint: paidRequests.taxi_id })
-                            .toArray(function (err, driverProfile) {
-                              if (err) {
-                                console.log(err);
-                                partialResolver({
-                                  total: 0,
-                                  transactions_data: null,
-                                });
-                              }
-                              //...
-                              //Gather driver data
-                              let driverData = {
-                                name: null,
-                                car_brand: null,
-                                taxi_number: null,
-                              };
-                              if (driverProfile.length > 0) {
-                                driverProfile = driverProfile[0];
-                                if (driverProfile.cars_data !== undefined) {
-                                  //Add name
-                                  driverData.name = driverProfile.name;
-                                  //Get car infos
-                                  driverProfile.cars_data.map((car) => {
-                                    if (
-                                      car.car_fingerprint ===
-                                      paidRequests.car_fingerprint
-                                    ) {
-                                      //Found car
-                                      //Save car brand and/or fingerprint
-                                      driverData.car_brand = car.car_brand;
-                                      driverData.taxi_number = car.taxi_number;
-                                    }
+                //Find the sum of all the paid transactions (rides/deliveries) - for wallet only
+                //? Happend the cash data to the transaction data as well.
+                let filterPaidRequests = /rider/i.test(user_type)
+                  ? {
+                      client_id: requestObj.user_fingerprint,
+                      isArrivedToDestination: true,
+                    }
+                  : {
+                      taxi_id: requestObj.user_fingerprint,
+                      isArrivedToDestination: true,
+                    };
+                //...Only consider the completed requests
+                collectionRidesDeliveryData
+                  .find(filterPaidRequests)
+                  .collation({ locale: "en", strength: 2 })
+                  .toArray(function (err, resultPaidRequests) {
+                    if (err) {
+                      console.log(err);
+                      res({ total: 0, transactions_data: null });
+                    }
+                    //...
+                    if (resultPaidRequests.length > 0) {
+                      //Found some records
+                      //Save the requests transaction data and find the sum of the paid transactions
+                      let completedDataPromise = resultPaidRequests.map(
+                        (paidRequests) => {
+                          return new Promise((partialResolver) => {
+                            //Get driver infos : for Taxis - taxi number / for private cars - drivers name
+                            collectionDrivers_profiles
+                              .find({
+                                driver_fingerprint: paidRequests.taxi_id,
+                              })
+                              .toArray(function (err, driverProfile) {
+                                if (err) {
+                                  console.log(err);
+                                  partialResolver({
+                                    total: 0,
+                                    transactions_data: null,
                                   });
                                 }
-                              }
+                                //...
+                                //Gather driver data
+                                let driverData = {
+                                  name: null,
+                                  car_brand: null,
+                                  taxi_number: null,
+                                };
+                                if (driverProfile.length > 0) {
+                                  driverProfile = driverProfile[0];
+                                  if (driverProfile.cars_data !== undefined) {
+                                    //Add name
+                                    driverData.name = driverProfile.name;
+                                    //Get car infos
+                                    driverProfile.cars_data.map((car) => {
+                                      if (
+                                        car.car_fingerprint ===
+                                        paidRequests.car_fingerprint
+                                      ) {
+                                        //Found car
+                                        //Save car brand and/or fingerprint
+                                        driverData.car_brand = car.car_brand;
+                                        driverData.taxi_number =
+                                          car.taxi_number;
+                                      }
+                                    });
+                                  }
+                                }
 
-                              //1. Reformat the data
-                              let dateRequest = new Date(
-                                paidRequests.date_requested
-                              );
-                              dateRequest = moment(dateRequest.getTime());
-                              dateRequest =
-                                (String(dateRequest.date()).length > 1
-                                  ? dateRequest.date()
-                                  : "0" + dateRequest.date()) +
-                                "-" +
-                                (String(dateRequest.month() + 1).length > 1
-                                  ? dateRequest.month() + 1
-                                  : "0" + (dateRequest.month() + 1)) +
-                                "-" +
-                                dateRequest.year() +
-                                ", " +
-                                (String(dateRequest.hour()).length > 1
-                                  ? dateRequest.hour()
-                                  : "0" + dateRequest.hour()) +
-                                ":" +
-                                (String(dateRequest.minute()).length > 1
-                                  ? dateRequest.minute()
-                                  : "0" + dateRequest.minute());
-
-                              //Only get the sum for the wallets requests
-                              if (/wallet/i.test(paidRequests.payment_method)) {
-                                //Wallet - add the sum and save record to transaction data
-                                detailsData.paid_totalAmount += parseFloat(
-                                  paidRequests.fare
+                                //1. Reformat the data
+                                let dateRequest = new Date(
+                                  paidRequests.date_requested
                                 );
-                                //Save record
-                                partialResolver({
-                                  amount: parseFloat(paidRequests.fare),
-                                  transaction_nature: paidRequests.ride_mode,
-                                  payment_method: paidRequests.payment_method,
-                                  driverData: driverData,
-                                  date_captured: dateRequest,
-                                  date_requestedRaw:
-                                    paidRequests.date_requested,
-                                });
-                              } //Cash - only save transaction data
-                              else {
-                                partialResolver({
-                                  amount: parseFloat(paidRequests.fare),
-                                  transaction_nature: paidRequests.ride_mode,
-                                  payment_method: paidRequests.payment_method,
-                                  driverData: driverData,
-                                  date_captured: dateRequest,
-                                  date_requestedRaw:
-                                    paidRequests.date_requested,
-                                });
-                              }
-                              //...
-                            });
-                        });
-                      }
-                    );
+                                dateRequest = moment(dateRequest.getTime());
+                                dateRequest =
+                                  (String(dateRequest.date()).length > 1
+                                    ? dateRequest.date()
+                                    : "0" + dateRequest.date()) +
+                                  "-" +
+                                  (String(dateRequest.month() + 1).length > 1
+                                    ? dateRequest.month() + 1
+                                    : "0" + (dateRequest.month() + 1)) +
+                                  "-" +
+                                  dateRequest.year() +
+                                  ", " +
+                                  (String(dateRequest.hour()).length > 1
+                                    ? dateRequest.hour()
+                                    : "0" + dateRequest.hour()) +
+                                  ":" +
+                                  (String(dateRequest.minute()).length > 1
+                                    ? dateRequest.minute()
+                                    : "0" + dateRequest.minute());
 
-                    //..DONE
-                    Promise.all(completedDataPromise).then(
-                      (finalData) => {
-                        //Update the transaction data
-                        detailsData.transactions_data =
-                          detailsData.transactions_data !== null &&
-                          detailsData.transactions_data !== undefined
-                            ? [...detailsData.transactions_data, ...finalData]
-                            : finalData;
-                        //! Add the total received
-                        detailsData.transactions_data =
-                          receivedTransactionsData.transactions_data !== null &&
-                          receivedTransactionsData.transactions_data !==
-                            undefined
-                            ? [
-                                ...detailsData.transactions_data,
-                                ...receivedTransactionsData.transactions_data,
-                              ]
-                            : detailsData.transactions_data;
-                        //! DONE - First Logic for the riders - second for drivers!
-                        res(
-                          /rider/i.test(user_type)
-                            ? {
-                                total:
-                                  detailsData.topedupAmount +
-                                  receivedTransactionsData.total -
-                                  detailsData.paid_totalAmount,
-                                transactions_data:
-                                  detailsData.transactions_data,
-                              }
-                            : {
-                                total:
-                                  detailsData.topedupAmount +
-                                  receivedTransactionsData.total +
-                                  detailsData.paid_totalAmount,
-                                transactions_data:
-                                  detailsData.transactions_data,
-                              }
-                        );
-                      },
-                      (error) => {
-                        console.log(error);
-                        //Done
-                        res({ total: 0, transactions_data: null });
-                      }
-                    );
-                  } //No paid requests yet - send the current total found
-                  else {
-                    try {
+                                //Only get the sum for the wallets requests
+                                if (
+                                  /wallet/i.test(paidRequests.payment_method)
+                                ) {
+                                  //Wallet - add the sum and save record to transaction data
+                                  detailsData.paid_totalAmount += parseFloat(
+                                    paidRequests.fare
+                                  );
+                                  //Save record
+                                  partialResolver({
+                                    amount: parseFloat(paidRequests.fare),
+                                    transaction_nature: paidRequests.ride_mode,
+                                    payment_method: paidRequests.payment_method,
+                                    driverData: driverData,
+                                    date_captured: dateRequest,
+                                    date_requestedRaw:
+                                      paidRequests.date_requested,
+                                  });
+                                } //Cash - only save transaction data
+                                else {
+                                  partialResolver({
+                                    amount: parseFloat(paidRequests.fare),
+                                    transaction_nature: paidRequests.ride_mode,
+                                    payment_method: paidRequests.payment_method,
+                                    driverData: driverData,
+                                    date_captured: dateRequest,
+                                    date_requestedRaw:
+                                      paidRequests.date_requested,
+                                  });
+                                }
+                                //...
+                              });
+                          });
+                        }
+                      );
+
+                      //..DONE
+                      Promise.all(completedDataPromise).then(
+                        (finalData) => {
+                          //Update the transaction data
+                          detailsData.transactions_data =
+                            detailsData.transactions_data !== null &&
+                            detailsData.transactions_data !== undefined
+                              ? [...detailsData.transactions_data, ...finalData]
+                              : finalData;
+                          //! Add the total received
+                          detailsData.transactions_data =
+                            receivedTransactionsData.transactions_data !==
+                              null &&
+                            receivedTransactionsData.transactions_data !==
+                              undefined
+                              ? [
+                                  ...detailsData.transactions_data,
+                                  ...receivedTransactionsData.transactions_data,
+                                ]
+                              : detailsData.transactions_data;
+                          //! DONE - First Logic for the riders - second for drivers!
+                          res(
+                            /rider/i.test(user_type)
+                              ? {
+                                  total:
+                                    detailsData.topedupAmount +
+                                    receivedTransactionsData.total -
+                                    detailsData.paid_totalAmount,
+                                  transactions_data:
+                                    detailsData.transactions_data,
+                                }
+                              : {
+                                  total:
+                                    -1 * detailsData.topedupAmount +
+                                    receivedTransactionsData.total +
+                                    detailsData.paid_totalAmount,
+                                  transactions_data:
+                                    detailsData.transactions_data,
+                                }
+                          );
+                        },
+                        (error) => {
+                          console.log(error);
+                          //Done
+                          res({ total: 0, transactions_data: null });
+                        }
+                      );
+                    } //No paid requests yet - send the current total found
+                    else {
                       res({
                         total:
                           detailsData.topedupAmount +
@@ -2234,84 +2087,302 @@ function truelyExec_ridersDrivers_walletSummary(
                           receivedTransactionsData.transactions_data !== null &&
                           receivedTransactionsData.transactions_data !==
                             undefined
-                            ? detailsData.transactions_data !== undefined &&
-                              detailsData.transactions_data !== null
+                            ? [
+                                ...detailsData.transactions_data,
+                                ...receivedTransactionsData.transactions_data,
+                              ]
+                            : detailsData.transactions_data,
+                      });
+                    }
+                  });
+              } //No topups records found - so return the transactions data
+              else {
+                //Find the sum of all the paid transactions (rides/deliveries) - for wallet only
+                //? Happend the cash data to the transaction data as well.
+                let filterPaidRequests = /rider/i.test(user_type)
+                  ? {
+                      client_id: requestObj.user_fingerprint,
+                      isArrivedToDestination: true,
+                    }
+                  : {
+                      taxi_id: requestObj.user_fingerprint,
+                      isArrivedToDestination: true,
+                    };
+                //...Only consider the completed requests
+                collectionRidesDeliveryData
+                  .find(filterPaidRequests)
+                  .collation({ locale: "en", strength: 2 })
+                  .toArray(function (err, resultPaidRequests) {
+                    if (err) {
+                      console.log(err);
+                      res({ total: 0, transactions_data: null });
+                    }
+                    console.trace(resultPaidRequests.length);
+                    //...
+                    if (resultPaidRequests.length > 0) {
+                      //Found some records
+                      //Save the requests transaction data and find the sum of the paid transactions
+                      let completedDataPromise = resultPaidRequests.map(
+                        (paidRequests) => {
+                          return new Promise((partialResolver) => {
+                            //Get driver infos : for Taxis - taxi number / for private cars - drivers name
+                            collectionDrivers_profiles
+                              .find({
+                                driver_fingerprint: paidRequests.taxi_id,
+                              })
+                              .toArray(function (err, driverProfile) {
+                                if (err) {
+                                  console.log(err);
+                                  partialResolver({
+                                    total: 0,
+                                    transactions_data: null,
+                                  });
+                                }
+                                //...
+                                //Gather driver data
+                                let driverData = {
+                                  name: null,
+                                  car_brand: null,
+                                  taxi_number: null,
+                                };
+                                if (driverProfile.length > 0) {
+                                  driverProfile = driverProfile[0];
+                                  if (driverProfile.cars_data !== undefined) {
+                                    //Add name
+                                    driverData.name = driverProfile.name;
+                                    //Get car infos
+                                    driverProfile.cars_data.map((car) => {
+                                      if (
+                                        car.car_fingerprint ===
+                                        paidRequests.car_fingerprint
+                                      ) {
+                                        //Found car
+                                        //Save car brand and/or fingerprint
+                                        driverData.car_brand = car.car_brand;
+                                        driverData.taxi_number =
+                                          car.taxi_number;
+                                      }
+                                    });
+                                  }
+                                }
+
+                                //1. Reformat the data
+                                let dateRequest = new Date(
+                                  paidRequests.date_requested
+                                );
+                                dateRequest = moment(dateRequest.getTime());
+                                dateRequest =
+                                  (String(dateRequest.date()).length > 1
+                                    ? dateRequest.date()
+                                    : "0" + dateRequest.date()) +
+                                  "-" +
+                                  (String(dateRequest.month() + 1).length > 1
+                                    ? dateRequest.month() + 1
+                                    : "0" + (dateRequest.month() + 1)) +
+                                  "-" +
+                                  dateRequest.year() +
+                                  ", " +
+                                  (String(dateRequest.hour()).length > 1
+                                    ? dateRequest.hour()
+                                    : "0" + dateRequest.hour()) +
+                                  ":" +
+                                  (String(dateRequest.minute()).length > 1
+                                    ? dateRequest.minute()
+                                    : "0" + dateRequest.minute());
+
+                                //Only get the sum for the wallets requests
+                                if (
+                                  /wallet/i.test(paidRequests.payment_method)
+                                ) {
+                                  //Wallet - add the sum and save record to transaction data
+                                  detailsData.paid_totalAmount += parseFloat(
+                                    paidRequests.fare
+                                  );
+                                  //Save record
+                                  partialResolver({
+                                    amount: parseFloat(paidRequests.fare),
+                                    transaction_nature: paidRequests.ride_mode,
+                                    payment_method: paidRequests.payment_method,
+                                    driverData: driverData,
+                                    date_captured: dateRequest,
+                                    date_requestedRaw:
+                                      paidRequests.date_requested,
+                                  });
+                                } //Cash - only save transaction data
+                                else {
+                                  partialResolver({
+                                    amount: parseFloat(paidRequests.fare),
+                                    transaction_nature: paidRequests.ride_mode,
+                                    payment_method: paidRequests.payment_method,
+                                    driverData: driverData,
+                                    date_captured: dateRequest,
+                                    date_requestedRaw:
+                                      paidRequests.date_requested,
+                                  });
+                                }
+                                //...
+                              });
+                          });
+                        }
+                      );
+
+                      //..DONE
+                      Promise.all(completedDataPromise).then(
+                        (finalData) => {
+                          //Update the transaction data
+                          detailsData.transactions_data =
+                            detailsData.transactions_data !== null &&
+                            detailsData.transactions_data !== undefined
+                              ? [...detailsData.transactions_data, ...finalData]
+                              : finalData;
+                          //! Add the total received
+                          detailsData.transactions_data =
+                            receivedTransactionsData.transactions_data !==
+                              null &&
+                            receivedTransactionsData.transactions_data !==
+                              undefined
                               ? [
                                   ...detailsData.transactions_data,
                                   ...receivedTransactionsData.transactions_data,
                                 ]
-                              : receivedTransactionsData.transactions_data
-                            : detailsData.transactions_data,
-                      });
-                    } catch (error) {
-                      console.log(error);
-                      //Done
-                      res({ total: 0, transactions_data: null, flag: "error" });
+                              : detailsData.transactions_data;
+                          //! DONE - First Logic for the riders - second for drivers!
+                          res(
+                            /rider/i.test(user_type)
+                              ? {
+                                  total:
+                                    detailsData.topedupAmount +
+                                    receivedTransactionsData.total -
+                                    detailsData.paid_totalAmount,
+                                  transactions_data:
+                                    detailsData.transactions_data,
+                                }
+                              : {
+                                  total:
+                                    detailsData.topedupAmount +
+                                    receivedTransactionsData.total +
+                                    detailsData.paid_totalAmount,
+                                  transactions_data:
+                                    detailsData.transactions_data,
+                                }
+                          );
+                        },
+                        (error) => {
+                          console.log(error);
+                          //Done
+                          res({ total: 0, transactions_data: null });
+                        }
+                      );
+                    } //No paid requests yet - send the current total found
+                    else {
+                      try {
+                        res({
+                          total:
+                            detailsData.topedupAmount +
+                            receivedTransactionsData.total -
+                            detailsData.paid_totalAmount,
+                          transactions_data:
+                            receivedTransactionsData.transactions_data !==
+                              null &&
+                            receivedTransactionsData.transactions_data !==
+                              undefined
+                              ? detailsData.transactions_data !== undefined &&
+                                detailsData.transactions_data !== null
+                                ? [
+                                    ...detailsData.transactions_data,
+                                    ...receivedTransactionsData.transactions_data,
+                                  ]
+                                : receivedTransactionsData.transactions_data
+                              : detailsData.transactions_data,
+                        });
+                      } catch (error) {
+                        console.log(error);
+                        //Done
+                        res({
+                          total: 0,
+                          transactions_data: null,
+                          flag: "error",
+                        });
+                      }
                     }
-                  }
-                });
-            }
-          });
-      }).then(
-        (result) => {
-          //? Clean data anc CACHE
-          new Promise((resCleanData) => {
-            parseDetailed_walletGetData(
-              result,
-              collectionDrivers_profiles,
-              collectionPassengers_profiles,
-              resCleanData
-            );
-          })
-            .then(
-              (resultCleansedData) => {
-                //! ONLY OVERWRITE THE TRANSACTIONS DATA
-                result.transactions_data = resultCleansedData;
-                //Cache and reply
-                client.set(redisKey, stringify(result));
-                //Reply
-                resolve(result);
-              },
-              (error) => {
+                  });
+              }
+            });
+        }).then(
+          (result) => {
+            //? Clean data and CACHE
+            new Promise((resCleanData) => {
+              parseDetailed_walletGetData(
+                result,
+                collectionDrivers_profiles,
+                collectionPassengers_profiles,
+                resCleanData
+              );
+            })
+              .then(
+                (resultCleansedData) => {
+                  //! ONLY OVERWRITE THE TRANSACTIONS DATA
+                  result.transactions_data = resultCleansedData;
+                  console.log(
+                    result.transactions_data.filter((t) =>
+                      /weeklyPaidDriverAutomatic/i.test(t.transaction_nature)
+                    )
+                  );
+                  //Cache and reply
+                  client.setex(
+                    redisKey,
+                    process.env.REDIS_EXPIRATION_5MIN * 5,
+                    stringify(result)
+                  );
+                  //Reply
+                  resolve(result);
+                },
+                (error) => {
+                  console.log(error);
+                  //Error - empty wallet -cache
+                  client.set(
+                    redisKey,
+                    JSON.stringify({ total: 0, transactions_data: null })
+                  );
+                  //Reply
+                  resolve({ total: 0, transactions_data: null });
+                }
+              )
+              .catch((error) => {
                 console.log(error);
                 //Error - empty wallet -cache
-                client.set(
+                client.setex(
                   redisKey,
+                  process.env.REDIS_EXPIRATION_5MIN * 5,
                   JSON.stringify({ total: 0, transactions_data: null })
                 );
                 //Reply
                 resolve({ total: 0, transactions_data: null });
-              }
-            )
-            .catch((error) => {
-              console.log(error);
-              //Error - empty wallet -cache
-              client.set(
-                redisKey,
-                JSON.stringify({ total: 0, transactions_data: null })
-              );
-              //Reply
-              resolve({ total: 0, transactions_data: null });
-            });
-          //?-----------------
-        },
-        (error) => {
-          console.log(error);
-          //Error - empty wallet -cache
-          client.set(
-            redisKey,
-            JSON.stringify({ total: 0, transactions_data: null })
-          );
-          //Reply
-          resolve({ total: 0, transactions_data: null });
-        }
-      );
-    },
-    (error) => {
+              });
+            //?-----------------
+          },
+          (error) => {
+            console.log(error);
+            //Error - empty wallet -cache
+            client.setex(
+              redisKey,
+              process.env.REDIS_EXPIRATION_5MIN * 5,
+              JSON.stringify({ total: 0, transactions_data: null })
+            );
+            //Reply
+            resolve({ total: 0, transactions_data: null });
+          }
+        );
+      },
+      (error) => {
+        console.log(error);
+        res({ total: 0, transactions_data: null });
+      }
+    )
+    .catch((error) => {
       console.log(error);
       res({ total: 0, transactions_data: null });
-    }
-  );
+    });
 }
 
 /**
@@ -2570,7 +2641,7 @@ function execGet_driversDeepInsights_fromWalletData(
     let parentPromises = walletBasicData.transactions_data.map(
       (transaction) => {
         return new Promise((resCompute) => {
-          //? *. Do a bulk computation, without specifying week specific data for new
+          //? *. Do a bulk computation, without specifying week specific data for now
           let templateOne = {
             week_number: null,
             year_number: null,
@@ -2601,22 +2672,26 @@ function execGet_driversDeepInsights_fromWalletData(
             .toString()
             .split(" ")[0];
           //! 3. Set the eearning for the day (WE TAKE COMMISSION ON EVERYTHING EXCEPT 'commission' and 'weekly')
-          templateOne.earning_amount = !/(commissionTCSubtracted|weeklyPaidDriverAutomatic)/i.test(
-            transaction.transaction_nature
-          )
-            ? parseFloat(transaction.amount)
-            : 0;
+          templateOne.earning_amount =
+            !/(commissionTCSubtracted|weeklyPaidDriverAutomatic)/i.test(
+              transaction.transaction_nature
+            )
+              ? parseFloat(transaction.amount)
+              : 0;
           //! 3i. Set the earning only from wallet methods
-          templateOne.earning_amount_wallet = !/(commissionTCSubtracted|weeklyPaidDriverAutomatic)/i.test(
-            transaction.transaction_nature
-          )
-            ? /(paidDriver|sentToDriver)/i.test(transaction.transaction_nature)
-              ? parseFloat(transaction.amount)
-              : /(RIDE|DELIVERY)/i.test(transaction.transaction_nature) &&
-                /WALLET/i.test(transaction.payment_method)
-              ? parseFloat(transaction.amount)
-              : 0
-            : 0;
+          templateOne.earning_amount_wallet =
+            !/(commissionTCSubtracted|weeklyPaidDriverAutomatic)/i.test(
+              transaction.transaction_nature
+            )
+              ? /(paidDriver|sentToDriver)/i.test(
+                  transaction.transaction_nature
+                )
+                ? parseFloat(transaction.amount)
+                : /(RIDE|DELIVERY)/i.test(transaction.transaction_nature) &&
+                  /WALLET/i.test(transaction.payment_method)
+                ? parseFloat(transaction.amount)
+                : 0
+              : 0;
 
           //4. Set the ride/delivery - ONLLY for ride/delivery transactions
           templateOne.total_rides = /ride/i.test(transaction.transaction_nature)
@@ -2648,8 +2723,9 @@ function execGet_driversDeepInsights_fromWalletData(
             templateOne.earning_due_to_driver_CASH = 0;
             //!ONLY WALLET
             templateOne.earning_due_to_driver =
-              templateOne.earning_amount -
-              templateOne.earning_amount * process.env.TAXICONNECT_COMMISSION;
+              templateOne.earning_amount_wallet -
+              templateOne.earning_amount_wallet *
+                process.env.TAXICONNECT_COMMISSION;
             //DONE
             resCompute(templateOne);
           } else if (
@@ -2669,8 +2745,9 @@ function execGet_driversDeepInsights_fromWalletData(
             templateOne.earning_due_to_driver_CASH = 0;
             //! WHEN A DRIVER IS PAID
             templateOne.earning_due_to_driver =
-              templateOne.earning_amount -
-              templateOne.earning_amount * process.env.TAXICONNECT_COMMISSION;
+              templateOne.earning_amount_wallet -
+              templateOne.earning_amount_wallet *
+                process.env.TAXICONNECT_COMMISSION;
             //DONE
             resCompute(templateOne);
           } else {
@@ -2722,7 +2799,9 @@ function execGet_driversDeepInsights_fromWalletData(
                       _GLOBAL_OBJECT.recordHolder[`${weekData.week_number}`]
                         .index
                     ];
-                  savedRecordOBJ.total_earning += weekData.earning_amount; //Cash and wallet
+                  savedRecordOBJ.total_earning += parseFloat(
+                    weekData.earning_amount
+                  ); //Cash and wallet
                   savedRecordOBJ.total_earning_wallet +=
                     weekData.earning_amount_wallet; //Only wallet
                   savedRecordOBJ.total_rides += weekData.total_rides;
@@ -2738,6 +2817,8 @@ function execGet_driversDeepInsights_fromWalletData(
                       (weekData.earning_due_to_driver_CASH + Number.EPSILON) *
                         100
                     ) / 100;
+                  savedRecordOBJ.driver_weekly_payout +=
+                    weekData.driver_weekly_payout;
                   //Update the correct day of the week
                   let dayNameIndex = /^mon/i.test(weekData.day_name)
                     ? "monday"
@@ -2771,7 +2852,7 @@ function execGet_driversDeepInsights_fromWalletData(
                     id: index + 1,
                     week_number: weekData.week_number,
                     year_number: weekData.year_number,
-                    total_earning: weekData.earning_amount, //Cash and wallet included
+                    total_earning: parseFloat(weekData.earning_amount), //Cash and wallet included
                     total_earning_wallet: weekData.earning_amount_wallet, //Without commission removal - wallet amount
                     total_rides: weekData.total_rides,
                     total_deliveries: weekData.total_deliveries,
@@ -2867,13 +2948,14 @@ function execGet_driversDeepInsights_fromWalletData(
                   if (resultGlobalData.length > 0) {
                     //Has some data
                     //Remove empty objects, false, null or undefined
-                    _GLOBAL_OBJECT.weeks_view = _GLOBAL_OBJECT.weeks_view.filter(
-                      (data) =>
-                        Object.keys(data).length > 0 &&
-                        data !== undefined &&
-                        data !== false &&
-                        data !== null
-                    );
+                    _GLOBAL_OBJECT.weeks_view =
+                      _GLOBAL_OBJECT.weeks_view.filter(
+                        (data) =>
+                          Object.keys(data).length > 0 &&
+                          data !== undefined &&
+                          data !== false &&
+                          data !== null
+                      );
                     //? Compute the global remaining comission for TaxiConnect
                     let totalEarnings = 0;
                     let totalDues = 0;
@@ -2889,6 +2971,13 @@ function execGet_driversDeepInsights_fromWalletData(
                       totalPayouts += weekData.driver_weekly_payout; //Money already transaferred.
                       totalComission += weekData.total_taxiconnect_commission; //Comission already transferred to US
                     });
+                    console.log(`
+                      Total earnings : ${totalEarnings}\n
+                      Total dues : ${totalDues}\n
+                      Total dues wallet : ${totalDues_wallet}\n
+                      Total payouts : ${totalPayouts}\n
+                      Total comission : ${totalComission}
+                    `);
                     //...
                     //! General left comission
                     _GLOBAL_OBJECT.header.remaining_commission =
@@ -2990,7 +3079,8 @@ function execGet_driversDeepInsights_fromWalletData(
                         (resultPayoutDate) => {
                           if (resultPayoutDate !== false) {
                             //? Update the next payout date var
-                            _GLOBAL_OBJECT.header.scheduled_payment_date = resultPayoutDate;
+                            _GLOBAL_OBJECT.header.scheduled_payment_date =
+                              resultPayoutDate;
                             //! Cache data
                             client.set(
                               redisKey,
@@ -3671,9 +3761,8 @@ function updateRiders_generalProfileInfos(
             //! UPLOAD THE PICTURE TO S3 - Promisify!
             new Promise((resUploadPic_toS3) => {
               // Read content from the file
-              const fileContentUploaded_locally = fs.readFileSync(
-                fileName_andPath
-              );
+              const fileContentUploaded_locally =
+                fs.readFileSync(fileName_andPath);
 
               // Setting up S3 upload parameters
               const params = {
@@ -5225,8 +5314,9 @@ clientMongo.connect(function (err) {
     resolveDate();
     req = req.body;
     //console.trace(req);
+    res.send({ response: "error", flag: "invalid_data" });
 
-    if (
+    /*if (
       req.user_fingerprint !== undefined &&
       req.user_fingerprint !== null &&
       req.user_nature !== undefined &&
@@ -5282,7 +5372,7 @@ clientMongo.connect(function (err) {
     } //Invalid data
     else {
       res.send({ response: "error", flag: "invalid_data" });
-    }
+    }*/
   });
 
   /**
@@ -5295,7 +5385,8 @@ clientMongo.connect(function (err) {
     resolveDate();
     let params = urlParser.parse(req.url, true);
     req = params.query;
-    console.log(req);
+    res.send({ response: "error", flag: "invalid_data" });
+    /*console.log(req);
 
     if (
       req.user_fingerprint !== undefined &&
@@ -5326,7 +5417,7 @@ clientMongo.connect(function (err) {
     } //Invalid data
     else {
       res.send({ response: "error", flag: "invalid_data" });
-    }
+    }*/
   });
 });
 
