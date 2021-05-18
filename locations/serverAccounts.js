@@ -2259,7 +2259,7 @@ function truelyExec_ridersDrivers_walletSummary(
                                 }
                               : {
                                   total:
-                                    detailsData.topedupAmount +
+                                    -1 * detailsData.topedupAmount +
                                     receivedTransactionsData.total +
                                     detailsData.paid_totalAmount,
                                   transactions_data:
