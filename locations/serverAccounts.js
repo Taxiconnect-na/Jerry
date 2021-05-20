@@ -1,5 +1,5 @@
 require("dotenv").config();
-console.log = function () {};
+//console.log = function () {};
 var express = require("express");
 const http = require("http");
 const https = require("https");
@@ -1814,7 +1814,6 @@ function truelyExec_ridersDrivers_walletSummary(
               receivedDataShot.total += parseFloat(transaction.amount);
             } //! Substract the commission
             else {
-              console.log(transaction);
               receivedDataShot.total -= parseFloat(transaction.amount);
             }
             //Save he record
@@ -1903,6 +1902,9 @@ function truelyExec_ridersDrivers_walletSummary(
                 });
                 //Find the sum of all the paid transactions (rides/deliveries) - for wallet only
                 //? Happend the cash data to the transaction data as well.
+                //! Warning: Key policy ahead, do not touch!
+                //! TIME BRIDGE
+                //! Will only consider rides after the 31-03-2021 at exactly 23:59:59
                 let filterPaidRequests = /rider/i.test(user_type)
                   ? {
                       client_id: requestObj.user_fingerprint,
@@ -1911,6 +1913,9 @@ function truelyExec_ridersDrivers_walletSummary(
                   : {
                       taxi_id: requestObj.user_fingerprint,
                       isArrivedToDestination: true,
+                      date_requested: {
+                        $gte: new Date("2021-03-31T21:59:59.000Z"),
+                      },
                     };
                 //...Only consider the completed requests
                 collectionRidesDeliveryData
@@ -2117,7 +2122,6 @@ function truelyExec_ridersDrivers_walletSummary(
                       console.log(err);
                       res({ total: 0, transactions_data: null });
                     }
-                    console.trace(resultPaidRequests.length);
                     //...
                     if (resultPaidRequests.length > 0) {
                       //Found some records
@@ -2323,17 +2327,8 @@ function truelyExec_ridersDrivers_walletSummary(
                 (resultCleansedData) => {
                   //! ONLY OVERWRITE THE TRANSACTIONS DATA
                   result.transactions_data = resultCleansedData;
-                  console.log(
-                    result.transactions_data.filter((t) =>
-                      /weeklyPaidDriverAutomatic/i.test(t.transaction_nature)
-                    )
-                  );
                   //Cache and reply
-                  client.setex(
-                    redisKey,
-                    process.env.REDIS_EXPIRATION_5MIN * 5,
-                    stringify(result)
-                  );
+                  client.set(redisKey, stringify(result));
                   //Reply
                   resolve(result);
                 },
@@ -2351,9 +2346,8 @@ function truelyExec_ridersDrivers_walletSummary(
               .catch((error) => {
                 console.log(error);
                 //Error - empty wallet -cache
-                client.setex(
+                client.set(
                   redisKey,
-                  process.env.REDIS_EXPIRATION_5MIN * 5,
                   JSON.stringify({ total: 0, transactions_data: null })
                 );
                 //Reply
@@ -2364,9 +2358,8 @@ function truelyExec_ridersDrivers_walletSummary(
           (error) => {
             console.log(error);
             //Error - empty wallet -cache
-            client.setex(
+            client.set(
               redisKey,
-              process.env.REDIS_EXPIRATION_5MIN * 5,
               JSON.stringify({ total: 0, transactions_data: null })
             );
             //Reply
@@ -5126,7 +5119,7 @@ clientMongo.connect(function (err) {
 
         //Add caching strategy if any
         if (req.avoidCached_data !== undefined) {
-          url += "&avoidCached_data=" + avoidCached_data;
+          url += "&avoidCached_data=" + req.avoidCached_data;
         }
 
         requestAPI(url, function (error, response, body) {

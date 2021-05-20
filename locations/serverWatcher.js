@@ -1,6 +1,6 @@
 require("dotenv").config();
 //var dash = require("appmetrics-dash");
-//console.log = function () {};
+console.log = function () {};
 var express = require("express");
 const http = require("http");
 const fs = require("fs");
@@ -1168,6 +1168,79 @@ function requestsDriverSubscriber_watcher(
 }
 
 /**
+ * @func updateDrivers_walletCachedData
+ * Responsible for reduce the requests time to show the updated wallet infos.
+ * @param collectionDrivers_profiles: list of all drivers.
+ * @param resolve
+ */
+function updateDrivers_walletCachedData(collectionDrivers_profiles, resolve) {
+  console.log("Starting drivers wallet refreshing.");
+  //1. Get all the drivers
+  collectionDrivers_profiles.find({}).toArray(function (err, driverData) {
+    if (err) {
+      console.log(err);
+      resolve({
+        response: "error_fetch_driver_data",
+        flag: err,
+      });
+    }
+    //...
+    if (driverData !== undefined && driverData.length > 0) {
+      console.log(`Found ${driverData.length} drivers to update.`);
+      //Found some driver data
+      //2. Compute wallet data
+      let parentPromises = driverData.map((driverInfo, index) => {
+        return new Promise((resCompute) => {
+          let url =
+            process.env.LOCAL_URL +
+            ":" +
+            process.env.ACCOUNTS_SERVICE_PORT +
+            "/getDrivers_walletInfosDeep?user_fingerprint=" +
+            driverInfo.driver_fingerprint;
+
+          requestAPI(url, function (error, response, body) {
+            if (error === null) {
+              try {
+                resCompute(index);
+              } catch (error) {
+                resCompute(false);
+              }
+            } else {
+              resCompute(false);
+            }
+          });
+        });
+      });
+      //DONE
+      Promise.all(parentPromises)
+        .then(
+          (result) => {
+            resolve(result);
+          },
+          (error) => {
+            resolve({
+              response: "error_compute_driver_wallet",
+              flag: error,
+            });
+          }
+        )
+        .catch((error) => {
+          resolve({
+            response: "error_compute_driver_wallet",
+            flag: error,
+          });
+        });
+    } //No driver Data
+    else {
+      resolve({
+        response: "Empty_driver_data",
+        flag: "Empty",
+      });
+    }
+  });
+}
+
+/**
  * MAIN
  */
 
@@ -1296,6 +1369,22 @@ clientMongo.connect(function (err) {
       .catch((error) => {
         console.log(error);
       });*/
+
+    //? 5. Refresh every driver's wallet
+    new Promise((res5) => {
+      updateDrivers_walletCachedData(collectionDrivers_profiles, res5);
+    })
+      .then(
+        (result) => {
+          console.log(result);
+        },
+        (error) => {
+          console.log(error);
+        }
+      )
+      .catch((error) => {
+        console.log(error);
+      });
   }, process.env.INTERVAL_PERSISTER_MAIN_WATCHER_MILLISECONDS);
 });
 
