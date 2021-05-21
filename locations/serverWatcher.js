@@ -532,13 +532,9 @@ function updateNext_paymentDateDrivers(
                                         resolveDate();
                                         //Found a previous event
                                         //? Check the time elapsed after the previous notification
-                                        eventData = eventData[0];
-                                        console.log(
-                                          diff_min(
-                                            new Date(eventData.date),
-                                            new Date(chaineDateUTC)
-                                          ).difference
-                                        );
+                                        eventData =
+                                          eventData[eventData.length - 1];
+                                        //...
                                         if (
                                           diff_min(
                                             new Date(eventData.date),
