@@ -998,6 +998,7 @@ function tripChecker_Dispatcher(
     collectionDrivers_profiles
       .find({
         driver_fingerprint: user_fingerprint,
+        isDriverSuspended: false, //! When a driver is suspended - lock all requests.
         "operational_state.status": "online",
       })
       .collation({ locale: "en", strength: 2 })

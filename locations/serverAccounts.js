@@ -1,5 +1,5 @@
 require("dotenv").config();
-//console.log = function () {};
+console.log = function () {};
 var express = require("express");
 const http = require("http");
 const https = require("https");
@@ -3180,10 +3180,8 @@ function execGet_driversDeepInsights_fromWalletData(
             resultLastPayout[0].date_captured !== undefined
           ) {
             //Found the llast payout date
-            let lastPayoutDate = new Date(
-              new Date(resultLastPayout[0].date_captured).getTime() +
-                process.env.TAXICONNECT_PAYMENT_FREQUENCY * 24 * 3600000
-            );
+            //! Do not update the payment date cycle
+            let lastPayoutDate = new Date(resultLastPayout[0].date_captured);
             //....
             resFindNexyPayoutDate(lastPayoutDate);
           } //? The driver was never paid before
@@ -3207,9 +3205,9 @@ function execGet_driversDeepInsights_fromWalletData(
                   referenceData[0].date_captured !== undefined
                 ) {
                   //Found an existing annotation - use the date as starting point
+                  //! Do not update the payment date cycle
                   let lastPayoutDate = new Date(
-                    new Date(referenceData[0].date_captured).getTime() +
-                      process.env.TAXICONNECT_PAYMENT_FREQUENCY * 24 * 3600000
+                    new Date(referenceData[0].date_captured)
                   );
                   //..
                   resFindNexyPayoutDate(lastPayoutDate);

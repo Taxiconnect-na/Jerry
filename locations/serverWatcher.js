@@ -1,6 +1,6 @@
 require("dotenv").config();
 //var dash = require("appmetrics-dash");
-console.log = function () {};
+//console.log = function () {};
 var express = require("express");
 const http = require("http");
 const fs = require("fs");
@@ -326,13 +326,18 @@ function date_diff_indays(date1, date2) {
  * ! Only if there was not a previous
  * @param collectionDrivers_profiles: the driver's list
  * @param collectionWalletTransactions_logs: all the transactions.
+ * @param collectionRidesDeliveryData: all the rides
+ * @param collectionGlobalEvents: global events list
  * @param resolve
  */
 function updateNext_paymentDateDrivers(
   collectionDrivers_profiles,
   collectionWalletTransactions_logs,
+  collectionRidesDeliveryData,
+  collectionGlobalEvents,
   resolve
 ) {
+  let amount = 0;
   collectionDrivers_profiles.find({}).toArray(function (err, driversMega) {
     if (err) {
       resolve({ response: "error_getting_drivers_mega_data" });
@@ -341,6 +346,7 @@ function updateNext_paymentDateDrivers(
     if (driversMega !== undefined && driversMega.length > 0) {
       //Found some data
       let parentPromises = driversMega.map((driverData) => {
+        resolveDate();
         return new Promise((resPaymentCycle) => {
           //!Check if a reference point exists - if not set one to NOW
           //? For days before wednesday, set to wednesdat and for those after wednesday, set to next week that same day.
@@ -371,76 +377,294 @@ function updateNext_paymentDateDrivers(
                   nextPaymentDate
                 ); //In days
 
-                if (dateDiffChecker <= -1) {
-                  console.log("Found obsolete date, add 7 days");
-                  //! Day passed already by 24 hours - update - ADD 7 days
-                  let tmpDate = new Date(
-                    new Date(chaineDateUTC).getTime() +
-                      parseFloat(process.env.TAXICONNECT_PAYMENT_FREQUENCY) *
-                        3600 *
-                        1000
-                  )
-                    .toDateString()
-                    .split(" ")[0];
-                  if (/(mon|tue)/i.test(tmpDate)) {
-                    //For mondays and tuesdays - add 3 days
-                    let tmpNextDate = new Date(
-                      new Date(chaineDateUTC).getTime() +
-                        (3 +
-                          parseFloat(
-                            process.env.TAXICONNECT_PAYMENT_FREQUENCY
-                          )) *
-                          24 *
-                          3600 *
-                          1000
-                    ).toISOString();
-                    //...
-                    collectionWalletTransactions_logs.updateOne(
-                      {
-                        flag_annotation: "startingPoint_forFreshPayouts",
-                        user_fingerprint: driverData.driver_fingerprint,
-                      },
-                      {
-                        $set: {
-                          flag_annotation: "startingPoint_forFreshPayouts",
-                          date_captured: new Date(tmpNextDate),
-                        },
-                      },
-                      function (err, reslt) {
-                        resPaymentCycle(true);
+                if (dateDiffChecker <= 0) {
+                  /*console.log(
+                    `Found obsolete date, add 7 days --> Tag: ${driverData.driver_fingerprint.substr(
+                      0,
+                      10
+                    )}`
+                  );*/
+                  //? Check the current comission state
+                  let url =
+                    process.env.LOCAL_URL +
+                    ":" +
+                    process.env.ACCOUNTS_SERVICE_PORT +
+                    "/getDrivers_walletInfosDeep?user_fingerprint=" +
+                    driverData.driver_fingerprint;
+
+                  requestAPI(url, function (error, response, body) {
+                    if (error === null) {
+                      try {
+                        body = JSON.parse(body);
+                        if (body.header !== undefined && body.header !== null) {
+                          //?Check for the comission
+                          if (
+                            body.header.remaining_commission !== undefined &&
+                            body.header.remaining_commission !== null
+                          ) {
+                            //Detected a potential comission
+                            //? Check if there's a pending payment > than the comission threshold (process.env.DRIVERS_MAXIMUM_COMISSION_THRESHOLD)
+                            if (
+                              parseFloat(body.header.remaining_commission) >=
+                              parseFloat(
+                                process.env.DRIVERS_MAXIMUM_COMISSION_THRESHOLD
+                              )
+                            ) {
+                              /*amount += parseFloat(
+                                body.header.remaining_commission
+                              );
+                              amount -= parseFloat(
+                                body.header.remaining_due_to_driver
+                              );
+                              //Has reached the threshold
+                              if (
+                                parseFloat(
+                                  body.header.remaining_due_to_driver
+                                ) < 0
+                              ) {
+                                console.log(body.header);
+                                console.log(driverData.driver_fingerprint);
+                              }
+                              console.log(amount);*/
+                              //? Check the waiting period
+                              if (
+                                parseFloat(
+                                  process.env
+                                    .COMISSION_WAITING_PERIOD_BEFORE_SUSPENSION_DAYS
+                                ) <= Math.abs(parseFloat(dateDiffChecker))
+                              ) {
+                                //! Passed waiting period
+                                //? Check if there's any trip in progress.
+                                let checkExistingRide = {
+                                  taxi_id: driverData.driver_fingerprint,
+                                  "ride_state_vars.isRideCompleted_driverSide": false,
+                                };
+                                //...
+                                collectionRidesDeliveryData
+                                  .find(checkExistingRide)
+                                  .toArray(function (err, tripData) {
+                                    if (err) {
+                                      console.log(err);
+                                      resPaymentCycle(false);
+                                    }
+                                    //...
+                                    if (
+                                      tripData !== undefined &&
+                                      tripData.length > 0
+                                    ) {
+                                      //Found an undone trip
+                                      //! Wait for the trip to be completed
+                                      console.log(
+                                        `TRIP IN PROGRESS, HOLD SUSPENSION --> Tag: ${driverData.driver_fingerprint.substr(
+                                          0,
+                                          15
+                                        )}`
+                                      );
+                                      resPaymentCycle(true);
+                                    } //No trip in progress
+                                    else {
+                                      //! SUSPEND THE DRIVER
+                                      collectionDrivers_profiles.updateOne(
+                                        {
+                                          driver_fingerprint:
+                                            driverData.driver_fingerprint,
+                                        },
+                                        {
+                                          $set: {
+                                            isDriverSuspended: true,
+                                          },
+                                        },
+                                        function (err, rest) {
+                                          //? DONE
+                                          console.log(
+                                            `DRIVER SUSPENDED --> Tag: ${driverData.driver_fingerprint.substr(
+                                              0,
+                                              15
+                                            )}`
+                                          );
+                                          resPaymentCycle(true);
+                                        }
+                                      );
+                                    }
+                                  });
+                                //console.log(body.header);
+                              } //? Not yet over the waiting period
+                              else {
+                                //? NOTIFICATION AREA
+                                new Promise((resNotify) => {
+                                  //? Compute the amount left COMISSION-DUE based on who's greater of course.
+                                  let amount =
+                                    parseFloat(
+                                      body.header.remaining_commission
+                                    ) >
+                                    parseFloat(
+                                      body.header.remaining_due_to_driver
+                                    )
+                                      ? parseFloat(
+                                          body.header.remaining_commission
+                                        ) -
+                                        parseFloat(
+                                          body.header.remaining_due_to_driver
+                                        )
+                                      : parseFloat(
+                                          body.header.remaining_commission
+                                        );
+                                  //.....
+                                  //1. Check the time from the last notification
+                                  //? Event name: comission_reminder_comission_drivers
+                                  collectionGlobalEvents
+                                    .find({
+                                      event_name:
+                                        "comission_reminder_comission_drivers",
+                                      user_fingerprint:
+                                        driverData.driver_fingerprint,
+                                    })
+                                    .toArray(function (err, eventData) {
+                                      if (err) {
+                                        console.log(err);
+                                        resNotify(false);
+                                      }
+                                      //...
+                                      if (
+                                        eventData !== undefined &&
+                                        eventData.length > 0
+                                      ) {
+                                        resolveDate();
+                                        //Found a previous event
+                                        //? Check the time elapsed after the previous notification
+                                        eventData = eventData[0];
+                                        console.log(
+                                          diff_min(
+                                            new Date(eventData.date),
+                                            new Date(chaineDateUTC)
+                                          ).difference
+                                        );
+                                        if (
+                                          diff_min(
+                                            new Date(eventData.date),
+                                            new Date(chaineDateUTC)
+                                          ).difference >= 30
+                                        ) {
+                                          //Send a new one
+                                          //? Send a fresh notification
+                                          console.log(
+                                            `SEND NOTIFICATION -> Tag: ${driverData.driver_fingerprint.substr(
+                                              0,
+                                              15
+                                            )}`
+                                          );
+                                          sendComission_notificationsDrivers(
+                                            driverData,
+                                            amount,
+                                            Math.abs(dateDiffChecker),
+                                            collectionGlobalEvents,
+                                            resNotify
+                                          );
+                                        } //Pass - waiting for the next 30 from the previous notification
+                                        else {
+                                          console.log(
+                                            `Waiting for the next notification cycle - Tag: ${driverData.driver_fingerprint.substr(
+                                              0,
+                                              5
+                                            )}`
+                                          );
+                                          resNotify(true);
+                                        }
+                                      } //No previous event data - send a fresh notification
+                                      else {
+                                        console.log(
+                                          `SEND NOTIFICATION -> Tag: ${driverData.driver_fingerprint.substr(
+                                            0,
+                                            15
+                                          )}`
+                                        );
+                                        sendComission_notificationsDrivers(
+                                          driverData,
+                                          amount,
+                                          Math.abs(dateDiffChecker),
+                                          collectionGlobalEvents,
+                                          resNotify
+                                        );
+                                      }
+                                    });
+                                })
+                                  .then(
+                                    () => {},
+                                    () => {}
+                                  )
+                                  .catch((error) => {
+                                    console.log(error);
+                                  });
+
+                                console.log("WAIT FOR FINAL DDEADLINE");
+                                //! Do not update the payment date
+                                resPaymentCycle(true);
+                              }
+                            } //Not reached the threshold already - so update the payment cycle
+                            else {
+                              //! Day passed already by 24 hours - update - ADD 7 days
+                              //! Update the payment cycle
+                              new Promise((resCompute) => {
+                                updateNextPaymentDate_cycle(
+                                  driverData,
+                                  collectionWalletTransactions_logs,
+                                  resCompute
+                                );
+                              })
+                                .then(
+                                  (result) => {
+                                    resPaymentCycle(true);
+                                  },
+                                  (error) => {
+                                    console.log(error);
+                                    resPaymentCycle(false);
+                                  }
+                                )
+                                .catch((error) => {
+                                  console.log(error);
+                                  resPaymentCycle(false);
+                                });
+                            }
+                          } //No comission found - Ignore
+                          else {
+                            //! Day passed already by 24 hours - update - ADD 7 days
+                            //! Update the payment cycle
+                            new Promise((resCompute) => {
+                              updateNextPaymentDate_cycle(
+                                driverData,
+                                collectionWalletTransactions_logs,
+                                resCompute
+                              );
+                            })
+                              .then(
+                                (result) => {
+                                  resPaymentCycle(true);
+                                },
+                                (error) => {
+                                  console.log(error);
+                                  resPaymentCycle(false);
+                                }
+                              )
+                              .catch((error) => {
+                                console.log(error);
+                                resPaymentCycle(false);
+                              });
+                          }
+                        } //Error
+                        else {
+                          resPaymentCycle(false);
+                        }
+                      } catch (error) {
+                        console.log(error);
+                        resPaymentCycle(false);
                       }
-                    );
-                  } //After wednesday - OK
-                  else {
-                    let dateNext = new Date(
-                      new Date(chaineDateUTC).getTime() +
-                        parseFloat(
-                          process.env.TAXICONNECT_PAYMENT_FREQUENCY *
-                            24 *
-                            3600 *
-                            1000
-                        )
-                    ).toISOString();
-                    //?----
-                    collectionWalletTransactions_logs.updateOne(
-                      {
-                        flag_annotation: "startingPoint_forFreshPayouts",
-                        user_fingerprint: driverData.driver_fingerprint,
-                      },
-                      {
-                        $set: {
-                          flag_annotation: "startingPoint_forFreshPayouts",
-                          date_captured: new Date(dateNext),
-                        },
-                      },
-                      function (err, reslt) {
-                        resPaymentCycle(true);
-                      }
-                    );
-                  }
+                    } else {
+                      resPaymentCycle(false);
+                    }
+                  });
                 } //? The date looks good - skip
                 else {
-                  console.log("Next payment date not obsolete found!");
+                  //console.log("Next payment date not obsolete found!");
                   resPaymentCycle(true);
                 }
               } //No annotation yet - create one
@@ -480,6 +704,142 @@ function updateNext_paymentDateDrivers(
   });
 }
 
+/**
+ * @func sendComission_notificationsDrivers
+ * Responsible for sending the comission notifications to drivers.
+ * @param driverData: the driver's infos
+ * @param amount: the actual comission to be paid.
+ * @param days_left: the number of days left for the comission to be paid.
+ * @param collectionGlobalEvents: the global events list
+ * @param resolve
+ */
+function sendComission_notificationsDrivers(
+  driverData,
+  amount,
+  days_left,
+  collectionGlobalEvents,
+  resolve
+) {
+  resolveDate();
+  //...
+  let messageText =
+    days_left < 2
+      ? `Hi ${
+          driverData.name
+        }, you have a pending TaxiConnect comission of N$${amount} to be paid today, you have about ${
+          parseInt(
+            process.env.COMISSION_WAITING_PERIOD_BEFORE_SUSPENSION_DAYS
+          ) - parseInt(days_left)
+        } days before a potential service suspension. Kind regards.`
+      : `Hi ${driverData.name}, you have a pending TaxiConnect comission of N$${amount} to be paid today, otherwise a service suspension will take please. Kind regards.`;
+  //...
+  //Send the push notifications
+  let message = {
+    app_id: process.env.DRIVERS_APP_ID_ONESIGNAL,
+    android_channel_id:
+      process.env.DRIVERS_ONESIGNAL_CHANNEL_COMISSION_NOTIFICATION,
+    priority: 10,
+    contents: {
+      en: messageText,
+    },
+    headings: { en: "COMISSION PENDING" },
+    content_available: true,
+    include_player_ids: [
+      driverData.push_notification_token !== undefined &&
+      driverData.push_notification_token !== null
+        ? driverData.push_notification_token.userId
+        : null,
+    ],
+  };
+  console.log(messageText);
+  //Send
+  //! TO UNCOMMENT!
+  //sendPushUPNotification(message);
+  //? SAVE THE EVENT
+  let event = {
+    event_name: "comission_reminder_comission_drivers",
+    user_fingerprint: driverData.driver_fingerprint,
+    user_nature: "driver",
+    date: new Date(chaineDateUTC),
+  };
+  collectionGlobalEvents.insertOne(event, function (err, result) {
+    if (err) {
+      console.log(err);
+      resolve(false);
+    }
+    //...DONE
+    resolve(true);
+  });
+}
+
+/**
+ * @func updateNextPaymentDate_cycle
+ * Responsible for updating the next payment cycle date.
+ * @param driverData: the driver's data
+ * @param collectionWalletTransactions_logs: all the transactions.
+ * @param resolve
+ */
+function updateNextPaymentDate_cycle(
+  driverData,
+  collectionWalletTransactions_logs,
+  resPaymentCycle
+) {
+  let tmpDate = new Date(
+    new Date(chaineDateUTC).getTime() +
+      parseFloat(process.env.TAXICONNECT_PAYMENT_FREQUENCY) * 3600 * 1000
+  )
+    .toDateString()
+    .split(" ")[0];
+  if (/(mon|tue)/i.test(tmpDate)) {
+    //For mondays and tuesdays - add 3 days
+    let tmpNextDate = new Date(
+      new Date(chaineDateUTC).getTime() +
+        (3 + parseFloat(process.env.TAXICONNECT_PAYMENT_FREQUENCY)) *
+          24 *
+          3600 *
+          1000
+    ).toISOString();
+    //...
+    collectionWalletTransactions_logs.updateOne(
+      {
+        flag_annotation: "startingPoint_forFreshPayouts",
+        user_fingerprint: driverData.driver_fingerprint,
+      },
+      {
+        $set: {
+          flag_annotation: "startingPoint_forFreshPayouts",
+          date_captured: new Date(tmpNextDate),
+        },
+      },
+      function (err, reslt) {
+        resPaymentCycle(true);
+      }
+    );
+  } //After wednesday - OK
+  else {
+    let dateNext = new Date(
+      new Date(chaineDateUTC).getTime() +
+        parseFloat(process.env.TAXICONNECT_PAYMENT_FREQUENCY * 24 * 3600 * 1000)
+    ).toISOString();
+    //?----
+    collectionWalletTransactions_logs.updateOne(
+      {
+        flag_annotation: "startingPoint_forFreshPayouts",
+        user_fingerprint: driverData.driver_fingerprint,
+      },
+      {
+        $set: {
+          flag_annotation: "startingPoint_forFreshPayouts",
+          date_captured: new Date(dateNext),
+        },
+      },
+      function (err, reslt) {
+        resPaymentCycle(true);
+      }
+    );
+  }
+}
+
 function getDaysInMonth(month, year) {
   // Here January is 1 based
   //Day 0 is the last day in the previous month
@@ -493,6 +853,14 @@ function diff_hours(dt1, dt2) {
     return { difference: Math.abs(dt2 - dt1) / 3600000, state: "onTime" };
   } else {
     return { difference: Math.abs(dt2 - dt1) / 3600000, state: "late" };
+  }
+}
+
+function diff_min(dt1, dt2) {
+  if (dt2 > dt1) {
+    return { difference: Math.abs(dt2 - dt1) / 60000, state: "onTime" };
+  } else {
+    return { difference: Math.abs(dt2 - dt1) / 60000, state: "late" };
   }
 }
 
@@ -1314,6 +1682,8 @@ clientMongo.connect(function (err) {
       updateNext_paymentDateDrivers(
         collectionDrivers_profiles,
         collectionWalletTransactions_logs,
+        collectionRidesDeliveryData,
+        collectionGlobalEvents,
         res2
       );
     })
@@ -1376,7 +1746,7 @@ clientMongo.connect(function (err) {
     })
       .then(
         (result) => {
-          console.log(result);
+          //console.log(result);
         },
         (error) => {
           console.log(error);
