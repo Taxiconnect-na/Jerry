@@ -29,6 +29,7 @@ const moment = require("moment");
 
 //CRUCIAL VARIABLES
 var _INTERVAL_PERSISTER_LATE_REQUESTS = null; //Will hold the interval for checking whether or not a requests has takne too long and should be cancelled.
+var _INTERVAL_PERSISTER_LATE_REQUESTS_HEAVY = null; //Wiill  hold the interval for running heavy processes on a 30 sec or more basis.
 //...
 
 const clientMongo = new MongoClient(process.env.URL_MONGODB);
@@ -433,6 +434,21 @@ function updateNext_paymentDateDrivers(
                                     .COMISSION_WAITING_PERIOD_BEFORE_SUSPENSION_DAYS
                                 ) <= Math.abs(parseFloat(dateDiffChecker))
                               ) {
+                                //? Compute the amount left COMISSION-DUE based on who's greater of course.
+                                let amount =
+                                  parseFloat(body.header.remaining_commission) >
+                                  parseFloat(
+                                    body.header.remaining_due_to_driver
+                                  )
+                                    ? parseFloat(
+                                        body.header.remaining_commission
+                                      ) -
+                                      parseFloat(
+                                        body.header.remaining_due_to_driver
+                                      )
+                                    : parseFloat(
+                                        body.header.remaining_commission
+                                      );
                                 //! Passed waiting period
                                 //? Check if there's any trip in progress.
                                 let checkExistingRide = {
@@ -464,27 +480,69 @@ function updateNext_paymentDateDrivers(
                                     } //No trip in progress
                                     else {
                                       //! SUSPEND THE DRIVER
-                                      collectionDrivers_profiles.updateOne(
-                                        {
+                                      collectionDrivers_profiles
+                                        .find({
                                           driver_fingerprint:
                                             driverData.driver_fingerprint,
-                                        },
-                                        {
-                                          $set: {
-                                            isDriverSuspended: true,
-                                          },
-                                        },
-                                        function (err, rest) {
-                                          //? DONE
-                                          console.log(
-                                            `DRIVER SUSPENDED --> Tag: ${driverData.driver_fingerprint.substr(
-                                              0,
-                                              15
-                                            )}`
-                                          );
-                                          resPaymentCycle(true);
-                                        }
-                                      );
+                                        })
+                                        .toArray(function (err, newDriverData) {
+                                          if (err) {
+                                            console.log(err);
+                                            resPaymentCycle(false);
+                                          }
+                                          //...
+                                          if (
+                                            newDriverData !== undefined &&
+                                            newDriverData.length > 0
+                                          ) {
+                                            //Found a driver data
+                                            resolveDate();
+                                            //? Append the new suspension to the suspension array
+                                            let suspensionInfos_array =
+                                              newDriverData[0]
+                                                .suspension_infos !==
+                                                undefined &&
+                                              newDriverData[0]
+                                                .suspension_infos !== null
+                                                ? newDriverData[0]
+                                                    .suspension_infos
+                                                : [];
+                                            suspensionInfos_array.push({
+                                              reason: "UNPAID_COMISSION",
+                                              state: "SUSPENDED",
+                                              amount: amount,
+                                              bot_locker: "Junkstem",
+                                              date: new Date(chaineDateUTC),
+                                            });
+                                            //...
+                                            collectionDrivers_profiles.updateOne(
+                                              {
+                                                driver_fingerprint:
+                                                  driverData.driver_fingerprint,
+                                              },
+                                              {
+                                                $set: {
+                                                  isDriverSuspended: true,
+                                                  suspension_infos:
+                                                    suspensionInfos_array,
+                                                },
+                                              },
+                                              function (err, rest) {
+                                                //? DONE
+                                                console.log(
+                                                  `DRIVER SUSPENDED --> Tag: ${driverData.driver_fingerprint.substr(
+                                                    0,
+                                                    15
+                                                  )}`
+                                                );
+                                                resPaymentCycle(true);
+                                              }
+                                            );
+                                          } //No driver data found
+                                          else {
+                                            resPaymentCycle(false);
+                                          }
+                                        });
                                     }
                                   });
                                 //console.log(body.header);
@@ -623,6 +681,95 @@ function updateNext_paymentDateDrivers(
                             }
                           } //No comission found - Ignore
                           else {
+                            //? Unlock the driver if locked --------------------------------
+                            new Promise((resUnlock) => {
+                              collectionDrivers_profiles
+                                .find({
+                                  driver_fingerprint:
+                                    driverData.driver_fingerprint,
+                                })
+                                .toArray(function (err, newDriverData) {
+                                  if (err) {
+                                    console.log(err);
+                                    resUnlock(false);
+                                  }
+                                  //...
+                                  if (
+                                    newDriverData !== undefined &&
+                                    newDriverData.length > 0
+                                  ) {
+                                    //! ONLY UNLOCK IF THE LAST SUSPENSION REASON IS RELATED TO THE UNPAID COMISSION
+                                    if (
+                                      newDriverData !== undefined &&
+                                      newDriverData.length > 0 &&
+                                      newDriverData[0].suspension_infos !==
+                                        undefined &&
+                                      newDriverData[0].suspension_infos !==
+                                        null &&
+                                      /UNPAID_COMISSION/i.test(
+                                        newDriverData[0].suspension_infos.reason
+                                      )
+                                    ) {
+                                      //Found a driver data
+                                      resolveDate();
+                                      //? Append the new suspension to the suspension array
+                                      let suspensionInfos_array =
+                                        newDriverData[0].suspension_infos !==
+                                          undefined &&
+                                        newDriverData[0].suspension_infos !==
+                                          null
+                                          ? newDriverData[0].suspension_infos
+                                          : [];
+                                      suspensionInfos_array.push({
+                                        reason: "PAID_COMISSION",
+                                        state: "UNSUSPENDED",
+                                        bot_locker: "Junkstem",
+                                        date: new Date(chaineDateUTC),
+                                      });
+                                      //...
+                                      collectionDrivers_profiles.updateOne(
+                                        {
+                                          driver_fingerprint:
+                                            driverData.driver_fingerprint,
+                                        },
+                                        {
+                                          $set: {
+                                            isDriverSuspended: false,
+                                            suspension_infos:
+                                              suspensionInfos_array,
+                                          },
+                                        },
+                                        function (err, rest) {
+                                          //? DONE
+                                          console.log(
+                                            `DRIVER UNLOCKED --> Tag: ${driverData.driver_fingerprint.substr(
+                                              0,
+                                              15
+                                            )}`
+                                          );
+                                          resUnlock(true);
+                                        }
+                                      );
+                                    } //! No proper suspension reason found - pass
+                                    else {
+                                      console.log(
+                                        "No proper unsuspension reason found, pass."
+                                      );
+                                      resUnlock(false);
+                                    }
+                                  } //No driver data found
+                                  else {
+                                    resUnlock(false);
+                                  }
+                                });
+                            })
+                              .then(
+                                () => {},
+                                () => {}
+                              )
+                              .catch((error) => console.log(error));
+                            //?----------------------------------------------------------------------
+
                             //! Day passed already by 24 hours - update - ADD 7 days
                             //! Update the payment cycle
                             new Promise((resCompute) => {
@@ -1735,14 +1882,17 @@ clientMongo.connect(function (err) {
       .catch((error) => {
         console.log(error);
       });*/
+  }, process.env.INTERVAL_PERSISTER_MAIN_WATCHER_MILLISECONDS);
 
-    //? 5. Refresh every driver's wallet
+  //! FOR HEAVY PROCESSES REQUIRING - 60sec
+  _INTERVAL_PERSISTER_LATE_REQUESTS_HEAVY = setInterval(function () {
+    //? 1. Refresh every driver's wallet
     new Promise((res5) => {
       updateDrivers_walletCachedData(collectionDrivers_profiles, res5);
     })
       .then(
         (result) => {
-          //console.log(result);
+          console.log(result);
         },
         (error) => {
           console.log(error);
@@ -1751,7 +1901,7 @@ clientMongo.connect(function (err) {
       .catch((error) => {
         console.log(error);
       });
-  }, process.env.INTERVAL_PERSISTER_MAIN_WATCHER_MILLISECONDS);
+  }, parseInt(process.env.INTERVAL_PERSISTER_MAIN_WATCHER_MILLISECONDS) * 6);
 });
 
 server.listen(process.env.WATCHER_SERVICE_PORT);

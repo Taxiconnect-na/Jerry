@@ -30,6 +30,7 @@
     "mysql": "^2.18.1",
     "otp-generator": "^2.0.0",
     "redis": "^3.0.2",
+    "redis-clustr": "^1.7.0",
     "request": "^2.88.2",
     "socket.io": "^4.0.1",
     "textbelt": "0.0.4",

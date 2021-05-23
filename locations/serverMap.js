@@ -337,8 +337,8 @@ function getRouteInfos(coordsInfos, resolve) {
   //? 3. Destination
   //? Get temporary vars
   if (destinationPosition !== false && destinationPosition !== undefined) {
-    var pickLatitude3 = parseFloat(passengerPosition.latitude);
-    var pickLongitude3 = parseFloat(passengerPosition.longitude);
+    var pickLatitude3 = parseFloat(destinationPosition.latitude);
+    var pickLongitude3 = parseFloat(destinationPosition.longitude);
     //! Coordinates order fix - major bug fix for ocean bug
     if (
       pickLatitude3 !== undefined &&
@@ -357,9 +357,9 @@ function getRouteInfos(coordsInfos, resolve) {
     }
   }
   //!!! --------------------------
-  //console.log(`DRIVER POSITION -> ${JSON.stringify(driverPosition)}`);
-  //console.log(`PASSENGER POSITION -> ${JSON.stringify(passengerPosition)}`);
-  //console.log(`DESTINATION POSITION -> ${JSON.stringify(destinationPosition)}`);
+  console.log(`DRIVER POSITION -> ${JSON.stringify(driverPosition)}`);
+  console.log(`PASSENGER POSITION -> ${JSON.stringify(passengerPosition)}`);
+  console.log(`DESTINATION POSITION -> ${JSON.stringify(destinationPosition)}`);
 
   url =
     process.env.URL_ROUTE_SERVICES +
@@ -1061,6 +1061,7 @@ function tripChecker_Dispatcher(
                   taxi_id: user_fingerprint,
                   connect_type: "ConnectMe",
                   "ride_state_vars.isRideCompleted_driverSide": false,
+                  //request_type: "immediate", //? To check
                   ride_mode:
                     /scheduled/i.test(requestType) === false
                       ? requestType
@@ -1841,14 +1842,74 @@ function execDriver_requests_parsing(
                   true,
                   request.request_fp + "-cached-etaToDestination-requests"
                 );
-              }).then(
-                (resultETAToDestination) => {
-                  if (resultETAToDestination !== false) {
+              })
+                .then(
+                  (resultETAToDestination) => {
+                    if (resultETAToDestination !== false) {
+                      //Save the ETA to destination data
+                      parsedRequestsArray.origin_destination_infos.eta_to_destination_infos.eta =
+                        resultETAToDestination.eta;
+                      parsedRequestsArray.origin_destination_infos.eta_to_destination_infos.distance =
+                        resultETAToDestination.distance;
+                      //4. Save the destination data
+                      parsedRequestsArray.origin_destination_infos.destination_infos =
+                        request.destinationData;
+                      //Add the request fingerprint
+                      parsedRequestsArray.request_fp = request.request_fp;
+                      //DONE
+                      //CACHE
+                      new Promise((resCache) => {
+                        client.set(
+                          redisKey,
+                          JSON.stringify(parsedRequestsArray)
+                        );
+                        resCache(true);
+                      }).then(
+                        () => {
+                          console.log("Single processing cached!");
+                        },
+                        () => {}
+                      );
+                      //Return the answer
+                      res(parsedRequestsArray);
+                    } //! Error - Salvage anyway
+                    else {
+                      //Save the ETA to destination data
+                      parsedRequestsArray.origin_destination_infos.eta_to_destination_infos.eta =
+                        "Awaiting";
+                      parsedRequestsArray.origin_destination_infos.eta_to_destination_infos.distance =
+                        "Awaiting";
+                      //4. Save the destination data
+                      parsedRequestsArray.origin_destination_infos.destination_infos =
+                        request.destinationData;
+                      //Add the request fingerprint
+                      parsedRequestsArray.request_fp = request.request_fp;
+                      //DONE
+                      //CACHE
+                      new Promise((resCache) => {
+                        client.set(
+                          redisKey,
+                          JSON.stringify(parsedRequestsArray)
+                        );
+                        resCache(true);
+                      }).then(
+                        () => {
+                          console.log("Single processing cached!");
+                        },
+                        () => {}
+                      );
+                      //Return the answer
+                      res(parsedRequestsArray);
+                    }
+                  },
+                  (error) => {
+                    console.trace(error);
+                    //! Salvage anyway
                     //Save the ETA to destination data
                     parsedRequestsArray.origin_destination_infos.eta_to_destination_infos.eta =
-                      resultETAToDestination.eta;
+                      "Awaiting";
                     parsedRequestsArray.origin_destination_infos.eta_to_destination_infos.distance =
-                      resultETAToDestination.distance;
+                      "Awaiting";
                     //4. Save the destination data
                     parsedRequestsArray.origin_destination_infos.destination_infos =
                       request.destinationData;
@@ -1867,16 +1928,35 @@ function execDriver_requests_parsing(
                     );
                     //Return the answer
                     res(parsedRequestsArray);
-                  } //Error
-                  else {
-                    res(false);
                   }
-                },
-                (error) => {
-                  console.log(error);
-                  res(false);
-                }
-              );
+                )
+                .catch((error) => {
+                  console.trace(error);
+                  //! Salvage anyway
+                  //Save the ETA to destination data
+                  parsedRequestsArray.origin_destination_infos.eta_to_destination_infos.eta =
+                    "Awaiting";
+                  parsedRequestsArray.origin_destination_infos.eta_to_destination_infos.distance =
+                    "Awaiting";
+                  //4. Save the destination data
+                  parsedRequestsArray.origin_destination_infos.destination_infos =
+                    request.destinationData;
+                  //Add the request fingerprint
+                  parsedRequestsArray.request_fp = request.request_fp;
+                  //DONE
+                  //CACHE
+                  new Promise((resCache) => {
+                    client.set(redisKey, JSON.stringify(parsedRequestsArray));
+                    resCache(true);
+                  }).then(
+                    () => {
+                      console.log("Single processing cached!");
+                    },
+                    () => {}
+                  );
+                  //Return the answer
+                  res(parsedRequestsArray);
+                });
             },
             (error) => {
               console.log(error);
