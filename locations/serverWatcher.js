@@ -21,7 +21,22 @@ const client = redis.createClient({
   host: process.env.REDIS_HOST,
   port: process.env.REDIS_PORT,
 });
-const redisGet = promisify(client.get).bind(client);
+var RedisClustr = require("redis-clustr");
+var redisCluster = /production/i.test(String(process.env.EVIRONMENT))
+  ? new RedisClustr({
+      servers: [
+        {
+          host: process.env.REDIS_HOST_ELASTICACHE,
+          port: process.env.REDIS_PORT_ELASTICACHE,
+        },
+      ],
+      createClient: function (port, host) {
+        // this is the default behaviour
+        return redis.createClient(port, host);
+      },
+    })
+  : client;
+const redisGet = promisify(redisCluster.get).bind(redisCluster);
 
 var chaineDateUTC = null;
 var dateObject = null;
@@ -1786,116 +1801,118 @@ function updateDrivers_walletCachedData(collectionDrivers_profiles, resolve) {
  * MAIN
  */
 
-clientMongo.connect(function (err) {
-  //if (err) throw err;
-  console.log("[+] Watcher services active.");
-  const dbMongo = clientMongo.db(process.env.DB_NAME_MONGODDB);
-  const collectionPassengers_profiles = dbMongo.collection(
-    "passengers_profiles"
-  ); //Hold all the passengers profiles
-  const collectionRidesDeliveryData = dbMongo.collection(
-    "rides_deliveries_requests"
-  ); //Hold all the requests made (rides and deliveries)
-  const collection_OTP_dispatch_map = dbMongo.collection("OTP_dispatch_map");
-  const collectionDrivers_profiles = dbMongo.collection("drivers_profiles"); //Hold all the drivers profiles
-  const collectionGlobalEvents = dbMongo.collection("global_events"); //Hold all the random events that happened somewhere.
-  const collectionWalletTransactions_logs = dbMongo.collection(
-    "wallet_transactions_logs"
-  ); //Hold all the wallet transactions (exlude rides/deliveries records which are in the rides/deliveries collection)
-  //-------------
-  const bodyParser = require("body-parser");
-  app
-    .get("/", function (req, res) {
-      console.log("Account services up");
-    })
-    .use(
-      bodyParser.json({
-        limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
-        extended: true,
+redisCluster.on("connect", function () {
+  console.log("[*] Redis connected");
+  clientMongo.connect(function (err) {
+    //if (err) throw err;
+    console.log("[+] Watcher services active.");
+    const dbMongo = clientMongo.db(process.env.DB_NAME_MONGODDB);
+    const collectionPassengers_profiles = dbMongo.collection(
+      "passengers_profiles"
+    ); //Hold all the passengers profiles
+    const collectionRidesDeliveryData = dbMongo.collection(
+      "rides_deliveries_requests"
+    ); //Hold all the requests made (rides and deliveries)
+    const collection_OTP_dispatch_map = dbMongo.collection("OTP_dispatch_map");
+    const collectionDrivers_profiles = dbMongo.collection("drivers_profiles"); //Hold all the drivers profiles
+    const collectionGlobalEvents = dbMongo.collection("global_events"); //Hold all the random events that happened somewhere.
+    const collectionWalletTransactions_logs = dbMongo.collection(
+      "wallet_transactions_logs"
+    ); //Hold all the wallet transactions (exlude rides/deliveries records which are in the rides/deliveries collection)
+    //-------------
+    const bodyParser = require("body-parser");
+    app
+      .get("/", function (req, res) {
+        console.log("Account services up");
       })
-    )
-    .use(
-      bodyParser.urlencoded({
-        limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
-        extended: true,
-      })
-    )
-    .use(bodyParser.urlencoded({ extended: true }));
+      .use(
+        bodyParser.json({
+          limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
+          extended: true,
+        })
+      )
+      .use(
+        bodyParser.urlencoded({
+          limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
+          extended: true,
+        })
+      )
+      .use(bodyParser.urlencoded({ extended: true }));
 
-  /**
-   * MAIN Watcher loop
-   * ! ONLY USE PROMISIFIED FUNCTIONS!
-   * ! ALWAYS CATCH TROUBLE!
-   */
-  _INTERVAL_PERSISTER_LATE_REQUESTS = setInterval(function () {
-    resolveDate();
-    //...
-    console.log(`[${chaineDateUTC}] - Watcher loopedi`);
-    //? 1. Clean X hold requests
-    new Promise((res1) => {
-      removeOldRequests_madeWithoutBeingAttended(
-        collectionPassengers_profiles,
-        collectionRidesDeliveryData,
-        res1
-      );
-    })
-      .then(
-        (result) => {
-          //console.log(result);
-        },
-        (error) => {
+    /**
+     * MAIN Watcher loop
+     * ! ONLY USE PROMISIFIED FUNCTIONS!
+     * ! ALWAYS CATCH TROUBLE!
+     */
+    _INTERVAL_PERSISTER_LATE_REQUESTS = setInterval(function () {
+      resolveDate();
+      //...
+      console.log(`[${chaineDateUTC}] - Watcher loopedi`);
+      //? 1. Clean X hold requests
+      new Promise((res1) => {
+        removeOldRequests_madeWithoutBeingAttended(
+          collectionPassengers_profiles,
+          collectionRidesDeliveryData,
+          res1
+        );
+      })
+        .then(
+          (result) => {
+            //console.log(result);
+          },
+          (error) => {
+            //console.log(error);
+          }
+        )
+        .catch((error) => {
           //console.log(error);
-        }
-      )
-      .catch((error) => {
-        //console.log(error);
-      });
+        });
 
-    //? 2. Keep the drivers next payment date UP TO DATE
-    new Promise((res2) => {
-      updateNext_paymentDateDrivers(
-        collectionDrivers_profiles,
-        collectionWalletTransactions_logs,
-        collectionRidesDeliveryData,
-        collectionGlobalEvents,
-        res2
-      );
-    })
-      .then(
-        (result) => {
-          console.log(result);
-        },
-        (error) => {
+      //? 2. Keep the drivers next payment date UP TO DATE
+      new Promise((res2) => {
+        updateNext_paymentDateDrivers(
+          collectionDrivers_profiles,
+          collectionWalletTransactions_logs,
+          collectionRidesDeliveryData,
+          collectionGlobalEvents,
+          res2
+        );
+      })
+        .then(
+          (result) => {
+            console.log(result);
+          },
+          (error) => {
+            console.log(error);
+          }
+        )
+        .catch((error) => {
           console.log(error);
-        }
-      )
-      .catch((error) => {
-        console.log(error);
-      });
+        });
 
-    //? 3. Observe all the scheduled requests for executions
-    new Promise((res3) => {
-      scheduledRequestsWatcher_junky(
-        collectionRidesDeliveryData,
-        collectionDrivers_profiles,
-        collectionPassengers_profiles,
-        res3
-      );
-    })
-      .then(
-        (result) => {
-          console.log(result);
-        },
-        (error) => {
+      //? 3. Observe all the scheduled requests for executions
+      new Promise((res3) => {
+        scheduledRequestsWatcher_junky(
+          collectionRidesDeliveryData,
+          collectionDrivers_profiles,
+          collectionPassengers_profiles,
+          res3
+        );
+      })
+        .then(
+          (result) => {
+            console.log(result);
+          },
+          (error) => {
+            console.log(error);
+          }
+        )
+        .catch((error) => {
           console.log(error);
-        }
-      )
-      .catch((error) => {
-        console.log(error);
-      });
+        });
 
-    //? 4. Observe all the subscribeless requests
-    /*new Promise((res4) => {
+      //? 4. Observe all the subscribeless requests
+      /*new Promise((res4) => {
       requestsDriverSubscriber_watcher(
         collectionRidesDeliveryData,
         collectionDrivers_profiles,
@@ -1913,26 +1930,27 @@ clientMongo.connect(function (err) {
       .catch((error) => {
         console.log(error);
       });*/
-  }, process.env.INTERVAL_PERSISTER_MAIN_WATCHER_MILLISECONDS);
+    }, process.env.INTERVAL_PERSISTER_MAIN_WATCHER_MILLISECONDS);
 
-  //! FOR HEAVY PROCESSES REQUIRING - 60sec
-  _INTERVAL_PERSISTER_LATE_REQUESTS_HEAVY = setInterval(function () {
-    //? 1. Refresh every driver's wallet
-    new Promise((res5) => {
-      updateDrivers_walletCachedData(collectionDrivers_profiles, res5);
-    })
-      .then(
-        (result) => {
-          console.log(result);
-        },
-        (error) => {
+    //! FOR HEAVY PROCESSES REQUIRING - 60sec
+    _INTERVAL_PERSISTER_LATE_REQUESTS_HEAVY = setInterval(function () {
+      //? 1. Refresh every driver's wallet
+      new Promise((res5) => {
+        updateDrivers_walletCachedData(collectionDrivers_profiles, res5);
+      })
+        .then(
+          (result) => {
+            console.log(result);
+          },
+          (error) => {
+            console.log(error);
+          }
+        )
+        .catch((error) => {
           console.log(error);
-        }
-      )
-      .catch((error) => {
-        console.log(error);
-      });
-  }, parseInt(process.env.INTERVAL_PERSISTER_MAIN_WATCHER_MILLISECONDS) * 6);
+        });
+    }, parseInt(process.env.INTERVAL_PERSISTER_MAIN_WATCHER_MILLISECONDS) * 6);
+  });
 });
 
 server.listen(process.env.WATCHER_SERVICE_PORT);

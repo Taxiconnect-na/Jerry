@@ -1,7 +1,6 @@
 require("dotenv").config();
 //console.log = function () {};
 var express = require("express");
-var RedisClustr = require("redis-clustr");
 const http = require("http");
 const https = require("https");
 const fs = require("fs");
@@ -29,12 +28,13 @@ const client = redis.createClient({
   host: process.env.REDIS_HOST,
   port: process.env.REDIS_PORT,
 });
+var RedisClustr = require("redis-clustr");
 var redisCluster = /production/i.test(String(process.env.EVIRONMENT))
   ? new RedisClustr({
       servers: [
         {
-          host: "taxiconnect-cache.c0q3mw.clustercfg.usw1.cache.amazonaws.com",
-          port: 6379,
+          host: process.env.REDIS_HOST_ELASTICACHE,
+          port: process.env.REDIS_PORT_ELASTICACHE,
         },
       ],
       createClient: function (port, host) {

@@ -22,7 +22,22 @@ const client = redis.createClient({
   host: process.env.REDIS_HOST,
   port: process.env.REDIS_PORT,
 });
-const redisGet = promisify(client.get).bind(client);
+var RedisClustr = require("redis-clustr");
+var redisCluster = /production/i.test(String(process.env.EVIRONMENT))
+  ? new RedisClustr({
+      servers: [
+        {
+          host: process.env.REDIS_HOST_ELASTICACHE,
+          port: process.env.REDIS_PORT_ELASTICACHE,
+        },
+      ],
+      createClient: function (port, host) {
+        // this is the default behaviour
+        return redis.createClient(port, host);
+      },
+    })
+  : client;
+const redisGet = promisify(redisCluster.get).bind(redisCluster);
 
 var chaineDateUTC = null;
 var dateObject = null;
@@ -939,7 +954,7 @@ function parseRequestData(inputData, resolve) {
                                               parsedData !== null
                                             ) {
                                               new Promise((resCache) => {
-                                                client.setex(
+                                                redisCluster.setex(
                                                   `${inputData.request_fp}-recoveredData`,
                                                   process.env
                                                     .REDIS_EXPIRATION_5MIN,
@@ -2861,57 +2876,58 @@ function diff_hours(dt1, dt2) {
 /**
  * MAIN
  */
-
-clientMongo.connect(function (err) {
-  //if (err) throw err;
-  console.log("[+] Dispatch services active.");
-  const dbMongo = clientMongo.db(process.env.DB_NAME_MONGODDB);
-  const collectionPassengers_profiles = dbMongo.collection(
-    "passengers_profiles"
-  ); //Hold the information about the riders
-  const collectionRidesDeliveryData = dbMongo.collection(
-    "rides_deliveries_requests"
-  ); //Hold all the requests made (rides and deliveries)
-  const collection_cancelledRidesDeliveryData = dbMongo.collection(
-    "cancelled_rides_deliveries_requests"
-  ); //Hold all the cancelled requests made (rides and deliveries)
-  const collectionRelativeDistances = dbMongo.collection(
-    "relative_distances_riders_drivers"
-  ); //Hold the relative distances between rider and the drivers (online, same city, same country) at any given time
-  const collectionRidersDriversLocation_log = dbMongo.collection(
-    "historical_positioning_logs"
-  ); //Hold all the location updated from the rider
-  const collectionDrivers_profiles = dbMongo.collection("drivers_profiles"); //Hold all the drivers profiles
-  const collectionGlobalEvents = dbMongo.collection("global_events"); //Hold all the random events that happened somewhere.
-  const collectionWalletTransactions_logs = dbMongo.collection(
-    "wallet_transactions_logs"
-  ); //Hold the latest information about the riders topups
-  //-------------
-  const bodyParser = require("body-parser");
-  app
-    .get("/", function (req, res) {
-      res.send("Dispatch services up");
-    })
-    .use(
-      bodyParser.json({
-        limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
-        extended: true,
+redisCluster.on("connect", function () {
+  console.log("[*] Redis connected");
+  clientMongo.connect(function (err) {
+    //if (err) throw err;
+    console.log("[+] Dispatch services active.");
+    const dbMongo = clientMongo.db(process.env.DB_NAME_MONGODDB);
+    const collectionPassengers_profiles = dbMongo.collection(
+      "passengers_profiles"
+    ); //Hold the information about the riders
+    const collectionRidesDeliveryData = dbMongo.collection(
+      "rides_deliveries_requests"
+    ); //Hold all the requests made (rides and deliveries)
+    const collection_cancelledRidesDeliveryData = dbMongo.collection(
+      "cancelled_rides_deliveries_requests"
+    ); //Hold all the cancelled requests made (rides and deliveries)
+    const collectionRelativeDistances = dbMongo.collection(
+      "relative_distances_riders_drivers"
+    ); //Hold the relative distances between rider and the drivers (online, same city, same country) at any given time
+    const collectionRidersDriversLocation_log = dbMongo.collection(
+      "historical_positioning_logs"
+    ); //Hold all the location updated from the rider
+    const collectionDrivers_profiles = dbMongo.collection("drivers_profiles"); //Hold all the drivers profiles
+    const collectionGlobalEvents = dbMongo.collection("global_events"); //Hold all the random events that happened somewhere.
+    const collectionWalletTransactions_logs = dbMongo.collection(
+      "wallet_transactions_logs"
+    ); //Hold the latest information about the riders topups
+    //-------------
+    const bodyParser = require("body-parser");
+    app
+      .get("/", function (req, res) {
+        res.send("Dispatch services up");
       })
-    )
-    .use(
-      bodyParser.urlencoded({
-        limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
-        extended: true,
-      })
-    );
+      .use(
+        bodyParser.json({
+          limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
+          extended: true,
+        })
+      )
+      .use(
+        bodyParser.urlencoded({
+          limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
+          extended: true,
+        })
+      );
 
-  /**
-   * PARSE DATA WITHOUT DISPATCH
-   * Responsible for parsing the raw data without any dispatch
-   */
-  app.post("/parseRequestData_withoutDispatch", function (req, res) {
-    req = req.body;
-    /*req = {
+    /**
+     * PARSE DATA WITHOUT DISPATCH
+     * Responsible for parsing the raw data without any dispatch
+     */
+    app.post("/parseRequestData_withoutDispatch", function (req, res) {
+      req = req.body;
+      /*req = {
       actualRider: "me",
       actualRiderPhone_number: false,
       carTypeSelected: "normalTaxiEconomy",
@@ -2974,76 +2990,103 @@ clientMongo.connect(function (err) {
       car_fingerprint:
         "7df7fdfd528c258a1a6da994941d1d5ca1e8a0c3452f3198d0725d8cf432e3ab2c325232df92f2af",
     };*/
-    //...
-    if (req.request_fp !== undefined) {
-      //is present
-      new Promise((resParse) => {
-        parseRequestData(req, resParse);
-      })
-        .then(
-          (result) => {
-            res.send(result);
-          },
-          (error) => {
+      //...
+      if (req.request_fp !== undefined) {
+        //is present
+        new Promise((resParse) => {
+          parseRequestData(req, resParse);
+        })
+          .then(
+            (result) => {
+              res.send(result);
+            },
+            (error) => {
+              console.log(error);
+              res.send({ message: "Error parsing data", flag: error });
+            }
+          )
+          .catch((error) => {
             console.log(error);
             res.send({ message: "Error parsing data", flag: error });
-          }
-        )
-        .catch((error) => {
-          console.log(error);
-          res.send({ message: "Error parsing data", flag: error });
-        });
-    } //No valid data received
-    else {
-      res.send({ message: "No valid data received" });
-    }
-  });
+          });
+      } //No valid data received
+      else {
+        res.send({ message: "No valid data received" });
+      }
+    });
 
-  /**
-   * REQUESTS GRAPH ASSEMBLER
-   * Responsible for getting the requests graphs to help the drivers selectedd the correct tab easily.
-   */
-  app.get("/getRequests_graphNumbers", function (req, res) {
-    resolveDate();
-    let params = urlParser.parse(req.url, true);
-    req = params.query;
+    /**
+     * REQUESTS GRAPH ASSEMBLER
+     * Responsible for getting the requests graphs to help the drivers selectedd the correct tab easily.
+     */
+    app.get("/getRequests_graphNumbers", function (req, res) {
+      resolveDate();
+      let params = urlParser.parse(req.url, true);
+      req = params.query;
 
-    if (req.driver_fingerprint !== undefined) {
-      let redisKey = `requestsGraph-${req.driver_fingerprint}`;
-      //OK
-      redisGet(redisKey).then(
-        (resp) => {
-          if (resp !== null) {
-            try {
-              console.log("cached resullts found!");
-              //? Rehyddrate the cached results
-              new Promise((res0) => {
-                getRequests_graphPreview_forDrivers(
-                  req.driver_fingerprint,
-                  collectionRidesDeliveryData,
-                  collectionDrivers_profiles,
-                  res0
-                );
-              })
-                .then(
-                  (result) => {
-                    client.set(redisKey, JSON.stringify(result));
-                  },
-                  (error) => {
+      if (req.driver_fingerprint !== undefined) {
+        let redisKey = `requestsGraph-${req.driver_fingerprint}`;
+        //OK
+        redisGet(redisKey).then(
+          (resp) => {
+            if (resp !== null) {
+              try {
+                console.log("cached resullts found!");
+                //? Rehyddrate the cached results
+                new Promise((res0) => {
+                  getRequests_graphPreview_forDrivers(
+                    req.driver_fingerprint,
+                    collectionRidesDeliveryData,
+                    collectionDrivers_profiles,
+                    res0
+                  );
+                })
+                  .then(
+                    (result) => {
+                      redisCluster.set(redisKey, JSON.stringify(result));
+                    },
+                    (error) => {
+                      console.log(error);
+                      redisCluster.set(redisKey, JSON.stringify(result));
+                    }
+                  )
+                  .catch((error) => {
                     console.log(error);
-                    client.set(redisKey, JSON.stringify(result));
-                  }
-                )
-                .catch((error) => {
-                  console.log(error);
-                  client.set(redisKey, JSON.stringify(result));
-                });
-              //...
-              resp = JSON.parse(resp);
-              //...Return the cached results quickly
-              res.send(resp);
-            } catch (error) {
-              console.log(error);
+                    redisCluster.set(redisKey, JSON.stringify(result));
+                  });
+                //...
+                resp = JSON.parse(resp);
+                //...Return the cached results quickly
+                res.send(resp);
+              } catch (error) {
+                console.log(error);
+                new Promise((res0) => {
+                  getRequests_graphPreview_forDrivers(
+                    req.driver_fingerprint,
+                    collectionRidesDeliveryData,
+                    collectionDrivers_profiles,
+                    res0
+                  );
+                })
+                  .then(
+                    (result) => {
+                      redisCluster.set(redisKey, JSON.stringify(result));
+                      res.send(result);
+                    },
+                    (error) => {
+                      console.log(error);
+                      redisCluster.set(redisKey, JSON.stringify(result));
+                      res.send({ rides: 0, deliveries: 0, scheduled: 0 });
+                    }
+                  )
+                  .catch((error) => {
+                    console.log(error);
+                    redisCluster.set(redisKey, JSON.stringify(result));
+                    res.send({ rides: 0, deliveries: 0, scheduled: 0 });
+                  });
+              }
+            } //No cached data yet
+            else {
               new Promise((res0) => {
                 getRequests_graphPreview_forDrivers(
                   req.driver_fingerprint,
@@ -3054,23 +3097,24 @@ clientMongo.connect(function (err) {
               })
                 .then(
                   (result) => {
-                    client.set(redisKey, JSON.stringify(result));
+                    redisCluster.set(redisKey, JSON.stringify(result));
                     res.send(result);
                   },
                   (error) => {
                     console.log(error);
-                    client.set(redisKey, JSON.stringify(result));
+                    redisCluster.set(redisKey, JSON.stringify(result));
                     res.send({ rides: 0, deliveries: 0, scheduled: 0 });
                   }
                 )
                 .catch((error) => {
                   console.log(error);
-                  client.set(redisKey, JSON.stringify(result));
+                  redisCluster.set(redisKey, JSON.stringify(result));
                   res.send({ rides: 0, deliveries: 0, scheduled: 0 });
                 });
             }
-          } //No cached data yet
-          else {
+          },
+          (error) => {
+            console.log(error);
             new Promise((res0) => {
               getRequests_graphPreview_forDrivers(
                 req.driver_fingerprint,
@@ -3081,108 +3125,80 @@ clientMongo.connect(function (err) {
             })
               .then(
                 (result) => {
-                  client.set(redisKey, JSON.stringify(result));
+                  redisCluster.set(redisKey, JSON.stringify(result));
                   res.send(result);
                 },
                 (error) => {
                   console.log(error);
-                  client.set(redisKey, JSON.stringify(result));
+                  redisCluster.set(redisKey, JSON.stringify(result));
                   res.send({ rides: 0, deliveries: 0, scheduled: 0 });
                 }
               )
               .catch((error) => {
                 console.log(error);
-                client.set(redisKey, JSON.stringify(result));
+                redisCluster.set(redisKey, JSON.stringify(result));
                 res.send({ rides: 0, deliveries: 0, scheduled: 0 });
               });
           }
+        );
+      } //Invalid params
+      else {
+        res.send({ rides: 0, deliveries: 0, scheduled: 0 });
+      }
+    });
+
+    /**
+     * RIDES OR DELIVERY DECOUPLED DISPATCHER
+     * Responsible for redispatching already parsed requests.
+     * @param requestStructured: already parsed request coming straight from Mongo
+     */
+    app.post("/redispatcherAlreadyParsedRequests", function (req, res) {
+      req = req.body;
+      new Promise((resInit) => {
+        INIT_RIDE_DELIVERY_DISPATCH_ENTRY(
+          req,
+          collectionDrivers_profiles,
+          collectionRidesDeliveryData,
+          resInit
+        );
+      }).then(
+        (resultDispatch) => {
+          //...
+          res.send(resultDispatch);
         },
         (error) => {
           console.log(error);
-          new Promise((res0) => {
-            getRequests_graphPreview_forDrivers(
-              req.driver_fingerprint,
-              collectionRidesDeliveryData,
-              collectionDrivers_profiles,
-              res0
-            );
-          })
-            .then(
-              (result) => {
-                client.set(redisKey, JSON.stringify(result));
-                res.send(result);
-              },
-              (error) => {
-                console.log(error);
-                client.set(redisKey, JSON.stringify(result));
-                res.send({ rides: 0, deliveries: 0, scheduled: 0 });
-              }
-            )
-            .catch((error) => {
-              console.log(error);
-              client.set(redisKey, JSON.stringify(result));
-              res.send({ rides: 0, deliveries: 0, scheduled: 0 });
-            });
+          res.send({
+            response: "Unable_to_redispatch_the_request",
+          });
         }
       );
-    } //Invalid params
-    else {
-      res.send({ rides: 0, deliveries: 0, scheduled: 0 });
-    }
-  });
+    });
 
-  /**
-   * RIDES OR DELIVERY DECOUPLED DISPATCHER
-   * Responsible for redispatching already parsed requests.
-   * @param requestStructured: already parsed request coming straight from Mongo
-   */
-  app.post("/redispatcherAlreadyParsedRequests", function (req, res) {
-    req = req.body;
-    new Promise((resInit) => {
-      INIT_RIDE_DELIVERY_DISPATCH_ENTRY(
-        req,
-        collectionDrivers_profiles,
-        collectionRidesDeliveryData,
-        resInit
-      );
-    }).then(
-      (resultDispatch) => {
-        //...
-        res.send(resultDispatch);
-      },
-      (error) => {
+    /**
+     * @func ucFirst
+     * Responsible to uppercase only the first character and lowercase the rest.
+     * @param stringData: the string to be processed.
+     */
+    function ucFirst(stringData) {
+      try {
+        return `${stringData[0].toUpperCase()}${stringData.substr(1).toLowerCase()}`;
+      } catch (error) {
         console.log(error);
-        res.send({
-          response: "Unable_to_redispatch_the_request",
-        });
+        return stringData;
       }
-    );
-  });
-
-  /**
-   * @func ucFirst
-   * Responsible to uppercase only the first character and lowercase the rest.
-   * @param stringData: the string to be processed.
-   */
-  function ucFirst(stringData) {
-    try {
-      return `${stringData[0].toUpperCase()}${stringData.substr(1).toLowerCase()}`;
-    } catch (error) {
-      console.log(error);
-      return stringData;
     }
-  }
 
-  /**
-   * RIDES OR DELIVERY DISPATCHER
-   * Responsible for sending staged ride or delivery requests to the drivers in the best position
-   * of accepting it.
-   * @param requestRawData: ride or delivery data coming from the rider's device for booking (MUST contain the city and country)
-   */
-  app.post("/dispatchRidesOrDeliveryRequests", function (req, res) {
-    req = req.body;
-    //TEST DATA
-    /*let testData = {
+    /**
+     * RIDES OR DELIVERY DISPATCHER
+     * Responsible for sending staged ride or delivery requests to the drivers in the best position
+     * of accepting it.
+     * @param requestRawData: ride or delivery data coming from the rider's device for booking (MUST contain the city and country)
+     */
+    app.post("/dispatchRidesOrDeliveryRequests", function (req, res) {
+      req = req.body;
+      //TEST DATA
+      /*let testData = {
       actualRider: "someonelese",
       actualRiderPhone_number: "0817563369",
       carTypeSelected: "normalTaxiEconomy",
@@ -3258,164 +3274,177 @@ clientMongo.connect(function (err) {
         "7c57cb6c9471fd33fd265d5441f253eced2a6307c0207dea57c987035b496e6e8dfa7105b86915da",
     };
     req = testData;*/
-    //...
-    if (req.user_fingerprint !== undefined && req.user_fingerprint !== null) {
-      //1. CHECK THAT THIS RIDER DOESN'T ALREADY HAVE AN ACTIVE RIDE/DELIVERY
-      //Request is considered as completed when the rider has submited a rating.
-      let checkPrevRequest = {
-        client_id: req.user_fingerprint,
-        isArrivedToDestination: false,
-      }; //?Indexed
-      collectionRidesDeliveryData
-        .find(checkPrevRequest)
-        .toArray(function (err, prevRequest) {
-          if (
-            prevRequest === undefined ||
-            prevRequest === null ||
-            prevRequest.length <= 0 ||
-            prevRequest[0] === undefined
-          ) {
-            //No previous pending request - MAKE REQUEST VALID
-            //Parse the data
-            new Promise((res) => {
-              parseRequestData(req, res);
-            }).then(
-              (result) => {
-                let parsedRequest = result;
-                if (result !== false) {
-                  //! IF WALLET SELECTED - CHECK THE BALANCE, it should be >= to the trip fare, else ERROR_UNSIFFICIENT_FUNDS
-                  if (/wallet/i.test(result.payment_method)) {
-                    //? WALLET PAYMENT METHOD
-                    let url = `
+      //...
+      if (req.user_fingerprint !== undefined && req.user_fingerprint !== null) {
+        //1. CHECK THAT THIS RIDER DOESN'T ALREADY HAVE AN ACTIVE RIDE/DELIVERY
+        //Request is considered as completed when the rider has submited a rating.
+        let checkPrevRequest = {
+          client_id: req.user_fingerprint,
+          isArrivedToDestination: false,
+        }; //?Indexed
+        collectionRidesDeliveryData
+          .find(checkPrevRequest)
+          .toArray(function (err, prevRequest) {
+            if (
+              prevRequest === undefined ||
+              prevRequest === null ||
+              prevRequest.length <= 0 ||
+              prevRequest[0] === undefined
+            ) {
+              //No previous pending request - MAKE REQUEST VALID
+              //Parse the data
+              new Promise((res) => {
+                parseRequestData(req, res);
+              }).then(
+                (result) => {
+                  let parsedRequest = result;
+                  if (result !== false) {
+                    //! IF WALLET SELECTED - CHECK THE BALANCE, it should be >= to the trip fare, else ERROR_UNSIFFICIENT_FUNDS
+                    if (/wallet/i.test(result.payment_method)) {
+                      //? WALLET PAYMENT METHOD
+                      let url = `
                     ${process.env.LOCAL_URL}:${process.env.ACCOUNTS_SERVICE_PORT}/getRiders_walletInfos?user_fingerprint=${req.user_fingerprint}&mode=total&avoidCached_data=true
                     `;
-                    requestAPI(url, function (error, response, body) {
-                      if (error === null) {
-                        try {
-                          body = JSON.parse(body);
-                          if (body.total !== undefined) {
-                            console.log(
-                              parseFloat(result.fare),
-                              parseFloat(body.total)
-                            );
-                            if (
-                              parseFloat(result.fare) <= parseFloat(body.total)
-                            ) {
-                              //? HAS ENOUGH MONEY IN THE WALLET
-                              console.log("Has enough funds in the wallet");
-                              new Promise((resInit) => {
-                                INIT_RIDE_DELIVERY_DISPATCH_ENTRY(
-                                  result,
-                                  collectionDrivers_profiles,
-                                  collectionRidesDeliveryData,
-                                  resInit
-                                );
-                              }).then(
-                                (resultDispatch) => {
-                                  if (
-                                    /successfully_requested/i.test(
-                                      resultDispatch.response
-                                    )
-                                  ) {
-                                    //? CHECK IF IT'S A DELIVERY REQUEST TO NOTIFY THE RECEIVER
+                      requestAPI(url, function (error, response, body) {
+                        if (error === null) {
+                          try {
+                            body = JSON.parse(body);
+                            if (body.total !== undefined) {
+                              console.log(
+                                parseFloat(result.fare),
+                                parseFloat(body.total)
+                              );
+                              if (
+                                parseFloat(result.fare) <=
+                                parseFloat(body.total)
+                              ) {
+                                //? HAS ENOUGH MONEY IN THE WALLET
+                                console.log("Has enough funds in the wallet");
+                                new Promise((resInit) => {
+                                  INIT_RIDE_DELIVERY_DISPATCH_ENTRY(
+                                    result,
+                                    collectionDrivers_profiles,
+                                    collectionRidesDeliveryData,
+                                    resInit
+                                  );
+                                }).then(
+                                  (resultDispatch) => {
                                     if (
-                                      /delivery/i.test(parsedRequest.ride_mode)
+                                      /successfully_requested/i.test(
+                                        resultDispatch.response
+                                      )
                                     ) {
-                                      //Delivery
-                                      new Promise((resNotifyReceiver) => {
-                                        let receiversPhone =
-                                          parsedRequest.delivery_infos.receiverPhone_delivery.replace(
-                                            "+",
-                                            ""
+                                      //? CHECK IF IT'S A DELIVERY REQUEST TO NOTIFY THE RECEIVER
+                                      if (
+                                        /delivery/i.test(
+                                          parsedRequest.ride_mode
+                                        )
+                                      ) {
+                                        //Delivery
+                                        new Promise((resNotifyReceiver) => {
+                                          let receiversPhone =
+                                            parsedRequest.delivery_infos.receiverPhone_delivery.replace(
+                                              "+",
+                                              ""
+                                            );
+                                          let receiverName = ucFirst(
+                                            parsedRequest.delivery_infos.receiverName_delivery.trim()
                                           );
-                                        let receiverName = ucFirst(
-                                          parsedRequest.delivery_infos.receiverName_delivery.trim()
-                                        );
-                                        let message = `Hello ${receiverName}, a package is being delivered to you via TaxiConnect, you can track it by creating a TaxiConnect account with your current number.\n\nThe TaxiConnect teams.`;
-                                        //!Check if the receiver is a current user
-                                        collectionPassengers_profiles
-                                          .find({
-                                            phone_number:
-                                              parsedRequest.delivery_infos.receiverPhone_delivery.trim(),
-                                          })
-                                          .toArray(function (
-                                            err,
-                                            userReceiverData
-                                          ) {
-                                            if (err) {
-                                              resNotifyReceiver(false);
-                                            }
-                                            //...
-                                            if (
-                                              userReceiverData !== undefined &&
-                                              userReceiverData.length > 0
+                                          let message = `Hello ${receiverName}, a package is being delivered to you via TaxiConnect, you can track it by creating a TaxiConnect account with your current number.\n\nThe TaxiConnect teams.`;
+                                          //!Check if the receiver is a current user
+                                          collectionPassengers_profiles
+                                            .find({
+                                              phone_number:
+                                                parsedRequest.delivery_infos.receiverPhone_delivery.trim(),
+                                            })
+                                            .toArray(function (
+                                              err,
+                                              userReceiverData
                                             ) {
-                                              //Is a TaxiConnect user, check for how long the app has not been used.
-                                              resolveDate();
+                                              if (err) {
+                                                resNotifyReceiver(false);
+                                              }
+                                              //...
                                               if (
-                                                userReceiverData.last_updated !==
+                                                userReceiverData !==
                                                   undefined &&
-                                                userReceiverData.last_updated !==
-                                                  null
+                                                userReceiverData.length > 0
                                               ) {
-                                                //Check the time
-                                                let lastUserUpdated = new Date(
-                                                  userReceiverData.last_updated
-                                                );
-                                                let refNowDate = new Date(
-                                                  chaineDateUTC
-                                                );
-                                                //...
+                                                //Is a TaxiConnect user, check for how long the app has not been used.
+                                                resolveDate();
                                                 if (
-                                                  diff_hours(
-                                                    refNowDate,
-                                                    lastUserUpdated
-                                                  ).difference >
-                                                  7 * 24
+                                                  userReceiverData.last_updated !==
+                                                    undefined &&
+                                                  userReceiverData.last_updated !==
+                                                    null
                                                 ) {
-                                                  //If greater than 7 days - send SMS
+                                                  //Check the time
+                                                  let lastUserUpdated =
+                                                    new Date(
+                                                      userReceiverData.last_updated
+                                                    );
+                                                  let refNowDate = new Date(
+                                                    chaineDateUTC
+                                                  );
+                                                  //...
+                                                  if (
+                                                    diff_hours(
+                                                      refNowDate,
+                                                      lastUserUpdated
+                                                    ).difference >
+                                                    7 * 24
+                                                  ) {
+                                                    //If greater than 7 days - send SMS
+                                                    SendSMSTo(
+                                                      receiversPhone,
+                                                      message
+                                                    );
+                                                    resNotifyReceiver(true);
+                                                  } //Send push notification
+                                                  else {
+                                                    let messageNotify = {
+                                                      app_id:
+                                                        process.env
+                                                          .RIDERS_APP_ID_ONESIGNAL,
+                                                      android_channel_id:
+                                                        process.env
+                                                          .RIDERS_ONESIGNAL_CHANNEL_ACCEPTTEDD_REQUEST, //Ride - Accepted request
+                                                      priority: 10,
+                                                      contents: {
+                                                        en: message,
+                                                      },
+                                                      headings: {
+                                                        en: "Delivery in progress",
+                                                      },
+                                                      content_available: true,
+                                                      include_player_ids: [
+                                                        userReceiverData.pushnotif_token !==
+                                                          false &&
+                                                        userReceiverData.pushnotif_token !==
+                                                          null &&
+                                                        userReceiverData.pushnotif_token !==
+                                                          "false"
+                                                          ? userReceiverData
+                                                              .pushnotif_token
+                                                              .userId
+                                                          : null,
+                                                      ],
+                                                    };
+                                                    //Send
+                                                    sendPushUPNotification(
+                                                      messageNotify
+                                                    );
+                                                    resNotifyReceiver(true);
+                                                  }
+                                                } //Send an SMS, not logged in yet
+                                                else {
                                                   SendSMSTo(
                                                     receiversPhone,
                                                     message
                                                   );
                                                   resNotifyReceiver(true);
-                                                } //Send push notification
-                                                else {
-                                                  let messageNotify = {
-                                                    app_id:
-                                                      process.env
-                                                        .RIDERS_APP_ID_ONESIGNAL,
-                                                    android_channel_id:
-                                                      process.env
-                                                        .RIDERS_ONESIGNAL_CHANNEL_ACCEPTTEDD_REQUEST, //Ride - Accepted request
-                                                    priority: 10,
-                                                    contents: {
-                                                      en: message,
-                                                    },
-                                                    headings: {
-                                                      en: "Delivery in progress",
-                                                    },
-                                                    content_available: true,
-                                                    include_player_ids: [
-                                                      userReceiverData.pushnotif_token !==
-                                                        false &&
-                                                      userReceiverData.pushnotif_token !==
-                                                        null &&
-                                                      userReceiverData.pushnotif_token !==
-                                                        "false"
-                                                        ? userReceiverData
-                                                            .pushnotif_token
-                                                            .userId
-                                                        : null,
-                                                    ],
-                                                  };
-                                                  //Send
-                                                  sendPushUPNotification(
-                                                    messageNotify
-                                                  );
-                                                  resNotifyReceiver(true);
                                                 }
-                                              } //Send an SMS, not logged in yet
+                                              } //Not a TaxiConnect user, Send an SMS
                                               else {
                                                 SendSMSTo(
                                                   receiversPhone,
@@ -3423,109 +3452,103 @@ clientMongo.connect(function (err) {
                                                 );
                                                 resNotifyReceiver(true);
                                               }
-                                            } //Not a TaxiConnect user, Send an SMS
-                                            else {
-                                              SendSMSTo(
-                                                receiversPhone,
-                                                message
-                                              );
-                                              resNotifyReceiver(true);
-                                            }
-                                          });
-                                      })
-                                        .then()
-                                        .catch(() => {});
+                                            });
+                                        })
+                                          .then()
+                                          .catch(() => {});
+                                      }
                                     }
+                                    //...
+                                    res.send(resultDispatch);
+                                  },
+                                  (error) => {
+                                    console.log(error);
+                                    res.send({
+                                      response: "Unable_to_make_the_request",
+                                    });
                                   }
-                                  //...
-                                  res.send(resultDispatch);
-                                },
-                                (error) => {
-                                  console.log(error);
-                                  res.send({
-                                    response: "Unable_to_make_the_request",
-                                  });
-                                }
-                              );
-                            } //Not enough money in the wallet
+                                );
+                              } //Not enough money in the wallet
+                              else {
+                                console.log(
+                                  "Has NOT enough funds in the wallet"
+                                );
+                                res.send({
+                                  response:
+                                    "Unable_to_make_the_request_unsufficient_funds",
+                                });
+                              }
+                            } //Error getting wallet amount
                             else {
-                              console.log("Has NOT enough funds in the wallet");
                               res.send({
                                 response:
-                                  "Unable_to_make_the_request_unsufficient_funds",
+                                  "Unable_to_make_the_request_error_wallet_check",
                               });
                             }
-                          } //Error getting wallet amount
-                          else {
+                          } catch (error) {
+                            console.log(error);
                             res.send({
                               response:
                                 "Unable_to_make_the_request_error_wallet_check",
                             });
                           }
-                        } catch (error) {
-                          console.log(error);
+                        } else {
                           res.send({
                             response:
                               "Unable_to_make_the_request_error_wallet_check",
                           });
                         }
-                      } else {
-                        res.send({
-                          response:
-                            "Unable_to_make_the_request_error_wallet_check",
-                        });
-                      }
-                    });
-                  } //? CASH PAYMENT METHOD
-                  else {
-                    //Do as usual without a wallet balance check
-                    new Promise((resInit) => {
-                      INIT_RIDE_DELIVERY_DISPATCH_ENTRY(
-                        result,
-                        collectionDrivers_profiles,
-                        collectionRidesDeliveryData,
-                        resInit
+                      });
+                    } //? CASH PAYMENT METHOD
+                    else {
+                      //Do as usual without a wallet balance check
+                      new Promise((resInit) => {
+                        INIT_RIDE_DELIVERY_DISPATCH_ENTRY(
+                          result,
+                          collectionDrivers_profiles,
+                          collectionRidesDeliveryData,
+                          resInit
+                        );
+                      }).then(
+                        (resultDispatch) => {
+                          res.send(resultDispatch);
+                        },
+                        (error) => {
+                          console.log(error);
+                          res.send({ response: "Unable_to_make_the_request" });
+                        }
                       );
-                    }).then(
-                      (resultDispatch) => {
-                        res.send(resultDispatch);
-                      },
-                      (error) => {
-                        console.log(error);
-                        res.send({ response: "Unable_to_make_the_request" });
-                      }
-                    );
+                    }
+                  } //Error
+                  else {
+                    res.send({ response: "Unable_to_make_the_request" });
                   }
-                } //Error
-                else {
+                },
+                (error) => {
+                  console.log(error);
                   res.send({ response: "Unable_to_make_the_request" });
                 }
-              },
-              (error) => {
-                console.log(error);
-                res.send({ response: "Unable_to_make_the_request" });
-              }
-            );
-          } //Has a previous uncompleted ride
-          else {
-            res.send({ response: "already_have_a_pending_request" });
-          }
-        });
-    } //Invalid user fp
-    else {
-      res.send({ response: "Unable_to_make_the_request" });
-    }
-  });
+              );
+            } //Has a previous uncompleted ride
+            else {
+              res.send({ response: "already_have_a_pending_request" });
+            }
+          });
+      } //Invalid user fp
+      else {
+        res.send({ response: "Unable_to_make_the_request" });
+      }
+    });
 
-  /**
-   * CONFIRM RIDER DROP OFF
-   * Responsible for handling all the processes related to the drop off confirmation of a rider.
-   */
-  app.post("/confirmRiderDropoff_requests", function (req, res) {
-    req = req.body;
-    console.log(req);
-    //TEST data
-    /*req = {
+    /**
+     * CONFIRM RIDER DROP OFF
+     * Responsible for handling all the processes related to the drop off confirmation of a rider.
+     */
+    app.post("/confirmRiderDropoff_requests", function (req, res) {
+      req = req.body;
+      console.log(req);
+      //TEST data
+      /*req = {
       user_fingerprint:
         "7c57cb6c9471fd33fd265d5441f253eced2a6307c0207dea57c987035b496e6e8dfa7105b86915da",
       dropoff_compliments: {
@@ -3541,282 +3564,283 @@ clientMongo.connect(function (err) {
         "87109d03cab8bc5032a71683e084551107f1c1bafb5136f6ee5a7c990550b81ef3ecf5c96b13f2afde2cc75e6c8187ce290c973dd1e8d137caf27fee334a68e8",
     };*/
 
-    //Do basic checking
-    if (
-      req.user_fingerprint !== undefined &&
-      req.user_fingerprint !== null &&
-      req.request_fp !== undefined &&
-      req.request_fp !== null
-    ) {
-      //Auto assign 5 stars if invalid score found
-      req.rating_score =
-        req.rating_score === undefined ||
-        req.rating_score === null ||
-        req.rating_score < 0
-          ? 5
-          : req.rating_score > 5
-          ? 2
-          : req.rating_score; //Driver's rating safety shield - give 2 stars for fraudulous dropoffs
-      //...
-      new Promise((res0) => {
-        confirmDropoff_fromRider_side(req, collectionRidesDeliveryData, res0);
-      }).then(
-        (result) => {
-          res.send(result);
-        },
-        (error) => {
-          console.log(error);
-          res.send({ response: "error" });
-        }
-      );
-    }
-  });
-
-  /**
-   * CANCEL RIDER REQUESTS
-   * Responsible for cancelling the rider's requests and all it's the related process
-   */
-  app.post("/cancelRiders_request", function (req, res) {
-    req = req.body;
-    console.log(req);
-
-    //Do basic checking
-    if (
-      req.user_fingerprint !== undefined &&
-      req.user_fingerprint !== null &&
-      req.request_fp !== undefined &&
-      req.request_fp !== null
-    ) {
-      //? Add a flag if provided: the flag can be used to know who cancelled the request, if not provided, - it's the rider
-      let additionalData = {
-        flag: req.flag !== undefined && req.flag !== null ? req.flag : null,
-      };
-      //...
-      new Promise((res0) => {
-        cancelRider_request(
-          req,
-          collectionRidesDeliveryData,
-          collection_cancelledRidesDeliveryData,
-          res0,
-          additionalData
+      //Do basic checking
+      if (
+        req.user_fingerprint !== undefined &&
+        req.user_fingerprint !== null &&
+        req.request_fp !== undefined &&
+        req.request_fp !== null
+      ) {
+        //Auto assign 5 stars if invalid score found
+        req.rating_score =
+          req.rating_score === undefined ||
+          req.rating_score === null ||
+          req.rating_score < 0
+            ? 5
+            : req.rating_score > 5
+            ? 2
+            : req.rating_score; //Driver's rating safety shield - give 2 stars for fraudulous dropoffs
+        //...
+        new Promise((res0) => {
+          confirmDropoff_fromRider_side(req, collectionRidesDeliveryData, res0);
+        }).then(
+          (result) => {
+            res.send(result);
+          },
+          (error) => {
+            console.log(error);
+            res.send({ response: "error" });
+          }
         );
-      }).then(
-        (result) => {
-          res.send(result);
-        },
-        (error) => {
-          console.log(error);
-          res.send({ response: "error_cancelling" });
-        }
-      );
-    } //Invalid parameters
-    else {
-      res.send({ response: "error_cancelling" });
-    }
-  });
+      }
+    });
 
-  /**
-   * DECLINE REQUESTS - DRIVERS
-   * Responsible for handling the declining of requests from the drivers side.
-   */
-  app.post("/decline_request", function (req, res) {
-    req = req.body;
-    console.log(req);
+    /**
+     * CANCEL RIDER REQUESTS
+     * Responsible for cancelling the rider's requests and all it's the related process
+     */
+    app.post("/cancelRiders_request", function (req, res) {
+      req = req.body;
+      console.log(req);
 
-    //Do basic checking
-    if (
-      req.driver_fingerprint !== undefined &&
-      req.driver_fingerprint !== null &&
-      req.request_fp !== undefined &&
-      req.request_fp !== null
-    ) {
-      //...
-      new Promise((res0) => {
-        declineRequest_driver(
-          req,
-          collectionRidesDeliveryData,
-          collectionGlobalEvents,
-          res0
+      //Do basic checking
+      if (
+        req.user_fingerprint !== undefined &&
+        req.user_fingerprint !== null &&
+        req.request_fp !== undefined &&
+        req.request_fp !== null
+      ) {
+        //? Add a flag if provided: the flag can be used to know who cancelled the request, if not provided, - it's the rider
+        let additionalData = {
+          flag: req.flag !== undefined && req.flag !== null ? req.flag : null,
+        };
+        //...
+        new Promise((res0) => {
+          cancelRider_request(
+            req,
+            collectionRidesDeliveryData,
+            collection_cancelledRidesDeliveryData,
+            res0,
+            additionalData
+          );
+        }).then(
+          (result) => {
+            res.send(result);
+          },
+          (error) => {
+            console.log(error);
+            res.send({ response: "error_cancelling" });
+          }
         );
-      }).then(
-        (result) => {
-          res.send(result);
-        },
-        (error) => {
-          console.log(error);
-          res.send({ response: "unable_to_decline_request_error" });
-        }
-      );
-    }
-  });
+      } //Invalid parameters
+      else {
+        res.send({ response: "error_cancelling" });
+      }
+    });
 
-  /**
-   * ACCEPT REQUESTS - DRIVERS
-   * Responsible for handling the accepting of requests from the drivers side.
-   */
-  app.post("/accept_request", function (req, res) {
-    //...
-    req = req.body;
-    console.log(req);
+    /**
+     * DECLINE REQUESTS - DRIVERS
+     * Responsible for handling the declining of requests from the drivers side.
+     */
+    app.post("/decline_request", function (req, res) {
+      req = req.body;
+      console.log(req);
 
-    //Do basic checking
-    if (
-      req.driver_fingerprint !== undefined &&
-      req.driver_fingerprint !== null &&
-      req.request_fp !== undefined &&
-      req.request_fp !== null
-    ) {
-      //...
-      new Promise((res0) => {
-        acceptRequest_driver(
-          req,
-          collectionRidesDeliveryData,
-          collectionGlobalEvents,
-          collectionDrivers_profiles,
-          collectionPassengers_profiles,
-          res0
+      //Do basic checking
+      if (
+        req.driver_fingerprint !== undefined &&
+        req.driver_fingerprint !== null &&
+        req.request_fp !== undefined &&
+        req.request_fp !== null
+      ) {
+        //...
+        new Promise((res0) => {
+          declineRequest_driver(
+            req,
+            collectionRidesDeliveryData,
+            collectionGlobalEvents,
+            res0
+          );
+        }).then(
+          (result) => {
+            res.send(result);
+          },
+          (error) => {
+            console.log(error);
+            res.send({ response: "unable_to_decline_request_error" });
+          }
         );
-      }).then(
-        (result) => {
-          res.send(result);
-        },
-        (error) => {
-          console.log(error);
-          res.send({ response: "unable_to_accept_request_error" });
-        }
-      );
-    }
-  });
+      }
+    });
 
-  /**
-   * CANCEL REQUESTS - DRIVERS
-   * Responsible for handling the cancelling of requests from the drivers side.
-   */
-  app.post("/cancel_request_driver", function (req, res) {
-    //DEBUG
-    /*req.body = {
+    /**
+     * ACCEPT REQUESTS - DRIVERS
+     * Responsible for handling the accepting of requests from the drivers side.
+     */
+    app.post("/accept_request", function (req, res) {
+      //...
+      req = req.body;
+      console.log(req);
+
+      //Do basic checking
+      if (
+        req.driver_fingerprint !== undefined &&
+        req.driver_fingerprint !== null &&
+        req.request_fp !== undefined &&
+        req.request_fp !== null
+      ) {
+        //...
+        new Promise((res0) => {
+          acceptRequest_driver(
+            req,
+            collectionRidesDeliveryData,
+            collectionGlobalEvents,
+            collectionDrivers_profiles,
+            collectionPassengers_profiles,
+            res0
+          );
+        }).then(
+          (result) => {
+            res.send(result);
+          },
+          (error) => {
+            console.log(error);
+            res.send({ response: "unable_to_accept_request_error" });
+          }
+        );
+      }
+    });
+
+    /**
+     * CANCEL REQUESTS - DRIVERS
+     * Responsible for handling the cancelling of requests from the drivers side.
+     */
+    app.post("/cancel_request_driver", function (req, res) {
+      //DEBUG
+      /*req.body = {
       driver_fingerprint:
         "23c9d088e03653169b9c18193a0b8dd329ea1e43eb0626ef9f16b5b979694a429710561a3cb3ddae",
       request_fp:
         "999999f5c51c380ef9dee9680872a6538cc9708ef079a8e42de4d762bfa7d49efdcde41c6009cbdd9cdf6f0ae0544f74cb52caa84439cbcda40ce264f90825e8",
     };*/
-    //...
-    req = req.body;
-    console.log(req);
-
-    //Do basic checking
-    if (
-      req.driver_fingerprint !== undefined &&
-      req.driver_fingerprint !== null &&
-      req.request_fp !== undefined &&
-      req.request_fp !== null
-    ) {
       //...
-      new Promise((res0) => {
-        cancelRequest_driver(
-          req,
-          collectionRidesDeliveryData,
-          collectionGlobalEvents,
-          collectionPassengers_profiles,
-          res0
-        );
-      }).then(
-        (result) => {
-          res.send(result);
-        },
-        (error) => {
-          console.log(error);
-          res.send({ response: "unable_to_cancel_request_error" });
-        }
-      );
-    }
-  });
+      req = req.body;
+      console.log(req);
 
-  /**
-   * CONFIRM PICKUP REQUESTS - DRIVERS
-   * Responsible for handling the pickup confirmation of requests from the drivers side.
-   */
-  app.post("/confirm_pickup_request_driver", function (req, res) {
-    //DEBUG
-    /*req.body = {
+      //Do basic checking
+      if (
+        req.driver_fingerprint !== undefined &&
+        req.driver_fingerprint !== null &&
+        req.request_fp !== undefined &&
+        req.request_fp !== null
+      ) {
+        //...
+        new Promise((res0) => {
+          cancelRequest_driver(
+            req,
+            collectionRidesDeliveryData,
+            collectionGlobalEvents,
+            collectionPassengers_profiles,
+            res0
+          );
+        }).then(
+          (result) => {
+            res.send(result);
+          },
+          (error) => {
+            console.log(error);
+            res.send({ response: "unable_to_cancel_request_error" });
+          }
+        );
+      }
+    });
+
+    /**
+     * CONFIRM PICKUP REQUESTS - DRIVERS
+     * Responsible for handling the pickup confirmation of requests from the drivers side.
+     */
+    app.post("/confirm_pickup_request_driver", function (req, res) {
+      //DEBUG
+      /*req.body = {
       driver_fingerprint:
         "23c9d088e03653169b9c18193a0b8dd329ea1e43eb0626ef9f16b5b979694a429710561a3cb3ddae",
       request_fp:
         "999999f5c51c380ef9dee9680872a6538cc9708ef079a8e42de4d762bfa7d49efdcde41c6009cbdd9cdf6f0ae0544f74cb52caa84439cbcda40ce264f90825e8",
     };*/
-    //...
-    req = req.body;
-    console.log(req);
-
-    //Do basic checking
-    if (
-      req.driver_fingerprint !== undefined &&
-      req.driver_fingerprint !== null &&
-      req.request_fp !== undefined &&
-      req.request_fp !== null
-    ) {
       //...
-      new Promise((res0) => {
-        confirmPickupRequest_driver(
-          req,
-          collectionRidesDeliveryData,
-          collectionGlobalEvents,
-          res0
-        );
-      }).then(
-        (result) => {
-          res.send(result);
-        },
-        (error) => {
-          console.log(error);
-          res.send({ response: "unable_to_confirm_pickup_request_error" });
-        }
-      );
-    }
-  });
+      req = req.body;
+      console.log(req);
 
-  /**
-   * CONFIRM DROPOFF REQUESTS - DRIVERS
-   * Responsible for handling the dropoff confirmation of requests from the drivers side.
-   */
-  app.post("/confirm_dropoff_request_driver", function (req, res) {
-    //DEBUG
-    /*req.body = {
+      //Do basic checking
+      if (
+        req.driver_fingerprint !== undefined &&
+        req.driver_fingerprint !== null &&
+        req.request_fp !== undefined &&
+        req.request_fp !== null
+      ) {
+        //...
+        new Promise((res0) => {
+          confirmPickupRequest_driver(
+            req,
+            collectionRidesDeliveryData,
+            collectionGlobalEvents,
+            res0
+          );
+        }).then(
+          (result) => {
+            res.send(result);
+          },
+          (error) => {
+            console.log(error);
+            res.send({ response: "unable_to_confirm_pickup_request_error" });
+          }
+        );
+      }
+    });
+
+    /**
+     * CONFIRM DROPOFF REQUESTS - DRIVERS
+     * Responsible for handling the dropoff confirmation of requests from the drivers side.
+     */
+    app.post("/confirm_dropoff_request_driver", function (req, res) {
+      //DEBUG
+      /*req.body = {
       driver_fingerprint:
         "23c9d088e03653169b9c18193a0b8dd329ea1e43eb0626ef9f16b5b979694a429710561a3cb3ddae",
       request_fp:
         "999999f5c51c380ef9dee9680872a6538cc9708ef079a8e42de4d762bfa7d49efdcde41c6009cbdd9cdf6f0ae0544f74cb52caa84439cbcda40ce264f90825e8",
     };*/
-    //...
-    req = req.body;
-    console.log(req);
-
-    //Do basic checking
-    if (
-      req.driver_fingerprint !== undefined &&
-      req.driver_fingerprint !== null &&
-      req.request_fp !== undefined &&
-      req.request_fp !== null
-    ) {
       //...
-      new Promise((res0) => {
-        confirmDropoffRequest_driver(
-          req,
-          collectionRidesDeliveryData,
-          collectionGlobalEvents,
-          collectionPassengers_profiles,
-          res0
+      req = req.body;
+      console.log(req);
+
+      //Do basic checking
+      if (
+        req.driver_fingerprint !== undefined &&
+        req.driver_fingerprint !== null &&
+        req.request_fp !== undefined &&
+        req.request_fp !== null
+      ) {
+        //...
+        new Promise((res0) => {
+          confirmDropoffRequest_driver(
+            req,
+            collectionRidesDeliveryData,
+            collectionGlobalEvents,
+            collectionPassengers_profiles,
+            res0
+          );
+        }).then(
+          (result) => {
+            res.send(result);
+          },
+          (error) => {
+            console.log(error);
+            res.send({ response: "unable_to_confirm_dropoff_request_error" });
+          }
         );
-      }).then(
-        (result) => {
-          res.send(result);
-        },
-        (error) => {
-          console.log(error);
-          res.send({ response: "unable_to_confirm_dropoff_request_error" });
-        }
-      );
-    }
+      }
+    });
   });
 });
 

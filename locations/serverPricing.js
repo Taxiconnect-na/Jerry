@@ -22,7 +22,22 @@ const client = redis.createClient({
   host: process.env.REDIS_HOST,
   port: process.env.REDIS_PORT,
 });
-const redisGet = promisify(client.get).bind(client);
+var RedisClustr = require("redis-clustr");
+var redisCluster = /production/i.test(String(process.env.EVIRONMENT))
+  ? new RedisClustr({
+      servers: [
+        {
+          host: process.env.REDIS_HOST_ELASTICACHE,
+          port: process.env.REDIS_PORT_ELASTICACHE,
+        },
+      ],
+      createClient: function (port, host) {
+        // this is the default behaviour
+        return redis.createClient(port, host);
+      },
+    })
+  : client;
+const redisGet = promisify(redisCluster.get).bind(redisCluster);
 
 var chaineDateUTC = null;
 var dateObject = null;
@@ -516,7 +531,7 @@ function manageAutoCompleteDestinationLocations(
                       ? destinationLocations.city.trim().toLowerCase()
                       : destinationLocations.city);
                   //Check if redis already have key record
-                  client.set(
+                  redisCluster.set(
                     redisKey,
                     JSON.stringify({
                       location_name: destinationLocations.location_name,
@@ -789,7 +804,7 @@ function execMongoSearchAutoComplete(
                 new Promise((res2) => {
                   //Update the cache
                   //add new record
-                  client.setex(
+                  redisCluster.setex(
                     redisKey,
                     process.env.REDIS_EXPIRATION_5MIN,
                     JSON.stringify({
@@ -928,7 +943,7 @@ function execMongoSearchAutoComplete(
                   new Promise((res2) => {
                     //Update the cache
                     //add new record
-                    client.setex(
+                    redisCluster.setex(
                       redisKey,
                       process.env.REDIS_EXPIRATION_5MIN,
                       JSON.stringify({
@@ -1968,51 +1983,52 @@ function parsePricingInputData(resolve, inputData) {
  * Responsible for computing all the price estimates for evey vehicle type based on any type of requests (RIDE or DELIVERY)
  * and also return the status (available - can be selected, unavailable - can't be selected) of each vehicle to enable or disable selection in-app.
  */
-
-clientMongo.connect(function (err) {
-  //if (err) throw err;
-  console.log("[+] Pricing service active");
-  const dbMongo = clientMongo.db(process.env.DB_NAME_MONGODDB);
-  const collectionVehiclesInfos = dbMongo.collection(
-    "vehicles_collection_infos"
-  ); //Collection containing the list of all the vehicles types and all their corresponding infos
-  const collectionPricesLocationsMap = dbMongo.collection(
-    "global_prices_to_locations_map"
-  ); //Collection containing all the prices and locations in a format
-  const collectionSavedSuburbResults = dbMongo.collection(
-    "autocompleted_location_suburbs"
-  ); //Collection of all the location matching will all their corresponding suburbs and other fetched infos
-  const collectionNotFoundSubursPricesMap = dbMongo.collection(
-    "not_found_suburbs_prices_map"
-  ); //Colleciton of all suburbs prices that where not found in the global prices map.
-  //-------------
-  const bodyParser = require("body-parser");
-  app
-    .get("/", function (req, res) {
-      res.send("Pricing services up");
-    })
-    .use(
-      bodyParser.json({
-        limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
-        extended: true,
+redisCluster.on("connect", function () {
+  console.log("[*] Redis connected");
+  clientMongo.connect(function (err) {
+    //if (err) throw err;
+    console.log("[+] Pricing service active");
+    const dbMongo = clientMongo.db(process.env.DB_NAME_MONGODDB);
+    const collectionVehiclesInfos = dbMongo.collection(
+      "vehicles_collection_infos"
+    ); //Collection containing the list of all the vehicles types and all their corresponding infos
+    const collectionPricesLocationsMap = dbMongo.collection(
+      "global_prices_to_locations_map"
+    ); //Collection containing all the prices and locations in a format
+    const collectionSavedSuburbResults = dbMongo.collection(
+      "autocompleted_location_suburbs"
+    ); //Collection of all the location matching will all their corresponding suburbs and other fetched infos
+    const collectionNotFoundSubursPricesMap = dbMongo.collection(
+      "not_found_suburbs_prices_map"
+    ); //Colleciton of all suburbs prices that where not found in the global prices map.
+    //-------------
+    const bodyParser = require("body-parser");
+    app
+      .get("/", function (req, res) {
+        res.send("Pricing services up");
       })
-    )
-    .use(
-      bodyParser.urlencoded({
-        limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
-        extended: true,
-      })
-    );
+      .use(
+        bodyParser.json({
+          limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
+          extended: true,
+        })
+      )
+      .use(
+        bodyParser.urlencoded({
+          limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
+          extended: true,
+        })
+      );
 
-  //-------------------------------
+    //-------------------------------
 
-  /**
-   * Get the price estimates for every single vehicle types available.
-   */
-  app.post("/getOverallPricingAndAvailabilityDetails", function (req, res) {
-    resolveDate();
-    //DELIVERY TEST DATA - DEBUG
-    /*let deliveryPricingInputDataRaw = {
+    /**
+     * Get the price estimates for every single vehicle types available.
+     */
+    app.post("/getOverallPricingAndAvailabilityDetails", function (req, res) {
+      resolveDate();
+      //DELIVERY TEST DATA - DEBUG
+      /*let deliveryPricingInputDataRaw = {
       user_fingerprint:
         "4ec9a3cac550584cfe04108e63b61961af32f9162ca09bee59bc0fc264c6dd1d61dbd97238a27e147e1134e9b37299d160c0f0ee1c620c9f012e3a08a4505fd6",
       connectType: "ConnectUs",
@@ -2053,164 +2069,167 @@ clientMongo.connect(function (err) {
       },
     };
     req.body = deliveryPricingInputDataRaw;**/
-    console.log(req.body);
-    //...
+      console.log(req.body);
+      //...
 
-    try {
-      let inputDataInitial = req.body;
-      //Parse input to the correct format
-      //Parse input date to the good format
-      new Promise((res) => {
-        parsePricingInputData(res, inputDataInitial);
-      }).then(
-        (reslt) => {
-          if (reslt !== false) {
-            let parsedData = reslt; //Clean parsed data
-            if (checkInputIntegrity(parsedData)) {
-              //Check inetgrity
-              console.log("Passed the integrity test.");
-              //Valid input
-              //Autocomplete the input data
-              new Promise((res) => {
-                autocompleteInputData(
-                  res,
-                  parsedData,
-                  collectionSavedSuburbResults
-                );
-              }).then(
-                (result) => {
-                  if (result !== false) {
-                    let completeInput = result;
-                    console.log("Done autocompleting");
-                    //Generate prices metadata for all the relevant vehicles categories
-                    console.log(
-                      "Computing prices metadata of relevant car categories"
-                    );
-                    new Promise((res) => {
-                      estimateFullVehiclesCatPrices(
-                        res,
-                        completeInput,
-                        collectionVehiclesInfos,
-                        collectionPricesLocationsMap,
-                        collectionNotFoundSubursPricesMap
+      try {
+        let inputDataInitial = req.body;
+        //Parse input to the correct format
+        //Parse input date to the good format
+        new Promise((res) => {
+          parsePricingInputData(res, inputDataInitial);
+        }).then(
+          (reslt) => {
+            if (reslt !== false) {
+              let parsedData = reslt; //Clean parsed data
+              if (checkInputIntegrity(parsedData)) {
+                //Check inetgrity
+                console.log("Passed the integrity test.");
+                //Valid input
+                //Autocomplete the input data
+                new Promise((res) => {
+                  autocompleteInputData(
+                    res,
+                    parsedData,
+                    collectionSavedSuburbResults
+                  );
+                }).then(
+                  (result) => {
+                    if (result !== false) {
+                      let completeInput = result;
+                      console.log("Done autocompleting");
+                      //Generate prices metadata for all the relevant vehicles categories
+                      console.log(
+                        "Computing prices metadata of relevant car categories"
                       );
-                    }).then(
-                      (result) => {
-                        console.log("DOne computing fares");
-                        res.send(result);
-                      },
-                      (error) => {
-                        console.log(error);
-                        res.send({ response: "Failed perform the operations" });
-                      }
-                    );
-                    //...
-                  } //Error - Failed input augmentation
-                  else {
+                      new Promise((res) => {
+                        estimateFullVehiclesCatPrices(
+                          res,
+                          completeInput,
+                          collectionVehiclesInfos,
+                          collectionPricesLocationsMap,
+                          collectionNotFoundSubursPricesMap
+                        );
+                      }).then(
+                        (result) => {
+                          console.log("DOne computing fares");
+                          res.send(result);
+                        },
+                        (error) => {
+                          console.log(error);
+                          res.send({
+                            response: "Failed perform the operations",
+                          });
+                        }
+                      );
+                      //...
+                    } //Error - Failed input augmentation
+                    else {
+                      res.send({ response: "Failed input augmentation" });
+                    }
+                  },
+                  (error) => {
+                    //Error - Failed input augmentation
+                    console.log(error);
                     res.send({ response: "Failed input augmentation" });
                   }
-                },
-                (error) => {
-                  //Error - Failed input augmentation
-                  console.log(error);
-                  res.send({ response: "Failed input augmentation" });
-                }
-              );
-            } //Invalid input data
+                );
+              } //Invalid input data
+              else {
+                res.send({ response: "Failed integrity" });
+              }
+            } //Faild parsing
             else {
-              res.send({ response: "Failed integrity" });
+              res.send({ response: "Failed parsing." });
             }
-          } //Faild parsing
-          else {
+          },
+          (error) => {
             res.send({ response: "Failed parsing." });
           }
-        },
-        (error) => {
-          res.send({ response: "Failed parsing." });
-        }
-      );
-    } catch (error) {
-      console.log(error);
-      res.send({ response: "Failed parsing." });
-    }
-  });
+        );
+      } catch (error) {
+        console.log(error);
+        res.send({ response: "Failed parsing." });
+      }
+    });
 
-  /**
-   * GET SUBURBS INFORMATION
-   * [Should be moved to the MAP service]
-   * Resposible for getting the corresponding suburbs for provided location.
-   * Input data: location name, street name, city, country and coordinates (obj, lat and long)
-   */
-  app.get("/getCorrespondingSuburbInfos", function (req, res) {
-    let params = urlParser.parse(req.url, true);
-    req = params.query;
-    console.log(req);
+    /**
+     * GET SUBURBS INFORMATION
+     * [Should be moved to the MAP service]
+     * Resposible for getting the corresponding suburbs for provided location.
+     * Input data: location name, street name, city, country and coordinates (obj, lat and long)
+     */
+    app.get("/getCorrespondingSuburbInfos", function (req, res) {
+      let params = urlParser.parse(req.url, true);
+      req = params.query;
+      console.log(req);
 
-    if (req !== undefined && req.user_fingerprint !== undefined) {
-      new Promise((res) => {
-        doMongoSearchForAutocompletedSuburbs(
-          res,
-          {
-            location_name: req.location_name,
-            street_name: req.street_name,
-            city: req.city,
-            country: req.country,
-            coordinates: {
-              latitude: req.latitude,
-              longitude: req.longitude,
+      if (req !== undefined && req.user_fingerprint !== undefined) {
+        new Promise((res) => {
+          doMongoSearchForAutocompletedSuburbs(
+            res,
+            {
+              location_name: req.location_name,
+              street_name: req.street_name,
+              city: req.city,
+              country: req.country,
+              coordinates: {
+                latitude: req.latitude,
+                longitude: req.longitude,
+              },
+              make_new:
+                req.make_new !== undefined && req.make_new !== null
+                  ? true
+                  : false,
             },
-            make_new:
-              req.make_new !== undefined && req.make_new !== null
-                ? true
-                : false,
+            collectionSavedSuburbResults
+          );
+        }).then(
+          (result) => {
+            console.log(result);
+            res.send(result);
           },
+          (error) => {
+            console.log(error);
+            res.send(false);
+          }
+        );
+      } else {
+        res.send(false);
+      }
+    });
+
+    /**
+     * GET BACH DESTINATION SUBURBS AND LOCATION TYPE
+     * Responsible for autocompleting the suburbs and location types of locations (external to this service)
+     * Input data: @array containing compatible parsed data of locations
+     */
+    app.post("/manageAutoCompleteSuburbsAndLocationTypes", function (req, res) {
+      let arrayData = req.body;
+      console.log(arrayData);
+      new Promise((res) => {
+        manageAutoCompleteDestinationLocations(
+          res,
+          arrayData.locationData,
+          arrayData.user_fingerprint,
           collectionSavedSuburbResults
         );
       }).then(
         (result) => {
-          console.log(result);
-          res.send(result);
+          if (result !== false) {
+            //DONE AUTOCOMPLETING
+            res.send(result);
+          } //Error
+          else {
+            res.send(false);
+          }
         },
         (error) => {
           console.log(error);
           res.send(false);
         }
       );
-    } else {
-      res.send(false);
-    }
-  });
-
-  /**
-   * GET BACH DESTINATION SUBURBS AND LOCATION TYPE
-   * Responsible for autocompleting the suburbs and location types of locations (external to this service)
-   * Input data: @array containing compatible parsed data of locations
-   */
-  app.post("/manageAutoCompleteSuburbsAndLocationTypes", function (req, res) {
-    let arrayData = req.body;
-    console.log(arrayData);
-    new Promise((res) => {
-      manageAutoCompleteDestinationLocations(
-        res,
-        arrayData.locationData,
-        arrayData.user_fingerprint,
-        collectionSavedSuburbResults
-      );
-    }).then(
-      (result) => {
-        if (result !== false) {
-          //DONE AUTOCOMPLETING
-          res.send(result);
-        } //Error
-        else {
-          res.send(false);
-        }
-      },
-      (error) => {
-        console.log(error);
-        res.send(false);
-      }
-    );
+    });
   });
 });
 
