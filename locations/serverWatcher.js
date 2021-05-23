@@ -683,85 +683,14 @@ function updateNext_paymentDateDrivers(
                           else {
                             //? Unlock the driver if locked --------------------------------
                             new Promise((resUnlock) => {
-                              collectionDrivers_profiles
-                                .find({
-                                  driver_fingerprint:
-                                    driverData.driver_fingerprint,
-                                })
-                                .toArray(function (err, newDriverData) {
-                                  if (err) {
-                                    console.log(err);
-                                    resUnlock(false);
-                                  }
-                                  //...
-                                  if (
-                                    newDriverData !== undefined &&
-                                    newDriverData.length > 0
-                                  ) {
-                                    //! ONLY UNLOCK IF THE LAST SUSPENSION REASON IS RELATED TO THE UNPAID COMISSION
-                                    if (
-                                      newDriverData !== undefined &&
-                                      newDriverData.length > 0 &&
-                                      newDriverData[0].suspension_infos !==
-                                        undefined &&
-                                      newDriverData[0].suspension_infos !==
-                                        null &&
-                                      /UNPAID_COMISSION/i.test(
-                                        newDriverData[0].suspension_infos.reason
-                                      )
-                                    ) {
-                                      //Found a driver data
-                                      resolveDate();
-                                      //? Append the new suspension to the suspension array
-                                      let suspensionInfos_array =
-                                        newDriverData[0].suspension_infos !==
-                                          undefined &&
-                                        newDriverData[0].suspension_infos !==
-                                          null
-                                          ? newDriverData[0].suspension_infos
-                                          : [];
-                                      suspensionInfos_array.push({
-                                        reason: "PAID_COMISSION",
-                                        state: "UNSUSPENDED",
-                                        bot_locker: "Junkstem",
-                                        date: new Date(chaineDateUTC),
-                                      });
-                                      //...
-                                      collectionDrivers_profiles.updateOne(
-                                        {
-                                          driver_fingerprint:
-                                            driverData.driver_fingerprint,
-                                        },
-                                        {
-                                          $set: {
-                                            isDriverSuspended: false,
-                                            suspension_infos:
-                                              suspensionInfos_array,
-                                          },
-                                        },
-                                        function (err, rest) {
-                                          //? DONE
-                                          console.log(
-                                            `DRIVER UNLOCKED --> Tag: ${driverData.driver_fingerprint.substr(
-                                              0,
-                                              15
-                                            )}`
-                                          );
-                                          resUnlock(true);
-                                        }
-                                      );
-                                    } //! No proper suspension reason found - pass
-                                    else {
-                                      console.log(
-                                        "No proper unsuspension reason found, pass."
-                                      );
-                                      resUnlock(false);
-                                    }
-                                  } //No driver data found
-                                  else {
-                                    resUnlock(false);
-                                  }
-                                });
+                              lock_unlock_drivers(
+                                "PAID_COMISSION",
+                                "Junkstem",
+                                false,
+                                driverData,
+                                collectionDrivers_profiles,
+                                resUnlock
+                              );
                             })
                               .then(
                                 () => {},
@@ -808,6 +737,23 @@ function updateNext_paymentDateDrivers(
                 } //? The date looks good - skip
                 else {
                   //console.log("Next payment date not obsolete found!");
+                  //? Unlock the driver if locked --------------------------------
+                  new Promise((resUnlock) => {
+                    lock_unlock_drivers(
+                      "PAID_COMISSION",
+                      "Junkstem",
+                      false,
+                      driverData,
+                      collectionDrivers_profiles,
+                      resUnlock
+                    );
+                  })
+                    .then(
+                      () => {},
+                      () => {}
+                    )
+                    .catch((error) => console.log(error));
+                  //?----------------------------------------------------------------------
                   resPaymentCycle(true);
                 }
               } //No annotation yet - create one
@@ -845,6 +791,91 @@ function updateNext_paymentDateDrivers(
       resolve({ response: "empty_drivers_mega_data" });
     }
   });
+}
+
+/**
+ * @func lock_unlock_drivers
+ * Responsible for locking or unlocking drivers basedd on diverse scenarios
+ * @param reason: the locking/unlocking reason.
+ * @param locker: the admin/bot who performed the locking/unlocking action.
+ * @param locking_state: the locking state - true (locked) or false (unlocked)
+ * @param driverData: the driver profile's data
+ * @param collectionDrivers_profiles: the list of all drivers
+ * @param resolve
+ */
+function lock_unlock_drivers(
+  reason,
+  locker,
+  locking_state,
+  driverData,
+  collectionDrivers_profiles,
+  resolve
+) {
+  collectionDrivers_profiles
+    .find({
+      driver_fingerprint: driverData.driver_fingerprint,
+    })
+    .toArray(function (err, newDriverData) {
+      if (err) {
+        console.log(err);
+        resolvee(false);
+      }
+      //...
+      if (newDriverData !== undefined && newDriverData.length > 0) {
+        //! ONLY UNLOCK IF THE LAST SUSPENSION REASON IS RELATED TO THE UNPAID COMISSION
+        if (
+          newDriverData !== undefined &&
+          newDriverData.length > 0 &&
+          newDriverData[0].suspension_infos !== undefined &&
+          newDriverData[0].suspension_infos !== null &&
+          /UNPAID_COMISSION/i.test(newDriverData[0].suspension_infos.reason)
+        ) {
+          //Found a driver data
+          resolveDate();
+          //? Append the new suspension to the suspension array
+          let suspensionInfos_array =
+            newDriverData[0].suspension_infos !== undefined &&
+            newDriverData[0].suspension_infos !== null
+              ? newDriverData[0].suspension_infos
+              : [];
+          suspensionInfos_array.push({
+            reason: reason,
+            state: locking_state,
+            bot_locker: locker,
+            date: new Date(chaineDateUTC),
+          });
+          //...
+          collectionDrivers_profiles.updateOne(
+            {
+              driver_fingerprint: driverData.driver_fingerprint,
+            },
+            {
+              $set: {
+                isDriverSuspended: false,
+                suspension_infos: suspensionInfos_array,
+              },
+            },
+            function (err, rest) {
+              //? DONE
+              console.log(
+                `DRIVER UNLOCKED --> Tag: ${driverData.driver_fingerprint.substr(
+                  0,
+                  15
+                )}`
+              );
+              resUnlock(true);
+            }
+          );
+        } //! No proper suspension reason found - pass
+        else {
+          console.log("No proper unsuspension reason found, pass.");
+          resolve(false);
+        }
+      } //No driver data found
+      else {
+        resolve(false);
+      }
+    });
 }
 
 /**
