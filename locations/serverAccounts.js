@@ -4906,34 +4906,84 @@ redisCluster.on("connect", function () {
             }
           );
         } else if (/get/i.test(req.action)) {
-          //Check the cache first
-          redisGet(redisKey).then(
-            (resp) => {
-              if (resp !== null) {
-                //Found a cached result
-                //? Update the cache in background
+          //? Avoid cache if specified
+          if (
+            req.avoidCached_data !== undefined &&
+            req.avoidCached_data !== null
+          ) {
+            new Promise((resGetStatus) => {
+              getDriver_onlineOffline_status(req, resGetStatus);
+            })
+              .then(
+                (result) => {
+                  //!Cache the result
+                  redisCluster.set(redisKey, stringify(result));
+                  //...
+                  res.send(result);
+                },
+                (error) => {
+                  console.log(error);
+                  res.send({ response: "error_invalid_request" });
+                }
+              )
+              .catch((error) => {
+                console.log(error);
+                res.send({ response: "error_invalid_request" });
+              });
+          } //? USE CACHED METHOD
+          else {
+            //Check the cache first
+            redisGet(redisKey).then(
+              (resp) => {
+                if (resp !== null) {
+                  //Found a cached result
+                  //? Update the cache in background
+                  new Promise((resGetStatus) => {
+                    getDriver_onlineOffline_status(req, resGetStatus);
+                  })
+                    .then(
+                      (result) => {
+                        //!Cache the result
+                        redisCluster.setex(redisKey, 3, stringify(result)); //? 3 sec
+                      },
+                      (error) => {}
+                    )
+                    .catch();
+                  //Quickly return result
+                  res.send(parse(resp));
+                } //Make a fresh request
+                else {
+                  new Promise((resGetStatus) => {
+                    getDriver_onlineOffline_status(req, resGetStatus);
+                  })
+                    .then(
+                      (result) => {
+                        //!Cache the result
+                        redisCluster.setex(redisKey, 3, stringify(result)); //? 3 sec
+                        //...
+                        res.send(result);
+                      },
+                      (error) => {
+                        console.log(error);
+                        res.send({ response: "error_invalid_request" });
+                      }
+                    )
+                    .catch((error) => {
+                      console.log(error);
+                      res.send({ response: "error_invalid_request" });
+                    });
+                }
+              },
+              (error) => {
+                //Make a fresh request
+                console.log(error);
                 new Promise((resGetStatus) => {
                   getDriver_onlineOffline_status(req, resGetStatus);
                 })
                   .then(
                     (result) => {
                       //!Cache the result
-                      redisCluster.set(redisKey, stringify(result));
-                    },
-                    (error) => {}
-                  )
-                  .catch();
-                //Quickly return result
-                res.send(parse(resp));
-              } //Make a fresh request
-              else {
-                new Promise((resGetStatus) => {
-                  getDriver_onlineOffline_status(req, resGetStatus);
-                })
-                  .then(
-                    (result) => {
-                      //!Cache the result
-                      redisCluster.set(redisKey, stringify(result));
+                      redisCluster.setex(redisKey, 3, stringify(result)); //? 3 sec
                       //...
                       res.send(result);
                     },
@@ -4947,31 +4997,8 @@ redisCluster.on("connect", function () {
                     res.send({ response: "error_invalid_request" });
                   });
               }
-            },
-            (error) => {
-              //Make a fresh request
-              console.log(error);
-              new Promise((resGetStatus) => {
-                getDriver_onlineOffline_status(req, resGetStatus);
-              })
-                .then(
-                  (result) => {
-                    //!Cache the result
-                    redisCluster.set(redisKey, stringify(result));
-                    //...
-                    res.send(result);
-                  },
-                  (error) => {
-                    console.log(error);
-                    res.send({ response: "error_invalid_request" });
-                  }
-                )
-                .catch((error) => {
-                  console.log(error);
-                  res.send({ response: "error_invalid_request" });
-                });
-            }
-          );
+            );
+          }
         }
       } //Invalid data
       else {
