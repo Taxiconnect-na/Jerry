@@ -455,14 +455,18 @@ function updateNext_paymentDateDrivers(
                                   parseFloat(
                                     body.header.remaining_due_to_driver
                                   )
-                                    ? parseFloat(
-                                        body.header.remaining_commission
-                                      ) -
-                                      parseFloat(
-                                        body.header.remaining_due_to_driver
+                                    ? Math.ceil(
+                                        parseFloat(
+                                          body.header.remaining_commission
+                                        ) -
+                                          parseFloat(
+                                            body.header.remaining_due_to_driver
+                                          )
                                       )
-                                    : parseFloat(
-                                        body.header.remaining_commission
+                                    : Math.ceil(
+                                        parseFloat(
+                                          body.header.remaining_commission
+                                        )
                                       );
                                 //! Passed waiting period
                                 //? Check if there's any trip in progress.
@@ -573,14 +577,19 @@ function updateNext_paymentDateDrivers(
                                     parseFloat(
                                       body.header.remaining_due_to_driver
                                     )
-                                      ? parseFloat(
-                                          body.header.remaining_commission
-                                        ) -
-                                        parseFloat(
-                                          body.header.remaining_due_to_driver
+                                      ? Math.ceil(
+                                          parseFloat(
+                                            body.header.remaining_commission
+                                          ) -
+                                            parseFloat(
+                                              body.header
+                                                .remaining_due_to_driver
+                                            )
                                         )
-                                      : parseFloat(
-                                          body.header.remaining_commission
+                                      : Math.ceil(
+                                          parseFloat(
+                                            body.header.remaining_commission
+                                          )
                                         );
                                   //.....
                                   //1. Check the time from the last notification

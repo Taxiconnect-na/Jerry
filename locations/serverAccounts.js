@@ -3917,11 +3917,32 @@ function getDriver_onlineOffline_status(req, resolve) {
           driverData[0].operational_state !== null &&
           driverData.length > 0
         ) {
+          //! GET THE SUSPENSION INFOS
+          let suspensionInfos = {
+            is_suspended:
+              driverData[0].isDriverSuspended !== undefined &&
+              driverData[0].isDriverSuspended !== null
+                ? driverData[0].isDriverSuspended
+                : false,
+            message:
+              driverData[0].suspension_infos !== undefined &&
+              driverData[0].suspension_infos !== null
+                ? /UNPAID_COMISSION/i.test(
+                    driverData[0].suspension_infos[
+                      driverData[0].suspension_infos.length - 1
+                    ].reason
+                  )
+                  ? `Your account has been suspended to an overdue TaxiConnect commission.`
+                  : false
+                : false,
+          };
+          //! ------------------------
           driverData = driverData[0];
           //Valid driver
           res0({
             response: "successfully_got",
             flag: driverData.operational_state.status,
+            suspension_infos: suspensionInfos,
           });
         } //Unknown driver
         else {
@@ -4207,28 +4228,10 @@ redisCluster.on("connect", function () {
               specialChars: false,
               alphabets: false,
             });
+        //! --------------
         otp = String(otp).length < 5 ? parseInt(otp) * 10 : otp;
 
-        //1. Generate and SMS the OTP
-        new Promise((res0) => {
-          let message =
-            `<#> ` +
-            otp +
-            ` is your TaxiConnect Verification Code. ${
-              req.smsHashLinker !== undefined && req.smsHashLinker !== null
-                ? req.smsHashLinker
-                : "QEg7axwB9km"
-            }`;
-          SendSMSTo(onlyDigitsPhone, message);
-          res0(true);
-          //SMS
-        }).then(
-          () => {},
-          (error) => {
-            console.log(error);
-          }
-        );
-        //2. Check the user's status
+        //1. Check the user's status
         new Promise((res1) => {
           checkUserStatus(
             req,
@@ -4240,6 +4243,24 @@ redisCluster.on("connect", function () {
           );
         }).then(
           (result) => {
+            if (!/driver/i.test(req.user_nature)) {
+              //! Only send SMS to users or registered drivers
+              //2. Generate and SMS the OTP
+              new Promise((res0) => {
+                let message =
+                  `<#> ` + otp + ` is your TaxiConnect Verification Code.`;
+                SendSMSTo(onlyDigitsPhone, message);
+                res0(true);
+                //SMS
+              }).then(
+                () => {},
+                (error) => {
+                  console.log(error);
+                }
+              );
+            }
+            //!---------
+
             //Save otp in profile if the user was already registered
             console.log(result);
             if (
@@ -4277,6 +4298,19 @@ redisCluster.on("connect", function () {
                   req.user_nature !== null &&
                   /driver/i.test(req.user_nature)
                 ) {
+                  //2. Generate and SMS the OTP
+                  new Promise((res0) => {
+                    let message =
+                      `<#> ` + otp + ` is your TaxiConnect Verification Code.`;
+                    SendSMSTo(onlyDigitsPhone, message);
+                    res0(true);
+                    //SMS
+                  }).then(
+                    () => {},
+                    (error) => {
+                      console.log(error);
+                    }
+                  );
                   //2. Drivers
                   collectionDrivers_profiles.updateOne(
                     { driver_fingerprint: result.user_fp },
@@ -4291,16 +4325,139 @@ redisCluster.on("connect", function () {
                 .then(
                   () => {
                     //...
-                    res.send(result);
+                    if (!/driver/i.test(req.user_nature)) {
+                      res.send(result);
+                    } //! Add the suspension infos for the drivers
+                    else {
+                      //Check the driver
+                      collectionDrivers_profiles
+                        .find({ driver_fingerprint: result.user_fp })
+                        .toArray(function (err, driverData) {
+                          if (err) {
+                            res0({ response: "error_invalid_request" });
+                          }
+                          //...
+                          if (driverData.length > 0) {
+                            console.log(driverData[0]);
+                            //! GET THE SUSPENSION INFOS
+                            let suspensionInfos = {
+                              is_suspended:
+                                driverData[0].isDriverSuspended !== undefined &&
+                                driverData[0].isDriverSuspended !== null
+                                  ? driverData[0].isDriverSuspended
+                                  : false,
+                              message:
+                                driverData[0].suspension_infos !== undefined &&
+                                driverData[0].suspension_infos !== null
+                                  ? /UNPAID_COMISSION/i.test(
+                                      driverData[0].suspension_infos[
+                                        driverData[0].suspension_infos.length -
+                                          1
+                                      ].reason
+                                    )
+                                    ? `Your account has been suspended due to an overdue TaxiConnect commission.`
+                                    : false
+                                  : false,
+                            };
+                            //! ------------------------
+                            result["suspension_infos"] = suspensionInfos;
+                            res.send(result);
+                          } //Just reply
+                          else {
+                            res.send(result);
+                          }
+                        });
+                    }
                   },
                   () => {
                     ///....
-                    res.send(result);
+                    if (!/driver/i.test(req.user_nature)) {
+                      res.send(result);
+                    } //! Add the suspension infos for the drivers
+                    else {
+                      //Check the driver
+                      collectionDrivers_profiles
+                        .find({ driver_fingerprint: result.user_fp })
+                        .toArray(function (err, driverData) {
+                          if (err) {
+                            res0({ response: "error_invalid_request" });
+                          }
+                          //...
+                          if (driverData.length > 0) {
+                            //! GET THE SUSPENSION INFOS
+                            let suspensionInfos = {
+                              is_suspended:
+                                driverData[0].isDriverSuspended !== undefined &&
+                                driverData[0].isDriverSuspended !== null
+                                  ? driverData[0].isDriverSuspended
+                                  : false,
+                              message:
+                                driverData[0].suspension_infos !== undefined &&
+                                driverData[0].suspension_infos !== null
+                                  ? /UNPAID_COMISSION/i.test(
+                                      driverData[0].suspension_infos[
+                                        driverData[0].suspension_infos.length -
+                                          1
+                                      ].reason
+                                    )
+                                    ? `Your account has been suspended due to an overdue TaxiConnect commission.`
+                                    : false
+                                  : false,
+                            };
+                            //! ------------------------
+                            result["suspension_infos"] = suspensionInfos;
+                            res.send(result);
+                          } //Just reply
+                          else {
+                            res.send(result);
+                          }
+                        });
+                    }
                   }
                 )
                 .catch((error) => {
                   ///....
-                  res.send(result);
+                  if (!/driver/i.test(req.user_nature)) {
+                    res.send(result);
+                  } //! Add the suspension infos for the drivers
+                  else {
+                    //Check the driver
+                    collectionDrivers_profiles
+                      .find({ driver_fingerprint: result.user_fp })
+                      .toArray(function (err, driverData) {
+                        if (err) {
+                          res0({ response: "error_invalid_request" });
+                        }
+                        //...
+                        if (driverData.length > 0) {
+                          //! GET THE SUSPENSION INFOS
+                          let suspensionInfos = {
+                            is_suspended:
+                              driverData[0].isDriverSuspended !== undefined &&
+                              driverData[0].isDriverSuspended !== null
+                                ? driverData[0].isDriverSuspended
+                                : false,
+                            message:
+                              driverData[0].suspension_infos !== undefined &&
+                              driverData[0].suspension_infos !== null
+                                ? /UNPAID_COMISSION/i.test(
+                                    driverData[0].suspension_infos[
+                                      driverData[0].suspension_infos.length - 1
+                                    ].reason
+                                  )
+                                  ? `Your account has been suspended due to an overdue TaxiConnect commission.`
+                                  : false
+                                : false,
+                          };
+                          //! ------------------------
+                          result["suspension_infos"] = suspensionInfos;
+                          res.send(result);
+                        } //Just reply
+                        else {
+                          res.send(result);
+                        }
+                      });
+                  }
                 });
             } else {
               ///....
@@ -4790,6 +4947,26 @@ redisCluster.on("connect", function () {
                 }
                 //...
                 if (driverData.length > 0) {
+                  //! GET THE SUSPENSION INFOS
+                  let suspensionInfos = {
+                    is_suspended:
+                      driverData[0].isDriverSuspended !== undefined &&
+                      driverData[0].isDriverSuspended !== null
+                        ? driverData[0].isDriverSuspended
+                        : false,
+                    message:
+                      driverData[0].suspension_infos !== undefined &&
+                      driverData[0].suspension_infos !== null
+                        ? /UNPAID_COMISSION/i.test(
+                            driverData[0].suspension_infos[
+                              driverData[0].suspension_infos.length - 1
+                            ].reason
+                          )
+                          ? `Your account has been suspended to an overdue TaxiConnect commission.`
+                          : false
+                        : false,
+                  };
+                  //! ------------------------
                   //Check if the driver has an active request - NOT LOG OUT WITH AN ACTIVE REQUEST
                   let checkActiveRequests = {
                     taxi_id: req.driver_fingerprint,
@@ -4837,6 +5014,7 @@ redisCluster.on("connect", function () {
                                 flag: /online/i.test(req.state)
                                   ? "online"
                                   : "offline",
+                                suspension_infos: suspensionInfos,
                               });
                             }
                           );
@@ -4878,6 +5056,7 @@ redisCluster.on("connect", function () {
                               flag: /online/i.test(req.state)
                                 ? "online"
                                 : "offline",
+                              suspension_infos: suspensionInfos,
                             });
                           }
                         );
@@ -4906,6 +5085,9 @@ redisCluster.on("connect", function () {
             }
           );
         } else if (/get/i.test(req.action)) {
+          //! Avoid cache by defaut
+          req.avoidCached_data = true;
+          //! ---------------------
           //? Avoid cache if specified
           if (
             req.avoidCached_data !== undefined &&
@@ -4916,6 +5098,7 @@ redisCluster.on("connect", function () {
             })
               .then(
                 (result) => {
+                  console.trace(result);
                   //!Cache the result
                   redisCluster.set(redisKey, stringify(result));
                   //...
