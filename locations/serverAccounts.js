@@ -2949,6 +2949,8 @@ function execGet_driversDeepInsights_fromWalletData(
               .then(
                 (resultGlobalData) => {
                   if (resultGlobalData.length > 0) {
+                    _GLOBAL_OBJECT["transactions_data"] =
+                      walletBasicData.transactions_data; //! Add the transaction data
                     //Has some data
                     //Remove empty objects, false, null or undefined
                     _GLOBAL_OBJECT.weeks_view =
@@ -5427,13 +5429,22 @@ redisCluster.on("connect", function () {
                           )
                         : resultInsights.weeks_view;
                     //? Remove the record holder
+                    //? Add transaction data if transactionData=true
                     res.send(
                       resultInsights.header !== undefined &&
                         resultInsights.header !== null
-                        ? {
-                            header: resultInsights.header,
-                            weeks_view: resultInsights.weeks_view,
-                          }
+                        ? req.transactionData !== undefined &&
+                          /true/i.test(req.transactionData)
+                          ? {
+                              header: resultInsights.header,
+                              weeks_view: resultInsights.weeks_view,
+                              transactions_data:
+                                resultInsights.transactions_data,
+                            }
+                          : {
+                              header: resultInsights.header,
+                              weeks_view: resultInsights.weeks_view,
+                            }
                         : resultInsights
                     );
                   },
