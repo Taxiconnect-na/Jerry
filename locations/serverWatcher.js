@@ -41,6 +41,7 @@ const redisGet = promisify(redisCluster.get).bind(redisCluster);
 var chaineDateUTC = null;
 var dateObject = null;
 const moment = require("moment");
+const { ObjectId } = require("bson");
 
 //CRUCIAL VARIABLES
 var _INTERVAL_PERSISTER_LATE_REQUESTS = null; //Will hold the interval for checking whether or not a requests has takne too long and should be cancelled.
@@ -619,6 +620,14 @@ function updateNext_paymentDateDrivers(
                                         eventData =
                                           eventData[eventData.length - 1];
                                         //...
+                                        console.log(
+                                          `Next notification cycle count -> ${
+                                            diff_min(
+                                              new Date(eventData.date),
+                                              new Date(chaineDateUTC)
+                                            ).difference
+                                          }min`
+                                        );
                                         if (
                                           diff_min(
                                             new Date(eventData.date),
@@ -762,7 +771,7 @@ function updateNext_paymentDateDrivers(
                   });
                 } //? The date looks good - skip
                 else {
-                  //console.log("Next payment date not obsolete found!");
+                  console.log("Next payment date not obsolete found!");
                   //? Unlock the driver if locked --------------------------------
                   new Promise((resUnlock) => {
                     lock_unlock_drivers(
@@ -945,16 +954,24 @@ function sendComission_notificationsDrivers(
     headings: { en: "COMISSION PENDING" },
     content_available: true,
     include_player_ids: [
-      driverData.push_notification_token !== undefined &&
-      driverData.push_notification_token !== null
-        ? driverData.push_notification_token.userId
+      driverData.operational_state.push_notification_token !== undefined &&
+      driverData.operational_state.push_notification_token !== null &&
+      driverData.operational_state.push_notification_token.userId !==
+        undefined &&
+      driverData.operational_state.push_notification_token.userId !== null
+        ? driverData.operational_state.push_notification_token.userId
         : null,
     ],
   };
   console.log(messageText);
   //Send
   //! TO UNCOMMENT!
-  //sendPushUPNotification(message);
+  if (/production/i.test(String(process.env.EVIRONMENT))) {
+    sendPushUPNotification(message);
+  } //Notification development lock
+  else {
+    console.trace("Commission push notification development lock!");
+  }
   //? SAVE THE EVENT
   let event = {
     event_name: "comission_reminder_comission_drivers",
@@ -1941,13 +1958,78 @@ redisCluster.on("connect", function () {
       .catch((error) => {
         console.log(error);
       });*/
+      //? 5. Reinforce the date type for the transaction logs
+      new Promise((res5) => {
+        collectionWalletTransactions_logs
+          .find({ date_captured: { $type: "string" } })
+          .toArray(function (err, transactionData) {
+            if (err) {
+              console.log(err);
+              res5(false);
+            }
+            //...
+            if (transactionData !== undefined && transactionData.length > 0) {
+              //Found some dirty data
+              console.log("Dirty date with string type found");
+              let parentPromises = transactionData.map((transaction) => {
+                return new Promise((resCompute) => {
+                  collectionWalletTransactions_logs.updateOne(
+                    { _id: ObjectId(transaction._id) },
+                    {
+                      $set: {
+                        date_captured: new Date(transaction.date_captured),
+                      },
+                    },
+                    function (err, resultUpdate) {
+                      if (err) {
+                        console.log(err);
+                        resCompute(false);
+                      }
+                      //...
+                      resCompute(true);
+                    }
+                  );
+                });
+              });
+              //DONE
+              Promise.all(parentPromises)
+                .then(
+                  (result) => {
+                    res5(result);
+                  },
+                  (error) => {
+                    console.log(error);
+                    res5(false);
+                  }
+                )
+                .catch((error) => {
+                  console.log(error);
+                  res5(false);
+                });
+            } //No data found
+            else {
+              res5(true);
+            }
+          });
+      })
+        .then(
+          (result) => {
+            console.log(result);
+          },
+          (error) => {
+            console.log(error);
+          }
+        )
+        .catch((error) => {
+          console.log(error);
+        });
     }, process.env.INTERVAL_PERSISTER_MAIN_WATCHER_MILLISECONDS);
 
     //! FOR HEAVY PROCESSES REQUIRING - 60sec
     _INTERVAL_PERSISTER_LATE_REQUESTS_HEAVY = setInterval(function () {
       //? 1. Refresh every driver's wallet
-      new Promise((res5) => {
-        updateDrivers_walletCachedData(collectionDrivers_profiles, res5);
+      new Promise((res1) => {
+        updateDrivers_walletCachedData(collectionDrivers_profiles, res1);
       })
         .then(
           (result) => {

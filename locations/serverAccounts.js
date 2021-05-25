@@ -1482,7 +1482,7 @@ function parseDetailed_walletGetData(
                 ? `${datElementHolder[2]}-${datElementHolder[1]}-${datElementHolder[0]}T${tmpDateHolder[1]}:00.000Z`
                 : transaction.date_captured;
 
-            let tmpDateCaptured = new Date(new String(validDate)); //! Avoid invalid date formats
+            let tmpDateCaptured = new Date(new String(validDate)); //! Avoid invalid date formats - BUG FIX ATTEMPT
             tmpClean.date_made = `${tmpDateCaptured.getDay()}/${
               tmpDateCaptured.getMonth() + 1
             }/${tmpDateCaptured.getFullYear()} ${tmpDateCaptured.getHours()}:${tmpDateCaptured.getMinutes()}`;
@@ -4231,6 +4231,7 @@ redisCluster.on("connect", function () {
               alphabets: false,
             });
         //! --------------
+        //otp = 55576;
         otp = String(otp).length < 5 ? parseInt(otp) * 10 : otp;
 
         //1. Check the user's status
@@ -4336,10 +4337,13 @@ redisCluster.on("connect", function () {
                         .find({ driver_fingerprint: result.user_fp })
                         .toArray(function (err, driverData) {
                           if (err) {
-                            res0({ response: "error_invalid_request" });
+                            res.send(result);
                           }
                           //...
-                          if (driverData.length > 0) {
+                          if (
+                            driverData !== undefined &&
+                            driverData.length > 0
+                          ) {
                             console.log(driverData[0]);
                             //! GET THE SUSPENSION INFOS
                             let suspensionInfos = {
@@ -4382,10 +4386,13 @@ redisCluster.on("connect", function () {
                         .find({ driver_fingerprint: result.user_fp })
                         .toArray(function (err, driverData) {
                           if (err) {
-                            res0({ response: "error_invalid_request" });
+                            res.send(result);
                           }
                           //...
-                          if (driverData.length > 0) {
+                          if (
+                            driverData !== undefined &&
+                            driverData.length > 0
+                          ) {
                             //! GET THE SUSPENSION INFOS
                             let suspensionInfos = {
                               is_suspended:
@@ -4428,10 +4435,10 @@ redisCluster.on("connect", function () {
                       .find({ driver_fingerprint: result.user_fp })
                       .toArray(function (err, driverData) {
                         if (err) {
-                          res0({ response: "error_invalid_request" });
+                          res.send(result);
                         }
                         //...
-                        if (driverData.length > 0) {
+                        if (driverData !== undefined && driverData.length > 0) {
                           //! GET THE SUSPENSION INFOS
                           let suspensionInfos = {
                             is_suspended:
@@ -4465,6 +4472,8 @@ redisCluster.on("connect", function () {
               ///....
               res.send(result);
             }
+            //...
+            //res.send(result);
           },
           (error) => {
             console.log(error);
@@ -5100,7 +5109,6 @@ redisCluster.on("connect", function () {
             })
               .then(
                 (result) => {
-                  console.trace(result);
                   //!Cache the result
                   redisCluster.set(redisKey, stringify(result));
                   //...

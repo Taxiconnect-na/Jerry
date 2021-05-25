@@ -318,8 +318,9 @@ function newLoaction_search_engine(
                                 );
                               }
                               //Update redis local cache
-                              redisCluster.set(
+                              redisCluster.setex(
                                 keyREDIS,
+                                process.env.REDIS_EXPIRATION_5MIN * 16,
                                 cachedString,
                                 redis.print
                               );
@@ -347,8 +348,9 @@ function newLoaction_search_engine(
                         } else {
                           console.log("setting redis");
                           //set redis
-                          redisCluster.set(
+                          redisCluster.setex(
                             keyREDIS,
+                            process.env.REDIS_EXPIRATION_5MIN * 16,
                             JSON.stringify(result),
                             redis.print
                           );

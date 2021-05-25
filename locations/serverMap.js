@@ -205,7 +205,11 @@ function getRouteInfosDestination(
                           eta: eta,
                           distance: distance,
                         };
-                        redisCluster.set(cache.redisKey, JSON.stringify(resp));
+                        redisCluster.setex(
+                          cache.redisKey,
+                          process.env.REDIS_EXPIRATION_5MIN * 6,
+                          JSON.stringify(resp)
+                        );
                         res(true);
                       } catch (error) {
                         //Write new record
@@ -214,7 +218,11 @@ function getRouteInfosDestination(
                           eta: eta,
                           distance: distance,
                         };
-                        redisCluster.set(cache.redisKey, JSON.stringify(tmp));
+                        redisCluster.setex(
+                          cache.redisKey,
+                          process.env.REDIS_EXPIRATION_5MIN * 6,
+                          JSON.stringify(tmp)
+                        );
                         res(true);
                       }
                     } //Write brand new record
@@ -224,7 +232,11 @@ function getRouteInfosDestination(
                         eta: eta,
                         distance: distance,
                       };
-                      redisCluster.set(cache.redisKey, JSON.stringify(tmp));
+                      redisCluster.setex(
+                        cache.redisKey,
+                        process.env.REDIS_EXPIRATION_5MIN * 6,
+                        JSON.stringify(tmp)
+                      );
                       res(true);
                     }
                   },
@@ -1874,8 +1886,9 @@ function execDriver_requests_parsing(
                       //DONE
                       //CACHE
                       new Promise((resCache) => {
-                        redisCluster.set(
+                        redisCluster.setex(
                           redisKey,
+                          process.env.REDIS_EXPIRATION_5MIN * 6,
                           JSON.stringify(parsedRequestsArray)
                         );
                         resCache(true);
@@ -1902,8 +1915,9 @@ function execDriver_requests_parsing(
                       //DONE
                       //CACHE
                       new Promise((resCache) => {
-                        redisCluster.set(
+                        redisCluster.setex(
                           redisKey,
+                          process.env.REDIS_EXPIRATION_5MIN * 6,
                           JSON.stringify(parsedRequestsArray)
                         );
                         resCache(true);
@@ -1933,8 +1947,9 @@ function execDriver_requests_parsing(
                     //DONE
                     //CACHE
                     new Promise((resCache) => {
-                      redisCluster.set(
+                      redisCluster.setex(
                         redisKey,
+                        process.env.REDIS_EXPIRATION_5MIN * 6,
                         JSON.stringify(parsedRequestsArray)
                       );
                       resCache(true);
@@ -1964,8 +1979,9 @@ function execDriver_requests_parsing(
                   //DONE
                   //CACHE
                   new Promise((resCache) => {
-                    redisCluster.set(
+                    redisCluster.setex(
                       redisKey,
+                      process.env.REDIS_EXPIRATION_5MIN * 6,
                       JSON.stringify(parsedRequestsArray)
                     );
                     resCache(true);
@@ -2207,8 +2223,9 @@ function computeRouteDetails_skeleton(
                     console.log("Skip cache");
                     //GET THE DRIVER'S LOCATION FROM MONGO DB
                     //! auto cache the driver's location - Major performance update!
-                    redisCluster.set(
+                    redisCluster.setex(
                       rideHistory.taxi_id,
+                      process.env.REDIS_EXPIRATION_5MIN * 6,
                       JSON.stringify(
                         driverProfile.operational_state.last_location
                           .coordinates
@@ -2384,8 +2401,9 @@ function computeRouteDetails_skeleton(
                   } else {
                     //GET THE DRIVER'S LOCATION FROM MONGO DB
                     //! auto cache the driver's location - Major performance update!
-                    redisCluster.set(
+                    redisCluster.setex(
                       rideHistory.taxi_id,
+                      process.env.REDIS_EXPIRATION_5MIN * 6,
                       JSON.stringify(
                         driverProfile.operational_state.last_location
                           .coordinates
@@ -2721,8 +2739,9 @@ function computeAndCacheRouteDestination(
               try {
                 let prevDriverCache = JSON.parse(res);
                 prevDriverCache.rides_history = rideHistory;
-                redisCluster.set(
+                redisCluster.setex(
                   resp.user_fingerprint,
+                  process.env.REDIS_EXPIRATION_5MIN * 6,
                   JSON.stringify(prevDriverCache)
                 );
                 //Update rider old trip cached ride history
@@ -2732,8 +2751,9 @@ function computeAndCacheRouteDestination(
                       try {
                         let prevRiderCache = JSON.parse(res1);
                         prevRiderCache.rides_history = rideHistory;
-                        redisCluster.set(
+                        redisCluster.setex(
                           rideHistory.client_id,
+                          process.env.REDIS_EXPIRATION_5MIN * 6,
                           JSON.stringify(prevRiderCache)
                         );
                         resolvePreli(true);
@@ -2960,16 +2980,18 @@ function computeAndCacheRouteDestination(
                     redisGet(rideHistory.request_fp).then(
                       (cachedTripData) => {
                         if (cachedTripData !== null) {
-                          redisCluster.set(
+                          redisCluster.setex(
                             rideHistory.request_fp,
+                            process.env.REDIS_EXPIRATION_5MIN * 6,
                             JSON.stringify(result)
                           );
                           resPromiseresult(true);
                         } //Update cache anyways
                         else {
                           //console.log("Update cache");
-                          redisCluster.set(
+                          redisCluster.setex(
                             rideHistory.request_fp,
+                            process.env.REDIS_EXPIRATION_5MIN * 6,
                             JSON.stringify(result)
                           );
                           resPromiseresult(true);
@@ -2977,8 +2999,9 @@ function computeAndCacheRouteDestination(
                       },
                       (errorGet) => {
                         //console.log("Update cache");
-                        redisCluster.set(
+                        redisCluster.setex(
                           rideHistory.request_fp,
+                          process.env.REDIS_EXPIRATION_5MIN * 6,
                           JSON.stringify(result)
                         );
                         resPromiseresult(true);
@@ -3002,16 +3025,18 @@ function computeAndCacheRouteDestination(
                     redisGet(rideHistory.request_fp).then(
                       (cachedTripData) => {
                         if (cachedTripData !== null) {
-                          redisCluster.set(
+                          redisCluster.setex(
                             rideHistory.request_fp,
+                            process.env.REDIS_EXPIRATION_5MIN * 6,
                             JSON.stringify(result)
                           );
                           resPromiseresult(true);
                         } //Update cache anyways
                         else {
                           //console.log("Update cache");
-                          redisCluster.set(
+                          redisCluster.setex(
                             rideHistory.request_fp,
+                            process.env.REDIS_EXPIRATION_5MIN * 6,
                             JSON.stringify(result)
                           );
                           resPromiseresult(true);
@@ -3019,8 +3044,9 @@ function computeAndCacheRouteDestination(
                       },
                       (errorGet) => {
                         //console.log("Update cache");
-                        redisCluster.set(
+                        redisCluster.setex(
                           rideHistory.request_fp,
+                          process.env.REDIS_EXPIRATION_5MIN * 6,
                           JSON.stringify(result)
                         );
                         resPromiseresult(true);
@@ -3073,8 +3099,9 @@ function updateRiderLocationInfosCache(req, resolve) {
           prevCache.latitude = req.latitude;
           prevCache.longitude = req.longitude;
           prevCache.date_logged = req.date_logged; //Updated cache data
-          redisCluster.set(
+          redisCluster.setex(
             req.user_fingerprint.trim(),
+            process.env.REDIS_EXPIRATION_5MIN * 6,
             JSON.stringify(prevCache)
           );
           resolve(true);
@@ -3083,14 +3110,22 @@ function updateRiderLocationInfosCache(req, resolve) {
         }
       } //No cache entry, create a new one
       else {
-        redisCluster.set(req.user_fingerprint.trim(), JSON.stringify(req));
+        redisCluster.setex(
+          req.user_fingerprint.trim(),
+          process.env.REDIS_EXPIRATION_5MIN * 6,
+          JSON.stringify(req)
+        );
         resolve(true);
       }
     },
     (error) => {
       console.log(error);
       //Create or update the current cache entry
-      redisCluster.set(req.user_fingerprint.trim(), JSON.stringify(req));
+      redisCluster.setex(
+        req.user_fingerprint.trim(),
+        process.env.REDIS_EXPIRATION_5MIN * 6,
+        JSON.stringify(req)
+      );
       resolve(true);
     }
   );
@@ -3215,7 +3250,11 @@ function reverseGeocoderExec(resolve, req, updateCache = false, redisKey) {
             if (updateCache !== false) {
               //Update cache
               updateCache.currentLocationInfos = body.features[0].properties;
-              redisCluster.set(redisKey, JSON.stringify(updateCache));
+              redisCluster.setex(
+                redisKey,
+                process.env.REDIS_EXPIRATION_5MIN * 6,
+                JSON.stringify(updateCache)
+              );
             }
             //...
             resolve(body.features[0].properties);
@@ -3225,7 +3264,11 @@ function reverseGeocoderExec(resolve, req, updateCache = false, redisKey) {
             if (updateCache !== false) {
               //Update cache
               updateCache.currentLocationInfos = body.features[0].properties;
-              redisCluster.set(redisKey, JSON.stringify(updateCache));
+              redisCluster.setex(
+                redisKey,
+                process.env.REDIS_EXPIRATION_5MIN * 6,
+                JSON.stringify(updateCache)
+              );
             }
             //...
             resolve(body.features[0].properties);
@@ -3508,22 +3551,38 @@ function findRouteSnapshotExec(resolve, pointData) {
                 resp = JSON.parse(resp);
                 resp.push(result);
                 resp = [...new Set(resp.map(JSON.stringify))].map(JSON.parse);
-                redisCluster.set(pointData.redisKey, JSON.stringify(resp));
+                redisCluster.setex(
+                  pointData.redisKey,
+                  process.env.REDIS_EXPIRATION_5MIN * 6,
+                  JSON.stringify(resp)
+                );
                 res(true);
               } catch (error) {
                 //Create a fresh one
-                redisCluster.set(pointData.redisKey, JSON.stringify([result]));
+                redisCluster.setex(
+                  pointData.redisKey,
+                  process.env.REDIS_EXPIRATION_5MIN * 6,
+                  JSON.stringify([result])
+                );
                 res(false);
               }
             } //No records -create a fresh one
             else {
-              redisCluster.set(pointData.redisKey, JSON.stringify([result]));
+              redisCluster.setex(
+                pointData.redisKey,
+                process.env.REDIS_EXPIRATION_5MIN * 6,
+                JSON.stringify([result])
+              );
               res(true);
             }
           },
           (error) => {
             //create fresh record
-            redisCluster.set(pointData.redisKey, JSON.stringify([result]));
+            redisCluster.setex(
+              pointData.redisKey,
+              process.env.REDIS_EXPIRATION_5MIN * 6,
+              JSON.stringify([result])
+            );
             res(false);
           }
         );
@@ -4359,7 +4418,11 @@ function getFreshProximity_driversList(
               (reslt) => {
                 //! Cache the list for 10minutes
                 new Promise((resCacheDriversList) => {
-                  redisCluster.set(redisKey, stringify(reslt));
+                  redisCluster.setex(
+                    redisKey,
+                    process.env.REDIS_EXPIRATION_5MIN * 6,
+                    stringify(reslt)
+                  );
                   resCacheDriversList(true);
                 })
                   .then(
@@ -5151,7 +5214,11 @@ redisCluster.on("connect", function () {
                   (result) => {
                     //Update cache if the result is not fallsee
                     if (result !== false) {
-                      redisCluster.set(redisKey, JSON.stringify(result));
+                      redisCluster.setex(
+                        redisKey,
+                        process.env.REDIS_EXPIRATION_5MIN * 6,
+                        JSON.stringify(result)
+                      );
                     }
                   },
                   (error) => {
@@ -5187,7 +5254,11 @@ redisCluster.on("connect", function () {
                   (result) => {
                     //Update cache if the result is not fallsee
                     if (result !== false) {
-                      redisCluster.set(redisKey, JSON.stringify(result));
+                      redisCluster.setex(
+                        redisKey,
+                        process.env.REDIS_EXPIRATION_5MIN * 6,
+                        JSON.stringify(result)
+                      );
                       //...
                       res.send(result);
                     } //Error
@@ -5225,7 +5296,11 @@ redisCluster.on("connect", function () {
                 (result) => {
                   //Update cache if the result is not fallsee
                   if (result !== false) {
-                    redisCluster.set(redisKey, JSON.stringify(result));
+                    redisCluster.setex(
+                      redisKey,
+                      process.env.REDIS_EXPIRATION_5MIN * 6,
+                      JSON.stringify(result)
+                    );
                     //...
                     res.send(result);
                   } //Error
@@ -5265,7 +5340,11 @@ redisCluster.on("connect", function () {
               (result) => {
                 //Update cache if the result is not fallsee
                 if (result !== false) {
-                  redisCluster.set(redisKey, JSON.stringify(result));
+                  redisCluster.setex(
+                    redisKey,
+                    process.env.REDIS_EXPIRATION_5MIN * 6,
+                    JSON.stringify(result)
+                  );
                   //...
                   res.send(result);
                 } //Error

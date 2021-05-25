@@ -531,8 +531,9 @@ function manageAutoCompleteDestinationLocations(
                       ? destinationLocations.city.trim().toLowerCase()
                       : destinationLocations.city);
                   //Check if redis already have key record
-                  redisCluster.set(
+                  redisCluster.setex(
                     redisKey,
+                    process.env.REDIS_EXPIRATION_5MIN * 6,
                     JSON.stringify({
                       location_name: destinationLocations.location_name,
                       street_name: destinationLocations.street_name,

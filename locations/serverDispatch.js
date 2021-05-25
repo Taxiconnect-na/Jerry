@@ -3043,16 +3043,28 @@ redisCluster.on("connect", function () {
                 })
                   .then(
                     (result) => {
-                      redisCluster.set(redisKey, JSON.stringify(result));
+                      redisCluster.setex(
+                        redisKey,
+                        process.env.REDIS_EXPIRATION_5MIN * 6,
+                        JSON.stringify(result)
+                      );
                     },
                     (error) => {
                       console.log(error);
-                      redisCluster.set(redisKey, JSON.stringify(result));
+                      redisCluster.setex(
+                        redisKey,
+                        process.env.REDIS_EXPIRATION_5MIN * 6,
+                        JSON.stringify(result)
+                      );
                     }
                   )
                   .catch((error) => {
                     console.log(error);
-                    redisCluster.set(redisKey, JSON.stringify(result));
+                    redisCluster.setex(
+                      redisKey,
+                      process.env.REDIS_EXPIRATION_5MIN * 6,
+                      JSON.stringify(result)
+                    );
                   });
                 //...
                 resp = JSON.parse(resp);
@@ -3070,18 +3082,30 @@ redisCluster.on("connect", function () {
                 })
                   .then(
                     (result) => {
-                      redisCluster.set(redisKey, JSON.stringify(result));
+                      redisCluster.setex(
+                        redisKey,
+                        process.env.REDIS_EXPIRATION_5MIN * 6,
+                        JSON.stringify(result)
+                      );
                       res.send(result);
                     },
                     (error) => {
                       console.log(error);
-                      redisCluster.set(redisKey, JSON.stringify(result));
+                      redisCluster.setex(
+                        redisKey,
+                        process.env.REDIS_EXPIRATION_5MIN * 6,
+                        JSON.stringify(result)
+                      );
                       res.send({ rides: 0, deliveries: 0, scheduled: 0 });
                     }
                   )
                   .catch((error) => {
                     console.log(error);
-                    redisCluster.set(redisKey, JSON.stringify(result));
+                    redisCluster.setex(
+                      redisKey,
+                      process.env.REDIS_EXPIRATION_5MIN * 6,
+                      JSON.stringify(result)
+                    );
                     res.send({ rides: 0, deliveries: 0, scheduled: 0 });
                   });
               }
@@ -3097,18 +3121,30 @@ redisCluster.on("connect", function () {
               })
                 .then(
                   (result) => {
-                    redisCluster.set(redisKey, JSON.stringify(result));
+                    redisCluster.setex(
+                      redisKey,
+                      process.env.REDIS_EXPIRATION_5MIN * 6,
+                      JSON.stringify(result)
+                    );
                     res.send(result);
                   },
                   (error) => {
                     console.log(error);
-                    redisCluster.set(redisKey, JSON.stringify(result));
+                    redisCluster.setex(
+                      redisKey,
+                      process.env.REDIS_EXPIRATION_5MIN * 6,
+                      JSON.stringify(result)
+                    );
                     res.send({ rides: 0, deliveries: 0, scheduled: 0 });
                   }
                 )
                 .catch((error) => {
                   console.log(error);
-                  redisCluster.set(redisKey, JSON.stringify(result));
+                  redisCluster.setex(
+                    redisKey,
+                    process.env.REDIS_EXPIRATION_5MIN * 6,
+                    JSON.stringify(result)
+                  );
                   res.send({ rides: 0, deliveries: 0, scheduled: 0 });
                 });
             }
@@ -3125,18 +3161,30 @@ redisCluster.on("connect", function () {
             })
               .then(
                 (result) => {
-                  redisCluster.set(redisKey, JSON.stringify(result));
+                  redisCluster.setex(
+                    redisKey,
+                    process.env.REDIS_EXPIRATION_5MIN * 6,
+                    JSON.stringify(result)
+                  );
                   res.send(result);
                 },
                 (error) => {
                   console.log(error);
-                  redisCluster.set(redisKey, JSON.stringify(result));
+                  redisCluster.setex(
+                    redisKey,
+                    process.env.REDIS_EXPIRATION_5MIN * 6,
+                    JSON.stringify(result)
+                  );
                   res.send({ rides: 0, deliveries: 0, scheduled: 0 });
                 }
               )
               .catch((error) => {
                 console.log(error);
-                redisCluster.set(redisKey, JSON.stringify(result));
+                redisCluster.setex(
+                  redisKey,
+                  process.env.REDIS_EXPIRATION_5MIN * 6,
+                  JSON.stringify(result)
+                );
                 res.send({ rides: 0, deliveries: 0, scheduled: 0 });
               });
           }
