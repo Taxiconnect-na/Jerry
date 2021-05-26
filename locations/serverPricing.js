@@ -531,9 +531,8 @@ function manageAutoCompleteDestinationLocations(
                       ? destinationLocations.city.trim().toLowerCase()
                       : destinationLocations.city);
                   //Check if redis already have key record
-                  redisCluster.setex(
+                  redisCluster.set(
                     redisKey,
-                    process.env.REDIS_EXPIRATION_5MIN * 6,
                     JSON.stringify({
                       location_name: destinationLocations.location_name,
                       street_name: destinationLocations.street_name,
@@ -844,7 +843,7 @@ function execMongoSearchAutoComplete(
                   passenger_number_id:
                     locationInfos.passenger_number_id !== undefined &&
                     locationInfos.passenger_number_id !== null
-                      ? passenger_number_id
+                      ? locationInfos.passenger_number_id
                       : 1,
                   suburb: body.address.suburb,
                   state: body.address.state,
@@ -1000,7 +999,7 @@ function execMongoSearchAutoComplete(
                     passenger_number_id:
                       locationInfos.passenger_number_id !== undefined &&
                       locationInfos.passenger_number_id !== null
-                        ? passenger_number_id
+                        ? locationInfos.passenger_number_id
                         : 1,
                     suburb: body.address.suburb,
                     state: body.address.state,
