@@ -1,4 +1,4 @@
-FROM node:slim
+FROM node:latest
 
 ADD . /app/
 WORKDIR /app
@@ -11,7 +11,7 @@ RUN mv .env_live .env
 RUN npm install yarn -g --force
 RUN yarn global add pm2
 RUN pm2 install pm2-logrotate
-RUN pm2 install @easynvest/pm2-logstash
+#RUN pm2 install @easynvest/pm2-logstash
 RUN pm2 set pm2-logrotate:max_size 50Mb
 #RUN pm2 set @easynvest/pm2-logstash:logstash_host 'taxiconnectna.com'
 #RUN pm2 set @easynvest/pm2-logstash:logstash_port 9994
