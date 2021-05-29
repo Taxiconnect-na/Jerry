@@ -1,27 +1,24 @@
 require("dotenv").config();
-//console.log = function () {};
 var express = require("express");
 const http = require("http");
-const fs = require("fs");
-const geolocationUtlis = require("geolocation-utils");
-const taxiRanksDb = JSON.parse(fs.readFileSync("taxiRanks_points.txt", "utf8"));
-const path = require("path");
 const MongoClient = require("mongodb").MongoClient;
+
+const { logger } = require("./LogService");
 
 var app = express();
 var server = http.createServer(app);
-const io = require("socket.io")(server);
-const mysql = require("mysql");
 const requestAPI = require("request");
 const crypto = require("crypto");
 //....
-const { promisify, inspect } = require("util");
+const { promisify } = require("util");
 const urlParser = require("url");
 const redis = require("redis");
-const client = redis.createClient({
-  host: process.env.REDIS_HOST,
-  port: process.env.REDIS_PORT,
-});
+const client = /production/i.test(String(process.env.EVIRONMENT))
+  ? null
+  : redis.createClient({
+      host: process.env.REDIS_HOST,
+      port: process.env.REDIS_PORT,
+    });
 var RedisClustr = require("redis-clustr");
 var redisCluster = /production/i.test(String(process.env.EVIRONMENT))
   ? new RedisClustr({
@@ -42,11 +39,11 @@ const redisGet = promisify(redisCluster.get).bind(redisCluster);
 var chaineDateUTC = null;
 var dateObject = null;
 const moment = require("moment");
-const e = require("express");
 const { stringify, parse } = require("flatted");
 
 const clientMongo = new MongoClient(process.env.URL_MONGODB, {
   useUnifiedTopology: true,
+  useNewUrlParser: true,
 });
 
 function resolveDate() {
@@ -94,13 +91,13 @@ function SendSMSTo(phone_number, message) {
   };
 
   let req = https.request(options, (resp) => {
-    console.log("statusCode:", resp.statusCode);
+    logger.info("statusCode:", resp.statusCode);
     let data = "";
     resp.on("data", (chunk) => {
       data += chunk;
     });
     resp.on("end", () => {
-      console.log("Response:", data);
+      logger.info("Response:", data);
     });
   });
 
@@ -116,8 +113,8 @@ function SendSMSTo(phone_number, message) {
  * Responsible for sending push notification to devices
  */
 var sendPushUPNotification = function (data) {
-  console.log("Notify data");
-  console.log(data);
+  logger.info("Notify data");
+  logger.info(data);
   var headers = {
     "Content-Type": "application/json; charset=utf-8",
   };
@@ -133,7 +130,7 @@ var sendPushUPNotification = function (data) {
   var https = require("https");
   var req = https.request(options, function (res) {
     res.on("data", function (data) {
-      //console.log("Response:");
+      //logger.info("Response:");
     });
   });
 
@@ -187,8 +184,8 @@ function generateUniqueFingerprint(str, encryption = false, resolve) {
  */
 function parseRequestData(inputData, resolve) {
   resolveDate();
-  console.log("INITIAL RECEIVED REQUEST");
-  //console.log("REQUEST DATA -> ", inputData);
+  logger.info("INITIAL RECEIVED REQUEST");
+  //logger.info("REQUEST DATA -> ", inputData);
   //! CHECK FOR A POTENTIAL CACHED VALUE FOR recoveredd data (from mysql)
   redisGet(
     `${
@@ -235,7 +232,7 @@ function parseRequestData(inputData, resolve) {
                   : result; //Update with the fingerprint;
             },
             (error) => {
-              console.log(error);
+              logger.info(error);
               parsedData.request_fp =
                 parsedData.user_fingerprint + dateObject.unix(); //Make a fingerprint out of the timestamp
             }
@@ -914,7 +911,7 @@ function parseRequestData(inputData, resolve) {
                                 },
                               },
                               function (error, response, body) {
-                                console.log("here", body);
+                                logger.info("here", body);
                                 if (error === null) {
                                   try {
                                     body = JSON.parse(body);
@@ -969,17 +966,17 @@ function parseRequestData(inputData, resolve) {
                                             resolve(parsedData);
                                           },
                                           (error) => {
-                                            console.log(error);
+                                            logger.info(error);
                                             resolve(parsedData);
                                           }
                                         )
                                         .catch((error) => {
-                                          console.log(error);
+                                          logger.info(error);
                                           resolve(parsedData);
                                         });
                                     }
                                   } catch (error) {
-                                    console.log(error);
+                                    logger.info(error);
                                     resolve(false);
                                   }
                                 } else {
@@ -989,7 +986,7 @@ function parseRequestData(inputData, resolve) {
                             );
                           },
                           (error) => {
-                            console.log(error);
+                            logger.info(error);
                             resolve(false);
                           }
                         );
@@ -1042,11 +1039,11 @@ function intitiateStagedDispatch(
     );
   }).then(
     (result) => {
-      console.log(result);
+      logger.info(result);
       resolve(result);
     },
     (error) => {
-      console.log(error);
+      logger.info(error);
       resolve(false);
     }
   );*/
@@ -1070,7 +1067,7 @@ function intitiateStagedDispatch(
     snapshotTripInfos.country +
     "&list_limit=all";
   requestAPI(url, function (error, response, body) {
-    console.log(body);
+    logger.info(body);
     try {
       body = JSON.parse(body);
       if (body.response !== undefined) {
@@ -1085,11 +1082,11 @@ function intitiateStagedDispatch(
           );
         }).then(
           (result) => {
-            console.log(result);
+            logger.info(result);
             resolve(result);
           },
           (error) => {
-            console.log(error);
+            logger.info(error);
             resolve(false);
           }
         );
@@ -1105,17 +1102,17 @@ function intitiateStagedDispatch(
           );
         }).then(
           (result) => {
-            console.log(result);
+            logger.info(result);
             resolve(result);
           },
           (error) => {
-            console.log(error);
+            logger.info(error);
             resolve(false);
           }
         );
       }
     } catch (error) {
-      console.log(error);
+      logger.info(error);
       //Error getting the list of closest drivers - send to all the drivers
       new Promise((res) => {
         sendStagedNotificationsDrivers(
@@ -1127,11 +1124,11 @@ function intitiateStagedDispatch(
         );
       }).then(
         (result) => {
-          console.log(result);
+          logger.info(result);
           resolve(result);
         },
         (error) => {
-          console.log(error);
+          logger.info(error);
           resolve(false);
         }
       );
@@ -1404,7 +1401,7 @@ function sendStagedNotificationsDrivers(
         });
     } //Staged send
     else {
-      console.log("Staged send");
+      logger.info("Staged send");
       //...Register the drivers fp so that they can see tne requests
       let driversFp = closestDriversList.map((data) => data.driver_fingerprint); //Drivers fingerprints
       let driversPushNotif_token = closestDriversList.map(
@@ -1413,7 +1410,7 @@ function sendStagedNotificationsDrivers(
 
       new Promise((res) => {
         //Answer
-        console.log(
+        logger.info(
           "[1] Closest drivers ---ticket: " + snapshotTripInfos.request_fp
         );
         new Promise((res5) => {
@@ -1432,12 +1429,12 @@ function sendStagedNotificationsDrivers(
               resolve({ response: "successfully_dispatched" });
               //Proceed with the staged dispatch
               //1. Wait for 1 min 00'' - in ms
-              console.log(
+              logger.info(
                 "Waiting for 35sec. ---ticket: " + snapshotTripInfos.request_fp
               );
               setTimeout(() => {
                 new Promise((res2) => {
-                  console.log(
+                  logger.info(
                     "[2] Less closest after 30sec. ---ticket: " +
                       snapshotTripInfos.request_fp
                   );
@@ -1462,7 +1459,7 @@ function sendStagedNotificationsDrivers(
                         res2(true); //Conclude promise 2
                       } //End the staged dispatch - done
                       else {
-                        console.log(
+                        logger.info(
                           "DONE STAGED DISPATCH  ---ticket: " +
                             snapshotTripInfos.request_fp
                         );
@@ -1470,7 +1467,7 @@ function sendStagedNotificationsDrivers(
                       }
                     },
                     (error) => {
-                      console.log(
+                      logger.info(
                         "DONE STAGED DISPATCH  ---ticket: " +
                           snapshotTripInfos.request_fp
                       );
@@ -1482,13 +1479,13 @@ function sendStagedNotificationsDrivers(
                   .then()
                   .finally(() => {
                     //2. Wait for 30 sec
-                    console.log(
+                    logger.info(
                       "Waiting for 30sec ---ticket: " +
                         snapshotTripInfos.request_fp
                     );
                     setTimeout(() => {
                       new Promise((res3) => {
-                        console.log(
+                        logger.info(
                           "[3] Less*2 closest after 30sec. ---ticket: " +
                             snapshotTripInfos.request_fp
                         );
@@ -1516,7 +1513,7 @@ function sendStagedNotificationsDrivers(
                               res3(true); //Conclude promise 3
                             } //End the staged dispatch - done
                             else {
-                              console.log(
+                              logger.info(
                                 "DONE STAGED DISPATCH  ---ticket: " +
                                   snapshotTripInfos.request_fp
                               );
@@ -1524,7 +1521,7 @@ function sendStagedNotificationsDrivers(
                             }
                           },
                           (error) => {
-                            console.log(
+                            logger.info(
                               "DONE STAGED DISPATCH  ---ticket: " +
                                 snapshotTripInfos.request_fp
                             );
@@ -1536,13 +1533,13 @@ function sendStagedNotificationsDrivers(
                         .then()
                         .finally(() => {
                           //3. Wait for 1 min
-                          console.log(
+                          logger.info(
                             "Waiting for 30sec ---ticket: " +
                               snapshotTripInfos.request_fp
                           );
                           setTimeout(() => {
                             new Promise((res4) => {
-                              console.log(
+                              logger.info(
                                 "[4] Less*3 closest after 30sec. ---ticket: " +
                                   snapshotTripInfos.request_fp
                               );
@@ -1570,7 +1567,7 @@ function sendStagedNotificationsDrivers(
                                     res4(true); //Conclude promise 4
                                   } //End the staged dispatch - done
                                   else {
-                                    console.log(
+                                    logger.info(
                                       "DONE STAGED DISPATCH  ---ticket: " +
                                         snapshotTripInfos.request_fp
                                     );
@@ -1580,7 +1577,7 @@ function sendStagedNotificationsDrivers(
                                   }
                                 },
                                 (error) => {
-                                  console.log(
+                                  logger.info(
                                     "DONE STAGED DISPATCH  ---ticket: " +
                                       snapshotTripInfos.request_fp
                                   );
@@ -1593,7 +1590,7 @@ function sendStagedNotificationsDrivers(
                             })
                               .then()
                               .finally(() => {
-                                console.log(
+                                logger.info(
                                   "DONE STAGED DISPATCH  ---ticket: " +
                                     snapshotTripInfos.request_fp
                                 );
@@ -1700,7 +1697,7 @@ function registerAllowedDriversForRidesAndNotify(
           checkAcceptance,
           updatedAllowedSee,
           function (err, reslt) {
-            console.log(err);
+            logger.info(err);
             //Send notifications to the newly registered drivers to the allowed_drivers_see
             //Send the push notifications
             let message = {
@@ -1764,7 +1761,7 @@ function registerAllowedDriversForRidesAndNotify(
               content_available: true,
               include_player_ids: driversSnap.pushNotif_tokens,
             };
-            console.log(message);
+            logger.info(message);
             //Send
             sendPushUPNotification(message);
             //...
@@ -2046,7 +2043,7 @@ function acceptRequest_driver(
     })
     .toArray(function (err, result) {
       if (err) {
-        console.log(err);
+        logger.info(err);
         resolve({ response: "unable_to_accept_request_error" });
       }
       //...
@@ -2070,7 +2067,7 @@ function acceptRequest_driver(
           .find({ driver_fingerprint: bundleWorkingData.driver_fingerprint })
           .toArray(function (err, driverData) {
             if (err) {
-              console.log(err);
+              logger.info(err);
               resolve({ response: "unable_to_accept_request_error" });
             }
             //...
@@ -2097,7 +2094,7 @@ function acceptRequest_driver(
                 },
                 function (err, res) {
                   if (err) {
-                    console.log(err);
+                    logger.info(err);
                     resolve({ response: "unable_to_accept_request_error" });
                   }
                   //?Notify the cllient
@@ -2217,7 +2214,7 @@ function acceptRequest_driver(
                       () => {}
                     )
                     .catch((error) => {
-                      console.log(error);
+                      logger.info(error);
                     });
 
                   //DONE
@@ -2444,7 +2441,7 @@ function cancelRequest_driver(
                 () => {}
               )
               .catch((error) => {
-                console.log(error);
+                logger.info(error);
               });
             //DONE
             resolve({ response: "successfully_cancelled" });
@@ -2735,7 +2732,7 @@ function confirmDropoffRequest_driver(
                 () => {}
               )
               .catch((error) => {
-                console.log(error);
+                logger.info(error);
               });
             //DONE
             resolve({ response: "successfully_confirmed_dropoff" });
@@ -2774,7 +2771,7 @@ function INIT_RIDE_DELIVERY_DISPATCH_ENTRY(
     .find(checkPrevRequest)
     .toArray(function (err, prevRequest) {
       if (err) {
-        console.log(err);
+        logger.info(err);
         resolve({ response: "Unable_to_make_the_request" });
       }
       //....
@@ -2788,7 +2785,7 @@ function INIT_RIDE_DELIVERY_DISPATCH_ENTRY(
           parsedReqest_data,
           function (err, requestDt) {
             if (err) {
-              console.log(err);
+              logger.info(err);
               resolve({ response: "Unable_to_make_the_request" });
             }
 
@@ -2820,10 +2817,10 @@ function INIT_RIDE_DELIVERY_DISPATCH_ENTRY(
               );
             }).then(
               (result) => {
-                console.log(result);
+                logger.info(result);
               },
               (error) => {
-                console.log(error);
+                logger.info(error);
               }
             );
             //..Success - respond to the user
@@ -2832,7 +2829,7 @@ function INIT_RIDE_DELIVERY_DISPATCH_ENTRY(
         );
       } //Already have a request
       else {
-        console.log("ALEADY HAS A REQUEST");
+        logger.info("ALEADY HAS A REQUEST");
         resolve({ response: "already_have_a_pending_request" });
       }
     });
@@ -2922,7 +2919,7 @@ function getRequests_graphPreview_forDrivers(
                   scheduled: 0,
                 });
               }
-              console.log(filteredRequests);
+              logger.info(filteredRequests);
               //...
               if (filteredRequests.length > 0) {
                 //? Auto segregate rides, deliveries and scheduled rides
@@ -2953,7 +2950,7 @@ function getRequests_graphPreview_forDrivers(
                       resolve(requestsGraph);
                     },
                     (error) => {
-                      console.log(error);
+                      logger.info(error);
                       resolve({
                         rides: 0,
                         deliveries: 0,
@@ -2962,7 +2959,7 @@ function getRequests_graphPreview_forDrivers(
                     }
                   )
                   .catch((error) => {
-                    console.log(error);
+                    logger.info(error);
                     resolve({
                       rides: 0,
                       deliveries: 0,
@@ -2979,7 +2976,7 @@ function getRequests_graphPreview_forDrivers(
               }
             });
         } catch (error) {
-          console.log(error);
+          logger.info(error);
           resolve({
             rides: 0,
             deliveries: 0,
@@ -3009,10 +3006,10 @@ function diff_hours(dt1, dt2) {
  * MAIN
  */
 redisCluster.on("connect", function () {
-  console.log("[*] Redis connected");
+  logger.info("[*] Redis connected");
   clientMongo.connect(function (err) {
     //if (err) throw err;
-    console.log("[+] Dispatch services active.");
+    logger.info("[+] Dispatch services active.");
     const dbMongo = clientMongo.db(process.env.DB_NAME_MONGODDB);
     const collectionPassengers_profiles = dbMongo.collection(
       "passengers_profiles"
@@ -3133,12 +3130,12 @@ redisCluster.on("connect", function () {
               res.send(result);
             },
             (error) => {
-              console.log(error);
+              logger.info(error);
               res.send({ message: "Error parsing data", flag: error });
             }
           )
           .catch((error) => {
-            console.log(error);
+            logger.info(error);
             res.send({ message: "Error parsing data", flag: error });
           });
       } //No valid data received
@@ -3164,7 +3161,7 @@ redisCluster.on("connect", function () {
             (resp) => {
               if (resp !== null) {
                 try {
-                  console.log("cached resullts found!");
+                  logger.info("cached resullts found!");
                   //? Rehyddrate the cached results
                   new Promise((res0) => {
                     getRequests_graphPreview_forDrivers(
@@ -3183,7 +3180,7 @@ redisCluster.on("connect", function () {
                         );
                       },
                       (error) => {
-                        console.log(error);
+                        logger.info(error);
                         redisCluster.setex(
                           redisKey,
                           process.env.REDIS_EXPIRATION_5MIN * 6,
@@ -3192,7 +3189,7 @@ redisCluster.on("connect", function () {
                       }
                     )
                     .catch((error) => {
-                      console.log(error);
+                      logger.info(error);
                       redisCluster.setex(
                         redisKey,
                         process.env.REDIS_EXPIRATION_5MIN * 6,
@@ -3204,7 +3201,7 @@ redisCluster.on("connect", function () {
                   //...Return the cached results quickly
                   resMAIN(resp);
                 } catch (error) {
-                  console.log(error);
+                  logger.info(error);
                   new Promise((res0) => {
                     getRequests_graphPreview_forDrivers(
                       req.driver_fingerprint,
@@ -3223,7 +3220,7 @@ redisCluster.on("connect", function () {
                         resMAIN(result);
                       },
                       (error) => {
-                        console.log(error);
+                        logger.info(error);
                         redisCluster.setex(
                           redisKey,
                           process.env.REDIS_EXPIRATION_5MIN * 6,
@@ -3233,7 +3230,7 @@ redisCluster.on("connect", function () {
                       }
                     )
                     .catch((error) => {
-                      console.log(error);
+                      logger.info(error);
                       redisCluster.setex(
                         redisKey,
                         process.env.REDIS_EXPIRATION_5MIN * 6,
@@ -3262,7 +3259,7 @@ redisCluster.on("connect", function () {
                       resMAIN(result);
                     },
                     (error) => {
-                      console.log(error);
+                      logger.info(error);
                       redisCluster.setex(
                         redisKey,
                         process.env.REDIS_EXPIRATION_5MIN * 6,
@@ -3272,7 +3269,7 @@ redisCluster.on("connect", function () {
                     }
                   )
                   .catch((error) => {
-                    console.log(error);
+                    logger.info(error);
                     redisCluster.setex(
                       redisKey,
                       process.env.REDIS_EXPIRATION_5MIN * 6,
@@ -3283,7 +3280,7 @@ redisCluster.on("connect", function () {
               }
             },
             (error) => {
-              console.log(error);
+              logger.info(error);
               new Promise((res0) => {
                 getRequests_graphPreview_forDrivers(
                   req.driver_fingerprint,
@@ -3302,7 +3299,7 @@ redisCluster.on("connect", function () {
                     resMAIN(result);
                   },
                   (error) => {
-                    console.log(error);
+                    logger.info(error);
                     redisCluster.setex(
                       redisKey,
                       process.env.REDIS_EXPIRATION_5MIN * 6,
@@ -3312,7 +3309,7 @@ redisCluster.on("connect", function () {
                   }
                 )
                 .catch((error) => {
-                  console.log(error);
+                  logger.info(error);
                   redisCluster.setex(
                     redisKey,
                     process.env.REDIS_EXPIRATION_5MIN * 6,
@@ -3331,7 +3328,7 @@ redisCluster.on("connect", function () {
           res.send(result);
         })
         .catch((error) => {
-          console.log(error);
+          logger.info(error);
           resMAIN({ rides: 0, deliveries: 0, scheduled: 0 });
         });
     });
@@ -3356,7 +3353,7 @@ redisCluster.on("connect", function () {
           res.send(resultDispatch);
         },
         (error) => {
-          console.log(error);
+          logger.info(error);
           res.send({
             response: "Unable_to_redispatch_the_request",
           });
@@ -3373,7 +3370,7 @@ redisCluster.on("connect", function () {
       try {
         return `${stringData[0].toUpperCase()}${stringData.substr(1).toLowerCase()}`;
       } catch (error) {
-        console.log(error);
+        logger.info(error);
         return stringData;
       }
     }
@@ -3499,7 +3496,7 @@ redisCluster.on("connect", function () {
                           try {
                             body = JSON.parse(body);
                             if (body.total !== undefined) {
-                              console.log(
+                              logger.info(
                                 parseFloat(result.fare),
                                 parseFloat(body.total)
                               );
@@ -3508,7 +3505,7 @@ redisCluster.on("connect", function () {
                                 parseFloat(body.total)
                               ) {
                                 //? HAS ENOUGH MONEY IN THE WALLET
-                                console.log("Has enough funds in the wallet");
+                                logger.info("Has enough funds in the wallet");
                                 new Promise((resInit) => {
                                   INIT_RIDE_DELIVERY_DISPATCH_ENTRY(
                                     result,
@@ -3651,7 +3648,7 @@ redisCluster.on("connect", function () {
                                     res.send(resultDispatch);
                                   },
                                   (error) => {
-                                    console.log(error);
+                                    logger.info(error);
                                     res.send({
                                       response: "Unable_to_make_the_request",
                                     });
@@ -3659,7 +3656,7 @@ redisCluster.on("connect", function () {
                                 );
                               } //Not enough money in the wallet
                               else {
-                                console.log(
+                                logger.info(
                                   "Has NOT enough funds in the wallet"
                                 );
                                 res.send({
@@ -3675,7 +3672,7 @@ redisCluster.on("connect", function () {
                               });
                             }
                           } catch (error) {
-                            console.log(error);
+                            logger.info(error);
                             res.send({
                               response:
                                 "Unable_to_make_the_request_error_wallet_check",
@@ -3703,7 +3700,7 @@ redisCluster.on("connect", function () {
                           res.send(resultDispatch);
                         },
                         (error) => {
-                          console.log(error);
+                          logger.info(error);
                           res.send({ response: "Unable_to_make_the_request" });
                         }
                       );
@@ -3714,7 +3711,7 @@ redisCluster.on("connect", function () {
                   }
                 },
                 (error) => {
-                  console.log(error);
+                  logger.info(error);
                   res.send({ response: "Unable_to_make_the_request" });
                 }
               );
@@ -3735,7 +3732,7 @@ redisCluster.on("connect", function () {
      */
     app.post("/confirmRiderDropoff_requests", function (req, res) {
       req = req.body;
-      console.log(req);
+      logger.info(req);
       //TEST data
       /*req = {
       user_fingerprint:
@@ -3777,7 +3774,7 @@ redisCluster.on("connect", function () {
             res.send(result);
           },
           (error) => {
-            console.log(error);
+            logger.info(error);
             res.send({ response: "error" });
           }
         );
@@ -3790,7 +3787,7 @@ redisCluster.on("connect", function () {
      */
     app.post("/cancelRiders_request", function (req, res) {
       req = req.body;
-      console.log(req);
+      logger.info(req);
 
       //Do basic checking
       if (
@@ -3817,7 +3814,7 @@ redisCluster.on("connect", function () {
             res.send(result);
           },
           (error) => {
-            console.log(error);
+            logger.info(error);
             res.send({ response: "error_cancelling" });
           }
         );
@@ -3833,7 +3830,7 @@ redisCluster.on("connect", function () {
      */
     app.post("/decline_request", function (req, res) {
       req = req.body;
-      console.log(req);
+      logger.info(req);
 
       //Do basic checking
       if (
@@ -3855,7 +3852,7 @@ redisCluster.on("connect", function () {
             res.send(result);
           },
           (error) => {
-            console.log(error);
+            logger.info(error);
             res.send({ response: "unable_to_decline_request_error" });
           }
         );
@@ -3869,7 +3866,7 @@ redisCluster.on("connect", function () {
     app.post("/accept_request", function (req, res) {
       //...
       req = req.body;
-      console.log(req);
+      logger.info(req);
 
       //Do basic checking
       if (
@@ -3893,7 +3890,7 @@ redisCluster.on("connect", function () {
             res.send(result);
           },
           (error) => {
-            console.log(error);
+            logger.info(error);
             res.send({ response: "unable_to_accept_request_error" });
           }
         );
@@ -3914,7 +3911,7 @@ redisCluster.on("connect", function () {
     };*/
       //...
       req = req.body;
-      console.log(req);
+      logger.info(req);
 
       //Do basic checking
       if (
@@ -3937,7 +3934,7 @@ redisCluster.on("connect", function () {
             res.send(result);
           },
           (error) => {
-            console.log(error);
+            logger.info(error);
             res.send({ response: "unable_to_cancel_request_error" });
           }
         );
@@ -3958,7 +3955,7 @@ redisCluster.on("connect", function () {
     };*/
       //...
       req = req.body;
-      console.log(req);
+      logger.info(req);
 
       //Do basic checking
       if (
@@ -3980,7 +3977,7 @@ redisCluster.on("connect", function () {
             res.send(result);
           },
           (error) => {
-            console.log(error);
+            logger.info(error);
             res.send({ response: "unable_to_confirm_pickup_request_error" });
           }
         );
@@ -4001,7 +3998,7 @@ redisCluster.on("connect", function () {
     };*/
       //...
       req = req.body;
-      console.log(req);
+      logger.info(req);
 
       //Do basic checking
       if (
@@ -4024,7 +4021,7 @@ redisCluster.on("connect", function () {
             res.send(result);
           },
           (error) => {
-            console.log(error);
+            logger.info(error);
             res.send({ response: "unable_to_confirm_dropoff_request_error" });
           }
         );

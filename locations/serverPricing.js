@@ -1,27 +1,24 @@
 require("dotenv").config();
-//console.log = function () {};
 //var dash = require("appmetrics-dash");
 var express = require("express");
 const http = require("http");
-const fs = require("fs");
-const geolocationUtlis = require("geolocation-utils");
-const taxiRanksDb = JSON.parse(fs.readFileSync("taxiRanks_points.txt", "utf8"));
-const path = require("path");
 const MongoClient = require("mongodb").MongoClient;
+
+const { logger } = require("./LogService");
 
 var app = express();
 var server = http.createServer(app);
-const io = require("socket.io")(server);
 const requestAPI = require("request");
 //....
-var fastFilter = require("fast-filter");
-const { promisify, inspect } = require("util");
+const { promisify } = require("util");
 const urlParser = require("url");
 const redis = require("redis");
-const client = redis.createClient({
-  host: process.env.REDIS_HOST,
-  port: process.env.REDIS_PORT,
-});
+const client = /production/i.test(String(process.env.EVIRONMENT))
+  ? null
+  : redis.createClient({
+      host: process.env.REDIS_HOST,
+      port: process.env.REDIS_PORT,
+    });
 var RedisClustr = require("redis-clustr");
 var redisCluster = /production/i.test(String(process.env.EVIRONMENT))
   ? new RedisClustr({
@@ -45,6 +42,7 @@ const moment = require("moment");
 
 const clientMongo = new MongoClient(process.env.URL_MONGODB, {
   useUnifiedTopology: true,
+  useNewUrlParser: true,
 });
 
 function resolveDate() {
@@ -202,13 +200,13 @@ function autocompleteInputData(
       if (resp !== null && resp !== undefined) {
         //Found a record
         resp = JSON.parse(resp);
-        console.log("Found something in the cache");
+        logger.info("Found something in the cache");
         //Check if there's our concerned record for the pickup location
         let focusedRecord = resp;
         //Check for wanted record
         if (focusedRecord !== false) {
           //Found something
-          console.log("Found a wanted cached record.");
+          logger.info("Found a wanted cached record.");
           inputData.pickup_location_infos.suburb = focusedRecord.suburb; //Update main object
           inputData.pickup_location_infos.state = focusedRecord.state;
           pickupInfos = inputData.pickup_location_infos.state; //Update shortcut var
@@ -222,7 +220,7 @@ function autocompleteInputData(
             );
           }).then(
             (result) => {
-              console.log("HERRRREE -- > ", result);
+              logger.info("HERRRREE -- > ", result);
               if (result !== false) {
                 inputData.destination_location_infos = result; //Update main object
                 destinationInfos = result; //Update shortcut object
@@ -234,7 +232,7 @@ function autocompleteInputData(
               }
             },
             (error) => {
-              console.log(error);
+              logger.info(error);
               resolve(false);
             }
           );
@@ -253,7 +251,7 @@ function autocompleteInputData(
                 inputData.pickup_location_infos.state = result.state;
                 pickupInfos = inputData.pickup_location_infos; //Update shortcut var
                 //...Done auto complete destination locations
-                //console.log(result);
+                //logger.info(result);
                 new Promise((res) => {
                   manageAutoCompleteDestinationLocations(
                     res,
@@ -274,7 +272,7 @@ function autocompleteInputData(
                     }
                   },
                   (error) => {
-                    console.log(error);
+                    logger.info(error);
                     resolve(false);
                   }
                 );
@@ -288,7 +286,7 @@ function autocompleteInputData(
       } //No records - do a fresh search
       else {
         //No cached result, do a mongo search
-        console.log("[No cache] No cached data, do mongo search");
+        logger.info("[No cache] No cached data, do mongo search");
         new Promise((res) => {
           doMongoSearchForAutocompletedSuburbs(
             res,
@@ -311,7 +309,7 @@ function autocompleteInputData(
                 );
               }).then(
                 (result) => {
-                  console.log("HERRRREE -- > ", result);
+                  logger.info("HERRRREE -- > ", result);
                   if (result !== false) {
                     inputData.destination_location_infos = result; //Update main object
                     destinationInfos = result; //Update shortcut object
@@ -323,7 +321,7 @@ function autocompleteInputData(
                   }
                 },
                 (error) => {
-                  console.log(error);
+                  logger.info(error);
                   resolve(false);
                 }
               );
@@ -337,7 +335,7 @@ function autocompleteInputData(
     },
     (error) => {
       //No cached result, do a mongo search
-      console.log("Error, No cached data, do mongo search");
+      logger.info("Error, No cached data, do mongo search");
       new Promise((res) => {
         doMongoSearchForAutocompletedSuburbs(
           res,
@@ -371,7 +369,7 @@ function autocompleteInputData(
                 }
               },
               (error) => {
-                console.log(error);
+                logger.info(error);
                 resolve(false);
               }
             );
@@ -402,7 +400,7 @@ function manageAutoCompleteDestinationLocations(
   user_fingerprint,
   collectionSavedSuburbResults
 ) {
-  console.log("AUTO COMPLETE DESTINATION DATA");
+  logger.info("AUTO COMPLETE DESTINATION DATA");
   let promiseParent = destinationLocations.map((destination) => {
     return new Promise((res) => {
       //! Swap latitude and longitude (cause they were reversed)- MAJOR FIX! --IS IT???
@@ -437,7 +435,7 @@ function manageAutoCompleteDestinationLocations(
   });
   Promise.all(promiseParent).then(
     (result) => {
-      console.log(result);
+      logger.info(result);
       if (result !== false) {
         //Update the input data
         destinationLocations.map((prevLocation, index) => {
@@ -477,7 +475,7 @@ function manageAutoCompleteDestinationLocations(
               "&user_fingerprint=" +
               user_fingerprint;
             requestAPI(url, function (error, response, body) {
-              console.log(body);
+              logger.info(body);
               if (error === null) {
                 try {
                   body = JSON.parse(body);
@@ -553,7 +551,7 @@ function manageAutoCompleteDestinationLocations(
           },
           (error) => {
             //Default all the location types to Private location
-            console.log(error);
+            logger.info(error);
             destinationLocations.map((location, index) => {
               destinationLocations[index].dropoff_type = "PrivateLocation";
             });
@@ -568,7 +566,7 @@ function manageAutoCompleteDestinationLocations(
       }
     },
     (error) => {
-      console.log(error);
+      logger.info(error);
       destinationLocations.map((location, index) => {
         destinationLocations[index].dropoff_type = "PrivateLocation";
       });
@@ -634,7 +632,7 @@ function doMongoSearchForAutocompletedSuburbs(
             (result) => {},
             (error) => {}
           );
-          console.log("FOUND REDIS RECORD OF SUBURB!");
+          logger.info("FOUND REDIS RECORD OF SUBURB!");
           resp = JSON.parse(resp);
           resp["passenger_number_id"] =
             locationInfos.passenger_number_id !== undefined &&
@@ -677,14 +675,14 @@ function doMongoSearchForAutocompletedSuburbs(
             resolve(result);
           },
           (error) => {
-            console.log(error);
+            logger.info(error);
             resolve(false);
           }
         );
       }
     },
     (error) => {
-      console.log(error);
+      logger.info(error);
       //Error -get from mongodb
       new Promise((res) => {
         execMongoSearchAutoComplete(
@@ -761,7 +759,7 @@ function execMongoSearchAutoComplete(
                 body.address.suburb !== undefined
               ) {
                 //? Update the previous record
-                console.log("fresh search done!");
+                logger.info("fresh search done!");
                 new Promise((res1) => {
                   //Save result in MongoDB
                   let newRecord = {
@@ -791,7 +789,7 @@ function execMongoSearchAutoComplete(
                     findPrevQuery,
                     newRecord,
                     function (err, reslt) {
-                      console.log("Updated prev record in mongo");
+                      logger.info("Updated prev record in mongo");
                       res1(true);
                     }
                   );
@@ -833,7 +831,7 @@ function execMongoSearchAutoComplete(
                 }).then(
                   () => {},
                   (error) => {
-                    console.log(error);
+                    logger.info(error);
                   }
                 );
                 //..respond - complete the input data
@@ -872,13 +870,13 @@ function execMongoSearchAutoComplete(
               resolve(false);
             }
           } catch (error) {
-            console.log(error);
+            logger.info(error);
             resolve(false);
           }
         });
       } //Do a fresh search
       else {
-        console.log(
+        logger.info(
           "PERFORM FRESH GEOCODINGR -->",
           locationInfos.coordinates.latitude,
           ",",
@@ -893,7 +891,7 @@ function execMongoSearchAutoComplete(
           "&zoom=18&addressdetails=1&extratags=1&namedetails=1";
         requestAPI(url, function (err, response, body) {
           try {
-            console.log(body);
+            logger.info(body);
             //Get only the state and suburb infos
             body = JSON.parse(body);
             if (body.address !== undefined && body.address !== null) {
@@ -902,7 +900,7 @@ function execMongoSearchAutoComplete(
                 body.address.suburb !== undefined
               ) {
                 //! PICKUP LOCATION REINFORCEMENTS
-                console.log("fresh search done! - MAKE NEW");
+                logger.info("fresh search done! - MAKE NEW");
                 try {
                   new Promise((res1) => {
                     //Save result in MongoDB
@@ -930,7 +928,7 @@ function execMongoSearchAutoComplete(
                     collectionSavedSuburbResults.insertOne(
                       newRecord,
                       function (err, reslt) {
-                        console.log("Saved new record in mongo");
+                        logger.info("Saved new record in mongo");
                         res1(true);
                       }
                     );
@@ -972,7 +970,7 @@ function execMongoSearchAutoComplete(
                   }).then(
                     () => {},
                     (error) => {
-                      console.log(error);
+                      logger.info(error);
                     }
                   );
                   //..respond - complete the input data
@@ -1031,7 +1029,7 @@ function execMongoSearchAutoComplete(
               resolve(false);
             }
           } catch (error) {
-            console.log(error);
+            logger.info(error);
             resolve(false);
           }
         });
@@ -1089,7 +1087,7 @@ function estimateFullVehiclesCatPrices(
       .find(filterQuery)
       .collation({ locale: "en", strength: 2 })
       .toArray(function (err, result) {
-        console.log(err);
+        logger.info(err);
         if (result !== undefined && result.length > 0) {
           //Found something
           let genericRidesInfos = result;
@@ -1140,7 +1138,7 @@ function estimateFullVehiclesCatPrices(
                           collectionNotFoundSubursPricesMap.insertOne(
                             queryNoMatch,
                             function (err, res) {
-                              console.log("New record added");
+                              logger.info("New record added");
                               resX(true);
                             }
                           );
@@ -1181,13 +1179,13 @@ function estimateFullVehiclesCatPrices(
                   }
                 },
                 (error) => {
-                  console.log(error);
+                  logger.info(error);
                   resolve(false);
                 }
               );
             },
             (error) => {
-              console.log(error);
+              logger.info(error);
               resolve(false);
             }
           );
@@ -1198,7 +1196,7 @@ function estimateFullVehiclesCatPrices(
       });
   } //Invalid data
   else {
-    console.log("Invalid data");
+    logger.info("Invalid data");
     resolve(false);
   }
 }
@@ -1221,7 +1219,7 @@ function computeInDepthPricesMap(
   collectionNotFoundSubursPricesMap
 ) {
   resolveDate();
-  console.log("compute in depth called");
+  logger.info("compute in depth called");
   //ESTABLISH IMPORTANT PRICING VARIABLES
   let connectType = completedInputData.connect_type;
   let pickup_suburb = completedInputData.pickup_location_infos.suburb;
@@ -1254,8 +1252,8 @@ function computeInDepthPricesMap(
     }
   }).then(
     (reslt) => {
-      console.log("Pricing variables summary");
-      console.log(headerPrice, timeDayMultiplier, passengersMultiplier);
+      logger.info("Pricing variables summary");
+      logger.info(headerPrice, timeDayMultiplier, passengersMultiplier);
       //Find all the suburb based prices - applies very well to Windhoek
       genericRidesInfos.map((vehicle, index) => {
         let basePrice = 0; //Will contain the base price after going through all the destinations
@@ -1426,17 +1424,17 @@ function computeInDepthPricesMap(
                         didFindRegisteredSuburbs = true; //Found registered suburbs.
                         //If the car type is economy electric, add its base price
                         if (/electricEconomy/i.test(vehicle.car_type)) {
-                          //console.log(vehicle.base_fare);
+                          //logger.info(vehicle.base_fare);
                           //basePrice += vehicle.base_fare;
                           //? Remove N$2 discount for electric rides
                           basePrice += parseFloat(suburbToSuburbInfo.fare) - 2;
                         } //Normal taxis
                         else {
-                          console.log(suburbToSuburbInfo.fare);
-                          console.log(
+                          logger.info(suburbToSuburbInfo.fare);
+                          logger.info(
                             completedInputData.destination_location_infos
                           );
-                          console.log(suburbToSuburbInfo);
+                          logger.info(suburbToSuburbInfo);
                           basePrice += parseFloat(suburbToSuburbInfo.fare);
                         }
                       }
@@ -1470,7 +1468,7 @@ function computeInDepthPricesMap(
                               collectionNotFoundSubursPricesMap.insertOne(
                                 queryNoMatch,
                                 function (err, res) {
-                                  console.log("New record added");
+                                  logger.info("New record added");
                                   resX(true);
                                 }
                               );
@@ -1522,7 +1520,7 @@ function computeInDepthPricesMap(
           basePrice += headerPrice; //Add header price LAST
         }
         //DONE update base price...
-        //console.log("ESTIMATED BASE PRICE (car type:", vehicle.car_type, ") --> ", basePrice);
+        //logger.info("ESTIMATED BASE PRICE (car type:", vehicle.car_type, ") --> ", basePrice);
         //Update the rides infos data
         genericRidesInfos[index].base_fare = basePrice;
         //Only get relevant information form the metadata
@@ -1551,11 +1549,11 @@ function computeInDepthPricesMap(
         };
       });
       //Done respond
-      console.log("DONE computing prices");
+      logger.info("DONE computing prices");
       resolve(genericRidesInfos);
     },
     (error) => {
-      console.log(error);
+      logger.info(error);
       resolve(false);
     }
   );
@@ -1969,7 +1967,7 @@ function parsePricingInputData(resolve, inputData) {
         }
       );
     } catch (error) {
-      console.log(error);
+      logger.info(error);
       resolve(false);
     }
   } //Invalid data
@@ -1984,10 +1982,10 @@ function parsePricingInputData(resolve, inputData) {
  * and also return the status (available - can be selected, unavailable - can't be selected) of each vehicle to enable or disable selection in-app.
  */
 redisCluster.on("connect", function () {
-  console.log("[*] Redis connected");
+  logger.info("[*] Redis connected");
   clientMongo.connect(function (err) {
     //if (err) throw err;
-    console.log("[+] Pricing service active");
+    logger.info("[+] Pricing service active");
     const dbMongo = clientMongo.db(process.env.DB_NAME_MONGODDB);
     const collectionVehiclesInfos = dbMongo.collection(
       "vehicles_collection_infos"
@@ -2070,7 +2068,7 @@ redisCluster.on("connect", function () {
       },
     };
     req.body = deliveryPricingInputDataRaw;**/
-        console.log(req.body);
+        logger.info(req.body);
         //...
 
         try {
@@ -2085,7 +2083,7 @@ redisCluster.on("connect", function () {
                 let parsedData = reslt; //Clean parsed data
                 if (checkInputIntegrity(parsedData)) {
                   //Check inetgrity
-                  console.log("Passed the integrity test.");
+                  logger.info("Passed the integrity test.");
                   //Valid input
                   //Autocomplete the input data
                   new Promise((res) => {
@@ -2098,9 +2096,9 @@ redisCluster.on("connect", function () {
                     (result) => {
                       if (result !== false) {
                         let completeInput = result;
-                        console.log("Done autocompleting");
+                        logger.info("Done autocompleting");
                         //Generate prices metadata for all the relevant vehicles categories
-                        console.log(
+                        logger.info(
                           "Computing prices metadata of relevant car categories"
                         );
                         new Promise((res) => {
@@ -2113,11 +2111,11 @@ redisCluster.on("connect", function () {
                           );
                         }).then(
                           (result) => {
-                            console.log("DOne computing fares");
+                            logger.info("DOne computing fares");
                             resMAIN(result);
                           },
                           (error) => {
-                            console.log(error);
+                            logger.info(error);
                             resMAIN({
                               response: "Failed perform the operations",
                             });
@@ -2131,7 +2129,7 @@ redisCluster.on("connect", function () {
                     },
                     (error) => {
                       //Error - Failed input augmentation
-                      console.log(error);
+                      logger.info(error);
                       resMAIN({ response: "Failed input augmentation" });
                     }
                   );
@@ -2149,7 +2147,7 @@ redisCluster.on("connect", function () {
             }
           );
         } catch (error) {
-          console.log(error);
+          logger.info(error);
           resMAIN({ response: "Failed parsing." });
         }
       })
@@ -2157,7 +2155,7 @@ redisCluster.on("connect", function () {
           res.send(result);
         })
         .catch((error) => {
-          console.log(error);
+          logger.info(error);
           res.send({
             response: "Failed perform the operations",
           });
@@ -2174,7 +2172,7 @@ redisCluster.on("connect", function () {
       new Promise((resMAIN) => {
         let params = urlParser.parse(req.url, true);
         req = params.query;
-        console.log(req);
+        logger.info(req);
 
         if (req !== undefined && req.user_fingerprint !== undefined) {
           new Promise((res) => {
@@ -2198,11 +2196,11 @@ redisCluster.on("connect", function () {
             );
           }).then(
             (result) => {
-              console.log(result);
+              logger.info(result);
               resMAIN(result);
             },
             (error) => {
-              console.log(error);
+              logger.info(error);
               resMAIN(false);
             }
           );
@@ -2214,7 +2212,7 @@ redisCluster.on("connect", function () {
           res.send(result);
         })
         .catch((error) => {
-          console.log(error);
+          logger.info(error);
           res.send(false);
         });
     });
@@ -2227,7 +2225,7 @@ redisCluster.on("connect", function () {
     app.post("/manageAutoCompleteSuburbsAndLocationTypes", function (req, res) {
       new Promise((resMAIN) => {
         let arrayData = req.body;
-        console.log(arrayData);
+        logger.info(arrayData);
         new Promise((res) => {
           manageAutoCompleteDestinationLocations(
             res,
@@ -2246,7 +2244,7 @@ redisCluster.on("connect", function () {
             }
           },
           (error) => {
-            console.log(error);
+            logger.info(error);
             resMAIN(false);
           }
         );
@@ -2255,7 +2253,7 @@ redisCluster.on("connect", function () {
           res.send(result);
         })
         .catch((error) => {
-          console.log(error);
+          logger.info(error);
           res.send(false);
         });
     });

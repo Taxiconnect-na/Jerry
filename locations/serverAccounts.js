@@ -1,13 +1,10 @@
 require("dotenv").config();
-//console.log = function () {};
 //var dash = require("appmetrics-dash");
 var express = require("express");
 const http = require("http");
 const https = require("https");
 const fs = require("fs");
-const geolocationUtlis = require("geolocation-utils");
 const helmet = require("helmet");
-const path = require("path");
 const MongoClient = require("mongodb").MongoClient;
 const { parse, stringify } = require("flatted");
 const AWS = require("aws-sdk");
@@ -16,20 +13,22 @@ const s3 = new AWS.S3({
   secretAccessKey: process.env.AWS_S3_SECRET,
 });
 
+const { logger } = require("./LogService");
+
 var app = express();
 var server = http.createServer(app);
 const requestAPI = require("request");
 const crypto = require("crypto");
-const escapeStringRegexp = require("escape-string-regexp");
 //....
-const { promisify, inspect } = require("util");
+const { promisify } = require("util");
 const urlParser = require("url");
 const redis = require("redis");
-/*const client = redis.createClient({
-  host: process.env.REDIS_HOST,
-  port: process.env.REDIS_PORT,
-});*/
-var client = null;
+const client = /production/i.test(String(process.env.EVIRONMENT))
+  ? null
+  : redis.createClient({
+      host: process.env.REDIS_HOST,
+      port: process.env.REDIS_PORT,
+    });
 var RedisClustr = require("redis-clustr");
 var redisCluster = /production/i.test(String(process.env.EVIRONMENT))
   ? new RedisClustr({
@@ -49,13 +48,11 @@ const redisGet = promisify(redisCluster.get).bind(redisCluster);
 
 var isBase64 = require("is-base64");
 var chaineDateUTC = null;
-var dateObject = null;
 const moment = require("moment");
 var otpGenerator = require("otp-generator");
-const { resolve } = require("path");
 
 const clientMongo = new MongoClient(process.env.URL_MONGODB, {
-  //useUnifiedTopology: true,
+  useUnifiedTopology: true,
   useNewUrlParser: true,
 });
 
@@ -82,13 +79,13 @@ function SendSMSTo(phone_number, message) {
   };
 
   let req = https.request(options, (resp) => {
-    console.log("statusCode:", resp.statusCode);
+    logger.info("statusCode:", resp.statusCode);
     let data = "";
     resp.on("data", (chunk) => {
       data += chunk;
     });
     resp.on("end", () => {
-      console.log("Response:", data);
+      logger.info("Response:", data);
     });
   });
 
@@ -103,7 +100,7 @@ function SendSMSTo(phone_number, message) {
 /*const numeral = require("numeral");
 setInterval(() => {
   const { rss, heapTotal } = process.memoryUsage();
-  console.log(
+  logger.info(
     "rss",
     numeral(rss).format("0.0 ib"),
     "heapTotal",
@@ -137,8 +134,8 @@ resolveDate();
  * Responsible for sending push notification to devices
  */
 var sendPushUPNotification = function (data) {
-  console.log("Notify data");
-  console.log(data);
+  logger.info("Notify data");
+  logger.info(data);
   var headers = {
     "Content-Type": "application/json; charset=utf-8",
   };
@@ -154,7 +151,7 @@ var sendPushUPNotification = function (data) {
   var https = require("https");
   var req = https.request(options, function (res) {
     res.on("data", function (data) {
-      //console.log("Response:");
+      //logger.info("Response:");
     });
   });
 
@@ -240,7 +237,7 @@ function checkUserStatus(
     phone_number: { $regex: userData.phone_number.replace("+", "").trim() },
   }; //?Indexed
 
-  console.log(checkUser);
+  logger.info(checkUser);
 
   //1. Passengers
   if (
@@ -399,7 +396,7 @@ function getBachRidesHistory(
       }
     } //Targeted request
     else {
-      console.log("Targeted request detected!");
+      logger.info("Targeted request detected!");
       let resolveResponse =
         req.user_nature === undefined ||
         req.user_nature === null ||
@@ -443,7 +440,7 @@ function getBachRidesHistory(
               //Done
               Promise.all(parentPromises).then(
                 (batchResults) => {
-                  console.log(batchResults);
+                  logger.info(batchResults);
                   resolve({
                     response: "success",
                     ride_type:
@@ -454,7 +451,7 @@ function getBachRidesHistory(
                   });
                 },
                 (error) => {
-                  console.log(error);
+                  logger.info(error);
                   resolve({ response: "error_authentication_failed" });
                 }
               );
@@ -512,7 +509,7 @@ function getBachRidesHistory(
                           //Done
                           Promise.all(parentPromises).then(
                             (batchResults) => {
-                              console.log(batchResults);
+                              logger.info(batchResults);
                               resolve({
                                 response: "success",
                                 ride_type:
@@ -523,7 +520,7 @@ function getBachRidesHistory(
                               });
                             },
                             (error) => {
-                              console.log(error);
+                              logger.info(error);
                               resolve({
                                 response: "error_authentication_failed",
                               });
@@ -557,12 +554,12 @@ function getBachRidesHistory(
           });
       } //invalid data
       else {
-        console.log("Invalid");
+        logger.info("Invalid");
         resolve({ response: "error_authentication_failed" });
       }
     },
     (error) => {
-      console.log(error);
+      logger.info(error);
       resolve({ response: "error_authentication_failed" });
     }
   );
@@ -616,7 +613,7 @@ function shrinkDataSchema_forBatchRidesHistory(
   resolve,
   shrink_for_targeted = false
 ) {
-  console.log("is targeted -> ", shrink_for_targeted);
+  logger.info("is targeted -> ", shrink_for_targeted);
   if (shrink_for_targeted === false) {
     //Batch requests
     let light_request_schema = {
@@ -658,7 +655,7 @@ function shrinkDataSchema_forBatchRidesHistory(
           res(false);
         }
         //...
-        console.log(result);
+        logger.info(result);
         if (result.length > 0) {
           //FOund something
           let car_brand = false;
@@ -736,7 +733,7 @@ function shrinkDataSchema_forBatchRidesHistory(
         }
       },
       (error) => {
-        console.log(error);
+        logger.info(error);
         resolve(false);
       }
     );
@@ -762,11 +759,11 @@ function shrinkDataSchema_forBatchRidesHistory(
             );
             //..Quickly respond to the user with the cached results
             resp = JSON.parse(resp);
-            console.log("cached result found");
+            logger.info("cached result found");
             resolve(resp);
           } catch (error) {
             //Erro - make a fresh request
-            console.log(error);
+            logger.info(error);
             new Promise((res) => {
               proceedTargeted_requestHistory_fetcher(
                 request,
@@ -779,7 +776,7 @@ function shrinkDataSchema_forBatchRidesHistory(
                 resolve(result);
               },
               (error) => {
-                console.log(error);
+                logger.info(error);
                 resolve(false);
               }
             );
@@ -798,7 +795,7 @@ function shrinkDataSchema_forBatchRidesHistory(
               resolve(result);
             },
             (error) => {
-              console.log(error);
+              logger.info(error);
               resolve(false);
             }
           );
@@ -806,7 +803,7 @@ function shrinkDataSchema_forBatchRidesHistory(
       },
       (error) => {
         //Error - make a fresh request
-        console.log(error);
+        logger.info(error);
         new Promise((res) => {
           proceedTargeted_requestHistory_fetcher(
             request,
@@ -819,7 +816,7 @@ function shrinkDataSchema_forBatchRidesHistory(
             resolve(result);
           },
           (error) => {
-            console.log(error);
+            logger.info(error);
             resolve(false);
           }
         );
@@ -915,7 +912,7 @@ function proceedTargeted_requestHistory_fetcher(
         result.map((driver) => {
           driver.cars_data.map((car) => {
             if (request.car_fingerprint === car.car_fingerprint) {
-              console.log(car);
+              logger.info(car);
               car_brand = car.car_brand;
               car_picture = `${process.env.AWS_S3_VEHICLES_PICTURES_PATH}/${car.taxi_picture}`;
               taxi_number = car.taxi_number;
@@ -1082,7 +1079,7 @@ function proceedTargeted_requestHistory_fetcher(
       }
     },
     (error) => {
-      console.log(error);
+      logger.info(error);
       resolve(false);
     }
   );
@@ -1126,13 +1123,13 @@ function getDaily_requestAmount_driver(
               redisCluster.set(redisKey, JSON.stringify(result));
             },
             (error) => {
-              console.log(error);
+              logger.info(error);
             }
           );
           //...
           resolve(resp);
         } catch (error) {
-          console.log(error);
+          logger.info(error);
           //Errror - make a fresh request
           new Promise((res) => {
             exec_computeDaily_amountMade(
@@ -1143,7 +1140,7 @@ function getDaily_requestAmount_driver(
             );
           }).then(
             (result) => {
-              console.log(result);
+              logger.info(result);
               //Cache as well
               redisCluster.set(redisKey, JSON.stringify(result));
               resolve(result);
@@ -1170,7 +1167,7 @@ function getDaily_requestAmount_driver(
           );
         }).then(
           (result) => {
-            console.log(result);
+            logger.info(result);
             //Cache as well
             redisCluster.set(redisKey, JSON.stringify(result));
             resolve(result);
@@ -1188,7 +1185,7 @@ function getDaily_requestAmount_driver(
       }
     },
     (error) => {
-      console.log(error);
+      logger.info(error);
       //Errror - make a fresh request
       new Promise((res) => {
         exec_computeDaily_amountMade(
@@ -1199,7 +1196,7 @@ function getDaily_requestAmount_driver(
         );
       }).then(
         (result) => {
-          console.log(result);
+          logger.info(result);
           //Cache as well
           redisCluster.set(redisKey, JSON.stringify(result));
           resolve(result);
@@ -1338,7 +1335,7 @@ function getRiders_wallet_summary(
   redisGet(redisKey).then(
     (resp) => {
       if (resp !== null) {
-        console.log("found cached data");
+        logger.info("found cached data");
         //Has a previous record - reply with it and rehydrate the data
         try {
           //Rehydrate the cache
@@ -1365,7 +1362,7 @@ function getRiders_wallet_summary(
             (error) => {
               if (avoidCached_data !== false && avoidCached_data === true) {
                 //Avoid cache
-                console.log(error);
+                logger.info(error);
                 resolve({ total: 0, transactions_data: null });
               }
             }
@@ -1376,7 +1373,7 @@ function getRiders_wallet_summary(
             resolve(resp);
           }
         } catch (error) {
-          console.log(error);
+          logger.info(error);
           //Error - make a fresh request
           new Promise((res) => {
             execGet_ridersDrivers_walletSummary(
@@ -1396,14 +1393,14 @@ function getRiders_wallet_summary(
               resolve(result);
             },
             (error) => {
-              console.log(error);
+              logger.info(error);
               resolve({ total: 0, transactions_data: null });
             }
           );
         }
       } //No previous records
       else {
-        console.log("No previous cached data");
+        logger.info("No previous cached data");
         new Promise((res) => {
           execGet_ridersDrivers_walletSummary(
             requestObj,
@@ -1422,14 +1419,14 @@ function getRiders_wallet_summary(
             resolve(result);
           },
           (error) => {
-            console.log(error);
+            logger.info(error);
             resolve({ total: 0, transactions_data: null });
           }
         );
       }
     },
     (error) => {
-      console.log(error);
+      logger.info(error);
       //Error happened - make a fresh request
       new Promise((res) => {
         execGet_ridersDrivers_walletSummary(
@@ -1449,7 +1446,7 @@ function getRiders_wallet_summary(
           resolve(result);
         },
         (error) => {
-          console.log(error);
+          logger.info(error);
           resolve({ total: 0, transactions_data: null });
         }
       );
@@ -1515,7 +1512,7 @@ function parseDetailed_walletGetData(
             try {
               tmpClean.rawDate_made = tmpDateCaptured.toISOString(); //! Save the ISO date captured.
             } catch (error) {
-              console.log(error);
+              logger.info(error);
               tmpClean.rawDate_made = transaction.date_requestedRaw;
             }
             tmpClean.timestamp = tmpDateCaptured.getTime();
@@ -1596,7 +1593,7 @@ function parseDetailed_walletGetData(
               res(tmpClean);
             }
           } catch (error) {
-            console.trace(error);
+            logger.warn(error);
             res(false);
           }
         });
@@ -1623,12 +1620,12 @@ function parseDetailed_walletGetData(
           //? DONE
           resolve(cleansedData);
         } catch (error) {
-          console.log(error);
+          logger.info(error);
           resolve(detailed_walletRaw_details);
         }
       },
       (error) => {
-        console.log(error);
+        logger.info(error);
         resolve(detailed_walletRaw_details);
       }
     );
@@ -1719,7 +1716,7 @@ function execGet_ridersDrivers_walletSummary(
         }
       },
       (error) => {
-        console.log(error);
+        logger.info(error);
         //Make a fresh request
         new Promise((resFresh) => {
           truelyExec_ridersDrivers_walletSummary(
@@ -1748,7 +1745,7 @@ function execGet_ridersDrivers_walletSummary(
       }
     )
     .catch((error) => {
-      console.log(error);
+      logger.info(error);
       //Make a fresh request
       new Promise((resFresh) => {
         truelyExec_ridersDrivers_walletSummary(
@@ -1826,7 +1823,7 @@ function truelyExec_ridersDrivers_walletSummary(
       .collation({ locale: "en", strength: 2 })
       .toArray(function (err, resultTransactionsReceived) {
         if (err) {
-          console.log(err);
+          logger.info(err);
           resReceivedTransactions({ total: 0, transactions_data: null });
         }
         //...
@@ -1886,7 +1883,7 @@ function truelyExec_ridersDrivers_walletSummary(
             .collation({ locale: "en", strength: 2 })
             .toArray(function (err, resultTransactions) {
               if (err) {
-                console.log(err);
+                logger.info(err);
                 res({ total: 0, transactions_data: null });
               }
               //..
@@ -1959,7 +1956,7 @@ function truelyExec_ridersDrivers_walletSummary(
                   .collation({ locale: "en", strength: 2 })
                   .toArray(function (err, resultPaidRequests) {
                     if (err) {
-                      console.log(err);
+                      logger.info(err);
                       res({ total: 0, transactions_data: null });
                     }
                     //...
@@ -1979,7 +1976,7 @@ function truelyExec_ridersDrivers_walletSummary(
                               })
                               .toArray(function (err, driverProfile) {
                                 if (err) {
-                                  console.log(err);
+                                  logger.info(err);
                                   partialResolver({
                                     total: 0,
                                     transactions_data: null,
@@ -2115,7 +2112,7 @@ function truelyExec_ridersDrivers_walletSummary(
                           );
                         },
                         (error) => {
-                          console.log(error);
+                          logger.info(error);
                           //Done
                           res({ total: 0, transactions_data: null });
                         }
@@ -2158,7 +2155,7 @@ function truelyExec_ridersDrivers_walletSummary(
                   .collation({ locale: "en", strength: 2 })
                   .toArray(function (err, resultPaidRequests) {
                     if (err) {
-                      console.log(err);
+                      logger.info(err);
                       res({ total: 0, transactions_data: null });
                     }
                     //...
@@ -2178,7 +2175,7 @@ function truelyExec_ridersDrivers_walletSummary(
                               })
                               .toArray(function (err, driverProfile) {
                                 if (err) {
-                                  console.log(err);
+                                  logger.info(err);
                                   partialResolver({
                                     total: 0,
                                     transactions_data: null,
@@ -2314,7 +2311,7 @@ function truelyExec_ridersDrivers_walletSummary(
                           );
                         },
                         (error) => {
-                          console.log(error);
+                          logger.info(error);
                           //Done
                           res({ total: 0, transactions_data: null });
                         }
@@ -2342,7 +2339,7 @@ function truelyExec_ridersDrivers_walletSummary(
                               : detailsData.transactions_data,
                         });
                       } catch (error) {
-                        console.log(error);
+                        logger.info(error);
                         //Done
                         res({
                           total: 0,
@@ -2375,7 +2372,7 @@ function truelyExec_ridersDrivers_walletSummary(
                   resolve(result);
                 },
                 (error) => {
-                  console.log(error);
+                  logger.info(error);
                   //Error - empty wallet -cache
                   redisCluster.set(
                     redisKey,
@@ -2386,7 +2383,7 @@ function truelyExec_ridersDrivers_walletSummary(
                 }
               )
               .catch((error) => {
-                console.log(error);
+                logger.info(error);
                 //Error - empty wallet -cache
                 redisCluster.set(
                   redisKey,
@@ -2398,7 +2395,7 @@ function truelyExec_ridersDrivers_walletSummary(
             //?-----------------
           },
           (error) => {
-            console.log(error);
+            logger.info(error);
             //Error - empty wallet -cache
             redisCluster.set(
               redisKey,
@@ -2410,12 +2407,12 @@ function truelyExec_ridersDrivers_walletSummary(
         );
       },
       (error) => {
-        console.log(error);
+        logger.info(error);
         res({ total: 0, transactions_data: null });
       }
     )
     .catch((error) => {
-      console.log(error);
+      logger.info(error);
       res({ total: 0, transactions_data: null });
     });
 }
@@ -2461,12 +2458,12 @@ function computeDriver_walletDeepInsights(
               () => {}
             );
             //-------
-            console.log("FOUND CACHED DATA");
+            logger.info("FOUND CACHED DATA");
             resp = parse(resp);
             resolve(resp);
           } catch (error) {
             //Something's wrong perform a fresh computation
-            console.log(error);
+            logger.info(error);
             new Promise((resNewData) => {
               execGet_driversDeepInsights_fromWalletData(
                 walletBasicData,
@@ -2481,7 +2478,7 @@ function computeDriver_walletDeepInsights(
                   resolve(result);
                 },
                 (error) => {
-                  console.log(error);
+                  logger.info(error);
                   resolve({
                     header: null,
                     weeks_view: null,
@@ -2490,7 +2487,7 @@ function computeDriver_walletDeepInsights(
                 }
               )
               .catch((error) => {
-                console.log(error);
+                logger.info(error);
                 resolve({
                   header: null,
                   weeks_view: null,
@@ -2514,7 +2511,7 @@ function computeDriver_walletDeepInsights(
                 resolve(result);
               },
               (error) => {
-                console.log(error);
+                logger.info(error);
                 resolve({
                   header: null,
                   weeks_view: null,
@@ -2523,7 +2520,7 @@ function computeDriver_walletDeepInsights(
               }
             )
             .catch((error) => {
-              console.log(error);
+              logger.info(error);
               resolve({
                 header: null,
                 weeks_view: null,
@@ -2534,7 +2531,7 @@ function computeDriver_walletDeepInsights(
       },
       (error) => {
         //Something's wrong perform a fresh computation
-        console.log(error);
+        logger.info(error);
         new Promise((resNewData) => {
           execGet_driversDeepInsights_fromWalletData(
             walletBasicData,
@@ -2549,7 +2546,7 @@ function computeDriver_walletDeepInsights(
               resolve(result);
             },
             (error) => {
-              console.log(error);
+              logger.info(error);
               resolve({
                 header: null,
                 weeks_view: null,
@@ -2558,7 +2555,7 @@ function computeDriver_walletDeepInsights(
             }
           )
           .catch((error) => {
-            console.log(error);
+            logger.info(error);
             resolve({
               header: null,
               weeks_view: null,
@@ -2569,7 +2566,7 @@ function computeDriver_walletDeepInsights(
     )
     .catch((error) => {
       //Something's wrong perform a fresh computation
-      console.log(error);
+      logger.info(error);
       new Promise((resNewData) => {
         execGet_driversDeepInsights_fromWalletData(
           walletBasicData,
@@ -2584,7 +2581,7 @@ function computeDriver_walletDeepInsights(
             resolve(result);
           },
           (error) => {
-            console.log(error);
+            logger.info(error);
             resolve({
               header: null,
               weeks_view: null,
@@ -2593,7 +2590,7 @@ function computeDriver_walletDeepInsights(
           }
         )
         .catch((error) => {
-          console.log(error);
+          logger.info(error);
           resolve({
             header: null,
             weeks_view: null,
@@ -3008,7 +3005,7 @@ function execGet_driversDeepInsights_fromWalletData(
                       totalPayouts += weekData.driver_weekly_payout; //Money already transaferred.
                       totalComission += weekData.total_taxiconnect_commission; //Comission already transferred to US
                     });
-                    console.log(`
+                    logger.info(`
                       Total earnings : ${totalEarnings}\n
                       Total dues : ${totalDues}\n
                       Total dues wallet : ${totalDues_wallet}\n
@@ -3134,7 +3131,7 @@ function execGet_driversDeepInsights_fromWalletData(
                           }
                         },
                         (error) => {
-                          console.log(error);
+                          logger.info(error);
                           resolve({
                             header: null,
                             weeks_view: null,
@@ -3143,7 +3140,7 @@ function execGet_driversDeepInsights_fromWalletData(
                         }
                       )
                       .catch((error) => {
-                        console.log(error);
+                        logger.info(error);
                         resolve({
                           header: null,
                           weeks_view: null,
@@ -3159,7 +3156,7 @@ function execGet_driversDeepInsights_fromWalletData(
                   }
                 },
                 (error) => {
-                  console.log(error);
+                  logger.info(error);
                   resolve({
                     header: null,
                     weeks_view: null,
@@ -3168,7 +3165,7 @@ function execGet_driversDeepInsights_fromWalletData(
                 }
               )
               .catch((error) => {
-                console.log(error);
+                logger.info(error);
                 resolve({
                   header: null,
                   weeks_view: null,
@@ -3184,7 +3181,7 @@ function execGet_driversDeepInsights_fromWalletData(
           }
         },
         (error) => {
-          console.log(error);
+          logger.info(error);
           resolve({
             header: null,
             weeks_view: null,
@@ -3193,7 +3190,7 @@ function execGet_driversDeepInsights_fromWalletData(
         }
       )
       .catch((error) => {
-        console.log(error);
+        logger.info(error);
         resolve({
           header: null,
           weeks_view: null,
@@ -3301,7 +3298,7 @@ function execGet_driversDeepInsights_fromWalletData(
           }
         },
         (error) => {
-          console.log(error);
+          logger.info(error);
           resolve({
             header: null,
             weeks_view: null,
@@ -3310,7 +3307,7 @@ function execGet_driversDeepInsights_fromWalletData(
         }
       )
       .catch((error) => {
-        console.log(error);
+        logger.info(error);
         resolve({
           header: null,
           weeks_view: null,
@@ -3331,7 +3328,7 @@ function ucFirst(stringData) {
       .substr(1)
       .toLowerCase()}`;
   } catch (error) {
-    console.log(error);
+    logger.info(error);
     return stringData;
   }
 }
@@ -3610,7 +3607,7 @@ function updateRiders_generalProfileInfos(
     }
   } else if (requestData.infoToUpdate === "phone") {
     if (requestData.direction === "initChange") {
-      console.log("Initialize the phone number change");
+      logger.info("Initialize the phone number change");
       //Modify the surname
       if (requestData.dataToUpdate.length > 7) {
         //Check the phone number by sending an OTP
@@ -3660,7 +3657,7 @@ function updateRiders_generalProfileInfos(
         requestData.user_fingerprint;
 
       requestAPI(url, function (error, response, body) {
-        console.log(body);
+        logger.info(body);
         if (error === null) {
           try {
             body = JSON.parse(body);
@@ -3670,7 +3667,7 @@ function updateRiders_generalProfileInfos(
               body.response
             ) {
               //Verified
-              console.log("NUMBER VERIFIEDD!");
+              logger.info("NUMBER VERIFIEDD!");
               //Acceptable
               let filter = {
                 user_fingerprint: requestData.user_fingerprint,
@@ -3808,10 +3805,10 @@ function updateRiders_generalProfileInfos(
               // Uploading files to the bucket
               s3.upload(params, function (err, data) {
                 if (err) {
-                  console.log(err);
+                  logger.info(err);
                   resUploadPic_toS3(false);
                 }
-                console.log(`Riders profile picture uploaded successfully.`);
+                logger.info(`Riders profile picture uploaded successfully.`);
                 resUploadPic_toS3(true);
               });
             })
@@ -3890,7 +3887,7 @@ function updateRiders_generalProfileInfos(
                   }
                 },
                 (error) => {
-                  console.log(error);
+                  logger.info(error);
                   resolve({
                     response: "error",
                     flag: "unexpected_conversion_error_1",
@@ -3898,7 +3895,7 @@ function updateRiders_generalProfileInfos(
                 }
               )
               .catch((error) => {
-                console.log(error);
+                logger.info(error);
                 resolve({
                   response: "error",
                   flag: "unexpected_conversion_error_1",
@@ -3914,7 +3911,7 @@ function updateRiders_generalProfileInfos(
         });
       }
     } catch (error) {
-      console.log(error);
+      logger.info(error);
       resolve({ response: "error", flag: "unexpected_conversion_error" });
     }
   }
@@ -3938,7 +3935,7 @@ function getDriver_onlineOffline_status(req, resolve) {
       .find({ driver_fingerprint: req.driver_fingerprint })
       .toArray(function (err, driverData) {
         if (err) {
-          console.log(err);
+          logger.info(err);
           res0({ response: "error_invalid_request" });
         }
         //...
@@ -3992,7 +3989,7 @@ function getDriver_onlineOffline_status(req, resolve) {
       resolve(result);
     },
     (error) => {
-      console.log(error);
+      logger.info(error);
       resolve({ response: "error_invalid_request" });
     }
   );
@@ -4019,17 +4016,17 @@ function getAdsManagerRunningInfos(req, resolve) {
             .then(
               () => {},
               (error) => {
-                console.log(error);
+                logger.info(error);
               }
             )
             .catch((error) => {
-              console.log(error);
+              logger.info(error);
             });
           //? Quickly return
           resp = parse(resp);
           resolve(resp);
         } catch (error) {
-          console.log(error);
+          logger.info(error);
           //Get fresh record
           new Promise((resExec) => {
             TrulyGetAdsManagerRunningInfos(req, redisKey, resExec);
@@ -4039,12 +4036,12 @@ function getAdsManagerRunningInfos(req, resolve) {
                 resolve(result);
               },
               (error) => {
-                console.log(error);
+                logger.info(error);
                 resolve({ response: "error", flag: "error_get_data" });
               }
             )
             .catch((error) => {
-              console.log(error);
+              logger.info(error);
               resolve({ response: "error", flag: "error_get_data" });
             });
         }
@@ -4058,18 +4055,18 @@ function getAdsManagerRunningInfos(req, resolve) {
               resolve(result);
             },
             (error) => {
-              console.log(error);
+              logger.info(error);
               resolve({ response: "error", flag: "error_get_data" });
             }
           )
           .catch((error) => {
-            console.log(error);
+            logger.info(error);
             resolve({ response: "error", flag: "error_get_data" });
           });
       }
     },
     (error) => {
-      console.log(error);
+      logger.info(error);
       //Get a fresh record
       new Promise((resExec) => {
         TrulyGetAdsManagerRunningInfos(req, redisKey, resExec);
@@ -4079,12 +4076,12 @@ function getAdsManagerRunningInfos(req, resolve) {
             resolve(result);
           },
           (error) => {
-            console.log(error);
+            logger.info(error);
             resolve({ response: "error", flag: "error_get_data" });
           }
         )
         .catch((error) => {
-          console.log(error);
+          logger.info(error);
           resolve({ response: "error", flag: "error_get_data" });
         });
     }
@@ -4101,7 +4098,7 @@ function getAdsManagerRunningInfos(req, resolve) {
     //! -----
     collectionGlobalEvents.insertOne(eventBundle, function (err, result) {
       if (err) {
-        console.log(err);
+        logger.info(err);
       }
       //...
       resSaveRecord(true);
@@ -4134,7 +4131,7 @@ function TrulyGetAdsManagerRunningInfos(req, redisKey, resolve) {
     .collation({ locale: "en", strength: 2 })
     .toArray(function (err, companiesData) {
       if (err) {
-        console.log(err);
+        logger.info(err);
         resolve({ response: "error", flag: "invalid_data" });
       }
       //....
@@ -4196,11 +4193,11 @@ var collectionGlobalEvents = null;
 var collectionWalletTransactions_logs = null;
 var collectionAdsCompanies_central = null;
 redisCluster.on("connect", function () {
-  console.log("[*] Redis connected");
+  logger.info("[*] Redis connected");
 
   clientMongo.connect(function (err) {
     //if (err) throw err;
-    console.log("[+] Account services active.");
+    logger.info("[+] Account services active.");
     const dbMongo = clientMongo.db(process.env.DB_NAME_MONGODDB);
     collectionPassengers_profiles = dbMongo.collection("passengers_profiles"); //Hold all the passengers profiles
     collectionRidesDeliveryData = dbMongo.collection(
@@ -4219,7 +4216,7 @@ redisCluster.on("connect", function () {
     const bodyParser = require("body-parser");
     app
       .get("/", function (req, res) {
-        console.log("Account services up");
+        logger.info("Account services up");
       })
       .use(
         bodyParser.json({
@@ -4243,7 +4240,7 @@ redisCluster.on("connect", function () {
     app.get("/sendOTPAndCheckUserStatus", function (req, res) {
       resolveDate();
       let params = urlParser.parse(req.url, true);
-      console.log(params);
+      logger.info(params);
       req = params.query;
 
       if (
@@ -4275,7 +4272,7 @@ redisCluster.on("connect", function () {
         }).then(
           () => {},
           (error) => {
-            console.log(error);
+            logger.info(error);
           }
         );
 
@@ -4303,14 +4300,14 @@ redisCluster.on("connect", function () {
             }).then(
               () => {},
               (error) => {
-                console.log(error);
+                logger.info(error);
               }
             );*/
             //}
             //!---------
 
             //Save otp in profile if the user was already registered
-            console.log(result);
+            logger.info(result);
             if (
               result.response !== undefined &&
               result.user_fp !== undefined &&
@@ -4337,7 +4334,7 @@ redisCluster.on("connect", function () {
                     { user_fingerprint: result.user_fp },
                     secretData,
                     function (err, reslt) {
-                      console.log(err);
+                      logger.info(err);
                       res2(true);
                     }
                   );
@@ -4351,7 +4348,7 @@ redisCluster.on("connect", function () {
                     { driver_fingerprint: result.user_fp },
                     secretData,
                     function (err, reslt) {
-                      console.log(err);
+                      logger.info(err);
                       res2(true);
                     }
                   );
@@ -4378,7 +4375,7 @@ redisCluster.on("connect", function () {
             //...
           },
           (error) => {
-            console.log(error);
+            logger.info(error);
             res.send({ response: "error_checking_user" });
           }
         );
@@ -4437,7 +4434,7 @@ redisCluster.on("connect", function () {
               req.user_nature !== null &&
               /passenger/i.test(req.user_nature)
             ) {
-              console.log("Passenger");
+              logger.info("Passenger");
               let checkOTP = {
                 phone_number: { $regex: req.phone_number },
                 "account_verifications.phone_verification_secrets.otp":
@@ -4464,7 +4461,7 @@ redisCluster.on("connect", function () {
               req.user_nature !== null &&
               /driver/i.test(req.user_nature)
             ) {
-              console.log(req);
+              logger.info(req);
               //2. Drivers
               let checkOTP = {
                 phone_number: { $regex: req.phone_number },
@@ -4476,7 +4473,7 @@ redisCluster.on("connect", function () {
                 .find(checkOTP)
                 .toArray(function (error, result) {
                   if (error) {
-                    console.log(error);
+                    logger.info(error);
                     res0({ response: "error_checking_otp" });
                   }
                   //...
@@ -4554,7 +4551,7 @@ redisCluster.on("connect", function () {
                   date: new Date(chaineDateUTC),
                 },
               };
-              console.log(minimalAccount);
+              logger.info(minimalAccount);
               //..
               collectionPassengers_profiles.insertOne(
                 minimalAccount,
@@ -4579,7 +4576,7 @@ redisCluster.on("connect", function () {
             res.send(result);
           },
           (error) => {
-            console.log(error);
+            logger.info(error);
             res.send({ response: "error_creating_account" });
           }
         );
@@ -4598,7 +4595,7 @@ redisCluster.on("connect", function () {
       let params = urlParser.parse(req.url, true);
       req = params.query;
 
-      console.log(req);
+      logger.info(req);
 
       if (
         req.user_fingerprint !== undefined &&
@@ -4637,7 +4634,7 @@ redisCluster.on("connect", function () {
               updateProfile,
               function (error, result) {
                 if (error) {
-                  console.log(error);
+                  logger.info(error);
                   res0({
                     response:
                       "error_adding_additional_profile_details_new_account",
@@ -4648,13 +4645,13 @@ redisCluster.on("connect", function () {
                   .find(findProfile)
                   .toArray(function (err, riderProfile) {
                     if (err) {
-                      console.log(err);
+                      logger.info(err);
                       res0({
                         response:
                           "error_adding_additional_profile_details_new_account",
                       });
                     }
-                    console.log(riderProfile);
+                    logger.info(riderProfile);
                     //...
                     if (riderProfile.length > 0) {
                       //Found something
@@ -4685,14 +4682,14 @@ redisCluster.on("connect", function () {
               res.send(result);
             },
             (error) => {
-              console.log(error);
+              logger.info(error);
               res.send({
                 response: "error_adding_additional_profile_details_new_account",
               });
             }
           );
         } catch (error) {
-          console.log(error);
+          logger.info(error);
           res.send({
             response: "error_adding_additional_profile_details_new_account",
           });
@@ -4700,7 +4697,7 @@ redisCluster.on("connect", function () {
       }
       //Error - missing details
       else {
-        console.log("missing details");
+        logger.info("missing details");
         res.send({
           response: "error_adding_additional_profile_details_new_account",
         });
@@ -4719,7 +4716,7 @@ redisCluster.on("connect", function () {
       resolveDate();
       let params = urlParser.parse(req.url, true);
       req = params.query;
-      console.log(req);
+      logger.info(req);
 
       if (req.user_fingerprint !== undefined && req.user_fingerprint !== null) {
         //Valid
@@ -4739,11 +4736,11 @@ redisCluster.on("connect", function () {
             );
           }).then(
             (result) => {
-              console.log(result);
+              logger.info(result);
               res.send(result);
             },
             (error) => {
-              console.log(error);
+              logger.info(error);
               res.send({ response: "error_authentication_failed" });
             }
           );
@@ -4758,11 +4755,11 @@ redisCluster.on("connect", function () {
             );
           }).then(
             (result) => {
-              console.log(result);
+              logger.info(result);
               res.send(result);
             },
             (error) => {
-              console.log(error);
+              logger.info(error);
               res.send({ response: "error_authentication_failed" });
             }
           );
@@ -4802,7 +4799,7 @@ redisCluster.on("connect", function () {
               resMAIN(result);
             },
             (error) => {
-              console.log(error);
+              logger.info(error);
               resMAIN({
                 amount: 0,
                 currency: "NAD",
@@ -4828,7 +4825,7 @@ redisCluster.on("connect", function () {
             res.send(result);
           },
           (error) => {
-            console.log(error);
+            logger.info(error);
             res.send({
               amount: 0,
               currency: "NAD",
@@ -4839,7 +4836,7 @@ redisCluster.on("connect", function () {
           }
         )
         .catch((error) => {
-          console.log(error);
+          logger.info(error);
           res.send({
             amount: 0,
             currency: "NAD",
@@ -5041,7 +5038,7 @@ redisCluster.on("connect", function () {
                 resMAIN(result);
               },
               (error) => {
-                console.log(error);
+                logger.info(error);
                 resMAIN({ response: "error_invalid_request" });
               }
             );
@@ -5069,17 +5066,17 @@ redisCluster.on("connect", function () {
                   res.send(result);
                 },
                 (error) => {
-                  console.log(error);
+                  logger.info(error);
                   res.send({ response: "error_invalid_request" });
                 }
               )
               .catch((error) => {
-                console.log(error);
+                logger.info(error);
                 res.send({ response: "error_invalid_request" });
               });
           } //? USE CACHED METHOD
           else {
-            console.trace("CACHED");
+            logger.warn("CACHED");
             //Check the cache first
             redisGet(redisKey).then(
               (resp) => {
@@ -5112,19 +5109,19 @@ redisCluster.on("connect", function () {
                         resMAIN(result);
                       },
                       (error) => {
-                        console.log(error);
+                        logger.info(error);
                         resMAIN({ response: "error_invalid_request" });
                       }
                     )
                     .catch((error) => {
-                      console.log(error);
+                      logger.info(error);
                       resMAIN({ response: "error_invalid_request" });
                     });
                 }
               },
               (error) => {
                 //Make a fresh request
-                console.log(error);
+                logger.info(error);
                 new Promise((resGetStatus) => {
                   getDriver_onlineOffline_status(req, resGetStatus);
                 })
@@ -5136,12 +5133,12 @@ redisCluster.on("connect", function () {
                       resMAIN(result);
                     },
                     (error) => {
-                      console.log(error);
+                      logger.info(error);
                       resMAIN({ response: "error_invalid_request" });
                     }
                   )
                   .catch((error) => {
-                    console.log(error);
+                    logger.info(error);
                     resMAIN({ response: "error_invalid_request" });
                   });
               }
@@ -5157,7 +5154,7 @@ redisCluster.on("connect", function () {
           res.send(result);
         })
         .catch((error) => {
-          console.log(error);
+          logger.info(error);
           res.send({ response: "error_invalid_request" });
         });
     });
@@ -5171,7 +5168,7 @@ redisCluster.on("connect", function () {
       resolveDate();
       let params = urlParser.parse(req.url, true);
       req = params.query;
-      console.log(req);
+      logger.info(req);
 
       if (
         req.user_fingerprint !== undefined &&
@@ -5244,7 +5241,7 @@ redisCluster.on("connect", function () {
                 );
               }
             } catch (error) {
-              console.log(error);
+              logger.info(error);
               res.send(
                 regModeLimiter.test("detailed")
                   ? {
@@ -5257,7 +5254,7 @@ redisCluster.on("connect", function () {
             }
           },
           (error) => {
-            console.log(error);
+            logger.info(error);
             res.send(
               regModeLimiter.test("detailed")
                 ? {
@@ -5300,7 +5297,7 @@ redisCluster.on("connect", function () {
         resolveDate();
         let params = urlParser.parse(req.url, true);
         req = params.query;
-        console.log(req);
+        logger.info(req);
 
         if (
           req.user_fingerprint !== undefined &&
@@ -5428,7 +5425,7 @@ redisCluster.on("connect", function () {
                       );
                     },
                     (error) => {
-                      console.log(error);
+                      logger.info(error);
                       res.send({
                         header: null,
                         weeks_view: null,
@@ -5437,7 +5434,7 @@ redisCluster.on("connect", function () {
                     }
                   )
                   .catch((error) => {
-                    console.log(error);
+                    logger.info(error);
                     res.send({
                       header: null,
                       weeks_view: null,
@@ -5446,7 +5443,7 @@ redisCluster.on("connect", function () {
                   });
               },
               (error) => {
-                console.log(error);
+                logger.info(error);
                 res.send({
                   header: null,
                   weeks_view: null,
@@ -5455,7 +5452,7 @@ redisCluster.on("connect", function () {
               }
             )
             .catch((error) => {
-              console.log(error);
+              logger.info(error);
               res.send({
                 header: null,
                 weeks_view: null,
@@ -5524,7 +5521,7 @@ redisCluster.on("connect", function () {
     app.post("/gatherAdsManagerAnalytics", function (req, res) {
       resolveDate();
       req = req.body;
-      //console.trace(req);
+      //logger.warn(req);
       res.send({ response: "error", flag: "invalid_data" });
 
       /*if (
@@ -5556,28 +5553,28 @@ redisCluster.on("connect", function () {
           //! -----
           collectionGlobalEvents.insertOne(eventBundle, function (err, result) {
             if (err) {
-              console.trace(err);
+              logger.warn(err);
             }
             //...
             resolve(true);
           });
         } catch (error) {
-          console.trace(error);
+          logger.warn(error);
           resolve(false);
         }
       })
         .then(
           (result) => {
-            console.log(result);
+            logger.info(result);
             res.send({ response: "success" });
           },
           (error) => {
-            console.log(error);
+            logger.info(error);
             res.send({ response: "error", flag: "invalid_data" });
           }
         )
         .catch((error) => {
-          console.log(error);
+          logger.info(error);
           res.send({ response: "error", flag: "invalid_data" });
         });
     } //Invalid data
@@ -5597,7 +5594,7 @@ redisCluster.on("connect", function () {
       let params = urlParser.parse(req.url, true);
       req = params.query;
       res.send({ response: "error", flag: "invalid_data" });
-      /*console.log(req);
+      /*logger.info(req);
 
     if (
       req.user_fingerprint !== undefined &&
@@ -5617,12 +5614,12 @@ redisCluster.on("connect", function () {
             res.send(result);
           },
           (error) => {
-            console.log(error);
+            logger.info(error);
             res.send({ response: "error", flag: "invalid_data" });
           }
         )
         .catch((error) => {
-          console.log(error);
+          logger.info(error);
           res.send({ response: "error", flag: "invalid_data" });
         });
     } //Invalid data

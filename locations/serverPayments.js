@@ -1,26 +1,24 @@
 require("dotenv").config();
 var express = require("express");
 const http = require("http");
-const fs = require("fs");
-const path = require("path");
 const MongoClient = require("mongodb").MongoClient;
 var parser = require("xml2json");
 
+const { logger } = require("./LogService");
+
 var app = express();
 var server = http.createServer(app);
-const io = require("socket.io")(server);
 const requestAPI = require("request");
 //....
-const { promisify, inspect, isRegExp } = require("util");
 const urlParser = require("url");
 var chaineDateUTC = null;
 var dateObject = null;
 var dateObjectImute = null;
 const moment = require("moment");
-const { resolve } = require("path");
 
 const clientMongo = new MongoClient(process.env.URL_MONGODB, {
   useUnifiedTopology: true,
+  useNewUrlParser: true,
 });
 
 function resolveDate() {
@@ -124,7 +122,7 @@ resolveDate();
 function deductXML_responses(contentResponse, stepProcess, resolve) {
   if (contentResponse == "" && contentResponse.length === 0) {
     //Error
-    console.log("Error");
+    logger.info("Error");
   } else {
     //Proceed with the transaction
     try {
@@ -377,7 +375,7 @@ function saveLogForTopups(
   };
   collectionWalletTransactions_logs.insertOne(dataBundle, function (err, res) {
     if (err) {
-      console.log(err);
+      logger.info(err);
       resolve(false);
     }
     resolve(true);
@@ -430,7 +428,7 @@ function saveLogForTopupsSuccess(
   //...
   collectionWalletTransactions_logs.insertOne(dataBundle, function (err, res) {
     if (err) {
-      console.log("error");
+      logger.info("error");
       resolve(false);
     }
     resolve(true);
@@ -461,7 +459,7 @@ function processExecute_paymentCardWallet_topup(
       createToken_deductedResponse.API3G.Result === "000" ||
       createToken_deductedResponse.API3G.Result == "000"
     ) {
-      console.log("Executing payment");
+      logger.info("Executing payment");
       let transactionToken = createToken_deductedResponse.API3G.TransToken;
       let transRef = createToken_deductedResponse.API3G.TransRef;
       dataBundle.number = String(dataBundle.number).replace(/ /g, "");
@@ -583,7 +581,7 @@ function processExecute_paymentCardWallet_topup(
                                 });
                               }
                             } catch (error) {
-                              console.log(error);
+                              logger.info(error);
                               esolve({
                                 response: false,
                                 message: "payment_error",
@@ -591,7 +589,7 @@ function processExecute_paymentCardWallet_topup(
                             }
                           },
                           (error) => {
-                            console.log(error);
+                            logger.info(error);
                             resolve({
                               response: false,
                               message: "payment_error",
@@ -600,7 +598,7 @@ function processExecute_paymentCardWallet_topup(
                         );
                       },
                       (error) => {
-                        console.log(error);
+                        logger.info(error);
                         resolve({
                           response: false,
                           message: "payment_error",
@@ -661,7 +659,7 @@ function processExecute_paymentCardWallet_topup(
               }
             },
             (error) => {
-              console.log(error);
+              logger.info(error);
               resolve({
                 response: false,
                 message: "payment_error",
@@ -670,7 +668,7 @@ function processExecute_paymentCardWallet_topup(
           );
         },
         (error) => {
-          console.log(error);
+          logger.info(error);
           resolve({ response: false, message: "payment_error" });
         }
       );
@@ -679,7 +677,7 @@ function processExecute_paymentCardWallet_topup(
       resolve({ response: false, message: "transaction_error" });
     }
   } catch (error) {
-    console.log(error);
+    logger.info(error);
     resolve({ response: false, message: "transaction_error" });
   }
 }
@@ -821,7 +819,8 @@ function checkReceipient_walletTransaction(
         } //? Check for a potential taxi number reference
         else {
           let regFiler = {
-            "cars_data.taxi_number": dataBundle.payNumberOrPhoneNumber.toUpperCase(),
+            "cars_data.taxi_number":
+              dataBundle.payNumberOrPhoneNumber.toUpperCase(),
           };
           //...
           collectionDrivers_profiles
@@ -1022,7 +1021,7 @@ function checkNonSelf_sendingFunds_user(
 
 clientMongo.connect(function (err) {
   //if (err) throw err;
-  console.log("[*] Payments services up");
+  logger.info("[*] Payments services up");
   const dbMongo = clientMongo.db(process.env.DB_NAME_MONGODDB);
   const collectionPassengers_profiles = dbMongo.collection(
     "passengers_profiles"
@@ -1039,7 +1038,7 @@ clientMongo.connect(function (err) {
   const bodyParser = require("body-parser");
   app
     .get("/", function (req, res) {
-      console.log("Payments services up");
+      logger.info("Payments services up");
     })
     .use(
       bodyParser.json({
@@ -1115,7 +1114,7 @@ clientMongo.connect(function (err) {
         .find({ user_fingerprint: dataBundle.user_fp })
         .toArray(function (error, usersDetails) {
           if (error) {
-            console.log(error);
+            logger.info(error);
             res.send({ response: false, message: "transaction_error" });
           }
           //...
@@ -1210,7 +1209,7 @@ clientMongo.connect(function (err) {
                             res.send(result_final); //!Remove dpoFinal object and remove object bracket form!
                           },
                           (error) => {
-                            console.log(error);
+                            logger.info(error);
                             res.send({
                               response: false,
                               message: "transaction_error",
@@ -1226,13 +1225,13 @@ clientMongo.connect(function (err) {
                       }
                     },
                     (error) => {
-                      console.log(error);
+                      logger.info(error);
                       res.send({ response: false, message: "token_error" });
                     }
                   );
                 },
                 (error) => {
-                  console.log(error);
+                  logger.info(error);
                   res.send({ response: false, message: "token_error" });
                 }
               );
@@ -1245,7 +1244,7 @@ clientMongo.connect(function (err) {
             }
           } //?Strange - did not find a rider account linked to this request
           else {
-            console.log("Not found users");
+            logger.info("Not found users");
             //Save error event log
             new Promise((resFailedTransaction) => {
               let faildTransObj = {
@@ -1289,7 +1288,7 @@ clientMongo.connect(function (err) {
     resolveDate();
     let params = urlParser.parse(req.url, true);
     req = params.query;
-    console.log(req);
+    logger.info(req);
 
     if (
       req.user_fingerprint !== undefined &&
@@ -1330,7 +1329,7 @@ clientMongo.connect(function (err) {
                 res.send(result);
               },
               (error) => {
-                console.log(error);
+                logger.info(error);
                 res.send({ response: "error", flag: "transaction_error" });
               }
             );
@@ -1343,7 +1342,7 @@ clientMongo.connect(function (err) {
           }
         },
         (error) => {
-          console.log(error);
+          logger.info(error);
           res.send({ response: "error", flag: "transaction_error" });
         }
       );
@@ -1365,7 +1364,7 @@ clientMongo.connect(function (err) {
     resolveDate();
     let params = urlParser.parse(req.url, true);
     req = params.query;
-    console.log(req);
+    logger.info(req);
     //...
     if (
       req.user_fingerprint !== undefined &&
@@ -1468,7 +1467,7 @@ clientMongo.connect(function (err) {
                               res.send(result);
                             },
                             (error) => {
-                              console.log(error);
+                              logger.info(error);
                               res.send({
                                 response: "error",
                                 flag: "transaction_error",
@@ -1492,7 +1491,7 @@ clientMongo.connect(function (err) {
                     },
                     (error) => {
                       //Error getting balance information
-                      console.log(error);
+                      logger.info(error);
                       res.send({
                         response: "error",
                         flag: "transaction_error",
@@ -1508,7 +1507,7 @@ clientMongo.connect(function (err) {
                 }
               },
               (error) => {
-                console.log(error);
+                logger.info(error);
                 res.send({ response: "error", flag: "transaction_error" });
               }
             );
@@ -1518,7 +1517,7 @@ clientMongo.connect(function (err) {
           }
         },
         (error) => {
-          console.log(error);
+          logger.info(error);
           res.send({ response: "error", flag: "transaction_error" });
         }
       );

@@ -1,26 +1,22 @@
 require("dotenv").config();
 //var dash = require("appmetrics-dash");
-//console.log = function () {};
 var express = require("express");
 const http = require("http");
-const fs = require("fs");
-const geolocationUtlis = require("geolocation-utils");
-const path = require("path");
 const MongoClient = require("mongodb").MongoClient;
 
 var app = express();
 var server = http.createServer(app);
-const io = require("socket.io")(server);
 const crypto = require("crypto");
 //....
-const { promisify, inspect } = require("util");
-const urlParser = require("url");
+const { logger } = require("./LogService");
 const requestAPI = require("request");
 const redis = require("redis");
-const client = redis.createClient({
-  host: process.env.REDIS_HOST,
-  port: process.env.REDIS_PORT,
-});
+const client = /production/i.test(String(process.env.EVIRONMENT))
+  ? null
+  : redis.createClient({
+      host: process.env.REDIS_HOST,
+      port: process.env.REDIS_PORT,
+    });
 var RedisClustr = require("redis-clustr");
 var redisCluster = /production/i.test(String(process.env.EVIRONMENT))
   ? new RedisClustr({
@@ -36,19 +32,20 @@ var redisCluster = /production/i.test(String(process.env.EVIRONMENT))
       },
     })
   : client;
-const redisGet = promisify(redisCluster.get).bind(redisCluster);
 
 var chaineDateUTC = null;
 var dateObject = null;
 const moment = require("moment");
-const { ObjectId } = require("bson");
 
 //CRUCIAL VARIABLES
 var _INTERVAL_PERSISTER_LATE_REQUESTS = null; //Will hold the interval for checking whether or not a requests has takne too long and should be cancelled.
 var _INTERVAL_PERSISTER_LATE_REQUESTS_HEAVY = null; //Wiill  hold the interval for running heavy processes on a 30 sec or more basis.
 //...
 
-const clientMongo = new MongoClient(process.env.URL_MONGODB);
+const clientMongo = new MongoClient(process.env.URL_MONGODB, {
+  useUnifiedTopology: true,
+  useNewUrlParser: true,
+});
 
 function resolveDate() {
   //Resolve date
@@ -76,8 +73,8 @@ resolveDate();
  * Responsible for sending push notification to devices
  */
 var sendPushUPNotification = function (data) {
-  console.log("Notify data");
-  console.log(data);
+  logger.info("Notify data");
+  logger.info(data);
   var headers = {
     "Content-Type": "application/json; charset=utf-8",
   };
@@ -93,7 +90,7 @@ var sendPushUPNotification = function (data) {
   var https = require("https");
   var req = https.request(options, function (res) {
     res.on("data", function (data) {
-      //console.log("Response:");
+      //logger.info("Response:");
     });
   });
 
@@ -169,7 +166,7 @@ function removeOldRequests_madeWithoutBeingAttended(
         //Found some hold requests - check the time as well
         //Will contain the 'age_minutes', 'request_fp', 'client_id' and 'pushNotif_token' as an obj
         //? Bulk compute the age
-        //console.log(holdRequests);
+        //logger.info(holdRequests);
         let parentPromises = holdRequests.map((request) => {
           return new Promise((resAge) => {
             //? Get dates and convert from milliseconds to seconds
@@ -253,7 +250,7 @@ function removeOldRequests_madeWithoutBeingAttended(
                             body = JSON.parse(body);
                             if (/successully/i.test(body.response)) {
                               //Successfully cancelled
-                              console.log(
+                              logger.info(
                                 "notifying the rider of the cancellation of the request"
                               );
                               //! Notify the rider
@@ -277,13 +274,13 @@ function removeOldRequests_madeWithoutBeingAttended(
                               sendPushUPNotification(message);
                             } //error
                             else {
-                              console.log(body);
+                              logger.info(body);
                             }
                           } catch (error) {
-                            console.log(error);
+                            logger.info(error);
                           }
                         } else {
-                          console.log(error);
+                          logger.info(error);
                         }
                       }
                     );
@@ -302,7 +299,7 @@ function removeOldRequests_madeWithoutBeingAttended(
               }
             },
             (error) => {
-              console.log(error);
+              logger.info(error);
               resolve({
                 response: "error",
                 flag: "unable_to_clean_x_hold_requests",
@@ -310,7 +307,7 @@ function removeOldRequests_madeWithoutBeingAttended(
             }
           )
           .catch((error) => {
-            console.log(error);
+            logger.info(error);
             resolve({
               response: "error",
               flag: "unable_to_clean_x_hold_requests",
@@ -393,7 +390,7 @@ function updateNext_paymentDateDrivers(
                 ); //In days
 
                 if (dateDiffChecker <= 0) {
-                  /*console.log(
+                  /*logger.info(
                     `Found obsolete date, add 7 days --> Tag: ${driverData.driver_fingerprint.substr(
                       0,
                       10
@@ -437,10 +434,10 @@ function updateNext_paymentDateDrivers(
                                   body.header.remaining_due_to_driver
                                 ) < 0
                               ) {
-                                console.log(body.header);
-                                console.log(driverData.driver_fingerprint);
+                                logger.info(body.header);
+                                logger.info(driverData.driver_fingerprint);
                               }
-                              console.log(amount);*/
+                              logger.info(amount);*/
                               //? Check the waiting period
                               if (
                                 parseFloat(
@@ -478,7 +475,7 @@ function updateNext_paymentDateDrivers(
                                   .find(checkExistingRide)
                                   .toArray(function (err, tripData) {
                                     if (err) {
-                                      console.log(err);
+                                      logger.info(err);
                                       resPaymentCycle(false);
                                     }
                                     //...
@@ -488,7 +485,7 @@ function updateNext_paymentDateDrivers(
                                     ) {
                                       //Found an undone trip
                                       //! Wait for the trip to be completed
-                                      console.log(
+                                      logger.info(
                                         `TRIP IN PROGRESS, HOLD SUSPENSION --> Tag: ${driverData.driver_fingerprint.substr(
                                           0,
                                           15
@@ -505,7 +502,7 @@ function updateNext_paymentDateDrivers(
                                         })
                                         .toArray(function (err, newDriverData) {
                                           if (err) {
-                                            console.log(err);
+                                            logger.info(err);
                                             resPaymentCycle(false);
                                           }
                                           //...
@@ -549,7 +546,7 @@ function updateNext_paymentDateDrivers(
                                               },
                                               function (err, rest) {
                                                 //? DONE
-                                                console.log(
+                                                logger.info(
                                                   `DRIVER SUSPENDED --> Tag: ${driverData.driver_fingerprint.substr(
                                                     0,
                                                     15
@@ -566,7 +563,7 @@ function updateNext_paymentDateDrivers(
                                         });
                                     }
                                   });
-                                //console.log(body.header);
+                                //logger.info(body.header);
                               } //? Not yet over the waiting period
                               else {
                                 //? NOTIFICATION AREA
@@ -605,7 +602,7 @@ function updateNext_paymentDateDrivers(
                                     })
                                     .toArray(function (err, eventData) {
                                       if (err) {
-                                        console.log(err);
+                                        logger.info(err);
                                         resNotify(false);
                                       }
                                       //...
@@ -619,7 +616,7 @@ function updateNext_paymentDateDrivers(
                                         eventData =
                                           eventData[eventData.length - 1];
                                         //...
-                                        console.log(
+                                        logger.info(
                                           `Next notification cycle count -> ${
                                             diff_min(
                                               new Date(eventData.date),
@@ -635,7 +632,7 @@ function updateNext_paymentDateDrivers(
                                         ) {
                                           //Send a new one
                                           //? Send a fresh notification
-                                          console.log(
+                                          logger.info(
                                             `SEND NOTIFICATION -> Tag: ${driverData.driver_fingerprint.substr(
                                               0,
                                               15
@@ -650,7 +647,7 @@ function updateNext_paymentDateDrivers(
                                           );
                                         } //Pass - waiting for the next 30 from the previous notification
                                         else {
-                                          console.log(
+                                          logger.info(
                                             `Waiting for the next notification cycle - Tag: ${driverData.driver_fingerprint.substr(
                                               0,
                                               5
@@ -660,7 +657,7 @@ function updateNext_paymentDateDrivers(
                                         }
                                       } //No previous event data - send a fresh notification
                                       else {
-                                        console.log(
+                                        logger.info(
                                           `SEND NOTIFICATION -> Tag: ${driverData.driver_fingerprint.substr(
                                             0,
                                             15
@@ -681,10 +678,10 @@ function updateNext_paymentDateDrivers(
                                     () => {}
                                   )
                                   .catch((error) => {
-                                    console.log(error);
+                                    logger.info(error);
                                   });
 
-                                console.log("WAIT FOR FINAL DDEADLINE");
+                                logger.info("WAIT FOR FINAL DDEADLINE");
                                 //! Do not update the payment date
                                 resPaymentCycle(true);
                               }
@@ -704,12 +701,12 @@ function updateNext_paymentDateDrivers(
                                     resPaymentCycle(true);
                                   },
                                   (error) => {
-                                    console.log(error);
+                                    logger.info(error);
                                     resPaymentCycle(false);
                                   }
                                 )
                                 .catch((error) => {
-                                  console.log(error);
+                                  logger.info(error);
                                   resPaymentCycle(false);
                                 });
                             }
@@ -730,7 +727,7 @@ function updateNext_paymentDateDrivers(
                                 () => {},
                                 () => {}
                               )
-                              .catch((error) => console.log(error));
+                              .catch((error) => logger.info(error));
                             //?----------------------------------------------------------------------
 
                             //! Day passed already by 24 hours - update - ADD 7 days
@@ -747,12 +744,12 @@ function updateNext_paymentDateDrivers(
                                   resPaymentCycle(true);
                                 },
                                 (error) => {
-                                  console.log(error);
+                                  logger.info(error);
                                   resPaymentCycle(false);
                                 }
                               )
                               .catch((error) => {
-                                console.log(error);
+                                logger.info(error);
                                 resPaymentCycle(false);
                               });
                           }
@@ -761,7 +758,7 @@ function updateNext_paymentDateDrivers(
                           resPaymentCycle(false);
                         }
                       } catch (error) {
-                        console.log(error);
+                        logger.info(error);
                         resPaymentCycle(false);
                       }
                     } else {
@@ -770,7 +767,7 @@ function updateNext_paymentDateDrivers(
                   });
                 } //? The date looks good - skip
                 else {
-                  console.log("Next payment date not obsolete found!");
+                  logger.info("Next payment date not obsolete found!");
                   //? Unlock the driver if locked --------------------------------
                   new Promise((resUnlock) => {
                     lock_unlock_drivers(
@@ -786,7 +783,7 @@ function updateNext_paymentDateDrivers(
                       () => {},
                       () => {}
                     )
-                    .catch((error) => console.log(error));
+                    .catch((error) => logger.info(error));
                   //?----------------------------------------------------------------------
                   resPaymentCycle(true);
                 }
@@ -807,7 +804,7 @@ function updateNext_paymentDateDrivers(
             });
           },
           (error) => {
-            console.log(error);
+            logger.info(error);
             resolve({
               response:
                 "Done checking and updating obsolete next payment dates",
@@ -815,7 +812,7 @@ function updateNext_paymentDateDrivers(
           }
         )
         .catch((error) => {
-          console.log(error);
+          logger.info(error);
           resolve({
             response: "Done checking and updating obsolete next payment dates",
           });
@@ -851,7 +848,7 @@ function lock_unlock_drivers(
     })
     .toArray(function (err, newDriverData) {
       if (err) {
-        console.log(err);
+        logger.info(err);
         resolvee(false);
       }
       //...
@@ -891,7 +888,7 @@ function lock_unlock_drivers(
             },
             function (err, rest) {
               //? DONE
-              console.log(
+              logger.info(
                 `DRIVER UNLOCKED --> Tag: ${driverData.driver_fingerprint.substr(
                   0,
                   15
@@ -902,7 +899,7 @@ function lock_unlock_drivers(
           );
         } //! No proper suspension reason found - pass
         else {
-          console.log("No proper unsuspension reason found, pass.");
+          logger.info("No proper unsuspension reason found, pass.");
           resolve(false);
         }
       } //No driver data found
@@ -962,14 +959,14 @@ function sendComission_notificationsDrivers(
         : null,
     ],
   };
-  console.log(messageText);
+  logger.info(messageText);
   //Send
   //! TO UNCOMMENT!
   if (/production/i.test(String(process.env.EVIRONMENT))) {
     sendPushUPNotification(message);
   } //Notification development lock
   else {
-    console.trace("Commission push notification development lock!");
+    logger.warn("Commission push notification development lock!");
   }
   //? SAVE THE EVENT
   let event = {
@@ -980,7 +977,7 @@ function sendComission_notificationsDrivers(
   };
   collectionGlobalEvents.insertOne(event, function (err, result) {
     if (err) {
-      console.log(err);
+      logger.info(err);
       resolve(false);
     }
     //...DONE
@@ -1109,7 +1106,7 @@ function scheduledRequestsWatcher_junky(
     .collation({ locale: "en", strength: 2 })
     .toArray(function (err, dataScheduledRequests) {
       if (err) {
-        console.log(err);
+        logger.info(err);
         resolve({ response: "An error occured", flag: err });
       }
       //...
@@ -1179,7 +1176,7 @@ function scheduledRequestsWatcher_junky(
                     .find({ driver_fingerprint: request.taxi_id })
                     .toArray(function (err, driverData) {
                       if (err) {
-                        console.log(err);
+                        logger.info(err);
                         resAge(passengerInfos);
                       }
                       //...
@@ -1215,7 +1212,7 @@ function scheduledRequestsWatcher_junky(
                 }
               })
               .catch((error) => {
-                console.log(error);
+                logger.info(error);
                 resAge(recordObj);
               });
           });
@@ -1224,7 +1221,7 @@ function scheduledRequestsWatcher_junky(
         Promise.all(parentPromises)
           .then(
             (scheduledRequestsBulk) => {
-              console.log(scheduledRequestsBulk);
+              logger.info(scheduledRequestsBulk);
               if (scheduledRequestsBulk.length > 0) {
                 //Found some requests
                 let parentPromises2 = scheduledRequestsBulk.map((request) => {
@@ -1268,7 +1265,7 @@ function scheduledRequestsWatcher_junky(
                               .find({ request_fp: result.request_fp })
                               .toArray(function (err, fullRequestOriginals) {
                                 if (err) {
-                                  console.log(err);
+                                  logger.info(err);
                                   resRedispatch(false);
                                 }
                                 //...
@@ -1286,7 +1283,7 @@ function scheduledRequestsWatcher_junky(
                                   requestAPI.post(
                                     { url, form: fullRequestOriginals[0] },
                                     function (error, response, body) {
-                                      console.log(body);
+                                      logger.info(body);
                                       if (error === null) {
                                         try {
                                           body = JSON.parse(body);
@@ -1298,7 +1295,7 @@ function scheduledRequestsWatcher_junky(
                                             resRedispatch(body);
                                           }
                                         } catch (error) {
-                                          console.log(error);
+                                          logger.info(error);
                                           resRedispatch(false);
                                         }
                                       } else {
@@ -1314,14 +1311,14 @@ function scheduledRequestsWatcher_junky(
                           })
                             .then(
                               (resltRedispatch) => {
-                                console.log(resltRedispatch);
+                                logger.info(resltRedispatch);
                               },
                               (error) => {
-                                console.log(error);
+                                logger.info(error);
                               }
                             )
                             .catch((error) => {
-                              console.log(error);
+                              logger.info(error);
                             });
                         }
 
@@ -1377,7 +1374,7 @@ function scheduledRequestsWatcher_junky(
                                 body = JSON.parse(body);
                                 if (/successully/i.test(body.response)) {
                                   //Successfully cancelled
-                                  console.log(
+                                  logger.info(
                                     "notifying the rider of the cancellation of the request"
                                   );
                                   //! Notify the rider
@@ -1402,15 +1399,15 @@ function scheduledRequestsWatcher_junky(
                                   resCompute(true);
                                 } //error
                                 else {
-                                  console.log(body);
+                                  logger.info(body);
                                   resCompute(true);
                                 }
                               } catch (error) {
-                                console.log(error);
+                                logger.info(error);
                                 resCompute(true);
                               }
                             } else {
-                              console.log(error);
+                              logger.info(error);
                               resCompute(true);
                             }
                           }
@@ -1426,19 +1423,19 @@ function scheduledRequestsWatcher_junky(
                 Promise.all(parentPromises2)
                   .then(
                     (fullComputeReslt) => {
-                      console.log(fullComputeReslt);
+                      logger.info(fullComputeReslt);
                       resolve({
                         response:
                           "successfully_wentThrough_scheduled_requestsFor_watch",
                       });
                     },
                     (error) => {
-                      console.log(error);
+                      logger.info(error);
                       resolve({ response: "An error occured", flag: error });
                     }
                   )
                   .catch((error) => {
-                    console.log(error);
+                    logger.info(error);
                     resolve({ response: "An error occured", flag: error });
                   });
               } //No requests found
@@ -1447,12 +1444,12 @@ function scheduledRequestsWatcher_junky(
               }
             },
             (error) => {
-              console.log(error);
+              logger.info(error);
               resolve({ response: "An error occured", flag: error });
             }
           )
           .catch((error) => {
-            console.log(error);
+            logger.info(error);
             resolve({ response: "An error occured", flag: error });
           });
       } //No scheduled requests so far
@@ -1487,7 +1484,7 @@ function requestsDriverSubscriber_watcher(
     .find(requestFilter0)
     .toArray(function (err, dataRequests) {
       if (err) {
-        console.log(err);
+        logger.info(err);
         resolve({ response: "An error occured", flag: err });
       }
       //...
@@ -1508,7 +1505,7 @@ function requestsDriverSubscriber_watcher(
               //...Compute the diff and convert to minutes
               let diff =
                 diff_hours(dateRequested, referenceDate).difference * 3600; //? to seconds
-              console.log("SUBSCRIBELESS DIFF --------> ", diff);
+              logger.info("SUBSCRIBELESS DIFF --------> ", diff);
               //! Check the wait time
               if (
                 diff >=
@@ -1551,7 +1548,7 @@ function requestsDriverSubscriber_watcher(
                   .collation({ locale: "en", strength: 2 })
                   .toArray(function (err, driversFullData) {
                     if (err) {
-                      console.log(err);
+                      logger.info(err);
                       resAge(false);
                     }
                     //...
@@ -1588,7 +1585,7 @@ function requestsDriverSubscriber_watcher(
                         },
                         function (err, resultUpdate) {
                           if (err) {
-                            console.log(err);
+                            logger.info(err);
                             resAge(false);
                           }
                           //...
@@ -1699,7 +1696,7 @@ function requestsDriverSubscriber_watcher(
                           Promise.all(parentPromises)
                             .then()
                             .catch((error) => {
-                              console.log(error);
+                              logger.info(error);
                             });
 
                           //...DONE
@@ -1728,7 +1725,7 @@ function requestsDriverSubscriber_watcher(
               resolve({ response: "done_watching_subscribeless_requests" });
             },
             (error) => {
-              console.log(error);
+              logger.info(error);
               resolve({
                 response: "error_watching_subscribeless_requests",
                 flag: error,
@@ -1736,7 +1733,7 @@ function requestsDriverSubscriber_watcher(
             }
           )
           .catch((error) => {
-            console.log(error);
+            logger.info(error);
             resolve({
               response: "error_watching_subscribeless_requests",
               flag: error,
@@ -1758,11 +1755,11 @@ function requestsDriverSubscriber_watcher(
  * @param resolve
  */
 function updateDrivers_walletCachedData(collectionDrivers_profiles, resolve) {
-  console.log("Starting drivers wallet refreshing.");
+  logger.info("Starting drivers wallet refreshing.");
   //1. Get all the drivers
   collectionDrivers_profiles.find({}).toArray(function (err, driverData) {
     if (err) {
-      console.log(err);
+      logger.info(err);
       resolve({
         response: "error_fetch_driver_data",
         flag: err,
@@ -1770,7 +1767,7 @@ function updateDrivers_walletCachedData(collectionDrivers_profiles, resolve) {
     }
     //...
     if (driverData !== undefined && driverData.length > 0) {
-      console.log(`Found ${driverData.length} drivers to update.`);
+      logger.info(`Found ${driverData.length} drivers to update.`);
       //Found some driver data
       //2. Compute wallet data
       let parentPromises = driverData.map((driverInfo, index) => {
@@ -1829,10 +1826,10 @@ function updateDrivers_walletCachedData(collectionDrivers_profiles, resolve) {
  */
 
 redisCluster.on("connect", function () {
-  console.log("[*] Redis connected");
+  logger.info("[*] Redis connected");
   clientMongo.connect(function (err) {
     //if (err) throw err;
-    console.log("[+] Watcher services active.");
+    logger.info("[+] Watcher services active.");
     const dbMongo = clientMongo.db(process.env.DB_NAME_MONGODDB);
     const collectionPassengers_profiles = dbMongo.collection(
       "passengers_profiles"
@@ -1850,7 +1847,7 @@ redisCluster.on("connect", function () {
     const bodyParser = require("body-parser");
     app
       .get("/", function (req, res) {
-        console.log("Account services up");
+        logger.info("Account services up");
       })
       .use(
         bodyParser.json({
@@ -1874,7 +1871,7 @@ redisCluster.on("connect", function () {
     _INTERVAL_PERSISTER_LATE_REQUESTS = setInterval(function () {
       resolveDate();
       //...
-      console.log(`[${chaineDateUTC}] - Watcher loopedi`);
+      logger.info(`[${chaineDateUTC}] - Watcher loopedi`);
       //? 1. Clean X hold requests
       new Promise((res1) => {
         removeOldRequests_madeWithoutBeingAttended(
@@ -1885,14 +1882,14 @@ redisCluster.on("connect", function () {
       })
         .then(
           (result) => {
-            //console.log(result);
+            //logger.info(result);
           },
           (error) => {
-            //console.log(error);
+            //logger.info(error);
           }
         )
         .catch((error) => {
-          //console.log(error);
+          //logger.info(error);
         });
 
       //? 2. Keep the drivers next payment date UP TO DATE
@@ -1907,14 +1904,14 @@ redisCluster.on("connect", function () {
       })
         .then(
           (result) => {
-            console.log(result);
+            logger.info(result);
           },
           (error) => {
-            console.log(error);
+            logger.info(error);
           }
         )
         .catch((error) => {
-          console.log(error);
+          logger.info(error);
         });*/
 
       //? 3. Observe all the scheduled requests for executions
@@ -1928,14 +1925,14 @@ redisCluster.on("connect", function () {
       })
         .then(
           (result) => {
-            console.log(result);
+            logger.info(result);
           },
           (error) => {
-            console.log(error);
+            logger.info(error);
           }
         )
         .catch((error) => {
-          console.log(error);
+          logger.info(error);
         });
 
       //? 4. Observe all the subscribeless requests
@@ -1948,14 +1945,14 @@ redisCluster.on("connect", function () {
     })
       .then(
         (result) => {
-          console.log(result);
+          logger.info(result);
         },
         (error) => {
-          console.log(error);
+          logger.info(error);
         }
       )
       .catch((error) => {
-        console.log(error);
+        logger.info(error);
       });*/
 
       //? 5. Auto switch on all the drivers by default
@@ -1984,10 +1981,10 @@ redisCluster.on("connect", function () {
           });
       })
         .then((result) => {
-          console.log(result);
+          logger.info(result);
         })
         .catch((error) => {
-          console.log(error);
+          logger.info(error);
         });
     }, process.env.INTERVAL_PERSISTER_MAIN_WATCHER_MILLISECONDS);
 
@@ -1999,14 +1996,14 @@ redisCluster.on("connect", function () {
       })
         .then(
           (result) => {
-            console.log(result);
+            logger.info(result);
           },
           (error) => {
-            console.log(error);
+            logger.info(error);
           }
         )
         .catch((error) => {
-          console.log(error);
+          logger.info(error);
         });*/
       //? 2. Reinforce the date type for the transaction logs
       /*new Promise((res2) => {
@@ -2014,13 +2011,13 @@ redisCluster.on("connect", function () {
           .find({ date_captured: { $type: "string" } })
           .toArray(function (err, transactionData) {
             if (err) {
-              console.log(err);
+              logger.info(err);
               res2(false);
             }
             //...
             if (transactionData !== undefined && transactionData.length > 0) {
               //Found some dirty data
-              console.log("Dirty date with string type found");
+              logger.info("Dirty date with string type found");
               let parentPromises = transactionData.map((transaction) => {
                 return new Promise((resCompute) => {
                   collectionWalletTransactions_logs.updateOne(
@@ -2032,7 +2029,7 @@ redisCluster.on("connect", function () {
                     },
                     function (err, resultUpdate) {
                       if (err) {
-                        console.log(err);
+                        logger.info(err);
                         resCompute(false);
                       }
                       //...
@@ -2048,12 +2045,12 @@ redisCluster.on("connect", function () {
                     res2(result);
                   },
                   (error) => {
-                    console.log(error);
+                    logger.info(error);
                     res2(false);
                   }
                 )
                 .catch((error) => {
-                  console.log(error);
+                  logger.info(error);
                   res2(false);
                 });
             } //No data found
@@ -2064,14 +2061,14 @@ redisCluster.on("connect", function () {
       })
         .then(
           (result) => {
-            console.log(result);
+            logger.info(result);
           },
           (error) => {
-            console.log(error);
+            logger.info(error);
           }
         )
         .catch((error) => {
-          console.log(error);
+          logger.info(error);
         });*/
     }, parseInt(process.env.INTERVAL_PERSISTER_MAIN_WATCHER_MILLISECONDS) * 12);
   });

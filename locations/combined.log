@@ -1,0 +1,657 @@
+{"message":"Hello again distributed logs","level":"info","service":"user-service"}
+{"message":"Hello again distributed logs","level":"info","service":"user-service"}
+{"message":"Hello again distributed logs","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Watcher services active.","level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:48:08.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Watcher services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Watcher services active.","level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:48:28.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:48:38.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"Hello again distributed logs","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Watcher services active.","level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:48:54.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:49:04.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"Hello again distributed logs","level":"warn","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Watcher services active.","level":"info","service":"user-service"}
+{"message":"Hello again distributed logs","level":"error","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Watcher services active.","level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:49:38.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:49:48.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:49:58.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Watcher services active.","level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:50:12.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:50:22.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:50:32.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:50:42.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:50:52.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:51:02.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:51:12.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:51:22.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:51:32.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:51:42.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:51:52.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:52:02.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:52:12.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:52:22.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:52:32.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:52:42.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:52:52.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:53:02.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:53:12.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:53:22.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:53:32.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:53:42.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:53:52.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:54:02.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:54:12.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:54:22.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:54:32.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:54:42.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:54:52.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:55:02.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:55:12.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:55:22.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:55:32.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:55:42.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:55:52.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:56:02.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:56:12.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Watcher services active.","level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:56:34.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:56:44.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:56:54.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Watcher services active.","level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:57:09.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:57:19.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:57:29.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Watcher services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Watcher services active.","level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:57:59.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:58:08.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Watcher services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Watcher services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Watcher services active.","level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:58:50.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:59:00.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:59:10.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:59:20.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:59:30.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:59:40.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T19:59:50.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:00:00.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:00:10.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:00:20.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:00:30.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:00:40.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:00:50.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:01:00.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:01:10.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:01:20.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:01:30.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:01:40.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:01:50.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:02:00.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:02:10.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:02:20.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:02:30.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:02:40.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:02:50.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:03:00.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Watcher services active.","level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:03:15.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:03:25.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:03:35.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Watcher services active.","level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:03:51.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:04:01.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:04:11.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Watcher services active.","level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:04:31.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Watcher services active.","level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:04:47.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:04:57.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:05:07.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Watcher services active.","level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:05:27.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:05:37.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:05:47.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:05:57.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Watcher services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Watcher services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Watcher services active.","level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:06:41.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Watcher services active.","level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:07:02.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:07:12.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:07:22.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Watcher services active.","level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:07:42.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:07:52.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:08:02.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:08:12.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Watcher services active.","level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:08:29.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Watcher services active.","level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:08:46.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Watcher services active.","level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:09:08.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:09:18.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Watcher services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Watcher services active.","level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:09:45.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:09:55.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Watcher services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Watcher services active.","level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:10:24.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Watcher services active.","level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:10:46.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Watcher services active.","level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:11:10.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:11:20.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:11:30.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:11:40.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Watcher services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Watcher services active.","level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:12:06.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:12:16.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:12:26.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Watcher services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Account services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Account services active.","level":"info","service":"user-service"}
+{"message":"[+] Account services active.","level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:12:43.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Watcher services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Account services active.","level":"info","service":"user-service"}
+{"message":"[+] Account services active.","level":"info","service":"user-service"}
+{"message":"[+] Account services active.","level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:12:58.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:13:08.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:13:19.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Watcher services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Account services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Account services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Account services active.","level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:13:37.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Watcher services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Account services active.","level":"info","service":"user-service"}
+{"message":"[+] Account services active.","level":"info","service":"user-service"}
+{"message":"[+] Account services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Dispatch services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Dispatch services active.","level":"info","service":"user-service"}
+{"message":"[+] Watcher services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Account services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Account services active.","level":"info","service":"user-service"}
+{"message":"[+] Account services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Dispatch services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Dispatch services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Watcher services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Account services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Account services active.","level":"info","service":"user-service"}
+{"message":"[+] Account services active.","level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:14:23.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Dispatch services active.","level":"info","service":"user-service"}
+{"message":"[+] MAP services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] MAP services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Dispatch services active.","level":"info","service":"user-service"}
+{"message":"[+] Watcher services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Account services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Account services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Account services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Watcher services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] MAP services active.","level":"info","service":"user-service"}
+{"message":"[+] Dispatch services active.","level":"info","service":"user-service"}
+{"message":"[+] MAP services active.","level":"info","service":"user-service"}
+{"message":"[+] Dispatch services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Account services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Account services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Account services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Dispatch services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Dispatch services active.","level":"info","service":"user-service"}
+{"message":"[+] MAP services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] MAP services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Watcher services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Account services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Account services active.","level":"info","service":"user-service"}
+{"message":"[+] Account services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] MAP services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Dispatch services active.","level":"info","service":"user-service"}
+{"message":"[+] Dispatch services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] MAP services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Watcher services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Account services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] MAP services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] MAP services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Dispatch services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Pricing service active","level":"info","service":"user-service"}
+{"message":"[+] Dispatch services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Watcher services active.","level":"info","service":"user-service"}
+{"message":"[+] Pricing service active","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Account services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Account services active.","level":"info","service":"user-service"}
+{"message":"[+] Account services active.","level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:15:32.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:15:42.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Dispatch services active.","level":"info","service":"user-service"}
+{"message":"[+] Pricing service active","level":"info","service":"user-service"}
+{"message":"[+] Dispatch services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] MAP services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] MAP services active.","level":"info","service":"user-service"}
+{"message":"[+] Pricing service active","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Watcher services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Account services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Account services active.","level":"info","service":"user-service"}
+{"message":"[+] Account services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"Connected to Mongodb","level":"info","service":"user-service"}
+{"message":"[+] Pricing service active","level":"info","service":"user-service"}
+{"message":"[+] Pricing service active","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Watcher services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"Connected to Mongodb","level":"info","service":"user-service"}
+{"message":"[+] Dispatch services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"Restoring location cache","level":"info","service":"user-service"}
+{"message":"[+] Dispatch services active.","level":"info","service":"user-service"}
+{"message":"[+] MAP services active.","level":"info","service":"user-service"}
+{"message":"[+] MAP services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Account services active.","level":"info","service":"user-service"}
+{"message":"[+] Account services active.","level":"info","service":"user-service"}
+{"message":"Restoring location cache","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Account services active.","level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:16:08.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:16:18.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:16:28.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:16:38.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:16:48.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:16:58.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:17:08.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:17:18.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:17:28.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}

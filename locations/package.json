@@ -36,6 +36,7 @@
     "request": "^2.88.2",
     "socket.io": "^4.0.1",
     "textbelt": "0.0.4",
+    "winston": "^3.3.3",
     "xml2json": "^0.12.0"
   }
 }

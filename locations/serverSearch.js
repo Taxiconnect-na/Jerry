@@ -1,21 +1,22 @@
 require("dotenv").config();
-//console.log = function () {};
 var express = require("express");
 const http = require("http");
-const fs = require("fs");
 const MongoClient = require("mongodb").MongoClient;
+
+const { logger } = require("./LogService");
 
 var app = express();
 var server = http.createServer(app);
-const mysql = require("mysql");
 const requestAPI = require("request");
 //---center
 const { promisify, inspect } = require("util");
 const redis = require("redis");
-const client = redis.createClient({
-  host: process.env.REDIS_HOST,
-  port: process.env.REDIS_PORT,
-});
+const client = /production/i.test(String(process.env.EVIRONMENT))
+  ? null
+  : redis.createClient({
+      host: process.env.REDIS_HOST,
+      port: process.env.REDIS_PORT,
+    });
 var RedisClustr = require("redis-clustr");
 var redisCluster = /production/i.test(String(process.env.EVIRONMENT))
   ? new RedisClustr({
@@ -36,12 +37,11 @@ const redisGet = promisify(redisCluster.get).bind(redisCluster);
 var fastFilter = require("fast-filter");
 const escapeStringRegexp = require("escape-string-regexp");
 const urlParser = require("url");
-var chaineDateUTC = null;
-var dateObject = null;
 const moment = require("moment");
 
 const clientMongo = new MongoClient(process.env.URL_MONGODB, {
   useUnifiedTopology: true,
+  useNewUrlParser: true,
 });
 
 //INITIALIZE LOCATION CACHE
@@ -49,16 +49,16 @@ const clientMongo = new MongoClient(process.env.URL_MONGODB, {
 function restoreSearchedLocations_cache(res, collectionMongoDb) {
   try {
     collectionMongoDb.find({}).toArray(function (err, cachedData) {
-      //console.log(cachedData);
+      //logger.info(cachedData);
       if (res.lenth == 0) {
         //Empty initialize
-        console.log("Initializing empty cache");
+        logger.info("Initializing empty cache");
         //Initialize location cache - redis
         redisCluster.set("search_locations", JSON.stringify([]), redis.print);
         res(true);
       } //Not empty restore - redis
       else {
-        console.log("Restoring location cache");
+        logger.info("Restoring location cache");
         redisCluster.set(
           "search_locations",
           JSON.stringify(cachedData),
@@ -68,7 +68,7 @@ function restoreSearchedLocations_cache(res, collectionMongoDb) {
       }
     });
   } catch (err) {
-    console.log(err);
+    logger.info(err);
     //Initialize location cache - redis
     redisCluster.set("search_locations", JSON.stringify([]), redis.print);
     res(true);
@@ -108,7 +108,7 @@ function resolveDate() {
 resolveDate();
 
 function logObject(obj) {
-  console.log(
+  logger.info(
     inspect(obj, {
       maxArrayLength: null,
       depth: null,
@@ -154,7 +154,7 @@ function similarityCheck_locations_search(arrayLocations, query, res) {
       }
     });
     //..
-    console.log(arrayLocations);
+    logger.info(arrayLocations);
     if (arrayLocations.length > 0) {
       res(arrayLocations.sort());
     } //Empty
@@ -252,7 +252,7 @@ function newLoaction_search_engine(
             });
             //Done with grathering result of brute API search
             Promise.all(request0).then((val) => {
-              //console.log(val);
+              //logger.info(val);
               //Remove all the false values
               val = fastFilter(val, function (element) {
                 return element !== false;
@@ -274,7 +274,7 @@ function newLoaction_search_engine(
                     //Update search cache - redis
                     redisGet(keyREDIS).then(
                       (resp) => {
-                        //console.log(resp);
+                        //logger.info(resp);
                         if (resp !== null) {
                           let respPrevRedisCache = JSON.parse(resp);
                           //logObject(respPrevRedisCache);
@@ -306,7 +306,7 @@ function newLoaction_search_engine(
                                   collectionMongoDb.insertMany(
                                     newSearchRecords,
                                     function (err, res) {
-                                      console.log(res);
+                                      logger.info(res);
                                       resUpdate(
                                         "Updated mongo with new search results from autocomplete"
                                       );
@@ -346,7 +346,7 @@ function newLoaction_search_engine(
                             }
                           );
                         } else {
-                          console.log("setting redis");
+                          logger.info("setting redis");
                           //set redis
                           redisCluster.setex(
                             keyREDIS,
@@ -364,7 +364,7 @@ function newLoaction_search_engine(
                         }
                       },
                       (error) => {
-                        console.log(error);
+                        logger.info(error);
                         res({
                           search_timestamp: timestamp,
                           result: removeResults_duplicates(result).slice(0, 5),
@@ -377,7 +377,7 @@ function newLoaction_search_engine(
                   }
                 },
                 (error) => {
-                  console.log(error);
+                  logger.info(error);
                   res(false);
                 }
               );
@@ -393,14 +393,14 @@ function newLoaction_search_engine(
         res(false);
       }
     } catch (error) {
-      console.log(error);
+      logger.info(error);
       res(false);
     }
   });
 }
 
 function removeResults_duplicates(arrayResults, resolve) {
-  //console.log(arrayResults);
+  //logger.info(arrayResults);
   let arrayResultsClean = [];
   let arrayIds = [];
   arrayResults.map((location) => {
@@ -443,7 +443,7 @@ function getLocationList_five(
   timestamp,
   collectionMongoDb
 ) {
-  console.log(city, country);
+  logger.info(city, country);
   //Check if cached results are available
   let keyREDIS =
     "search_locations-" +
@@ -481,7 +481,7 @@ function getLocationList_five(
         //...Check tolerance number
         if (cachedLocations.length > 0) {
           //Exists
-          console.log("Cached data fetch");
+          logger.info("Cached data fetch");
           //logObject(removeResults_duplicates(cachedLocations));
           res({
             search_timestamp: timestamp,
@@ -492,7 +492,7 @@ function getLocationList_five(
           });
         } //No results launch new search
         else {
-          console.log("Launch new search");
+          logger.info("Launch new search");
           newLoaction_search_engine(
             queryOR,
             city,
@@ -506,7 +506,7 @@ function getLocationList_five(
       } //No cached results
       else {
         //Launch new search
-        console.log("Launch new search");
+        logger.info("Launch new search");
         newLoaction_search_engine(
           queryOR,
           city,
@@ -520,8 +520,8 @@ function getLocationList_five(
     },
     (error) => {
       //Launch new search
-      console.log(error);
-      console.log("Launch new search");
+      logger.info(error);
+      logger.info("Launch new search");
       newLoaction_search_engine(
         queryOR,
         city,
@@ -535,10 +535,10 @@ function getLocationList_five(
   );
 }
 redisCluster.on("connect", function () {
-  console.log("[*] Redis connected");
+  logger.info("[*] Redis connected");
   clientMongo.connect(function (err) {
     //if (err) throw err;
-    console.log("Connected to Mongodb");
+    logger.info("Connected to Mongodb");
     const dbMongo = clientMongo.db(process.env.DB_NAME_MONGODDB);
     const collectionMongoDb = dbMongo.collection("searched_locations_persist");
     //-------------
@@ -550,7 +550,7 @@ redisCluster.on("connect", function () {
       (err) => {
         //Initialize mongodb collection
         //Persist usual user searches
-        console.log(err);
+        logger.info(err);
         dbMongo.collection("searched_locations_persist");
       }
     );
@@ -578,7 +578,7 @@ redisCluster.on("connect", function () {
       //..
       let params = urlParser.parse(request.url, true);
       request = params.query;
-      console.log(request);
+      logger.info(request);
       let request0 = null;
       //Update search timestamp
       //search_timestamp = dateObject.unix();
@@ -608,31 +608,31 @@ redisCluster.on("connect", function () {
             );
           }).then(
             (result) => {
-              console.log(result);
+              logger.info(result);
               if (
                 parseInt(search_timestamp) != parseInt(result.search_timestamp)
               ) {
                 //Inconsistent - do not update
-                //console.log('Inconsistent');
+                //logger.info('Inconsistent');
                 //res.send(false);
                 res.send(result);
               } //Consistent - update
               else {
-                //console.log('Consistent');
+                //logger.info('Consistent');
                 //logObject(result);
                 //socket.emit("getLocations-response", result);
                 res.send(result);
               }
             },
             (error) => {
-              console.log(error);
+              logger.info(error);
               //socket.emit("getLocations-response", false);
               res.send(false);
             }
           );
         },
         (error) => {
-          console.log(error);
+          logger.info(error);
           //socket.emit("getLocations-response", false);
           res.send(false);
         }
