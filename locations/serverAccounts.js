@@ -4781,24 +4781,49 @@ redisCluster.on("connect", function () {
      * Responsible for getting the daily amount made so far by the driver for exactly all the completed requests.
      */
     app.get("/computeDaily_amountMadeSoFar", function (req, res) {
-      resolveDate();
-      let params = urlParser.parse(req.url, true);
-      req = params.query;
-      console.log(`DAILY AMMOUNT STUFF ->`);
-      console.log(req);
+      new Promise((resMAIN) => {
+        resolveDate();
+        let params = urlParser.parse(req.url, true);
+        req = params.query;
 
-      if (
-        req.driver_fingerprint !== undefined &&
-        req.driver_fingerprint !== null
-      ) {
-        new Promise((res0) => {
-          getDaily_requestAmount_driver(
-            collectionRidesDeliveryData,
-            collectionDrivers_profiles,
-            req.driver_fingerprint,
-            res0
+        if (
+          req.driver_fingerprint !== undefined &&
+          req.driver_fingerprint !== null
+        ) {
+          new Promise((res0) => {
+            getDaily_requestAmount_driver(
+              collectionRidesDeliveryData,
+              collectionDrivers_profiles,
+              req.driver_fingerprint,
+              res0
+            );
+          }).then(
+            (result) => {
+              resMAIN(result);
+            },
+            (error) => {
+              console.log(error);
+              resMAIN({
+                amount: 0,
+                currency: "NAD",
+                currency_symbol: "N$",
+                supported_requests_types: "none",
+                response: "error",
+              });
+            }
           );
-        }).then(
+        } //Error
+        else {
+          resMAIN({
+            amount: 0,
+            currency: "NAD",
+            currency_symbol: "N$",
+            supported_requests_types: "none",
+            response: "error",
+          });
+        }
+      })
+        .then(
           (result) => {
             res.send(result);
           },
@@ -4812,17 +4837,17 @@ redisCluster.on("connect", function () {
               response: "error",
             });
           }
-        );
-      } //Error
-      else {
-        res.send({
-          amount: 0,
-          currency: "NAD",
-          currency_symbol: "N$",
-          supported_requests_types: "none",
-          response: "error",
+        )
+        .catch((error) => {
+          console.log(error);
+          res.send({
+            amount: 0,
+            currency: "NAD",
+            currency_symbol: "N$",
+            supported_requests_types: "none",
+            response: "error",
+          });
         });
-      }
     });
 
     /**

@@ -1,6 +1,6 @@
 module.exports = {
   apps: [
-    /*{
+    {
       name: "Events gateway",
       script: "eventsGateway.js",
       instances: 3,
@@ -10,19 +10,19 @@ module.exports = {
       env: {
         NODE_ENV: "production",
       },
-    },*/
+    },
     {
       name: "Account service",
       script: "serverAccounts.js",
-      instances: 30,
+      instances: 3,
       autorestart: true,
       watch: false,
-      max_memory_restart: "400M",
+      max_memory_restart: "1G",
       env: {
         NODE_ENV: "production",
       },
     },
-    /*{
+    {
       name: "Dispatch service",
       script: "serverDispatch.js",
       instances: 3,
@@ -87,6 +87,6 @@ module.exports = {
       env: {
         NODE_ENV: "production",
       },
-    },*/
+    },
   ],
 };

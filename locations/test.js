@@ -2,7 +2,7 @@ require("dotenv").config();
 /**
  * Responsible for sending push notification to devices
  */
-var sendPushUPNotification = function (data) {
+/*var sendPushUPNotification = function (data) {
   console.log("Notify data");
   console.log(data);
   var headers = {
@@ -42,4 +42,5 @@ let message = {
   include_player_ids: ["77204af8-1f31-4f52-abe4-54f78bd92126"],
 };
 //Send
-sendPushUPNotification(message);
+sendPushUPNotification(message);*/
+const url = require;
