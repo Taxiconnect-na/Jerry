@@ -14,7 +14,7 @@ module.exports = {
     {
       name: "Account service",
       script: "serverAccounts.js",
-      instances: 3,
+      instances: 30,
       autorestart: true,
       watch: false,
       max_memory_restart: "1G",
