@@ -1,11 +1,12 @@
 require("dotenv").config();
 //console.log = function () {};
+//var dash = require("appmetrics-dash");
 var express = require("express");
 const http = require("http");
 const https = require("https");
 const fs = require("fs");
 const geolocationUtlis = require("geolocation-utils");
-const taxiRanksDb = JSON.parse(fs.readFileSync("taxiRanks_points.txt", "utf8"));
+const helmet = require("helmet");
 const path = require("path");
 const MongoClient = require("mongodb").MongoClient;
 const { parse, stringify } = require("flatted");
@@ -53,7 +54,8 @@ var otpGenerator = require("otp-generator");
 const { resolve } = require("path");
 
 const clientMongo = new MongoClient(process.env.URL_MONGODB, {
-  useUnifiedTopology: true,
+  //useUnifiedTopology: true,
+  useNewUrlParser: true,
 });
 
 function SendSMSTo(phone_number, message) {
@@ -96,6 +98,17 @@ function SendSMSTo(phone_number, message) {
   req.write(postData);
   req.end();
 }
+
+/*const numeral = require("numeral");
+setInterval(() => {
+  const { rss, heapTotal } = process.memoryUsage();
+  console.log(
+    "rss",
+    numeral(rss).format("0.0 ib"),
+    "heapTotal",
+    numeral(heapTotal).format("0.0 ib")
+  );
+}, 5000);*/
 
 function resolveDate() {
   //Resolve date
@@ -1256,29 +1269,41 @@ function exec_computeDaily_amountMade(
           }
           //...
           let amount = 0;
-          requestsArray.map((request) => {
-            if (
-              String(chaineDateUTC).replace("T", " ").split(" ")[0].trim() ===
-              String(new Date(request.date_requested).toISOString())
-                .replace("T", " ")
-                .split(" ")[0]
-                .trim()
-            ) {
-              //Same day
-              let tmpFare = parseFloat(request.fare);
-              amount += tmpFare;
-            }
-          });
-          resolve({
-            amount: amount,
-            currency: "NAD",
-            currency_symbol: "N$",
-            supported_requests_types:
-              driverProfile !== undefined && driverProfile !== null
-                ? driverProfile.operation_clearances.join("-")
-                : "Ride",
-            response: "success",
-          });
+          if (requestsArray !== undefined && requestsArray.length > 0) {
+            requestsArray.map((request) => {
+              if (
+                String(chaineDateUTC).replace("T", " ").split(" ")[0].trim() ===
+                String(new Date(request.date_requested).toISOString())
+                  .replace("T", " ")
+                  .split(" ")[0]
+                  .trim()
+              ) {
+                //Same day
+                let tmpFare = parseFloat(request.fare);
+                amount += tmpFare;
+              }
+            });
+            resolve({
+              amount: amount,
+              currency: "NAD",
+              currency_symbol: "N$",
+              supported_requests_types:
+                driverProfile !== undefined && driverProfile !== null
+                  ? driverProfile.operation_clearances.join("-")
+                  : "Ride",
+              response: "success",
+            });
+          } //No infos
+          else {
+            resolve({
+              amount: 0,
+              currency: "NAD",
+              currency_symbol: "N$",
+              supported_requests_types:
+                driverProfile.operation_clearances.join("-"),
+              response: "error",
+            });
+          }
         });
     });
 }
@@ -1937,7 +1962,10 @@ function truelyExec_ridersDrivers_walletSummary(
                       res({ total: 0, transactions_data: null });
                     }
                     //...
-                    if (resultPaidRequests.length > 0) {
+                    if (
+                      resultPaidRequests !== undefined &&
+                      resultPaidRequests.length > 0
+                    ) {
                       //Found some records
                       //Save the requests transaction data and find the sum of the paid transactions
                       let completedDataPromise = resultPaidRequests.map(
@@ -2133,7 +2161,10 @@ function truelyExec_ridersDrivers_walletSummary(
                       res({ total: 0, transactions_data: null });
                     }
                     //...
-                    if (resultPaidRequests.length > 0) {
+                    if (
+                      resultPaidRequests !== undefined &&
+                      resultPaidRequests.length > 0
+                    ) {
                       //Found some records
                       //Save the requests transaction data and find the sum of the paid transactions
                       let completedDataPromise = resultPaidRequests.map(
@@ -4200,7 +4231,8 @@ redisCluster.on("connect", function () {
           limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
           extended: true,
         })
-      );
+      )
+      .use(helmet());
 
     /**
      * GENERATE OTP AND CHECK THE USER EXISTANCE
@@ -4233,6 +4265,18 @@ redisCluster.on("connect", function () {
         //! --------------
         //otp = 55576;
         otp = String(otp).length < 5 ? parseInt(otp) * 10 : otp;
+        new Promise((res0) => {
+          let message =
+            `<#> ` + otp + ` is your TaxiConnect Verification Code.`;
+          SendSMSTo(onlyDigitsPhone, message);
+          res0(true);
+          //SMS
+        }).then(
+          () => {},
+          (error) => {
+            console.log(error);
+          }
+        );
 
         //1. Check the user's status
         new Promise((res1) => {
@@ -4246,22 +4290,22 @@ redisCluster.on("connect", function () {
           );
         }).then(
           (result) => {
-            if (!/driver/i.test(req.user_nature)) {
-              //! Only send SMS to users or registered drivers
-              //2. Generate and SMS the OTP
-              new Promise((res0) => {
-                let message =
-                  `<#> ` + otp + ` is your TaxiConnect Verification Code.`;
-                SendSMSTo(onlyDigitsPhone, message);
-                res0(true);
-                //SMS
-              }).then(
-                () => {},
-                (error) => {
-                  console.log(error);
-                }
-              );
-            }
+            //if (!/driver/i.test(req.user_nature)) {
+            //! Only send SMS to users or registered drivers
+            //2. Generate and SMS the OTP
+            /*new Promise((res0) => {
+              let message =
+                `<#> ` + otp + ` is your TaxiConnect Verification Code.`;
+              SendSMSTo(onlyDigitsPhone, message);
+              res0(true);
+              //SMS
+            }).then(
+              () => {},
+              (error) => {
+                console.log(error);
+              }
+            );*/
+            //}
             //!---------
 
             //Save otp in profile if the user was already registered
@@ -4301,19 +4345,6 @@ redisCluster.on("connect", function () {
                   req.user_nature !== null &&
                   /driver/i.test(req.user_nature)
                 ) {
-                  //2. Generate and SMS the OTP
-                  new Promise((res0) => {
-                    let message =
-                      `<#> ` + otp + ` is your TaxiConnect Verification Code.`;
-                    SendSMSTo(onlyDigitsPhone, message);
-                    res0(true);
-                    //SMS
-                  }).then(
-                    () => {},
-                    (error) => {
-                      console.log(error);
-                    }
-                  );
                   //2. Drivers
                   collectionDrivers_profiles.updateOne(
                     { driver_fingerprint: result.user_fp },
@@ -4328,152 +4359,22 @@ redisCluster.on("connect", function () {
                 .then(
                   () => {
                     //...
-                    if (!/driver/i.test(req.user_nature)) {
-                      res.send(result);
-                    } //! Add the suspension infos for the drivers
-                    else {
-                      //Check the driver
-                      collectionDrivers_profiles
-                        .find({ driver_fingerprint: result.user_fp })
-                        .toArray(function (err, driverData) {
-                          if (err) {
-                            res.send(result);
-                          }
-                          //...
-                          if (
-                            driverData !== undefined &&
-                            driverData.length > 0
-                          ) {
-                            console.log(driverData[0]);
-                            //! GET THE SUSPENSION INFOS
-                            let suspensionInfos = {
-                              is_suspended:
-                                driverData[0].isDriverSuspended !== undefined &&
-                                driverData[0].isDriverSuspended !== null
-                                  ? driverData[0].isDriverSuspended
-                                  : false,
-                              message:
-                                driverData[0].suspension_infos !== undefined &&
-                                driverData[0].suspension_infos !== null
-                                  ? /UNPAID_COMISSION/i.test(
-                                      driverData[0].suspension_infos[
-                                        driverData[0].suspension_infos.length -
-                                          1
-                                      ].reason
-                                    )
-                                    ? `Your account has been suspended due to an overdue TaxiConnect commission.`
-                                    : false
-                                  : false,
-                            };
-                            //! ------------------------
-                            result["suspension_infos"] = suspensionInfos;
-                            res.send(result);
-                          } //Just reply
-                          else {
-                            res.send(result);
-                          }
-                        });
-                    }
+                    res.send(result);
                   },
                   () => {
                     ///....
-                    if (!/driver/i.test(req.user_nature)) {
-                      res.send(result);
-                    } //! Add the suspension infos for the drivers
-                    else {
-                      //Check the driver
-                      collectionDrivers_profiles
-                        .find({ driver_fingerprint: result.user_fp })
-                        .toArray(function (err, driverData) {
-                          if (err) {
-                            res.send(result);
-                          }
-                          //...
-                          if (
-                            driverData !== undefined &&
-                            driverData.length > 0
-                          ) {
-                            //! GET THE SUSPENSION INFOS
-                            let suspensionInfos = {
-                              is_suspended:
-                                driverData[0].isDriverSuspended !== undefined &&
-                                driverData[0].isDriverSuspended !== null
-                                  ? driverData[0].isDriverSuspended
-                                  : false,
-                              message:
-                                driverData[0].suspension_infos !== undefined &&
-                                driverData[0].suspension_infos !== null
-                                  ? /UNPAID_COMISSION/i.test(
-                                      driverData[0].suspension_infos[
-                                        driverData[0].suspension_infos.length -
-                                          1
-                                      ].reason
-                                    )
-                                    ? `Your account has been suspended due to an overdue TaxiConnect commission.`
-                                    : false
-                                  : false,
-                            };
-                            //! ------------------------
-                            result["suspension_infos"] = suspensionInfos;
-                            res.send(result);
-                          } //Just reply
-                          else {
-                            res.send(result);
-                          }
-                        });
-                    }
+                    res.send(result);
                   }
                 )
                 .catch((error) => {
                   ///....
-                  if (!/driver/i.test(req.user_nature)) {
-                    res.send(result);
-                  } //! Add the suspension infos for the drivers
-                  else {
-                    //Check the driver
-                    collectionDrivers_profiles
-                      .find({ driver_fingerprint: result.user_fp })
-                      .toArray(function (err, driverData) {
-                        if (err) {
-                          res.send(result);
-                        }
-                        //...
-                        if (driverData !== undefined && driverData.length > 0) {
-                          //! GET THE SUSPENSION INFOS
-                          let suspensionInfos = {
-                            is_suspended:
-                              driverData[0].isDriverSuspended !== undefined &&
-                              driverData[0].isDriverSuspended !== null
-                                ? driverData[0].isDriverSuspended
-                                : false,
-                            message:
-                              driverData[0].suspension_infos !== undefined &&
-                              driverData[0].suspension_infos !== null
-                                ? /UNPAID_COMISSION/i.test(
-                                    driverData[0].suspension_infos[
-                                      driverData[0].suspension_infos.length - 1
-                                    ].reason
-                                  )
-                                  ? `Your account has been suspended due to an overdue TaxiConnect commission.`
-                                  : false
-                                : false,
-                          };
-                          //! ------------------------
-                          result["suspension_infos"] = suspensionInfos;
-                          res.send(result);
-                        } //Just reply
-                        else {
-                          res.send(result);
-                        }
-                      });
-                  }
+                  res.send(result);
                 });
             } else {
               ///....
               res.send(result);
             }
             //...
-            //res.send(result);
           },
           (error) => {
             console.log(error);
@@ -4934,7 +4835,6 @@ redisCluster.on("connect", function () {
       resolveDate();
       let params = urlParser.parse(req.url, true);
       req = params.query;
-      console.log(req);
       let redisKey = "offline_online_status-" + req.driver_fingerprint;
 
       if (
@@ -4946,6 +4846,14 @@ redisCluster.on("connect", function () {
         req.state !== null
       ) {
         if (/make/i.test(req.action)) {
+          //Found a driver
+          let updateData = {
+            $set: {
+              "operational_state.status": /online/i.test(req.state)
+                ? "online"
+                : "offline",
+            },
+          };
           //Make a modification
           //Valid data received
           new Promise((res0) => {
@@ -5019,6 +4927,17 @@ redisCluster.on("connect", function () {
                                 () => {},
                                 () => {}
                               );
+                              //CACHE
+                              redisCluster.set(
+                                redisKey,
+                                stringify({
+                                  response: "successfully_done",
+                                  flag: /online/i.test(req.state)
+                                    ? "online"
+                                    : "offline",
+                                  suspension_infos: suspensionInfos,
+                                })
+                              );
                               //Done
                               res0({
                                 response: "successfully_done",
@@ -5061,6 +4980,17 @@ redisCluster.on("connect", function () {
                               () => {},
                               () => {}
                             );
+                            //CACHE
+                            redisCluster.set(
+                              redisKey,
+                              stringify({
+                                response: "successfully_done",
+                                flag: /online/i.test(req.state)
+                                  ? "online"
+                                  : "offline",
+                                suspension_infos: suspensionInfos,
+                              })
+                            );
                             //Done
                             res0({
                               response: "successfully_done",
@@ -5073,14 +5003,6 @@ redisCluster.on("connect", function () {
                         );
                       }
                     });
-                  //Found a driver
-                  let updateData = {
-                    $set: {
-                      "operational_state.status": /online/i.test(req.state)
-                        ? "online"
-                        : "offline",
-                    },
-                  };
                 } //Error - unknown driver
                 else {
                   res0({ response: "error_invalid_request" });
@@ -5096,11 +5018,15 @@ redisCluster.on("connect", function () {
             }
           );
         } else if (/get/i.test(req.action)) {
+          res.send({
+            response: "successfully_got",
+            flag: "online",
+          });
           //! Avoid cache by defaut
-          req.avoidCached_data = true;
+          //req.avoidCached_data = true;
           //! ---------------------
           //? Avoid cache if specified
-          if (
+          /*if (
             req.avoidCached_data !== undefined &&
             req.avoidCached_data !== null
           ) {
@@ -5125,6 +5051,7 @@ redisCluster.on("connect", function () {
               });
           } //? USE CACHED METHOD
           else {
+            console.trace("CACHED");
             //Check the cache first
             redisGet(redisKey).then(
               (resp) => {
@@ -5137,13 +5064,13 @@ redisCluster.on("connect", function () {
                     .then(
                       (result) => {
                         //!Cache the result
-                        redisCluster.setex(redisKey, 3, stringify(result)); //? 3 sec
+                        redisCluster.set(redisKey, stringify(result));
                       },
                       (error) => {}
                     )
                     .catch();
                   //Quickly return result
-                  res.send(parse(resp));
+                  res.send(JSON.parse(resp));
                 } //Make a fresh request
                 else {
                   new Promise((resGetStatus) => {
@@ -5152,7 +5079,7 @@ redisCluster.on("connect", function () {
                     .then(
                       (result) => {
                         //!Cache the result
-                        redisCluster.setex(redisKey, 3, stringify(result)); //? 3 sec
+                        redisCluster.set(redisKey, stringify(result));
                         //...
                         res.send(result);
                       },
@@ -5176,7 +5103,7 @@ redisCluster.on("connect", function () {
                   .then(
                     (result) => {
                       //!Cache the result
-                      redisCluster.setex(redisKey, 3, stringify(result)); //? 3 sec
+                      redisCluster.set(redisKey, stringify(result));
                       //...
                       res.send(result);
                     },
@@ -5191,7 +5118,7 @@ redisCluster.on("connect", function () {
                   });
               }
             );
-          }
+          }*/
         }
       } //Invalid data
       else {
@@ -5333,53 +5260,73 @@ redisCluster.on("connect", function () {
      * ? Responsible for computing the wallet summary (total and detailed) for the drivers.
      */
     app.get("/getDrivers_walletInfosDeep", function (req, res) {
-      resolveDate();
-      let params = urlParser.parse(req.url, true);
-      req = params.query;
-      console.log(req);
+      new Promise((resMAIN) => {
+        resolveDate();
+        let params = urlParser.parse(req.url, true);
+        req = params.query;
+        console.log(req);
 
-      if (req.user_fingerprint !== undefined && req.user_fingerprint !== null) {
-        let regModeLimiter = new RegExp(req.mode, "i"); //Limit data to total balance (total) or total balance+details (detailed)
+        if (
+          req.user_fingerprint !== undefined &&
+          req.user_fingerprint !== null
+        ) {
+          let regModeLimiter = new RegExp(req.mode, "i"); //Limit data to total balance (total) or total balance+details (detailed)
 
-        new Promise((resCompute) => {
-          let url =
-            process.env.LOCAL_URL +
-            ":" +
-            process.env.ACCOUNTS_SERVICE_PORT +
-            "/getRiders_walletInfos?user_fingerprint=" +
-            req.user_fingerprint +
-            "&mode=detailed&userType=driver";
+          new Promise((resCompute) => {
+            let url =
+              process.env.LOCAL_URL +
+              ":" +
+              process.env.ACCOUNTS_SERVICE_PORT +
+              "/getRiders_walletInfos?user_fingerprint=" +
+              req.user_fingerprint +
+              "&mode=detailed&userType=driver";
 
-          //Add caching strategy if any
-          if (req.avoidCached_data !== undefined) {
-            url += "&avoidCached_data=" + req.avoidCached_data;
-          }
+            //Add caching strategy if any
+            if (req.avoidCached_data !== undefined) {
+              url += "&avoidCached_data=" + req.avoidCached_data;
+            }
 
-          requestAPI(url, function (error, response, body) {
-            if (error === null) {
-              try {
-                body = JSON.parse(body);
-                if (
-                  body.transactions_data !== null &&
-                  body.transactions_data !== undefined &&
-                  body.transactions_data.length > 0
-                ) {
-                  //? Has some transaction data
-                  resCompute(body);
-                } //! No transaction data - return current value
-                else {
+            requestAPI(url, function (error, response, body) {
+              if (error === null) {
+                try {
+                  body = JSON.parse(body);
+                  if (
+                    body.transactions_data !== null &&
+                    body.transactions_data !== undefined &&
+                    body.transactions_data.length > 0
+                  ) {
+                    //? Has some transaction data
+                    resCompute(body);
+                  } //! No transaction data - return current value
+                  else {
+                    resCompute(
+                      regModeLimiter.test("detailed")
+                        ? {
+                            total: 0,
+                            transactions_data: null,
+                            response: "empty",
+                            tag: "empty_wallet",
+                          }
+                        : { total: 0, response: "empty", tag: "empty_wallet" }
+                    );
+                  }
+                } catch (error) {
                   resCompute(
                     regModeLimiter.test("detailed")
                       ? {
                           total: 0,
                           transactions_data: null,
-                          response: "empty",
-                          tag: "empty_wallet",
+                          response: "error",
+                          tag: "invalid_parameters",
                         }
-                      : { total: 0, response: "empty", tag: "empty_wallet" }
+                      : {
+                          total: 0,
+                          response: "error",
+                          tag: "invalid_parameters",
+                        }
                   );
                 }
-              } catch (error) {
+              } else {
                 resCompute(
                   regModeLimiter.test("detailed")
                     ? {
@@ -5391,114 +5338,107 @@ redisCluster.on("connect", function () {
                     : { total: 0, response: "error", tag: "invalid_parameters" }
                 );
               }
-            } else {
-              resCompute(
-                regModeLimiter.test("detailed")
-                  ? {
-                      total: 0,
-                      transactions_data: null,
-                      response: "error",
-                      tag: "invalid_parameters",
+            });
+          })
+            .then(
+              (resultWalletdata) => {
+                //? Final data
+                new Promise((resGetDeepInsights) => {
+                  let redisKey = `${req.user_fingerprint}-deepWalletData-driver`;
+                  //?computeDriver_walletDeepInsights(walletBasicData, redisKey, avoidCached_data?, resolve)
+                  computeDriver_walletDeepInsights(
+                    resultWalletdata,
+                    collectionWalletTransactions_logs,
+                    req.user_fingerprint,
+                    redisKey,
+                    req.avoidCached_data !== undefined &&
+                      req.avoidCached_data !== null
+                      ? req.avoidCached_data
+                      : false,
+                    resGetDeepInsights
+                  );
+                })
+                  .then(
+                    (resultInsights) => {
+                      //! Sort the weeks from the biggest week and year to the smallest
+                      resultInsights.weeks_view =
+                        resultInsights.weeks_view !== null &&
+                        resultInsights.weeks_view !== undefined
+                          ? resultInsights.weeks_view.sort((a, b) =>
+                              a.year_number < b.year_number &&
+                              a.week_number < b.year_number
+                                ? -1
+                                : 1
+                            )
+                          : resultInsights.weeks_view;
+                      //? Remove the record holder
+                      //? Add transaction data if transactionData=true
+                      res.send(
+                        resultInsights.header !== undefined &&
+                          resultInsights.header !== null
+                          ? req.transactionData !== undefined &&
+                            /true/i.test(req.transactionData)
+                            ? {
+                                header: resultInsights.header,
+                                weeks_view: resultInsights.weeks_view,
+                                transactions_data:
+                                  resultInsights.transactions_data,
+                              }
+                            : {
+                                header: resultInsights.header,
+                                weeks_view: resultInsights.weeks_view,
+                              }
+                          : resultInsights
+                      );
+                    },
+                    (error) => {
+                      console.log(error);
+                      res.send({
+                        header: null,
+                        weeks_view: null,
+                        response: "error",
+                      });
                     }
-                  : { total: 0, response: "error", tag: "invalid_parameters" }
-              );
-            }
-          });
-        })
-          .then(
-            (resultWalletdata) => {
-              //? Final data
-              new Promise((resGetDeepInsights) => {
-                let redisKey = `${req.user_fingerprint}-deepWalletData-driver`;
-                //?computeDriver_walletDeepInsights(walletBasicData, redisKey, avoidCached_data?, resolve)
-                computeDriver_walletDeepInsights(
-                  resultWalletdata,
-                  collectionWalletTransactions_logs,
-                  req.user_fingerprint,
-                  redisKey,
-                  req.avoidCached_data !== undefined &&
-                    req.avoidCached_data !== null
-                    ? req.avoidCached_data
-                    : false,
-                  resGetDeepInsights
-                );
-              })
-                .then(
-                  (resultInsights) => {
-                    //! Sort the weeks from the biggest week and year to the smallest
-                    resultInsights.weeks_view =
-                      resultInsights.weeks_view !== null &&
-                      resultInsights.weeks_view !== undefined
-                        ? resultInsights.weeks_view.sort((a, b) =>
-                            a.year_number < b.year_number &&
-                            a.week_number < b.year_number
-                              ? -1
-                              : 1
-                          )
-                        : resultInsights.weeks_view;
-                    //? Remove the record holder
-                    //? Add transaction data if transactionData=true
-                    res.send(
-                      resultInsights.header !== undefined &&
-                        resultInsights.header !== null
-                        ? req.transactionData !== undefined &&
-                          /true/i.test(req.transactionData)
-                          ? {
-                              header: resultInsights.header,
-                              weeks_view: resultInsights.weeks_view,
-                              transactions_data:
-                                resultInsights.transactions_data,
-                            }
-                          : {
-                              header: resultInsights.header,
-                              weeks_view: resultInsights.weeks_view,
-                            }
-                        : resultInsights
-                    );
-                  },
-                  (error) => {
+                  )
+                  .catch((error) => {
                     console.log(error);
                     res.send({
                       header: null,
                       weeks_view: null,
                       response: "error",
                     });
-                  }
-                )
-                .catch((error) => {
-                  console.log(error);
-                  res.send({
-                    header: null,
-                    weeks_view: null,
-                    response: "error",
                   });
+              },
+              (error) => {
+                console.log(error);
+                res.send({
+                  header: null,
+                  weeks_view: null,
+                  response: "error",
                 });
-            },
-            (error) => {
+              }
+            )
+            .catch((error) => {
               console.log(error);
               res.send({
                 header: null,
                 weeks_view: null,
                 response: "error",
               });
-            }
-          )
-          .catch((error) => {
-            console.log(error);
-            res.send({
-              header: null,
-              weeks_view: null,
-              response: "error",
             });
+        } //Invalid params
+        else {
+          res.send({
+            header: null,
+            weeks_view: null,
+            response: "error",
           });
-      } //Invalid params
-      else {
-        res.send({
-          header: null,
-          weeks_view: null,
-          response: "error",
-        });
-      }
+        }
+        //...
+        resMAIN(true);
+      })
+        .then()
+        .catch();
     });
 
     /**
@@ -5658,3 +5598,4 @@ redisCluster.on("connect", function () {
 });
 
 server.listen(process.env.ACCOUNTS_SERVICE_PORT);
+//dash.monitor({ server: server });

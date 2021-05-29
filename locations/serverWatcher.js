@@ -151,8 +151,6 @@ function removeOldRequests_madeWithoutBeingAttended(
   collectionRidesDeliveryData,
   resolve
 ) {
-  resolveDate(); //! Update date
-
   let requestFilter = {
     taxi_id: false,
     "ride_state_vars.isAccepted": false,
@@ -518,7 +516,7 @@ function updateNext_paymentDateDrivers(
                                             //Found a driver data
                                             resolveDate();
                                             //? Append the new suspension to the suspension array
-                                            let suspensionInfos_array =
+                                            /*let suspensionInfos_array =
                                               newDriverData[0]
                                                 .suspension_infos !==
                                                 undefined &&
@@ -533,9 +531,9 @@ function updateNext_paymentDateDrivers(
                                               amount: amount,
                                               bot_locker: "Junkstem",
                                               date: new Date(chaineDateUTC),
-                                            });
+                                            });*/
                                             //...
-                                            collectionDrivers_profiles.updateOne(
+                                            /*collectionDrivers_profiles.updateOne(
                                               {
                                                 driver_fingerprint:
                                                   driverData.driver_fingerprint,
@@ -543,8 +541,8 @@ function updateNext_paymentDateDrivers(
                                               {
                                                 $set: {
                                                   "operational_state.status":
-                                                    "offline", //! PUT OFFLINE
-                                                  isDriverSuspended: true,
+                                                    "online", //! PUT OFFLINE
+                                                  isDriverSuspended: false,
                                                   suspension_infos:
                                                     suspensionInfos_array,
                                                 },
@@ -559,7 +557,8 @@ function updateNext_paymentDateDrivers(
                                                 );
                                                 resPaymentCycle(true);
                                               }
-                                            );
+                                            );*/
+                                            resPaymentCycle(true);
                                           } //No driver data found
                                           else {
                                             resPaymentCycle(false);
@@ -1897,7 +1896,7 @@ redisCluster.on("connect", function () {
         });
 
       //? 2. Keep the drivers next payment date UP TO DATE
-      new Promise((res2) => {
+      /*new Promise((res2) => {
         updateNext_paymentDateDrivers(
           collectionDrivers_profiles,
           collectionWalletTransactions_logs,
@@ -1916,7 +1915,7 @@ redisCluster.on("connect", function () {
         )
         .catch((error) => {
           console.log(error);
-        });
+        });*/
 
       //? 3. Observe all the scheduled requests for executions
       new Promise((res3) => {
@@ -1958,14 +1957,33 @@ redisCluster.on("connect", function () {
       .catch((error) => {
         console.log(error);
       });*/
-      //? 5. Reinforce the date type for the transaction logs
-      new Promise((res5) => {
+    }, process.env.INTERVAL_PERSISTER_MAIN_WATCHER_MILLISECONDS);
+
+    //! FOR HEAVY PROCESSES REQUIRING - 60sec
+    _INTERVAL_PERSISTER_LATE_REQUESTS_HEAVY = setInterval(function () {
+      //? 1. Refresh every driver's wallet
+      /*new Promise((res1) => {
+        updateDrivers_walletCachedData(collectionDrivers_profiles, res1);
+      })
+        .then(
+          (result) => {
+            console.log(result);
+          },
+          (error) => {
+            console.log(error);
+          }
+        )
+        .catch((error) => {
+          console.log(error);
+        });*/
+      //? 2. Reinforce the date type for the transaction logs
+      /*new Promise((res2) => {
         collectionWalletTransactions_logs
           .find({ date_captured: { $type: "string" } })
           .toArray(function (err, transactionData) {
             if (err) {
               console.log(err);
-              res5(false);
+              res2(false);
             }
             //...
             if (transactionData !== undefined && transactionData.length > 0) {
@@ -1995,20 +2013,20 @@ redisCluster.on("connect", function () {
               Promise.all(parentPromises)
                 .then(
                   (result) => {
-                    res5(result);
+                    res2(result);
                   },
                   (error) => {
                     console.log(error);
-                    res5(false);
+                    res2(false);
                   }
                 )
                 .catch((error) => {
                   console.log(error);
-                  res5(false);
+                  res2(false);
                 });
             } //No data found
             else {
-              res5(true);
+              res2(true);
             }
           });
       })
@@ -2022,27 +2040,8 @@ redisCluster.on("connect", function () {
         )
         .catch((error) => {
           console.log(error);
-        });
-    }, process.env.INTERVAL_PERSISTER_MAIN_WATCHER_MILLISECONDS);
-
-    //! FOR HEAVY PROCESSES REQUIRING - 60sec
-    _INTERVAL_PERSISTER_LATE_REQUESTS_HEAVY = setInterval(function () {
-      //? 1. Refresh every driver's wallet
-      new Promise((res1) => {
-        updateDrivers_walletCachedData(collectionDrivers_profiles, res1);
-      })
-        .then(
-          (result) => {
-            console.log(result);
-          },
-          (error) => {
-            console.log(error);
-          }
-        )
-        .catch((error) => {
-          console.log(error);
-        });
-    }, parseInt(process.env.INTERVAL_PERSISTER_MAIN_WATCHER_MILLISECONDS) * 6);
+        });*/
+    }, parseInt(process.env.INTERVAL_PERSISTER_MAIN_WATCHER_MILLISECONDS) * 12);
   });
 });
 

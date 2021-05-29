@@ -1,100 +1,79 @@
 module.exports = {
   apps: [
-    {
+    /*{
       name: "Events gateway",
       script: "eventsGateway.js",
-      instances: "max",
+      instances: 3,
       autorestart: true,
       watch: false,
       max_memory_restart: "1G",
       env: {
-        NODE_ENV: "development",
-      },
-      env_production: {
         NODE_ENV: "production",
       },
-    },
+    },*/
     {
       name: "Account service",
       script: "serverAccounts.js",
-      instances: "max",
+      instances: 3,
       autorestart: true,
       watch: false,
-      max_memory_restart: "2G",
+      max_memory_restart: "1G",
       env: {
-        NODE_ENV: "development",
-      },
-      env_production: {
         NODE_ENV: "production",
       },
     },
-    {
+    /*{
       name: "Dispatch service",
       script: "serverDispatch.js",
-      instances: "max",
+      instances: 3,
       autorestart: true,
       watch: false,
-      max_memory_restart: "2G",
+      max_memory_restart: "1G",
       env: {
-        NODE_ENV: "development",
-      },
-      env_production: {
         NODE_ENV: "production",
       },
     },
     {
       name: "Map service",
       script: "serverMap.js",
-      instances: "max",
+      instances: 3,
       autorestart: true,
       watch: false,
-      max_memory_restart: "4G",
+      max_memory_restart: "1G",
       env: {
-        NODE_ENV: "development",
-      },
-      env_production: {
         NODE_ENV: "production",
       },
     },
     {
       name: "Pricing service",
       script: "serverPricing.js",
-      instances: "max",
+      instances: 3,
       autorestart: true,
       watch: false,
       max_memory_restart: "1G",
       env: {
-        NODE_ENV: "development",
-      },
-      env_production: {
         NODE_ENV: "production",
       },
     },
     {
       name: "Search service",
       script: "serverSearch.js",
-      instances: "max",
+      instances: 3,
       autorestart: true,
       watch: false,
       max_memory_restart: "1G",
       env: {
-        NODE_ENV: "development",
-      },
-      env_production: {
         NODE_ENV: "production",
       },
     },
     {
       name: "Payment service",
       script: "serverPayments.js",
-      instances: "max",
+      instances: 3,
       autorestart: true,
       watch: false,
-      max_memory_restart: "2G",
+      max_memory_restart: "1G",
       env: {
-        NODE_ENV: "development",
-      },
-      env_production: {
         NODE_ENV: "production",
       },
     },
@@ -106,11 +85,8 @@ module.exports = {
       watch: false,
       max_memory_restart: "1G",
       env: {
-        NODE_ENV: "development",
-      },
-      env_production: {
         NODE_ENV: "production",
       },
-    },
+    },*/
   ],
 };

@@ -1,5 +1,5 @@
 require("dotenv").config();
-//console.log = function () {};
+////console.log = function () {};
 //var dash = require("appmetrics-dash");
 var express = require("express");
 const http = require("http");
@@ -75,7 +75,7 @@ app
 
 //EVENTS ROUTER
 io.on("connection", (socket) => {
-  console.log("Connected to the event gateway.");
+  //console.log("Connected to the event gateway.");
   /**
    * MAP SERVICE, port 9090
    * Route: updatePassengerLocation
@@ -114,7 +114,7 @@ io.on("connection", (socket) => {
         if (error === null) {
           try {
             body = JSON.parse(body);
-            console.log(body);
+            //console.log(body);
             socket.emit("trackdriverroute-response", body);
           } catch (error) {
             socket.emit("trackdriverroute-response", false);
@@ -153,7 +153,7 @@ io.on("connection", (socket) => {
         "&user_fingerprint=" +
         req.user_fingerprint;
       requestAPI(url, function (error, response, body) {
-        //console.log(body);
+        ////console.log(body);
         if (error === null) {
           try {
             body = JSON.parse(body);
@@ -178,7 +178,7 @@ io.on("connection", (socket) => {
    * Identify pickup location (taxi rank or private location)
    */
   socket.on("getPickupLocationNature", function (req) {
-    console.log("identify location...");
+    //console.log("identify location...");
 
     if (
       req.latitude !== undefined &&
@@ -199,7 +199,7 @@ io.on("connection", (socket) => {
         "&user_fingerprint=" +
         req.user_fingerprint;
       requestAPI(url, function (error, response, body) {
-        //console.log(body);
+        ////console.log(body);
         if (error === null) {
           try {
             body = JSON.parse(body);
@@ -232,8 +232,8 @@ io.on("connection", (socket) => {
    * destination in the app.
    */
   socket.on("getRoute_to_destinationSnapshot", function (req) {
-    console.log("Finding route snapshot");
-    //console.log(req);
+    //console.log("Finding route snapshot");
+    ////console.log(req);
 
     if (
       req.org_latitude !== undefined &&
@@ -267,7 +267,7 @@ io.on("connection", (socket) => {
       }
 
       requestAPI(url, function (error, response, body) {
-        console.log(body);
+        //console.log(body);
         if (error === null) {
           try {
             body = JSON.parse(body);
@@ -293,8 +293,8 @@ io.on("connection", (socket) => {
    * Responsible for getting the list of all the closest drivers to a point (rider) limited by @param list_limit.
    */
   socket.on("get_closest_drivers_to_point", function (req) {
-    //console.log("Getting all the closest drivers");
-    //console.log(req);
+    ////console.log("Getting all the closest drivers");
+    ////console.log(req);
     let list_limit = 7; //Limited to 7 for all clients requests
 
     if (
@@ -330,7 +330,7 @@ io.on("connection", (socket) => {
         "&list_limit=" +
         list_limit;
       requestAPI(url, function (error, response, body) {
-        //console.log(body);
+        ////console.log(body);
         if (error === null) {
           try {
             body = JSON.parse(body);
@@ -370,7 +370,7 @@ io.on("connection", (socket) => {
         "&trip_simplified_id=" +
         req.trip_simplified_id;
       requestAPI(url, function (error, response, body) {
-        //console.log(body);
+        ////console.log(body);
         if (error === null) {
           try {
             body = JSON.parse(body);
@@ -435,7 +435,7 @@ io.on("connection", (socket) => {
         "&request_fp=" +
         req.request_fp;
       requestAPI(url, function (error, response, body) {
-        //console.log(body);
+        ////console.log(body);
         if (error === null) {
           try {
             body = JSON.parse(body);
@@ -460,7 +460,7 @@ io.on("connection", (socket) => {
    * Seached locations autocomplete.
    */
   socket.on("getLocations", function (req) {
-    console.log(req);
+    //console.log(req);
     if (
       req.user_fp !== undefined &&
       req.user_fp !== null &&
@@ -483,7 +483,7 @@ io.on("connection", (socket) => {
         req.country;
 
       requestAPI(url, function (error, response, body) {
-        //console.log(body);
+        ////console.log(body);
         if (error === null) {
           try {
             body = JSON.parse(body);
@@ -507,7 +507,7 @@ io.on("connection", (socket) => {
    * Get fare estimations for any ride or delivery booking
    */
   socket.on("getPricingForRideorDelivery", function (req) {
-    //console.log(req);
+    ////console.log(req);
     if (
       req.user_fingerprint !== undefined &&
       req.user_fingerprint !== null &&
@@ -527,7 +527,7 @@ io.on("connection", (socket) => {
         "/getOverallPricingAndAvailabilityDetails";
 
       requestAPI.post({ url, form: req }, function (error, response, body) {
-        console.log(body);
+        //console.log(body);
         if (error === null) {
           try {
             body = JSON.parse(body);
@@ -557,7 +557,7 @@ io.on("connection", (socket) => {
    * Make a ride or delivery request for a rider.
    */
   socket.on("requestRideOrDeliveryForThis", function (req) {
-    console.log(req);
+    //console.log(req);
     if (req.user_fingerprint !== undefined && req.user_fingerprint !== null) {
       let url =
         process.env.LOCAL_URL +
@@ -566,7 +566,7 @@ io.on("connection", (socket) => {
         "/dispatchRidesOrDeliveryRequests";
 
       requestAPI.post({ url, form: req }, function (error, response, body) {
-        console.log(body);
+        //console.log(body);
         if (error === null) {
           try {
             body = JSON.parse(body);
@@ -596,7 +596,7 @@ io.on("connection", (socket) => {
    * Update the general requests numbers for ease of access
    */
   socket.on("update_requestsGraph", function (req) {
-    console.log(req);
+    //console.log(req);
     if (
       req.driver_fingerprint !== undefined &&
       req.driver_fingerprint !== null
@@ -609,7 +609,7 @@ io.on("connection", (socket) => {
         req.driver_fingerprint;
 
       requestAPI(url, function (error, response, body) {
-        console.log(body);
+        //console.log(body);
         if (error === null) {
           try {
             body = JSON.parse(body);
@@ -645,7 +645,7 @@ io.on("connection", (socket) => {
    * Decline any request from the driver's side.
    */
   socket.on("declineRequest_driver", function (req) {
-    console.log(req);
+    //console.log(req);
     if (
       req.driver_fingerprint !== undefined &&
       req.driver_fingerprint !== null &&
@@ -659,7 +659,7 @@ io.on("connection", (socket) => {
         "/decline_request";
 
       requestAPI.post({ url, form: req }, function (error, response, body) {
-        console.log(body);
+        //console.log(body);
         if (error === null) {
           try {
             body = JSON.parse(body);
@@ -689,7 +689,7 @@ io.on("connection", (socket) => {
    * Accept any request from the driver's side.
    */
   socket.on("accept_request_io", function (req) {
-    console.log(req);
+    //console.log(req);
     if (
       req.driver_fingerprint !== undefined &&
       req.driver_fingerprint !== null &&
@@ -703,7 +703,7 @@ io.on("connection", (socket) => {
         "/accept_request";
 
       requestAPI.post({ url, form: req }, function (error, response, body) {
-        console.log(body);
+        //console.log(body);
         if (error === null) {
           try {
             body = JSON.parse(body);
@@ -733,7 +733,7 @@ io.on("connection", (socket) => {
    * Cancel any request from the driver's side.
    */
   socket.on("cancel_request_driver_io", function (req) {
-    console.log(req);
+    //console.log(req);
     if (
       req.driver_fingerprint !== undefined &&
       req.driver_fingerprint !== null &&
@@ -747,7 +747,7 @@ io.on("connection", (socket) => {
         "/cancel_request_driver";
 
       requestAPI.post({ url, form: req }, function (error, response, body) {
-        console.log(body);
+        //console.log(body);
         if (error === null) {
           try {
             body = JSON.parse(body);
@@ -777,7 +777,7 @@ io.on("connection", (socket) => {
    * Confirm pickup for any request from the driver's side.
    */
   socket.on("confirm_pickup_request_driver_io", function (req) {
-    console.log(req);
+    //console.log(req);
     if (
       req.driver_fingerprint !== undefined &&
       req.driver_fingerprint !== null &&
@@ -791,7 +791,7 @@ io.on("connection", (socket) => {
         "/confirm_pickup_request_driver";
 
       requestAPI.post({ url, form: req }, function (error, response, body) {
-        console.log(body);
+        //console.log(body);
         if (error === null) {
           try {
             body = JSON.parse(body);
@@ -821,7 +821,7 @@ io.on("connection", (socket) => {
    * Confirm dropoff for any request from the driver's side.
    */
   socket.on("confirm_dropoff_request_driver_io", function (req) {
-    console.log(req);
+    //console.log(req);
     if (
       req.driver_fingerprint !== undefined &&
       req.driver_fingerprint !== null &&
@@ -835,7 +835,7 @@ io.on("connection", (socket) => {
         "/confirm_dropoff_request_driver";
 
       requestAPI.post({ url, form: req }, function (error, response, body) {
-        console.log(body);
+        //console.log(body);
         if (error === null) {
           try {
             body = JSON.parse(body);
@@ -865,7 +865,7 @@ io.on("connection", (socket) => {
    * Confirm rider's drop off and handle all the related proccesses linked to it.
    */
   socket.on("confirmRiderDropoff_requests_io", function (req) {
-    console.log(req);
+    //console.log(req);
     if (req.user_fingerprint !== undefined && req.user_fingerprint !== null) {
       let url =
         process.env.LOCAL_URL +
@@ -874,7 +874,7 @@ io.on("connection", (socket) => {
         "/confirmRiderDropoff_requests";
 
       requestAPI.post({ url, form: req }, function (error, response, body) {
-        console.log(body);
+        //console.log(body);
         if (error === null) {
           try {
             body = JSON.parse(body);
@@ -904,7 +904,7 @@ io.on("connection", (socket) => {
    * Confirm rider's drop off and handle all the related proccesses linked to it.
    */
   socket.on("cancelRiders_request_io", function (req) {
-    console.log(req);
+    //console.log(req);
     if (req.user_fingerprint !== undefined && req.user_fingerprint !== null) {
       let url =
         process.env.LOCAL_URL +
@@ -913,7 +913,7 @@ io.on("connection", (socket) => {
         "/cancelRiders_request";
 
       requestAPI.post({ url, form: req }, function (error, response, body) {
-        console.log(body);
+        //console.log(body);
         if (error === null) {
           try {
             body = JSON.parse(body);
@@ -962,9 +962,11 @@ io.on("connection", (socket) => {
       }
 
       requestAPI(url, function (error, response, body) {
+        console.log(body, error);
         if (error === null) {
           try {
             body = JSON.parse(body);
+            console.log("HERE");
             socket.emit("sendOtpAndCheckerUserStatusTc-response", body);
           } catch (error) {
             socket.emit("sendOtpAndCheckerUserStatusTc-response", {
@@ -991,7 +993,7 @@ io.on("connection", (socket) => {
    * Responsible for computing the wallet summary (total and details) for the riders.
    */
   socket.on("getRiders_walletInfos_io", function (req) {
-    console.log(req);
+    //console.log(req);
     if (
       req.user_fingerprint !== undefined &&
       req.user_fingerprint !== null &&
@@ -1043,7 +1045,7 @@ io.on("connection", (socket) => {
    * Responsible for computing the wallet deep summary for the drivers
    */
   socket.on("getDrivers_walletInfosDeep_io", function (req) {
-    console.log(req);
+    //console.log(req);
     if (req.user_fingerprint !== undefined && req.user_fingerprint !== null) {
       let url =
         process.env.LOCAL_URL +
@@ -1088,7 +1090,7 @@ io.on("connection", (socket) => {
    * Responsible for getting the daily amount made so far by the driver for exactly all the completed requests.
    */
   socket.on("computeDaily_amountMadeSoFar_io", function (req) {
-    console.log(req);
+    //console.log(req);
     if (
       req.driver_fingerprint !== undefined &&
       req.driver_fingerprint !== null
@@ -1101,7 +1103,7 @@ io.on("connection", (socket) => {
         req.driver_fingerprint;
 
       requestAPI(url, function (error, response, body) {
-        console.log(body);
+        //console.log(body);
         if (error === null) {
           try {
             body = JSON.parse(body);
@@ -1140,7 +1142,7 @@ io.on("connection", (socket) => {
    * Responsible for going online or offline for drivers / or getting the operational status of drivers (online/offline).
    */
   socket.on("goOnline_offlineDrivers_io", function (req) {
-    console.log(req);
+    //console.log(req);
     if (
       req.driver_fingerprint !== undefined &&
       req.driver_fingerprint !== null &&
@@ -1164,7 +1166,7 @@ io.on("connection", (socket) => {
       }
 
       requestAPI(url, function (error, response, body) {
-        console.log(body);
+        //console.log(body);
         if (error === null) {
           try {
             body = JSON.parse(body);
@@ -1194,7 +1196,7 @@ io.on("connection", (socket) => {
    * Check that the inputed otp by the user is true (return true, false, or error_checking_otp)
    */
   socket.on("checkThisOTP_SMS", function (req) {
-    console.log(req);
+    //console.log(req);
     if (
       req.phone_number !== undefined &&
       req.phone_number !== null &&
@@ -1216,7 +1218,7 @@ io.on("connection", (socket) => {
       }
 
       requestAPI(url, function (error, response, body) {
-        console.log(body);
+        //console.log(body);
         if (error === null) {
           try {
             body = JSON.parse(body);
@@ -1266,7 +1268,7 @@ io.on("connection", (socket) => {
         "/gatherAdsManagerAnalytics";
 
       requestAPI.post({ url, form: req }, function (error, response, body) {
-        console.log(body);
+        //console.log(body);
         if (error === null) {
           try {
             body = JSON.parse(body);
@@ -1296,7 +1298,7 @@ io.on("connection", (socket) => {
    * Get all the running Ads campaigns (usually just one at the time) in the current city.
    */
   socket.on("getAdsManagerRunningInfos_io", function (req) {
-    console.log(req);
+    //console.log(req);
     if (
       req.user_fingerprint !== undefined &&
       req.user_fingerprint !== null &&
@@ -1317,7 +1319,7 @@ io.on("connection", (socket) => {
         req.city;
 
       requestAPI(url, function (error, response, body) {
-        console.log(body);
+        //console.log(body);
         if (error === null) {
           try {
             body = JSON.parse(body);
@@ -1348,7 +1350,7 @@ io.on("connection", (socket) => {
    * Informations that can be updated: name, surname, picture, email, phone number, gender.
    */
   socket.on("updateRiders_profileInfos_io", function (req) {
-    console.log(req);
+    //console.log(req);
     if (
       req.user_fingerprint !== undefined &&
       req.user_fingerprint !== null &&
@@ -1364,7 +1366,7 @@ io.on("connection", (socket) => {
         "/updateRiders_profileInfos";
 
       requestAPI.post({ url, form: req }, function (error, response, body) {
-        console.log(body);
+        //console.log(body);
         if (error === null) {
           try {
             body = JSON.parse(body);
@@ -1398,7 +1400,7 @@ io.on("connection", (socket) => {
    * of the operation and the user fingerprint if successful.
    */
   socket.on("createInitialRider_account", function (req) {
-    console.log(req);
+    //console.log(req);
     if (req.phone_number !== undefined && req.phone_number !== null) {
       let url =
         process.env.LOCAL_URL +
@@ -1410,9 +1412,9 @@ io.on("connection", (socket) => {
         (req.pushnotif_token !== undefined && req.pushnotif_token !== null
           ? encodeURIComponent(req.pushnotif_token)
           : false);
-      console.log(url);
+      //console.log(url);
       requestAPI(url, function (error, response, body) {
-        console.log(error, body);
+        //console.log(error, body);
         if (error === null) {
           try {
             body = JSON.parse(body);
@@ -1442,7 +1444,7 @@ io.on("connection", (socket) => {
    * of the operation and the user fingerprint if successful.
    */
   socket.on("updateAdditionalProfileData", function (req) {
-    console.log(req);
+    //console.log(req);
     if (
       req.user_fingerprint !== undefined &&
       req.user_fingerprint !== null &&
@@ -1466,13 +1468,13 @@ io.on("connection", (socket) => {
         "&user_fingerprint=" +
         req.user_fingerprint;
       requestAPI(url, function (error, response, body) {
-        console.log(error, body);
+        //console.log(error, body);
         if (error === null) {
           try {
             body = JSON.parse(body);
             socket.emit("updateAdditionalProfileData-response", body);
           } catch (error) {
-            console.log(error);
+            //console.log(error);
             socket.emit("updateAdditionalProfileData-response", {
               response: "error_adding_additional_profile_details_new_account",
             });
@@ -1497,7 +1499,7 @@ io.on("connection", (socket) => {
    * or for a targeted one provided a request fingerprint.
    */
   socket.on("getRides_historyRiders_batchOrNot", function (req) {
-    console.log(req);
+    //console.log(req);
     if (req.user_fingerprint !== undefined && req.user_fingerprint !== null) {
       let url =
         process.env.LOCAL_URL +
@@ -1525,7 +1527,7 @@ io.on("connection", (socket) => {
       }
       //...
       requestAPI(url, function (error, response, body) {
-        console.log(error, body);
+        //console.log(error, body);
         if (error === null) {
           try {
             body = JSON.parse(body);
@@ -1555,7 +1557,7 @@ io.on("connection", (socket) => {
    * Responsible for computing the wallet summary (total and details) for the riders.
    */
   socket.on("checkRecipient_information_beforeTransfer", function (req) {
-    console.log(req);
+    //console.log(req);
     if (
       req.user_fingerprint !== undefined &&
       req.user_fingerprint !== null &&
@@ -1611,7 +1613,7 @@ io.on("connection", (socket) => {
    * Responsible for executing the wallet transfer from a rider to friend or a driver.
    */
   socket.on("makeWallet_transaction_io", function (req) {
-    console.log(req);
+    //console.log(req);
     if (
       req.user_fingerprint !== undefined &&
       req.user_fingerprint !== null &&
@@ -1668,7 +1670,7 @@ io.on("connection", (socket) => {
    * Responsible for executing the wallet top-up from only the riders side.
    */
   socket.on("topUp_wallet_io", function (req) {
-    console.log(req);
+    //console.log(req);
     //? Make sure that the city and country are provided or - defaults them to Windhoek Namibia
     req.city =
       req.city !== undefined && req.city !== null && req.city !== false
