@@ -3254,7 +3254,7 @@ function findoutPickupLocationNature(resolve, point) {
   let radius = 2; //meters
   let locationIdentity = { locationType: "PrivateLocation" }; //Default private location
   new Promise((resCheck) => {
-    taxiRanksDb.map((location) => {
+    /*taxiRanksDb.map((location) => {
       let centerLat = parseFloat(location.central_coord.split(",")[0]);
       let centerLng = parseFloat(location.central_coord.split(",")[1]);
       //...
@@ -3274,7 +3274,7 @@ function findoutPickupLocationNature(resolve, point) {
       else {
         locationIdentity = { locationType: "PrivateLocation" };
       }
-    });
+    });*/
     //...Send private location by default
     resCheck(locationIdentity);
   })
@@ -4759,45 +4759,54 @@ redisCluster.on("connect", function () {
      * Responsible for showing to the user the preview of the first destination after selecting on the app the destination.
      */
     app.get("/getRouteToDestinationSnapshot", function (req, res) {
-      let params = urlParser.parse(req.url, true);
-      req = params.query;
-      console.log("here");
-      //...
-      if (
-        req.user_fingerprint !== undefined &&
-        req.org_latitude !== undefined &&
-        req.org_longitude !== undefined
-      ) {
-        new Promise((res) => {
-          let tmp = {
-            origin: {
-              latitude: req.org_latitude,
-              longitude: req.org_longitude,
+      new Promise((resMAIN) => {
+        let params = urlParser.parse(req.url, true);
+        req = params.query;
+        console.log("here");
+        //...
+        if (
+          req.user_fingerprint !== undefined &&
+          req.org_latitude !== undefined &&
+          req.org_longitude !== undefined
+        ) {
+          new Promise((res) => {
+            let tmp = {
+              origin: {
+                latitude: req.org_latitude,
+                longitude: req.org_longitude,
+              },
+              destination: {
+                latitude: req.dest_latitude,
+                longitude: req.dest_longitude,
+              },
+              user_fingerprint: req.user_fingerprint,
+              request_fp:
+                req.request_fp !== undefined && req.request_fp !== null
+                  ? req.request_fp
+                  : false,
+            };
+            findDestinationPathPreview(res, tmp);
+          }).then(
+            (result) => {
+              resMAIN(result);
             },
-            destination: {
-              latitude: req.dest_latitude,
-              longitude: req.dest_longitude,
-            },
-            user_fingerprint: req.user_fingerprint,
-            request_fp:
-              req.request_fp !== undefined && req.request_fp !== null
-                ? req.request_fp
-                : false,
-          };
-          findDestinationPathPreview(res, tmp);
-        }).then(
-          (result) => {
-            res.send(result);
-          },
-          (error) => {
-            console.log(error);
-            res.send(false);
-          }
-        );
-      } //error
-      else {
-        res.send(false);
-      }
+            (error) => {
+              console.log(error);
+              resMAIN(false);
+            }
+          );
+        } //error
+        else {
+          resMAIN(false);
+        }
+      })
+        .then((result) => {
+          res.send(result);
+        })
+        .catch((error) => {
+          console.log(error);
+          res.send(false);
+        });
     });
 
     /**
@@ -4818,93 +4827,122 @@ redisCluster.on("connect", function () {
      * valueIndex: 'relativeEta'
      */
     app.get("/getVitalsETAOrRouteInfos2points", function (req, res) {
-      let params = urlParser.parse(req.url, true);
-      req = params.query;
-      //...
-      if (
-        req.user_fingerprint !== undefined &&
-        req.org_latitude !== undefined &&
-        req.org_longitude !== undefined &&
-        req.city !== undefined &&
-        req.country !== undefined &&
-        req.ride_type !== undefined
-      ) {
-        //? Form the redis key
-        let redisKey = `${req.user_fingerprint}-driversListCachedData`;
-        //Check the list limit
-        if (req.list_limit === undefined) {
-          req.list_limit = 7;
-        }
-        //! CHECK FOR CACHED RESULT FIRST IF INSTRUCTED SO
+      new Promise((resMAIN) => {
+        let params = urlParser.parse(req.url, true);
+        req = params.query;
+        //...
         if (
-          req.make_new !== undefined ||
-          req.make_new === "true" ||
-          req.make_new
+          req.user_fingerprint !== undefined &&
+          req.org_latitude !== undefined &&
+          req.org_longitude !== undefined &&
+          req.city !== undefined &&
+          req.country !== undefined &&
+          req.ride_type !== undefined
         ) {
-          console.log("MAKE NEW");
-          //Get the list of drivers match the availability criteria
-          new Promise((resGetFreshList) => {
-            getFreshProximity_driversList(
-              req,
-              redisKey,
-              collectionDrivers_profiles,
-              collectionRidesDeliveries_data,
-              collectionPassengers_profiles,
-              resGetFreshList
-            );
-          })
-            .then(
-              (result) => {
-                //? DONE
-                res.send(result);
-              },
-              (error) => {
+          //? Form the redis key
+          let redisKey = `${req.user_fingerprint}-driversListCachedData`;
+          //Check the list limit
+          if (req.list_limit === undefined) {
+            req.list_limit = 7;
+          }
+          //! CHECK FOR CACHED RESULT FIRST IF INSTRUCTED SO
+          if (
+            req.make_new !== undefined ||
+            req.make_new === "true" ||
+            req.make_new
+          ) {
+            console.log("MAKE NEW");
+            //Get the list of drivers match the availability criteria
+            new Promise((resGetFreshList) => {
+              getFreshProximity_driversList(
+                req,
+                redisKey,
+                collectionDrivers_profiles,
+                collectionRidesDeliveries_data,
+                collectionPassengers_profiles,
+                resGetFreshList
+              );
+            })
+              .then(
+                (result) => {
+                  //? DONE
+                  resMAIN(result);
+                },
+                (error) => {
+                  console.log(error);
+                  resMAIN({ response: "no_close_drivers_found" });
+                }
+              )
+              .catch((error) => {
                 console.log(error);
-                res.send({ response: "no_close_drivers_found" });
-              }
-            )
-            .catch((error) => {
-              console.log(error);
-              res.send({ response: "no_close_drivers_found" });
-            });
-        } //Get the cached first
-        else {
-          console.log("Get cached first");
-          redisGet(redisKey)
-            .then(
-              (resp) => {
-                if (resp !== null) {
-                  console.log("FOUND CACHED DRIVER LIST");
-                  //Has some cached data
-                  try {
-                    //Rehydrate the data
-                    new Promise((resGetFreshList) => {
-                      getFreshProximity_driversList(
-                        req,
-                        redisKey,
-                        collectionDrivers_profiles,
-                        collectionRidesDeliveries_data,
-                        collectionPassengers_profiles,
-                        resGetFreshList
-                      );
-                    })
-                      .then(
-                        (result) => {
-                          //? DONE
-                        },
-                        (error) => {
+                resMAIN({ response: "no_close_drivers_found" });
+              });
+          } //Get the cached first
+          else {
+            console.log("Get cached first");
+            redisGet(redisKey)
+              .then(
+                (resp) => {
+                  if (resp !== null) {
+                    console.log("FOUND CACHED DRIVER LIST");
+                    //Has some cached data
+                    try {
+                      //Rehydrate the data
+                      new Promise((resGetFreshList) => {
+                        getFreshProximity_driversList(
+                          req,
+                          redisKey,
+                          collectionDrivers_profiles,
+                          collectionRidesDeliveries_data,
+                          collectionPassengers_profiles,
+                          resGetFreshList
+                        );
+                      })
+                        .then(
+                          (result) => {
+                            //? DONE
+                          },
+                          (error) => {
+                            console.log(error);
+                          }
+                        )
+                        .catch((error) => {
                           console.log(error);
-                        }
-                      )
-                      .catch((error) => {
-                        console.log(error);
-                      });
-                    //...
-                    resp = parse(resp);
-                    //? Quickly respond
-                    res.send(resp);
-                  } catch (error) {
-                    console.log(error);
+                        });
+                      //...
+                      resp = parse(resp);
+                      //? Quickly respond
+                      resMAIN(resp);
+                    } catch (error) {
+                      console.log(error);
+                      //Get the list of drivers match the availability criteria
+                      new Promise((resGetFreshList) => {
+                        getFreshProximity_driversList(
+                          req,
+                          redisKey,
+                          collectionDrivers_profiles,
+                          collectionRidesDeliveries_data,
+                          collectionPassengers_profiles,
+                          resGetFreshList
+                        );
+                      })
+                        .then(
+                          (result) => {
+                            //? DONE
+                            resMAIN(result);
+                          },
+                          (error) => {
+                            console.log(error);
+                            resMAIN({ response: "no_close_drivers_found" });
+                          }
+                        )
+                        .catch((error) => {
+                          console.log(error);
+                          resMAIN({ response: "no_close_drivers_found" });
+                        });
+                    }
+                  } //No cached data - get fresh one
+                  else {
                     //Get the list of drivers match the availability criteria
                     new Promise((resGetFreshList) => {
                       getFreshProximity_driversList(
@@ -4919,20 +4957,21 @@ redisCluster.on("connect", function () {
                       .then(
                         (result) => {
                           //? DONE
-                          res.send(result);
+                          resMAIN(result);
                         },
                         (error) => {
                           console.log(error);
-                          res.send({ response: "no_close_drivers_found" });
+                          resMAIN({ response: "no_close_drivers_found" });
                         }
                       )
                       .catch((error) => {
                         console.log(error);
-                        res.send({ response: "no_close_drivers_found" });
+                        resMAIN({ response: "no_close_drivers_found" });
                       });
                   }
-                } //No cached data - get fresh one
-                else {
+                },
+                (error) => {
+                  console.log(error);
                   //Get the list of drivers match the availability criteria
                   new Promise((resGetFreshList) => {
                     getFreshProximity_driversList(
@@ -4947,20 +4986,20 @@ redisCluster.on("connect", function () {
                     .then(
                       (result) => {
                         //? DONE
-                        res.send(result);
+                        resMAIN(result);
                       },
                       (error) => {
                         console.log(error);
-                        res.send({ response: "no_close_drivers_found" });
+                        resMAIN({ response: "no_close_drivers_found" });
                       }
                     )
                     .catch((error) => {
                       console.log(error);
-                      res.send({ response: "no_close_drivers_found" });
+                      resMAIN({ response: "no_close_drivers_found" });
                     });
                 }
-              },
-              (error) => {
+              )
+              .catch((error) => {
                 console.log(error);
                 //Get the list of drivers match the availability criteria
                 new Promise((resGetFreshList) => {
@@ -4976,51 +5015,30 @@ redisCluster.on("connect", function () {
                   .then(
                     (result) => {
                       //? DONE
-                      res.send(result);
+                      resMAIN(result);
                     },
                     (error) => {
                       console.log(error);
-                      res.send({ response: "no_close_drivers_found" });
+                      resMAIN({ response: "no_close_drivers_found" });
                     }
                   )
                   .catch((error) => {
                     console.log(error);
-                    res.send({ response: "no_close_drivers_found" });
+                    resMAIN({ response: "no_close_drivers_found" });
                   });
-              }
-            )
-            .catch((error) => {
-              console.log(error);
-              //Get the list of drivers match the availability criteria
-              new Promise((resGetFreshList) => {
-                getFreshProximity_driversList(
-                  req,
-                  redisKey,
-                  collectionDrivers_profiles,
-                  collectionRidesDeliveries_data,
-                  collectionPassengers_profiles,
-                  resGetFreshList
-                );
-              })
-                .then(
-                  (result) => {
-                    //? DONE
-                    res.send(result);
-                  },
-                  (error) => {
-                    console.log(error);
-                    res.send({ response: "no_close_drivers_found" });
-                  }
-                )
-                .catch((error) => {
-                  console.log(error);
-                  res.send({ response: "no_close_drivers_found" });
-                });
-            });
+              });
+          }
+        } else {
+          resMAIN({ response: "no_close_drivers_found" });
         }
-      } else {
-        res.send({ response: "no_close_drivers_found" });
-      }
+      })
+        .then((result) => {
+          res.send(result);
+        })
+        .catch((error) => {
+          console.log(error);
+          res.send({ response: "no_close_drivers_found" });
+        });
     });
 
     /**
@@ -5036,71 +5054,110 @@ redisCluster.on("connect", function () {
      * Redis key format: realtime-tracking-operation-user_fingerprint-request_fp
      */
     app.get("/getRealtimeTrackingRoute_forTHIS", function (req, res) {
-      let params = urlParser.parse(req.url, true);
-      req = params.query;
+      new Promise((resMAIN) => {
+        let params = urlParser.parse(req.url, true);
+        req = params.query;
 
-      if (
-        req.user_fingerprint !== undefined &&
-        req.user_fingerprint !== null &&
-        req.request_fp !== undefined &&
-        req.request_fp !== null &&
-        req.org_latitude !== undefined &&
-        req.org_latitude !== null &&
-        req.org_longitude !== undefined &&
-        req.org_longitude !== null &&
-        req.dest_latitude !== undefined &&
-        req.dest_latitude !== null
-      ) {
-        //Valid format
-        //Create the redis key
-        let redisKey =
-          "realtime-tracking-operation-" +
-          req.user_fingerprint +
-          "-" +
-          req.request_fp;
-        //Get the cached data first if any
-        redisGet(redisKey).then(
-          (resp) => {
-            if (resp !== null) {
-              //Has a previous recordd
-              try {
-                //Update the old cache
-                new Promise((res0) => {
-                  getRouteInfosDestination(
-                    {
-                      passenger: {
-                        latitude: req.org_latitude,
-                        longitude: req.org_longitude,
+        if (
+          req.user_fingerprint !== undefined &&
+          req.user_fingerprint !== null &&
+          req.request_fp !== undefined &&
+          req.request_fp !== null &&
+          req.org_latitude !== undefined &&
+          req.org_latitude !== null &&
+          req.org_longitude !== undefined &&
+          req.org_longitude !== null &&
+          req.dest_latitude !== undefined &&
+          req.dest_latitude !== null
+        ) {
+          //Valid format
+          //Create the redis key
+          let redisKey =
+            "realtime-tracking-operation-" +
+            req.user_fingerprint +
+            "-" +
+            req.request_fp;
+          //Get the cached data first if any
+          redisGet(redisKey).then(
+            (resp) => {
+              if (resp !== null) {
+                //Has a previous recordd
+                try {
+                  //Update the old cache
+                  new Promise((res0) => {
+                    getRouteInfosDestination(
+                      {
+                        passenger: {
+                          latitude: req.org_latitude,
+                          longitude: req.org_longitude,
+                        },
+                        destination: {
+                          latitude: req.dest_latitude,
+                          longitude: req.dest_longitude,
+                        },
+                        setIntructions: true,
                       },
-                      destination: {
-                        latitude: req.dest_latitude,
-                        longitude: req.dest_longitude,
-                      },
-                      setIntructions: true,
+                      res0,
+                      false,
+                      false
+                    );
+                  }).then(
+                    (result) => {
+                      //Update cache if the result is not fallsee
+                      if (result !== false) {
+                        redisCluster.set(redisKey, JSON.stringify(result));
+                      }
                     },
-                    res0,
-                    false,
-                    false
-                  );
-                }).then(
-                  (result) => {
-                    //Update cache if the result is not fallsee
-                    if (result !== false) {
-                      redisCluster.set(redisKey, JSON.stringify(result));
+                    (error) => {
+                      console.log(error);
                     }
-                  },
-                  (error) => {
-                    console.log(error);
-                  }
-                );
-                //.....
-                resp = JSON.parse(resp);
-                console.log("Found realtime REDIS record!");
-                //Quickly return data
-                res.send(resp);
-              } catch (error) {
-                console.log(error);
-                //Error - make a fresh search
+                  );
+                  //.....
+                  resp = JSON.parse(resp);
+                  console.log("Found realtime REDIS record!");
+                  //Quickly return data
+                  resMAIN(resp);
+                } catch (error) {
+                  console.log(error);
+                  //Error - make a fresh search
+                  new Promise((res0) => {
+                    getRouteInfosDestination(
+                      {
+                        passenger: {
+                          latitude: req.org_latitude,
+                          longitude: req.org_longitude,
+                        },
+                        destination: {
+                          latitude: req.dest_latitude,
+                          longitude: req.dest_longitude,
+                        },
+                        setIntructions: true,
+                      },
+                      res0,
+                      false,
+                      false
+                    );
+                  }).then(
+                    (result) => {
+                      //Update cache if the result is not fallsee
+                      if (result !== false) {
+                        redisCluster.set(redisKey, JSON.stringify(result));
+                        //...
+                        resMAIN(result);
+                      } //Error
+                      else {
+                        resMAIN(false);
+                      }
+                    },
+                    (error) => {
+                      console.log(error);
+                      //...
+                      resMAIN(false);
+                    }
+                  );
+                }
+              } //No previous record - make a fresh search
+              else {
                 new Promise((res0) => {
                   getRouteInfosDestination(
                     {
@@ -5124,21 +5181,23 @@ redisCluster.on("connect", function () {
                     if (result !== false) {
                       redisCluster.set(redisKey, JSON.stringify(result));
                       //...
-                      res.send(result);
+                      resMAIN(result);
                     } //Error
                     else {
-                      res.send(false);
+                      resMAIN(false);
                     }
                   },
                   (error) => {
                     console.log(error);
                     //...
-                    res.send(false);
+                    resMAIN(false);
                   }
                 );
               }
-            } //No previous record - make a fresh search
-            else {
+            },
+            (error) => {
+              console.log(error);
+              //Error - make a fresh search
               new Promise((res0) => {
                 getRouteInfosDestination(
                   {
@@ -5162,64 +5221,32 @@ redisCluster.on("connect", function () {
                   if (result !== false) {
                     redisCluster.set(redisKey, JSON.stringify(result));
                     //...
-                    res.send(result);
+                    resMAIN(result);
                   } //Error
                   else {
-                    res.send(false);
+                    resMAIN(false);
                   }
                 },
                 (error) => {
                   console.log(error);
                   //...
-                  res.send(false);
+                  resMAIN(false);
                 }
               );
             }
-          },
-          (error) => {
-            console.log(error);
-            //Error - make a fresh search
-            new Promise((res0) => {
-              getRouteInfosDestination(
-                {
-                  passenger: {
-                    latitude: req.org_latitude,
-                    longitude: req.org_longitude,
-                  },
-                  destination: {
-                    latitude: req.dest_latitude,
-                    longitude: req.dest_longitude,
-                  },
-                  setIntructions: true,
-                },
-                res0,
-                false,
-                false
-              );
-            }).then(
-              (result) => {
-                //Update cache if the result is not fallsee
-                if (result !== false) {
-                  redisCluster.set(redisKey, JSON.stringify(result));
-                  //...
-                  res.send(result);
-                } //Error
-                else {
-                  res.send(false);
-                }
-              },
-              (error) => {
-                console.log(error);
-                //...
-                res.send(false);
-              }
-            );
-          }
-        );
-      } //Invalid data
-      else {
-        res.send(false);
-      }
+          );
+        } //Invalid data
+        else {
+          resMAIN(false);
+        }
+      })
+        .then((result) => {
+          res.send(result);
+        })
+        .catch((error) => {
+          console.log(error);
+          res.send(false);
+        });
     });
 
     /**

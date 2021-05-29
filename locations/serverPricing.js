@@ -2026,9 +2026,10 @@ redisCluster.on("connect", function () {
      * Get the price estimates for every single vehicle types available.
      */
     app.post("/getOverallPricingAndAvailabilityDetails", function (req, res) {
-      resolveDate();
-      //DELIVERY TEST DATA - DEBUG
-      /*let deliveryPricingInputDataRaw = {
+      new Promise((resMAIN) => {
+        resolveDate();
+        //DELIVERY TEST DATA - DEBUG
+        /*let deliveryPricingInputDataRaw = {
       user_fingerprint:
         "4ec9a3cac550584cfe04108e63b61961af32f9162ca09bee59bc0fc264c6dd1d61dbd97238a27e147e1134e9b37299d160c0f0ee1c620c9f012e3a08a4505fd6",
       connectType: "ConnectUs",
@@ -2069,88 +2070,98 @@ redisCluster.on("connect", function () {
       },
     };
     req.body = deliveryPricingInputDataRaw;**/
-      console.log(req.body);
-      //...
+        console.log(req.body);
+        //...
 
-      try {
-        let inputDataInitial = req.body;
-        //Parse input to the correct format
-        //Parse input date to the good format
-        new Promise((res) => {
-          parsePricingInputData(res, inputDataInitial);
-        }).then(
-          (reslt) => {
-            if (reslt !== false) {
-              let parsedData = reslt; //Clean parsed data
-              if (checkInputIntegrity(parsedData)) {
-                //Check inetgrity
-                console.log("Passed the integrity test.");
-                //Valid input
-                //Autocomplete the input data
-                new Promise((res) => {
-                  autocompleteInputData(
-                    res,
-                    parsedData,
-                    collectionSavedSuburbResults
-                  );
-                }).then(
-                  (result) => {
-                    if (result !== false) {
-                      let completeInput = result;
-                      console.log("Done autocompleting");
-                      //Generate prices metadata for all the relevant vehicles categories
-                      console.log(
-                        "Computing prices metadata of relevant car categories"
-                      );
-                      new Promise((res) => {
-                        estimateFullVehiclesCatPrices(
-                          res,
-                          completeInput,
-                          collectionVehiclesInfos,
-                          collectionPricesLocationsMap,
-                          collectionNotFoundSubursPricesMap
+        try {
+          let inputDataInitial = req.body;
+          //Parse input to the correct format
+          //Parse input date to the good format
+          new Promise((res) => {
+            parsePricingInputData(res, inputDataInitial);
+          }).then(
+            (reslt) => {
+              if (reslt !== false) {
+                let parsedData = reslt; //Clean parsed data
+                if (checkInputIntegrity(parsedData)) {
+                  //Check inetgrity
+                  console.log("Passed the integrity test.");
+                  //Valid input
+                  //Autocomplete the input data
+                  new Promise((res) => {
+                    autocompleteInputData(
+                      res,
+                      parsedData,
+                      collectionSavedSuburbResults
+                    );
+                  }).then(
+                    (result) => {
+                      if (result !== false) {
+                        let completeInput = result;
+                        console.log("Done autocompleting");
+                        //Generate prices metadata for all the relevant vehicles categories
+                        console.log(
+                          "Computing prices metadata of relevant car categories"
                         );
-                      }).then(
-                        (result) => {
-                          console.log("DOne computing fares");
-                          res.send(result);
-                        },
-                        (error) => {
-                          console.log(error);
-                          res.send({
-                            response: "Failed perform the operations",
-                          });
-                        }
-                      );
-                      //...
-                    } //Error - Failed input augmentation
-                    else {
-                      res.send({ response: "Failed input augmentation" });
+                        new Promise((res) => {
+                          estimateFullVehiclesCatPrices(
+                            res,
+                            completeInput,
+                            collectionVehiclesInfos,
+                            collectionPricesLocationsMap,
+                            collectionNotFoundSubursPricesMap
+                          );
+                        }).then(
+                          (result) => {
+                            console.log("DOne computing fares");
+                            resMAIN(result);
+                          },
+                          (error) => {
+                            console.log(error);
+                            resMAIN({
+                              response: "Failed perform the operations",
+                            });
+                          }
+                        );
+                        //...
+                      } //Error - Failed input augmentation
+                      else {
+                        resMAIN({ response: "Failed input augmentation" });
+                      }
+                    },
+                    (error) => {
+                      //Error - Failed input augmentation
+                      console.log(error);
+                      resMAIN({ response: "Failed input augmentation" });
                     }
-                  },
-                  (error) => {
-                    //Error - Failed input augmentation
-                    console.log(error);
-                    res.send({ response: "Failed input augmentation" });
-                  }
-                );
-              } //Invalid input data
+                  );
+                } //Invalid input data
+                else {
+                  resMAIN({ response: "Failed integrity" });
+                }
+              } //Faild parsing
               else {
-                res.send({ response: "Failed integrity" });
+                resMAIN({ response: "Failed parsing." });
               }
-            } //Faild parsing
-            else {
-              res.send({ response: "Failed parsing." });
+            },
+            (error) => {
+              resMAIN({ response: "Failed parsing." });
             }
-          },
-          (error) => {
-            res.send({ response: "Failed parsing." });
-          }
-        );
-      } catch (error) {
-        console.log(error);
-        res.send({ response: "Failed parsing." });
-      }
+          );
+        } catch (error) {
+          console.log(error);
+          resMAIN({ response: "Failed parsing." });
+        }
+      })
+        .then((result) => {
+          res.send(result);
+        })
+        .catch((error) => {
+          console.log(error);
+          res.send({
+            response: "Failed perform the operations",
+          });
+        });
     });
 
     /**
@@ -2160,43 +2171,52 @@ redisCluster.on("connect", function () {
      * Input data: location name, street name, city, country and coordinates (obj, lat and long)
      */
     app.get("/getCorrespondingSuburbInfos", function (req, res) {
-      let params = urlParser.parse(req.url, true);
-      req = params.query;
-      console.log(req);
+      new Promise((resMAIN) => {
+        let params = urlParser.parse(req.url, true);
+        req = params.query;
+        console.log(req);
 
-      if (req !== undefined && req.user_fingerprint !== undefined) {
-        new Promise((res) => {
-          doMongoSearchForAutocompletedSuburbs(
-            res,
-            {
-              location_name: req.location_name,
-              street_name: req.street_name,
-              city: req.city,
-              country: req.country,
-              coordinates: {
-                latitude: req.latitude,
-                longitude: req.longitude,
+        if (req !== undefined && req.user_fingerprint !== undefined) {
+          new Promise((res) => {
+            doMongoSearchForAutocompletedSuburbs(
+              res,
+              {
+                location_name: req.location_name,
+                street_name: req.street_name,
+                city: req.city,
+                country: req.country,
+                coordinates: {
+                  latitude: req.latitude,
+                  longitude: req.longitude,
+                },
+                make_new:
+                  req.make_new !== undefined && req.make_new !== null
+                    ? true
+                    : false,
               },
-              make_new:
-                req.make_new !== undefined && req.make_new !== null
-                  ? true
-                  : false,
+              collectionSavedSuburbResults
+            );
+          }).then(
+            (result) => {
+              console.log(result);
+              resMAIN(result);
             },
-            collectionSavedSuburbResults
+            (error) => {
+              console.log(error);
+              resMAIN(false);
+            }
           );
-        }).then(
-          (result) => {
-            console.log(result);
-            res.send(result);
-          },
-          (error) => {
-            console.log(error);
-            res.send(false);
-          }
-        );
-      } else {
-        res.send(false);
-      }
+        } else {
+          resMAIN(false);
+        }
+      })
+        .then((result) => {
+          res.send(result);
+        })
+        .catch((error) => {
+          console.log(error);
+          res.send(false);
+        });
     });
 
     /**
@@ -2205,30 +2225,39 @@ redisCluster.on("connect", function () {
      * Input data: @array containing compatible parsed data of locations
      */
     app.post("/manageAutoCompleteSuburbsAndLocationTypes", function (req, res) {
-      let arrayData = req.body;
-      console.log(arrayData);
-      new Promise((res) => {
-        manageAutoCompleteDestinationLocations(
-          res,
-          arrayData.locationData,
-          arrayData.user_fingerprint,
-          collectionSavedSuburbResults
-        );
-      }).then(
-        (result) => {
-          if (result !== false) {
-            //DONE AUTOCOMPLETING
-            res.send(result);
-          } //Error
-          else {
-            res.send(false);
+      new Promise((resMAIN) => {
+        let arrayData = req.body;
+        console.log(arrayData);
+        new Promise((res) => {
+          manageAutoCompleteDestinationLocations(
+            res,
+            arrayData.locationData,
+            arrayData.user_fingerprint,
+            collectionSavedSuburbResults
+          );
+        }).then(
+          (result) => {
+            if (result !== false) {
+              //DONE AUTOCOMPLETING
+              resMAIN(result);
+            } //Error
+            else {
+              resMAIN(false);
+            }
+          },
+          (error) => {
+            console.log(error);
+            resMAIN(false);
           }
-        },
-        (error) => {
+        );
+      })
+        .then((result) => {
+          res.send(result);
+        })
+        .catch((error) => {
           console.log(error);
           res.send(false);
-        }
-      );
+        });
     });
   });
 });
