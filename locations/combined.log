@@ -655,3 +655,615 @@
 {"message":"[2021-05-29T20:17:28.000Z] - Watcher loopedi","level":"info","service":"user-service"}
 {"message":true,"level":"info","service":"user-service"}
 {"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:17:38.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:17:48.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:17:58.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:18:08.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:18:18.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:18:28.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:18:38.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:18:48.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:18:58.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:19:08.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:19:18.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:19:28.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:19:38.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:19:48.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:19:58.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:20:08.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:20:18.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:20:28.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:20:38.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:20:48.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:20:58.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:21:08.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:21:18.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:21:28.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:21:38.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:21:48.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:21:58.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:22:08.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:22:18.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:22:28.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:22:38.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:22:48.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:22:58.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:23:08.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:23:18.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:23:28.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:23:38.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:23:48.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:23:58.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:24:08.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:24:18.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:24:28.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Pricing service active","level":"info","service":"user-service"}
+{"message":"[+] MAP services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Pricing service active","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] MAP services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"Connected to Mongodb","level":"info","service":"user-service"}
+{"message":"Connected to Mongodb","level":"info","service":"user-service"}
+{"message":"[+] Dispatch services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Dispatch services active.","level":"info","service":"user-service"}
+{"message":"[+] Watcher services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Account services active.","level":"info","service":"user-service"}
+{"message":"Restoring location cache","level":"info","service":"user-service"}
+{"message":"Restoring location cache","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Account services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Account services active.","level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:24:49.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:24:59.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:25:09.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:25:19.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:25:29.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:25:39.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:25:49.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:25:59.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:26:09.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:26:19.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:26:29.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:26:39.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:26:49.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:26:59.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:27:09.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:27:19.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:27:29.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:27:39.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:27:49.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:27:59.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:28:09.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:28:19.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:28:29.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:28:39.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:28:49.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:28:59.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:29:09.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:29:19.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:29:29.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:29:39.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:29:49.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:29:59.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:30:09.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:30:19.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:30:29.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:30:39.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:30:49.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:30:59.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:31:09.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Watcher services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"Connected to Mongodb","level":"info","service":"user-service"}
+{"message":"Connected to Mongodb","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Pricing service active","level":"info","service":"user-service"}
+{"message":"[+] Dispatch services active.","level":"info","service":"user-service"}
+{"message":"[+] MAP services active.","level":"info","service":"user-service"}
+{"message":"[+] Dispatch services active.","level":"info","service":"user-service"}
+{"message":"[+] Pricing service active","level":"info","service":"user-service"}
+{"message":"[+] MAP services active.","level":"info","service":"user-service"}
+{"message":"Restoring location cache","level":"info","service":"user-service"}
+{"message":"Restoring location cache","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Account services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Account services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Account services active.","level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:31:26.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:31:36.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:31:46.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:31:56.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:32:06.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:32:16.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:32:26.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:32:36.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:32:46.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:32:56.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:33:06.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:33:16.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:33:26.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:33:36.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:33:46.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:33:56.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:34:06.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:34:16.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:34:26.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:34:36.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:34:46.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:34:56.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:35:06.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:35:16.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:35:26.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:35:36.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:35:46.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:35:56.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:36:06.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:36:16.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:36:26.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:36:36.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:36:46.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:36:56.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:37:06.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:37:16.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:37:26.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:37:36.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:37:46.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:37:56.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:38:06.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:38:16.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:38:26.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:38:36.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:38:46.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:38:56.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:39:06.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:39:16.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:39:26.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:39:36.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:39:46.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:39:56.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:40:06.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:40:16.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:40:26.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:40:36.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:40:46.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:40:56.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:41:06.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:41:16.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:41:26.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:41:36.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:41:46.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:41:56.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:42:06.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:42:16.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:42:26.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:42:36.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:42:46.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:42:56.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:43:06.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:43:16.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:43:26.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:43:36.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:43:46.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:43:56.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:44:06.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:44:16.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:44:26.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:44:36.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:44:46.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:44:56.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:45:06.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:45:16.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:45:26.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:45:36.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:45:46.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:45:56.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:55:03.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:55:12.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Pricing service active","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"Connected to Mongodb","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"Connected to Mongodb","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Dispatch services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] MAP services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Dispatch services active.","level":"info","service":"user-service"}
+{"message":"[+] MAP services active.","level":"info","service":"user-service"}
+{"message":"[+] Pricing service active","level":"info","service":"user-service"}
+{"message":"[+] Watcher services active.","level":"info","service":"user-service"}
+{"message":"Restoring location cache","level":"info","service":"user-service"}
+{"message":"Restoring location cache","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Account services active.","level":"info","service":"user-service"}
+{"message":"[+] Account services active.","level":"info","service":"user-service"}
+{"message":"[*] Redis connected","level":"info","service":"user-service"}
+{"message":"[+] Account services active.","level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:55:35.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:55:45.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:55:55.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:56:05.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:56:15.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:56:25.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
+{"message":"[2021-05-29T20:56:35.000Z] - Watcher loopedi","level":"info","service":"user-service"}
+{"message":{"response":"empty_scheduled_requestsFor_watch"},"level":"info","service":"user-service"}
+{"message":true,"level":"info","service":"user-service"}
