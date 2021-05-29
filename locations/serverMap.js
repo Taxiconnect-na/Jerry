@@ -4403,245 +4403,254 @@ redisCluster.on("connect", function () {
      * Update CACHE -> MONGODB (-> TRIP CHECKER DISPATCHER)
      */
     app.post("/updatePassengerLocation", function (req, res) {
-      //DEBUG
-      /*let testData = {
-      latitude: -22.5704981,
-      longitude: 17.0809425,
-      user_fingerprint:
-        "23c9d088e03653169b9c18193a0b8dd329ea1e43eb0626ef9f16b5b979694a429710561a3cb3ddae",
-      user_nature: "driver",
-      requestType: "scheduled",
-      pushnotif_token: {
-        hasNotificationPermission: true,
-        isEmailSubscribed: false,
-        isPushDisabled: false,
-        isSubscribed: true,
-        pushToken:
-          "fNA8f12fQ225K3IHb4Xwdf:APA91bGQW7bJrNzOcIslIDTApTenhWaueP9QC-EJN4IM7ugZm43sJlk8jsj-lJxJN8JB70NsA5ZsDah2egABIm7L3ex-hndQiJEI-ziBggaO0se0rBI3CEE6ytpY2-USaM3yXe3HqKW9",
-        userId: "a0989fbc-2ec1-4b9c-b469-881dfaa345d8",
-      },
-    };
-    req = testData;*/
-      //DEBUG
-      //let params = urlParser.parse(req.url, true);
-      req = req.body;
+      new Promise((resMAIN) => {
+        //DEBUG
+        /*let testData = {
+          latitude: -22.5704981,
+          longitude: 17.0809425,
+          user_fingerprint:
+            "23c9d088e03653169b9c18193a0b8dd329ea1e43eb0626ef9f16b5b979694a429710561a3cb3ddae",
+          user_nature: "driver",
+          requestType: "scheduled",
+          pushnotif_token: {
+            hasNotificationPermission: true,
+            isEmailSubscribed: false,
+            isPushDisabled: false,
+            isSubscribed: true,
+            pushToken:
+              "fNA8f12fQ225K3IHb4Xwdf:APA91bGQW7bJrNzOcIslIDTApTenhWaueP9QC-EJN4IM7ugZm43sJlk8jsj-lJxJN8JB70NsA5ZsDah2egABIm7L3ex-hndQiJEI-ziBggaO0se0rBI3CEE6ytpY2-USaM3yXe3HqKW9",
+            userId: "a0989fbc-2ec1-4b9c-b469-881dfaa345d8",
+          },
+        };
+        req = testData;*/
+        //DEBUG
+        //let params = urlParser.parse(req.url, true);
+        req = req.body;
 
-      if (
-        req !== undefined &&
-        req.latitude !== undefined &&
-        req.latitude !== null &&
-        req.longitude !== undefined &&
-        req.longitude !== null &&
-        req.user_fingerprint !== null &&
-        req.user_fingerprint !== undefined
-      ) {
-        resolveDate();
-        //? Update the rider's push notification var only if got a new value
-        let pro1 = new Promise((resUpdateNotifToken) => {
-          if (
-            req.pushnotif_token.userId !== undefined &&
-            req.pushnotif_token.userId !== null &&
-            req.pushnotif_token.userId.length > 3
-          ) {
-            //Got something - can update
-            if (/^rider$/i.test(req.user_nature)) {
-              //Rider
-              collectionPassengers_profiles.updateOne(
-                { user_fingerprint: req.user_fingerprint },
-                {
-                  $set: {
-                    pushnotif_token: JSON.parse(req.pushnotif_token),
-                    last_updated: new Date(chaineDateUTC),
+        if (
+          req !== undefined &&
+          req.latitude !== undefined &&
+          req.latitude !== null &&
+          req.longitude !== undefined &&
+          req.longitude !== null &&
+          req.user_fingerprint !== null &&
+          req.user_fingerprint !== undefined
+        ) {
+          resolveDate();
+          //? Update the rider's push notification var only if got a new value
+          let pro1 = new Promise((resUpdateNotifToken) => {
+            if (
+              req.pushnotif_token.userId !== undefined &&
+              req.pushnotif_token.userId !== null &&
+              req.pushnotif_token.userId.length > 3
+            ) {
+              //Got something - can update
+              if (/^rider$/i.test(req.user_nature)) {
+                //Rider
+                collectionPassengers_profiles.updateOne(
+                  { user_fingerprint: req.user_fingerprint },
+                  {
+                    $set: {
+                      pushnotif_token: JSON.parse(req.pushnotif_token),
+                      last_updated: new Date(chaineDateUTC),
+                    },
                   },
-                },
-                function (err, reslt) {
-                  console.log("HERE");
-                  if (err) {
-                    console.log(err);
-                    resUpdateNotifToken(false);
-                  }
-                  //...
-                  resUpdateNotifToken(true);
-                }
-              );
-            } else if (/^driver$/i.test(req.user_nature)) {
-              //Driver
-              //! Update the payment cycle starting point if not set yet
-              new Promise((resPaymentCycle) => {
-                //!Check if a reference point exists - if not set one to NOW
-                //? For days before wednesday, set to wednesdat and for those after wednesday, set to next week that same day.
-                //! Annotation string: startingPoint_forFreshPayouts
-                collectionWalletTransactions_logs
-                  .find({
-                    flag_annotation: "startingPoint_forFreshPayouts",
-                    user_fingerprint: req.user_fingerprint,
-                  })
-                  .toArray(function (err, referenceData) {
+                  function (err, reslt) {
+                    console.log("HERE");
                     if (err) {
-                      resPaymentCycle(false);
+                      console.log(err);
+                      resUpdateNotifToken(false);
                     }
                     //...
-                    if (
-                      referenceData !== undefined &&
-                      referenceData.length > 0 &&
-                      referenceData[0].date_captured !== undefined
-                    ) {
-                      resPaymentCycle(true);
-                    } //No annotation yet - create one
-                    else {
-                      let tmpDate = new Date(chaineDateUTC)
-                        .toDateString()
-                        .split(" ")[0];
-                      if (/(mon|tue)/i.test(tmpDate)) {
-                        //For mondays and tuesdays - add 3 days + the PAYMENT CYCLE
-                        let tmpNextDate = new Date(
-                          new Date(chaineDateUTC).getTime() +
-                            (3 +
-                              parseFloat(
-                                process.env.TAXICONNECT_PAYMENT_FREQUENCY
-                              )) *
-                              24 *
-                              3600 *
-                              1000
-                        ).toISOString();
-                        //...
-                        collectionWalletTransactions_logs.insertOne(
-                          {
-                            flag_annotation: "startingPoint_forFreshPayouts",
-                            user_fingerprint: req.user_fingerprint,
-                            date_captured: new Date(tmpNextDate),
-                          },
-                          function (err, reslt) {
-                            resPaymentCycle(true);
-                          }
-                        );
-                      } //After wednesday - OK
+                    resUpdateNotifToken(true);
+                  }
+                );
+              } else if (/^driver$/i.test(req.user_nature)) {
+                //Driver
+                //! Update the payment cycle starting point if not set yet
+                new Promise((resPaymentCycle) => {
+                  //!Check if a reference point exists - if not set one to NOW
+                  //? For days before wednesday, set to wednesdat and for those after wednesday, set to next week that same day.
+                  //! Annotation string: startingPoint_forFreshPayouts
+                  collectionWalletTransactions_logs
+                    .find({
+                      flag_annotation: "startingPoint_forFreshPayouts",
+                      user_fingerprint: req.user_fingerprint,
+                    })
+                    .toArray(function (err, referenceData) {
+                      if (err) {
+                        resPaymentCycle(false);
+                      }
+                      //...
+                      if (
+                        referenceData !== undefined &&
+                        referenceData.length > 0 &&
+                        referenceData[0].date_captured !== undefined
+                      ) {
+                        resPaymentCycle(true);
+                      } //No annotation yet - create one
                       else {
-                        //ADD THE PAYMENT CYCLE
-                        let tmpNextDate = new Date(
-                          new Date(chaineDateUTC).getTime() +
-                            parseFloat(
-                              process.env.TAXICONNECT_PAYMENT_FREQUENCY *
+                        let tmpDate = new Date(chaineDateUTC)
+                          .toDateString()
+                          .split(" ")[0];
+                        if (/(mon|tue)/i.test(tmpDate)) {
+                          //For mondays and tuesdays - add 3 days + the PAYMENT CYCLE
+                          let tmpNextDate = new Date(
+                            new Date(chaineDateUTC).getTime() +
+                              (3 +
+                                parseFloat(
+                                  process.env.TAXICONNECT_PAYMENT_FREQUENCY
+                                )) *
                                 24 *
                                 3600 *
                                 1000
-                            )
-                        ).toISOString();
-                        collectionWalletTransactions_logs.insertOne(
-                          {
-                            flag_annotation: "startingPoint_forFreshPayouts",
-                            user_fingerprint: req.user_fingerprint,
-                            date_captured: new Date(tmpNextDate),
-                          },
-                          function (err, reslt) {
-                            resPaymentCycle(true);
-                          }
-                        );
+                          ).toISOString();
+                          //...
+                          collectionWalletTransactions_logs.insertOne(
+                            {
+                              flag_annotation: "startingPoint_forFreshPayouts",
+                              user_fingerprint: req.user_fingerprint,
+                              date_captured: new Date(tmpNextDate),
+                            },
+                            function (err, reslt) {
+                              resPaymentCycle(true);
+                            }
+                          );
+                        } //After wednesday - OK
+                        else {
+                          //ADD THE PAYMENT CYCLE
+                          let tmpNextDate = new Date(
+                            new Date(chaineDateUTC).getTime() +
+                              parseFloat(
+                                process.env.TAXICONNECT_PAYMENT_FREQUENCY *
+                                  24 *
+                                  3600 *
+                                  1000
+                              )
+                          ).toISOString();
+                          collectionWalletTransactions_logs.insertOne(
+                            {
+                              flag_annotation: "startingPoint_forFreshPayouts",
+                              user_fingerprint: req.user_fingerprint,
+                              date_captured: new Date(tmpNextDate),
+                            },
+                            function (err, reslt) {
+                              resPaymentCycle(true);
+                            }
+                          );
+                        }
                       }
-                    }
-                  });
-              }).then(
-                () => {},
-                () => {}
-              );
-              //...
-              collectionDrivers_profiles.updateOne(
-                { driver_fingerprint: req.user_fingerprint },
-                {
-                  $set: {
-                    "operational_state.push_notification_token": JSON.parse(
-                      req.pushnotif_token
-                    ),
-                    date_updated: new Date(chaineDateUTC),
+                    });
+                }).then(
+                  () => {},
+                  () => {}
+                );
+                //...
+                collectionDrivers_profiles.updateOne(
+                  { driver_fingerprint: req.user_fingerprint },
+                  {
+                    $set: {
+                      "operational_state.push_notification_token": JSON.parse(
+                        req.pushnotif_token
+                      ),
+                      date_updated: new Date(chaineDateUTC),
+                    },
                   },
-                },
-                function (err, reslt) {
-                  if (err) {
-                    resUpdateNotifToken(false);
+                  function (err, reslt) {
+                    if (err) {
+                      resUpdateNotifToken(false);
+                    }
+                    //...
+                    resUpdateNotifToken(true);
                   }
-                  //...
-                  resUpdateNotifToken(true);
-                }
-              );
-            } //Invalid user nature - skip
+                );
+              } //Invalid user nature - skip
+              else {
+                resUpdateNotifToken(false);
+              }
+            } //Got invalid data - skip
             else {
               resUpdateNotifToken(false);
             }
-          } //Got invalid data - skip
-          else {
-            resUpdateNotifToken(false);
-          }
-        }).then(
-          () => {},
-          () => {}
-        );
-
-        //Check for any existing ride
-        let pro2 = new Promise((res) => {
-          //console.log("fetching data");
-          tripChecker_Dispatcher(
-            collectionRidesDeliveries_data,
-            collectionDrivers_profiles,
-            collectionPassengers_profiles,
-            req.user_fingerprint,
-            req.user_nature !== undefined && req.user_nature !== null
-              ? req.user_nature
-              : "rider",
-            req.requestType !== undefined && req.requestType !== null
-              ? req.requestType
-              : "rides",
-            res
+          }).then(
+            () => {},
+            () => {}
           );
-        }).then(
-          (result) => {
-            //Update the rider
-            if (result !== false) {
-              if (result != "no_rides") {
-                res.send(result);
+
+          //Check for any existing ride
+          let pro2 = new Promise((res) => {
+            //console.log("fetching data");
+            tripChecker_Dispatcher(
+              collectionRidesDeliveries_data,
+              collectionDrivers_profiles,
+              collectionPassengers_profiles,
+              req.user_fingerprint,
+              req.user_nature !== undefined && req.user_nature !== null
+                ? req.user_nature
+                : "rider",
+              req.requestType !== undefined && req.requestType !== null
+                ? req.requestType
+                : "rides",
+              res
+            );
+          }).then(
+            (result) => {
+              //Update the rider
+              if (result !== false) {
+                if (result != "no_rides") {
+                  resMAIN(result);
+                } //No rides
+                else {
+                  resMAIN({ request_status: "no_rides" });
+                }
               } //No rides
               else {
-                res.send({ request_status: "no_rides" });
+                resMAIN({ request_status: "no_rides" });
               }
-            } //No rides
-            else {
-              res.send({ request_status: "no_rides" });
+            },
+            (error) => {
+              console.log(error);
+              resMAIN({ request_status: "no_rides" });
             }
-          },
-          (error) => {
-            console.log(error);
-            res.send({ request_status: "no_rides" });
-          }
-        );
-
-        //Update cache for this user's location
-        let pro3 = new Promise((resolve1) => {
-          updateRiderLocationInfosCache(req, resolve1);
-        }).then(
-          () => {
-            //console.log("updated cache");
-          },
-          () => {}
-        );
-
-        //Update rider's location - promise always
-        let pro4 = new Promise((resolve2) => {
-          updateRidersRealtimeLocationData(
-            collectionRidersLocation_log,
-            collectionDrivers_profiles,
-            collectionPassengers_profiles,
-            req,
-            resolve2
           );
-        }).then(
-          () => {
-            //console.log("Location updated [rider]");
-          },
-          () => {}
-        );
-      } //Invalid data
-      else {
-        res.send({ request_status: "no_rides" });
-      }
+
+          //Update cache for this user's location
+          let pro3 = new Promise((resolve1) => {
+            updateRiderLocationInfosCache(req, resolve1);
+          }).then(
+            () => {
+              //console.log("updated cache");
+            },
+            () => {}
+          );
+
+          //Update rider's location - promise always
+          let pro4 = new Promise((resolve2) => {
+            updateRidersRealtimeLocationData(
+              collectionRidersLocation_log,
+              collectionDrivers_profiles,
+              collectionPassengers_profiles,
+              req,
+              resolve2
+            );
+          }).then(
+            () => {
+              //console.log("Location updated [rider]");
+            },
+            () => {}
+          );
+        } //Invalid data
+        else {
+          resMAIN({ request_status: "no_rides" });
+        }
+      })
+        .then((result) => {
+          res.send(result);
+        })
+        .catch((error) => {
+          console.log(error);
+          res.send({ request_status: "no_rides" });
+        });
     });
 
     /**
@@ -4651,40 +4660,49 @@ redisCluster.on("connect", function () {
      * user_fingerprint -> currentLocationInfos: {...}
      */
     app.get("/getUserLocationInfos", function (req, res) {
-      let params = urlParser.parse(req.url, true);
-      //console.log(params.query);
-      let request = params.query;
+      new Promise((resMAIN) => {
+        let params = urlParser.parse(req.url, true);
+        //console.log(params.query);
+        let request = params.query;
 
-      if (
-        request.latitude != undefined &&
-        request.latitude != null &&
-        request.longitude != undefined &&
-        request.longitude != null &&
-        request.user_fingerprint !== null &&
-        request.user_fingerprint !== undefined
-      ) {
-        //Hand responses
-        new Promise((resolve) => {
-          reverseGeocodeUserLocation(resolve, request);
-        }).then(
-          (result) => {
-            //! Replace Samora Machel Constituency by Wanaheda
-            if (
-              result.suburb !== undefined &&
-              result.suburb !== null &&
-              /Samora Machel Constituency/i.test(result.suburb)
-            ) {
-              result.suburb = "Wanaheda";
-              res.send(result);
-            } else {
-              res.send(result);
+        if (
+          request.latitude != undefined &&
+          request.latitude != null &&
+          request.longitude != undefined &&
+          request.longitude != null &&
+          request.user_fingerprint !== null &&
+          request.user_fingerprint !== undefined
+        ) {
+          //Hand responses
+          new Promise((resolve) => {
+            reverseGeocodeUserLocation(resolve, request);
+          }).then(
+            (result) => {
+              //! Replace Samora Machel Constituency by Wanaheda
+              if (
+                result.suburb !== undefined &&
+                result.suburb !== null &&
+                /Samora Machel Constituency/i.test(result.suburb)
+              ) {
+                result.suburb = "Wanaheda";
+                resMAIN(result);
+              } else {
+                resMAIN(result);
+              }
+            },
+            (error) => {
+              resMAIN(false);
             }
-          },
-          (error) => {
-            res.send(false);
-          }
-        );
-      }
+          );
+        }
+      })
+        .then((result) => {
+          res.send(result);
+        })
+        .catch((error) => {
+          console.log(error);
+          res.send(false);
+        });
     });
 
     /**
@@ -4695,36 +4713,45 @@ redisCluster.on("connect", function () {
      * False means : not a taxirank -> private location AND another object means taxirank
      */
     app.get("/identifyPickupLocation", function (req, res) {
-      let params = urlParser.parse(req.url, true);
-      req = params.query;
-      //...
-      if (
-        req.latitude !== undefined &&
-        req.latitude !== null &&
-        req.longitude !== undefined &&
-        req.longitude !== null &&
-        req.user_fingerprint !== undefined &&
-        req.user_fingerprint !== null
-      ) {
-        new Promise((res) => {
-          findoutPickupLocationNature(res, req);
+      new Promise((resMAIN) => {
+        let params = urlParser.parse(req.url, true);
+        req = params.query;
+        //...
+        if (
+          req.latitude !== undefined &&
+          req.latitude !== null &&
+          req.longitude !== undefined &&
+          req.longitude !== null &&
+          req.user_fingerprint !== undefined &&
+          req.user_fingerprint !== null
+        ) {
+          new Promise((res) => {
+            findoutPickupLocationNature(res, req);
+          })
+            .then(
+              (result) => {
+                resMAIN(result);
+              },
+              (error) => {
+                //Default to private location on error
+                resMAIN({ locationType: "PrivateLocation" });
+              }
+            )
+            .catch((error) => {
+              resMAIN({ locationType: "PrivateLocation" });
+            });
+        } //Default to private location - invalid params
+        else {
+          resMAIN({ locationType: "PrivateLocation" });
+        }
+      })
+        .then((result) => {
+          res.send(result);
         })
-          .then(
-            (result) => {
-              res.send(result);
-            },
-            (error) => {
-              //Default to private location on error
-              res.send({ locationType: "PrivateLocation" });
-            }
-          )
-          .catch((error) => {
-            res.send({ locationType: "PrivateLocation" });
-          });
-      } //Default to private location - invalid params
-      else {
-        res.send({ locationType: "PrivateLocation" });
-      }
+        .catch((error) => {
+          console.log(error);
+          res.send({ locationType: "PrivateLocation" });
+        });
     });
 
     /**

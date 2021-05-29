@@ -4858,78 +4858,133 @@ redisCluster.on("connect", function () {
      * @param state: online or offline
      */
     app.get("/goOnline_offlineDrivers", function (req, res) {
-      resolveDate();
-      let params = urlParser.parse(req.url, true);
-      req = params.query;
-      let redisKey = "offline_online_status-" + req.driver_fingerprint;
+      new Promise((resMAIN) => {
+        resolveDate();
+        let params = urlParser.parse(req.url, true);
+        req = params.query;
+        let redisKey = "offline_online_status-" + req.driver_fingerprint;
 
-      if (
-        req.driver_fingerprint !== undefined &&
-        req.driver_fingerprint !== null &&
-        req.action !== undefined &&
-        req.action !== null &&
-        req.state !== undefined &&
-        req.state !== null
-      ) {
-        if (/make/i.test(req.action)) {
-          //Found a driver
-          let updateData = {
-            $set: {
-              "operational_state.status": /online/i.test(req.state)
-                ? "online"
-                : "offline",
-            },
-          };
-          //Make a modification
-          //Valid data received
-          new Promise((res0) => {
-            //Check the driver
-            collectionDrivers_profiles
-              .find({ driver_fingerprint: req.driver_fingerprint })
-              .toArray(function (err, driverData) {
-                if (err) {
-                  res0({ response: "error_invalid_request" });
-                }
-                //...
-                if (driverData.length > 0) {
-                  //! GET THE SUSPENSION INFOS
-                  let suspensionInfos = {
-                    is_suspended:
-                      driverData[0].isDriverSuspended !== undefined &&
-                      driverData[0].isDriverSuspended !== null
-                        ? driverData[0].isDriverSuspended
-                        : false,
-                    message:
-                      driverData[0].suspension_infos !== undefined &&
-                      driverData[0].suspension_infos !== null
-                        ? /UNPAID_COMISSION/i.test(
-                            driverData[0].suspension_infos[
-                              driverData[0].suspension_infos.length - 1
-                            ].reason
-                          )
-                          ? `Your account has been suspended to an overdue TaxiConnect commission.`
-                          : false
-                        : false,
-                  };
-                  //! ------------------------
-                  //Check if the driver has an active request - NOT LOG OUT WITH AN ACTIVE REQUEST
-                  let checkActiveRequests = {
-                    taxi_id: req.driver_fingerprint,
-                    "ride_state_vars.isAccepted": true,
-                    "ride_state_vars.isRideCompleted_driverSide": false,
-                  };
-                  //check
-                  collectionRidesDeliveryData
-                    .find(checkActiveRequests)
-                    .toArray(function (err, currentActiveRequests) {
-                      if (err) {
-                        res0({ response: "error_invalid_request" });
-                      }
-                      //...
-                      if (/offline/i.test(req.state)) {
-                        //Only if the driver wants to go out
-                        if (currentActiveRequests.length <= 0) {
-                          //No active requests - proceed
+        if (
+          req.driver_fingerprint !== undefined &&
+          req.driver_fingerprint !== null &&
+          req.action !== undefined &&
+          req.action !== null &&
+          req.state !== undefined &&
+          req.state !== null
+        ) {
+          if (/make/i.test(req.action)) {
+            //Found a driver
+            let updateData = {
+              $set: {
+                "operational_state.status": /online/i.test(req.state)
+                  ? "online"
+                  : "offline",
+              },
+            };
+            //Make a modification
+            //Valid data received
+            new Promise((res0) => {
+              //Check the driver
+              collectionDrivers_profiles
+                .find({ driver_fingerprint: req.driver_fingerprint })
+                .toArray(function (err, driverData) {
+                  if (err) {
+                    res0({ response: "error_invalid_request" });
+                  }
+                  //...
+                  if (driverData.length > 0) {
+                    //! GET THE SUSPENSION INFOS
+                    let suspensionInfos = {
+                      is_suspended:
+                        driverData[0].isDriverSuspended !== undefined &&
+                        driverData[0].isDriverSuspended !== null
+                          ? driverData[0].isDriverSuspended
+                          : false,
+                      message:
+                        driverData[0].suspension_infos !== undefined &&
+                        driverData[0].suspension_infos !== null
+                          ? /UNPAID_COMISSION/i.test(
+                              driverData[0].suspension_infos[
+                                driverData[0].suspension_infos.length - 1
+                              ].reason
+                            )
+                            ? `Your account has been suspended to an overdue TaxiConnect commission.`
+                            : false
+                          : false,
+                    };
+                    //! ------------------------
+                    //Check if the driver has an active request - NOT LOG OUT WITH AN ACTIVE REQUEST
+                    let checkActiveRequests = {
+                      taxi_id: req.driver_fingerprint,
+                      "ride_state_vars.isAccepted": true,
+                      "ride_state_vars.isRideCompleted_driverSide": false,
+                    };
+                    //check
+                    collectionRidesDeliveryData
+                      .find(checkActiveRequests)
+                      .toArray(function (err, currentActiveRequests) {
+                        if (err) {
+                          res0({ response: "error_invalid_request" });
+                        }
+                        //...
+                        if (/offline/i.test(req.state)) {
+                          //Only if the driver wants to go out
+                          if (currentActiveRequests.length <= 0) {
+                            //No active requests - proceed
+                            collectionDrivers_profiles.updateOne(
+                              { driver_fingerprint: req.driver_fingerprint },
+                              updateData,
+                              function (err, reslt) {
+                                if (err) {
+                                  res0({ response: "error_invalid_request" });
+                                }
+                                //...
+                                //Save the going offline event
+                                new Promise((res) => {
+                                  collectionGlobalEvents.insertOne({
+                                    event_name:
+                                      "driver_switching_status_request",
+                                    status: /online/i.test(req.state)
+                                      ? "online"
+                                      : "offline",
+                                    driver_fingerprint: req.driver_fingerprint,
+                                    date: new Date(chaineDateUTC),
+                                  });
+                                  res(true);
+                                }).then(
+                                  () => {},
+                                  () => {}
+                                );
+                                //CACHE
+                                redisCluster.set(
+                                  redisKey,
+                                  stringify({
+                                    response: "successfully_done",
+                                    flag: /online/i.test(req.state)
+                                      ? "online"
+                                      : "offline",
+                                    suspension_infos: suspensionInfos,
+                                  })
+                                );
+                                //Done
+                                res0({
+                                  response: "successfully_done",
+                                  flag: /online/i.test(req.state)
+                                    ? "online"
+                                    : "offline",
+                                  suspension_infos: suspensionInfos,
+                                });
+                              }
+                            );
+                          } //Has an active request - abort going offline
+                          else {
+                            res0({
+                              response:
+                                "error_going_offline_activeRequest_inProgress",
+                            });
+                          }
+                        } //If the driver want to go online - proceed
+                        else {
                           collectionDrivers_profiles.updateOne(
                             { driver_fingerprint: req.driver_fingerprint },
                             updateData,
@@ -4974,85 +5029,32 @@ redisCluster.on("connect", function () {
                               });
                             }
                           );
-                        } //Has an active request - abort going offline
-                        else {
-                          res0({
-                            response:
-                              "error_going_offline_activeRequest_inProgress",
-                          });
                         }
-                      } //If the driver want to go online - proceed
-                      else {
-                        collectionDrivers_profiles.updateOne(
-                          { driver_fingerprint: req.driver_fingerprint },
-                          updateData,
-                          function (err, reslt) {
-                            if (err) {
-                              res0({ response: "error_invalid_request" });
-                            }
-                            //...
-                            //Save the going offline event
-                            new Promise((res) => {
-                              collectionGlobalEvents.insertOne({
-                                event_name: "driver_switching_status_request",
-                                status: /online/i.test(req.state)
-                                  ? "online"
-                                  : "offline",
-                                driver_fingerprint: req.driver_fingerprint,
-                                date: new Date(chaineDateUTC),
-                              });
-                              res(true);
-                            }).then(
-                              () => {},
-                              () => {}
-                            );
-                            //CACHE
-                            redisCluster.set(
-                              redisKey,
-                              stringify({
-                                response: "successfully_done",
-                                flag: /online/i.test(req.state)
-                                  ? "online"
-                                  : "offline",
-                                suspension_infos: suspensionInfos,
-                              })
-                            );
-                            //Done
-                            res0({
-                              response: "successfully_done",
-                              flag: /online/i.test(req.state)
-                                ? "online"
-                                : "offline",
-                              suspension_infos: suspensionInfos,
-                            });
-                          }
-                        );
-                      }
-                    });
-                } //Error - unknown driver
-                else {
-                  res0({ response: "error_invalid_request" });
-                }
-              });
-          }).then(
-            (result) => {
-              res.send(result);
-            },
-            (error) => {
-              console.log(error);
-              res.send({ response: "error_invalid_request" });
-            }
-          );
-        } else if (/get/i.test(req.action)) {
-          res.send({
-            response: "successfully_got",
-            flag: "online",
-          });
-          //! Avoid cache by defaut
-          //req.avoidCached_data = true;
-          //! ---------------------
-          //? Avoid cache if specified
-          /*if (
+                      });
+                  } //Error - unknown driver
+                  else {
+                    res0({ response: "error_invalid_request" });
+                  }
+                });
+            }).then(
+              (result) => {
+                resMAIN(result);
+              },
+              (error) => {
+                console.log(error);
+                resMAIN({ response: "error_invalid_request" });
+              }
+            );
+          } else if (/get/i.test(req.action)) {
+            resMAIN({
+              response: "successfully_got",
+              flag: "online",
+            });
+            //! Avoid cache by defaut
+            //req.avoidCached_data = true;
+            //! ---------------------
+            //? Avoid cache if specified
+            /*if (
             req.avoidCached_data !== undefined &&
             req.avoidCached_data !== null
           ) {
@@ -5096,7 +5098,7 @@ redisCluster.on("connect", function () {
                     )
                     .catch();
                   //Quickly return result
-                  res.send(JSON.parse(resp));
+                  resMAIN(JSON.parse(resp));
                 } //Make a fresh request
                 else {
                   new Promise((resGetStatus) => {
@@ -5107,16 +5109,16 @@ redisCluster.on("connect", function () {
                         //!Cache the result
                         redisCluster.set(redisKey, stringify(result));
                         //...
-                        res.send(result);
+                        resMAIN(result);
                       },
                       (error) => {
                         console.log(error);
-                        res.send({ response: "error_invalid_request" });
+                        resMAIN({ response: "error_invalid_request" });
                       }
                     )
                     .catch((error) => {
                       console.log(error);
-                      res.send({ response: "error_invalid_request" });
+                      resMAIN({ response: "error_invalid_request" });
                     });
                 }
               },
@@ -5131,25 +5133,33 @@ redisCluster.on("connect", function () {
                       //!Cache the result
                       redisCluster.set(redisKey, stringify(result));
                       //...
-                      res.send(result);
+                      resMAIN(result);
                     },
                     (error) => {
                       console.log(error);
-                      res.send({ response: "error_invalid_request" });
+                      resMAIN({ response: "error_invalid_request" });
                     }
                   )
                   .catch((error) => {
                     console.log(error);
-                    res.send({ response: "error_invalid_request" });
+                    resMAIN({ response: "error_invalid_request" });
                   });
               }
             );
           }*/
+          }
+        } //Invalid data
+        else {
+          resMAIN({ response: "error_invalid_request" });
         }
-      } //Invalid data
-      else {
-        res.send({ response: "error_invalid_request" });
-      }
+      })
+        .then((result) => {
+          res.send(result);
+        })
+        .catch((error) => {
+          console.log(error);
+          res.send({ response: "error_invalid_request" });
+        });
     });
 
     /**

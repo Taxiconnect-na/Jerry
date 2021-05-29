@@ -3152,19 +3152,98 @@ redisCluster.on("connect", function () {
      * Responsible for getting the requests graphs to help the drivers selectedd the correct tab easily.
      */
     app.get("/getRequests_graphNumbers", function (req, res) {
-      resolveDate();
-      let params = urlParser.parse(req.url, true);
-      req = params.query;
+      new Promise((resMAIN) => {
+        resolveDate();
+        let params = urlParser.parse(req.url, true);
+        req = params.query;
 
-      if (req.driver_fingerprint !== undefined) {
-        let redisKey = `requestsGraph-${req.driver_fingerprint}`;
-        //OK
-        redisGet(redisKey).then(
-          (resp) => {
-            if (resp !== null) {
-              try {
-                console.log("cached resullts found!");
-                //? Rehyddrate the cached results
+        if (req.driver_fingerprint !== undefined) {
+          let redisKey = `requestsGraph-${req.driver_fingerprint}`;
+          //OK
+          redisGet(redisKey).then(
+            (resp) => {
+              if (resp !== null) {
+                try {
+                  console.log("cached resullts found!");
+                  //? Rehyddrate the cached results
+                  new Promise((res0) => {
+                    getRequests_graphPreview_forDrivers(
+                      req.driver_fingerprint,
+                      collectionRidesDeliveryData,
+                      collectionDrivers_profiles,
+                      res0
+                    );
+                  })
+                    .then(
+                      (result) => {
+                        redisCluster.setex(
+                          redisKey,
+                          process.env.REDIS_EXPIRATION_5MIN * 6,
+                          JSON.stringify(result)
+                        );
+                      },
+                      (error) => {
+                        console.log(error);
+                        redisCluster.setex(
+                          redisKey,
+                          process.env.REDIS_EXPIRATION_5MIN * 6,
+                          JSON.stringify(result)
+                        );
+                      }
+                    )
+                    .catch((error) => {
+                      console.log(error);
+                      redisCluster.setex(
+                        redisKey,
+                        process.env.REDIS_EXPIRATION_5MIN * 6,
+                        JSON.stringify(result)
+                      );
+                    });
+                  //...
+                  resp = JSON.parse(resp);
+                  //...Return the cached results quickly
+                  resMAIN(resp);
+                } catch (error) {
+                  console.log(error);
+                  new Promise((res0) => {
+                    getRequests_graphPreview_forDrivers(
+                      req.driver_fingerprint,
+                      collectionRidesDeliveryData,
+                      collectionDrivers_profiles,
+                      res0
+                    );
+                  })
+                    .then(
+                      (result) => {
+                        redisCluster.setex(
+                          redisKey,
+                          process.env.REDIS_EXPIRATION_5MIN * 6,
+                          JSON.stringify(result)
+                        );
+                        resMAIN(result);
+                      },
+                      (error) => {
+                        console.log(error);
+                        redisCluster.setex(
+                          redisKey,
+                          process.env.REDIS_EXPIRATION_5MIN * 6,
+                          JSON.stringify(result)
+                        );
+                        resMAIN({ rides: 0, deliveries: 0, scheduled: 0 });
+                      }
+                    )
+                    .catch((error) => {
+                      console.log(error);
+                      redisCluster.setex(
+                        redisKey,
+                        process.env.REDIS_EXPIRATION_5MIN * 6,
+                        JSON.stringify(result)
+                      );
+                      resMAIN({ rides: 0, deliveries: 0, scheduled: 0 });
+                    });
+                }
+              } //No cached data yet
+              else {
                 new Promise((res0) => {
                   getRequests_graphPreview_forDrivers(
                     req.driver_fingerprint,
@@ -3180,6 +3259,7 @@ redisCluster.on("connect", function () {
                         process.env.REDIS_EXPIRATION_5MIN * 6,
                         JSON.stringify(result)
                       );
+                      resMAIN(result);
                     },
                     (error) => {
                       console.log(error);
@@ -3188,6 +3268,7 @@ redisCluster.on("connect", function () {
                         process.env.REDIS_EXPIRATION_5MIN * 6,
                         JSON.stringify(result)
                       );
+                      resMAIN({ rides: 0, deliveries: 0, scheduled: 0 });
                     }
                   )
                   .catch((error) => {
@@ -3197,52 +3278,12 @@ redisCluster.on("connect", function () {
                       process.env.REDIS_EXPIRATION_5MIN * 6,
                       JSON.stringify(result)
                     );
-                  });
-                //...
-                resp = JSON.parse(resp);
-                //...Return the cached results quickly
-                res.send(resp);
-              } catch (error) {
-                console.log(error);
-                new Promise((res0) => {
-                  getRequests_graphPreview_forDrivers(
-                    req.driver_fingerprint,
-                    collectionRidesDeliveryData,
-                    collectionDrivers_profiles,
-                    res0
-                  );
-                })
-                  .then(
-                    (result) => {
-                      redisCluster.setex(
-                        redisKey,
-                        process.env.REDIS_EXPIRATION_5MIN * 6,
-                        JSON.stringify(result)
-                      );
-                      res.send(result);
-                    },
-                    (error) => {
-                      console.log(error);
-                      redisCluster.setex(
-                        redisKey,
-                        process.env.REDIS_EXPIRATION_5MIN * 6,
-                        JSON.stringify(result)
-                      );
-                      res.send({ rides: 0, deliveries: 0, scheduled: 0 });
-                    }
-                  )
-                  .catch((error) => {
-                    console.log(error);
-                    redisCluster.setex(
-                      redisKey,
-                      process.env.REDIS_EXPIRATION_5MIN * 6,
-                      JSON.stringify(result)
-                    );
-                    res.send({ rides: 0, deliveries: 0, scheduled: 0 });
+                    resMAIN({ rides: 0, deliveries: 0, scheduled: 0 });
                   });
               }
-            } //No cached data yet
-            else {
+            },
+            (error) => {
+              console.log(error);
               new Promise((res0) => {
                 getRequests_graphPreview_forDrivers(
                   req.driver_fingerprint,
@@ -3258,7 +3299,7 @@ redisCluster.on("connect", function () {
                       process.env.REDIS_EXPIRATION_5MIN * 6,
                       JSON.stringify(result)
                     );
-                    res.send(result);
+                    resMAIN(result);
                   },
                   (error) => {
                     console.log(error);
@@ -3267,7 +3308,7 @@ redisCluster.on("connect", function () {
                       process.env.REDIS_EXPIRATION_5MIN * 6,
                       JSON.stringify(result)
                     );
-                    res.send({ rides: 0, deliveries: 0, scheduled: 0 });
+                    resMAIN({ rides: 0, deliveries: 0, scheduled: 0 });
                   }
                 )
                 .catch((error) => {
@@ -3277,54 +3318,22 @@ redisCluster.on("connect", function () {
                     process.env.REDIS_EXPIRATION_5MIN * 6,
                     JSON.stringify(result)
                   );
-                  res.send({ rides: 0, deliveries: 0, scheduled: 0 });
+                  resMAIN({ rides: 0, deliveries: 0, scheduled: 0 });
                 });
             }
-          },
-          (error) => {
-            console.log(error);
-            new Promise((res0) => {
-              getRequests_graphPreview_forDrivers(
-                req.driver_fingerprint,
-                collectionRidesDeliveryData,
-                collectionDrivers_profiles,
-                res0
-              );
-            })
-              .then(
-                (result) => {
-                  redisCluster.setex(
-                    redisKey,
-                    process.env.REDIS_EXPIRATION_5MIN * 6,
-                    JSON.stringify(result)
-                  );
-                  res.send(result);
-                },
-                (error) => {
-                  console.log(error);
-                  redisCluster.setex(
-                    redisKey,
-                    process.env.REDIS_EXPIRATION_5MIN * 6,
-                    JSON.stringify(result)
-                  );
-                  res.send({ rides: 0, deliveries: 0, scheduled: 0 });
-                }
-              )
-              .catch((error) => {
-                console.log(error);
-                redisCluster.setex(
-                  redisKey,
-                  process.env.REDIS_EXPIRATION_5MIN * 6,
-                  JSON.stringify(result)
-                );
-                res.send({ rides: 0, deliveries: 0, scheduled: 0 });
-              });
-          }
-        );
-      } //Invalid params
-      else {
-        res.send({ rides: 0, deliveries: 0, scheduled: 0 });
-      }
+          );
+        } //Invalid params
+        else {
+          resMAIN({ rides: 0, deliveries: 0, scheduled: 0 });
+        }
+      })
+        .then((result) => {
+          res.send(result);
+        })
+        .catch((error) => {
+          console.log(error);
+          resMAIN({ rides: 0, deliveries: 0, scheduled: 0 });
+        });
     });
 
     /**

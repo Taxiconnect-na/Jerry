@@ -1957,6 +1957,38 @@ redisCluster.on("connect", function () {
       .catch((error) => {
         console.log(error);
       });*/
+
+      //? 5. Auto switch on all the drivers by default
+      //! TO BE REVISED
+      new Promise((res5) => {
+        collectionDrivers_profiles
+          .find({ "operational_state.status": "offline" })
+          .toArray(function (err, driverData) {
+            if (err) {
+              res5(false);
+            }
+            //...
+            if (driverData !== undefined && driverData.length > 0) {
+              //Found offline drivers
+              //? Switch online
+              collectionDrivers_profiles.updateMany(
+                { "operational_state.status": "offline" },
+                { $set: { "operational_state.status": "online" } },
+                function (err, resultUpdate) {
+                  res5(true);
+                }
+              );
+            } else {
+              res5(true);
+            }
+          });
+      })
+        .then((result) => {
+          console.log(result);
+        })
+        .catch((error) => {
+          console.log(error);
+        });
     }, process.env.INTERVAL_PERSISTER_MAIN_WATCHER_MILLISECONDS);
 
     //! FOR HEAVY PROCESSES REQUIRING - 60sec
