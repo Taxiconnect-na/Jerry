@@ -1,4 +1,5 @@
 require("dotenv").config();
+require("newrelic");
 //var dash = require("appmetrics-dash");
 var express = require("express");
 const http = require("http");

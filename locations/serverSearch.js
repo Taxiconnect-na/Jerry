@@ -1,4 +1,5 @@
 require("dotenv").config();
+require("newrelic");
 var express = require("express");
 const http = require("http");
 const MongoClient = require("mongodb").MongoClient;

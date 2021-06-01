@@ -1,4 +1,5 @@
 require("dotenv").config();
+require("newrelic");
 //var dash = require("appmetrics-dash");
 var express = require("express");
 const http = require("http");
@@ -9,6 +10,7 @@ const { logger } = require("./LogService");
 var app = express();
 var server = http.createServer(app);
 const requestAPI = require("request");
+const { parse, stringify } = require("flatted");
 //....
 const { promisify } = require("util");
 const urlParser = require("url");
@@ -195,49 +197,249 @@ function autocompleteInputData(
       ? pickupInfos.city.trim().toLowerCase()
       : pickupInfos.city);
   //..
-  redisGet(redisKey).then(
-    (resp) => {
-      if (resp !== null && resp !== undefined) {
-        //Found a record
-        resp = JSON.parse(resp);
-        logger.info("Found something in the cache");
-        //Check if there's our concerned record for the pickup location
-        let focusedRecord = resp;
-        //Check for wanted record
-        if (focusedRecord !== false) {
-          //Found something
-          logger.info("Found a wanted cached record.");
-          inputData.pickup_location_infos.suburb = focusedRecord.suburb; //Update main object
-          inputData.pickup_location_infos.state = focusedRecord.state;
-          pickupInfos = inputData.pickup_location_infos.state; //Update shortcut var
-          //...Done auto complete destination locations
-          new Promise((res) => {
-            manageAutoCompleteDestinationLocations(
-              res,
-              destinationInfos,
-              inputData.user_fingerprint,
-              collectionSavedSuburbResults
-            );
-          }).then(
-            (result) => {
-              logger.info("HERRRREE -- > ", result);
-              if (result !== false) {
-                inputData.destination_location_infos = result; //Update main object
-                destinationInfos = result; //Update shortcut object
-                //DONE AUTOCOMPLETING
-                resolve(inputData);
-              } //Error
-              else {
+  //! Form Redis Key for final result
+  let redisFinal = `${redisKey}-${JSON.stringify(
+    destinationInfos.map((data) => data.location_name)
+  )}-finalResult`;
+  //...
+  redisGet(redisFinal)
+    .then((resp) => {
+      if (resp !== null) {
+        try {
+          resp = parse(resp);
+          //TODO:  Restore essential data, BUT do not overwrite unique trip data
+          inputData.pickup_location_infos.suburb =
+            resp.pickup_location_infos.suburb; //Update main object
+          inputData.pickup_location_infos.state =
+            resp.pickup_location_infos.state;
+          inputData.destination_location_infos =
+            resp.destination_location_infos;
+          //?--
+          //! Do a quick pre-integrity check
+          if (
+            inputData.pickup_location_infos.suburb !== undefined &&
+            inputData.pickup_location_infos.suburb !== false &&
+            inputData.destination_location_infos[0].dropoff_type !==
+              undefined &&
+            inputData.destination_location_infos[0].dropoff_type !== false &&
+            inputData.destination_location_infos[0].suburb !== undefined &&
+            inputData.destination_location_infos[0].suburb !== false &&
+            inputData.destination_location_infos[0].state !== undefined &&
+            inputData.destination_location_infos[0].state !== false
+          ) {
+            resolve(inputData);
+          } //Make a fresh test
+          else {
+            new Promise((resCompute) => {
+              execTrueAutocompleteInputData(
+                redisKey,
+                redisFinal,
+                inputData,
+                collectionSavedSuburbResults,
+                resCompute
+              );
+            })
+              .then((result) => {
+                resolve(result);
+              })
+              .catch((error) => {
+                logger.info(error);
                 resolve(false);
-              }
-            },
-            (error) => {
+              });
+          }
+        } catch (error) {
+          logger.warn(error);
+          //Make a fresh request
+          new Promise((resCompute) => {
+            execTrueAutocompleteInputData(
+              redisKey,
+              redisFinal,
+              inputData,
+              collectionSavedSuburbResults,
+              resCompute
+            );
+          })
+            .then((result) => {
+              resolve(result);
+            })
+            .catch((error) => {
               logger.info(error);
               resolve(false);
-            }
+            });
+        }
+      } //No cached data - make a fresh request
+      else {
+        new Promise((resCompute) => {
+          execTrueAutocompleteInputData(
+            redisKey,
+            redisFinal,
+            inputData,
+            collectionSavedSuburbResults,
+            resCompute
           );
-        } //No wanted record - do a fresh search
+        })
+          .then((result) => {
+            resolve(result);
+          })
+          .catch((error) => {
+            logger.info(error);
+            resolve(false);
+          });
+      }
+    })
+    .catch((error) => {
+      logger.info(error);
+      //Make a fresh request
+      new Promise((resCompute) => {
+        execTrueAutocompleteInputData(
+          redisKey,
+          redisFinal,
+          inputData,
+          collectionSavedSuburbResults,
+          resCompute
+        );
+      })
+        .then((result) => {
+          resolve(result);
+        })
+        .catch((error) => {
+          logger.info(error);
+          resolve(false);
+        });
+    });
+}
+
+/**
+ * @func execTrueAutocompleteInputData
+ * Responsible for truly executing the autocomplete for the input data in every stage.
+ * @param redisKey: the redis key for the cached data.
+ * @param redisFinal: the redis key to store the final result.
+ * @param inputData: data that passed successfully the integrity test
+ * @param collectionSavedSuburbResults: collection of already completed similar places to refer to if needed
+ * @param resolve: from the promise
+ */
+function execTrueAutocompleteInputData(
+  redisKey,
+  redisFinal,
+  inputData,
+  collectionSavedSuburbResults,
+  resolve
+) {
+  let pickupInfos = inputData.pickup_location_infos;
+  let destinationInfos = inputData.destination_location_infos;
+  redisGet(redisKey)
+    .then(
+      (resp) => {
+        if (resp !== null && resp !== undefined) {
+          //Found a record
+          resp = JSON.parse(resp);
+          logger.info("Found something in the cache");
+          //Check if there's our concerned record for the pickup location
+          let focusedRecord = resp;
+          //Check for wanted record
+          if (focusedRecord !== false && focusedRecord.suburb !== undefined) {
+            //Found something
+            logger.info("Found a wanted cached record.");
+            //TODO: Keep as essential data  when getting cached data
+            inputData.pickup_location_infos.suburb = focusedRecord.suburb; //Update main object
+            inputData.pickup_location_infos.state = focusedRecord.state;
+            //? ---------
+            pickupInfos = inputData.pickup_location_infos.state; //Update shortcut var
+            //...Done auto complete destination locations
+            new Promise((res) => {
+              manageAutoCompleteDestinationLocations(
+                res,
+                destinationInfos,
+                inputData.user_fingerprint,
+                collectionSavedSuburbResults
+              );
+            }).then(
+              (result) => {
+                logger.info("HERRRREE -- > ", result);
+                if (result !== false) {
+                  //TODO: Keep as essential data  when getting cached data
+                  inputData.destination_location_infos = result; //Update main object
+                  //? -------------
+                  destinationInfos = result; //Update shortcut object
+                  //! Cache the final response
+                  new Promise((resCache) => {
+                    redisCluster.set(redisFinal, stringify(inputData));
+                    resCache(true);
+                  })
+                    .then()
+                    .catch();
+                  //! ------------------------
+                  //DONE AUTOCOMPLETING
+                  resolve(inputData);
+                } //Error
+                else {
+                  resolve(false);
+                }
+              },
+              (error) => {
+                logger.info(error);
+                resolve(false);
+              }
+            );
+          } //No wanted record - do a fresh search
+          else {
+            new Promise((res) => {
+              doMongoSearchForAutocompletedSuburbs(
+                res,
+                pickupInfos,
+                collectionSavedSuburbResults
+              );
+            }).then(
+              (result) => {
+                if (result !== false) {
+                  inputData.pickup_location_infos.suburb = result.suburb; //Update main object
+                  inputData.pickup_location_infos.state = result.state;
+                  pickupInfos = inputData.pickup_location_infos; //Update shortcut var
+                  //...Done auto complete destination locations
+                  //logger.info(result);
+                  new Promise((res) => {
+                    manageAutoCompleteDestinationLocations(
+                      res,
+                      destinationInfos,
+                      inputData.user_fingerprint,
+                      collectionSavedSuburbResults
+                    );
+                  }).then(
+                    (result) => {
+                      if (result !== false) {
+                        inputData.destination_location_infos = result; //Update main object
+                        destinationInfos = result; //Update shortcut object
+                        //! Cache the final response
+                        new Promise((resCache) => {
+                          redisCluster.set(redisFinal, stringify(inputData));
+                          resCache(true);
+                        })
+                          .then()
+                          .catch();
+                        //! ------------------------
+                        //DONE AUTOCOMPLETING
+                        resolve(inputData);
+                      } //Error
+                      else {
+                        resolve(false);
+                      }
+                    },
+                    (error) => {
+                      logger.info(error);
+                      resolve(false);
+                    }
+                  );
+                }
+              },
+              (error) => {
+                resolve(false);
+              }
+            );
+          }
+        } //No records - do a fresh search
         else {
+          //No cached result, do a mongo search
+          logger.info("[No cache] No cached data, do mongo search");
           new Promise((res) => {
             doMongoSearchForAutocompletedSuburbs(
               res,
@@ -251,7 +453,6 @@ function autocompleteInputData(
                 inputData.pickup_location_infos.state = result.state;
                 pickupInfos = inputData.pickup_location_infos; //Update shortcut var
                 //...Done auto complete destination locations
-                //logger.info(result);
                 new Promise((res) => {
                   manageAutoCompleteDestinationLocations(
                     res,
@@ -261,9 +462,18 @@ function autocompleteInputData(
                   );
                 }).then(
                   (result) => {
+                    logger.info("HERRRREE -- > ", result);
                     if (result !== false) {
                       inputData.destination_location_infos = result; //Update main object
                       destinationInfos = result; //Update shortcut object
+                      //! Cache the final response
+                      new Promise((resCache) => {
+                        redisCluster.set(redisFinal, stringify(inputData));
+                        resCache(true);
+                      })
+                        .then()
+                        .catch();
+                      //! ------------------------
                       //DONE AUTOCOMPLETING
                       resolve(inputData);
                     } //Error
@@ -283,10 +493,10 @@ function autocompleteInputData(
             }
           );
         }
-      } //No records - do a fresh search
-      else {
+      },
+      (error) => {
         //No cached result, do a mongo search
-        logger.info("[No cache] No cached data, do mongo search");
+        logger.info("Error, No cached data, do mongo search");
         new Promise((res) => {
           doMongoSearchForAutocompletedSuburbs(
             res,
@@ -309,10 +519,17 @@ function autocompleteInputData(
                 );
               }).then(
                 (result) => {
-                  logger.info("HERRRREE -- > ", result);
                   if (result !== false) {
                     inputData.destination_location_infos = result; //Update main object
                     destinationInfos = result; //Update shortcut object
+                    //! Cache the final response
+                    new Promise((resCache) => {
+                      redisCluster.set(redisFinal, stringify(inputData));
+                      resCache(true);
+                    })
+                      .then()
+                      .catch();
+                    //! ------------------------
                     //DONE AUTOCOMPLETING
                     resolve(inputData);
                   } //Error
@@ -328,59 +545,16 @@ function autocompleteInputData(
             }
           },
           (error) => {
+            logger.info(error);
             resolve(false);
           }
         );
       }
-    },
-    (error) => {
-      //No cached result, do a mongo search
-      logger.info("Error, No cached data, do mongo search");
-      new Promise((res) => {
-        doMongoSearchForAutocompletedSuburbs(
-          res,
-          pickupInfos,
-          collectionSavedSuburbResults
-        );
-      }).then(
-        (result) => {
-          if (result !== false) {
-            inputData.pickup_location_infos.suburb = result.suburb; //Update main object
-            inputData.pickup_location_infos.state = result.state;
-            pickupInfos = inputData.pickup_location_infos; //Update shortcut var
-            //...Done auto complete destination locations
-            new Promise((res) => {
-              manageAutoCompleteDestinationLocations(
-                res,
-                destinationInfos,
-                inputData.user_fingerprint,
-                collectionSavedSuburbResults
-              );
-            }).then(
-              (result) => {
-                if (result !== false) {
-                  inputData.destination_location_infos = result; //Update main object
-                  destinationInfos = result; //Update shortcut object
-                  //DONE AUTOCOMPLETING
-                  resolve(inputData);
-                } //Error
-                else {
-                  resolve(false);
-                }
-              },
-              (error) => {
-                logger.info(error);
-                resolve(false);
-              }
-            );
-          }
-        },
-        (error) => {
-          resolve(false);
-        }
-      );
-    }
-  );
+    )
+    .catch((error) => {
+      logger.info(error);
+      resolve(false);
+    });
 }
 
 /**
@@ -594,25 +768,29 @@ function doMongoSearchForAutocompletedSuburbs(
     locationInfos["make_new"] = false;
   }
   //!!!
-  let redisKey =
-    "savedSuburbResults-" +
-    (locationInfos.location_name !== undefined &&
-    locationInfos.location_name !== false
-      ? locationInfos.location_name.trim().toLowerCase()
-      : locationInfos.location_name) +
-    "-" +
-    (locationInfos.street_name !== undefined &&
-    locationInfos.street_name !== false
-      ? locationInfos.street_name.trim().toLowerCase()
-      : locationInfos.street_name) +
-    "-" +
-    (locationInfos.city !== undefined && locationInfos.city !== false
-      ? locationInfos.city.trim().toLowerCase()
-      : locationInfos.city) +
-    "-" +
-    (locationInfos.country !== undefined && locationInfos.country !== false
-      ? locationInfos.country.trim().toLowerCase()
-      : locationInfos.country);
+  let redisKey = `savedSuburbResults-
+    ${
+      locationInfos.location_name !== undefined &&
+      locationInfos.location_name !== false
+        ? locationInfos.location_name.trim().toLowerCase()
+        : locationInfos.location_name
+    }-
+    ${
+      locationInfos.street_name !== undefined &&
+      locationInfos.street_name !== false
+        ? locationInfos.street_name.trim().toLowerCase()
+        : locationInfos.street_name
+    }-
+    ${
+      locationInfos.city !== undefined && locationInfos.city !== false
+        ? locationInfos.city.trim().toLowerCase()
+        : locationInfos.city
+    }-
+    ${
+      locationInfos.country !== undefined && locationInfos.country !== false
+        ? locationInfos.country.trim().toLowerCase()
+        : locationInfos.country
+    }`;
   //Check from redis first
   redisGet(redisKey).then(
     (resp) => {
@@ -620,7 +798,7 @@ function doMongoSearchForAutocompletedSuburbs(
         //Has a previous record
         try {
           //Rehydrate the cached data
-          new Promise((res) => {
+          /*new Promise((res) => {
             execMongoSearchAutoComplete(
               res,
               locationInfos,
@@ -631,7 +809,7 @@ function doMongoSearchForAutocompletedSuburbs(
           }).then(
             (result) => {},
             (error) => {}
-          );
+          );*/
           logger.info("FOUND REDIS RECORD OF SUBURB!");
           resp = JSON.parse(resp);
           resp["passenger_number_id"] =
@@ -804,7 +982,7 @@ function execMongoSearchAutoComplete(
                   //add new record
                   redisCluster.setex(
                     redisKey,
-                    process.env.REDIS_EXPIRATION_5MIN,
+                    parseInt(process.env.REDIS_EXPIRATION_5MIN) * 9,
                     JSON.stringify({
                       suburb: body.address.suburb,
                       state: body.address.state,
@@ -943,7 +1121,7 @@ function execMongoSearchAutoComplete(
                     //add new record
                     redisCluster.setex(
                       redisKey,
-                      process.env.REDIS_EXPIRATION_5MIN,
+                      parseInt(process.env.REDIS_EXPIRATION_5MIN) * 9,
                       JSON.stringify({
                         suburb: body.address.suburb,
                         state: body.address.state,
@@ -2017,7 +2195,6 @@ redisCluster.on("connect", function () {
           extended: true,
         })
       );
-
     //-------------------------------
 
     /**
@@ -2028,46 +2205,46 @@ redisCluster.on("connect", function () {
         resolveDate();
         //DELIVERY TEST DATA - DEBUG
         /*let deliveryPricingInputDataRaw = {
-      user_fingerprint:
-        "4ec9a3cac550584cfe04108e63b61961af32f9162ca09bee59bc0fc264c6dd1d61dbd97238a27e147e1134e9b37299d160c0f0ee1c620c9f012e3a08a4505fd6",
-      connectType: "ConnectUs",
-      country: "Namibia",
-      isAllGoingToSameDestination: true,
-      naturePickup: "PrivateLocation", //Force PrivateLocation type if nothing found
-      passengersNo: 3, //Default 2 possible destination
-      rideType: "RIDE",
-      timeScheduled: "Now",
-      pickupData: {
-        coordinates: [-22.611291, 17.071366],
-        location_name: "Academia",
-        street_name: "Academia",
-        city: "Windhoek",
-      },
-      destinationData: {
-        passenger1Destination: {
-          coordinates: [-22.605981, 17.096875],
-          location_name: "Suiderhof",
-          street: "Suiderhof",
-          city: "Windhoek",
-        },
-        /*passenger2Destination: {
-          coordinates: [-22.522764, 17.056328],
-          location_name: "Katutura",
-          street: "Police station",
-          city: "Windhoek",
-        },
-        passenger3Destination: {
-          coordinates: [-22.522764, 17.056328],
-          location_name: "Katutura",
-          street: "Police station",
-          city: "Windhoek",
-        },
-        passenger2Destination: false,
-        passenger3Destination: false,
-        passenger4Destination: false,
-      },
-    };
-    req.body = deliveryPricingInputDataRaw;**/
+          user_fingerprint:
+            "4ec9a3cac550584cfe04108e63b61961af32f9162ca09bee59bc0fc264c6dd1d61dbd97238a27e147e1134e9b37299d160c0f0ee1c620c9f012e3a08a4505fd6",
+          connectType: "ConnectUs",
+          country: "Namibia",
+          isAllGoingToSameDestination: true,
+          naturePickup: "PrivateLocation", //Force PrivateLocation type if nothing found
+          passengersNo: 3, //Default 2 possible destination
+          rideType: "RIDE",
+          timeScheduled: "Now",
+          pickupData: {
+            coordinates: [-22.611291, 17.071366],
+            location_name: "Academia",
+            street_name: "Academia",
+            city: "Windhoek",
+          },
+          destinationData: {
+            passenger1Destination: {
+              coordinates: [-22.605981, 17.096875],
+              location_name: "Suiderhof",
+              street: "Suiderhof",
+              city: "Windhoek",
+            },
+            passenger2Destination: {
+              coordinates: [-22.522764, 17.056328],
+              location_name: "Katutura",
+              street: "Police station",
+              city: "Windhoek",
+            },
+            passenger3Destination: {
+              coordinates: [-22.522764, 17.056328],
+              location_name: "Katutura",
+              street: "Police station",
+              city: "Windhoek",
+            },
+            passenger2Destination: false,
+            passenger3Destination: false,
+            passenger4Destination: false,
+          },
+        };
+        req.body = deliveryPricingInputDataRaw;*/
         logger.info(req.body);
         //...
 

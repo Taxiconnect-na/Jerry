@@ -1,9 +1,12 @@
 require("dotenv").config();
 //var dash = require("appmetrics-dash");
+require("newrelic");
 var express = require("express");
 const http = require("http");
 const https = require("https");
 const fs = require("fs");
+var path = require("path");
+var morgan = require("morgan");
 const helmet = require("helmet");
 const MongoClient = require("mongodb").MongoClient;
 const { parse, stringify } = require("flatted");
@@ -13,6 +16,10 @@ const s3 = new AWS.S3({
   secretAccessKey: process.env.AWS_S3_SECRET,
 });
 
+var accessLogStream = fs.createWriteStream(
+  path.join(__dirname, "accountService_access.log"),
+  { flags: "a" }
+);
 const { logger } = require("./LogService");
 
 var app = express();
@@ -4231,6 +4238,7 @@ redisCluster.on("connect", function () {
         })
       )
       .use(helmet());
+    //.use(morgan("combined", { stream: accessLogStream }));
 
     /**
      * GENERATE OTP AND CHECK THE USER EXISTANCE

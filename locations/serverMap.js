@@ -1,6 +1,6 @@
 require("dotenv").config();
-//logger.info = function () {};
-//var dash = require("appmetrics-dash");
+require("newrelic");
+var dash = require("appmetrics-dash");
 var express = require("express");
 const http = require("http");
 const MongoClient = require("mongodb").MongoClient;
@@ -5499,3 +5499,4 @@ redisCluster.on("connect", function () {
   });
 });
 server.listen(process.env.MAP_SERVICE_PORT);
+dash.monitor({ server: server });
