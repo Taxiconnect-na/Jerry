@@ -5530,7 +5530,7 @@ redisCluster.on("connect", function () {
       resolveDate();
       req = req.body;
       //logger.warn(req);
-      res.send({ response: "error", flag: "invalid_data" });
+      res.send({ response: "error", flag: "no_ads_to_get" });
 
       /*if (
       req.user_fingerprint !== undefined &&

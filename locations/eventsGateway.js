@@ -1256,7 +1256,10 @@ io.on("connection", (socket) => {
    */
   socket.on("gatherAdsManagerAnalytics_io", function (req) {
     logger.warn(req);
-    if (
+    socket.emit("gatherAdsManagerAnalytics_io-response", {
+      response: "error_noAds",
+    });
+    /*if (
       req.user_fingerprint !== undefined &&
       req.user_fingerprint !== null &&
       req.user_nature !== undefined &&
@@ -1295,7 +1298,7 @@ io.on("connection", (socket) => {
       socket.emit("gatherAdsManagerAnalytics_io-response", {
         response: "error_noAds",
       });
-    }
+    }*/
   });
 
   /**
