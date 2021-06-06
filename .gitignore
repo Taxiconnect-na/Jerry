@@ -2,3 +2,5 @@
 
 **/node_modules
 locations/node_modules
+combined.log
+newrelic_agent.log
