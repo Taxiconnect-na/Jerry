@@ -922,7 +922,6 @@ function tripChecker_Dispatcher(
       if (resp !== null && avoidCached_data === false) {
         //Has a record
         try {
-          console.trace(resp);
           resp = JSON.parse(resp);
           //....
           resolve(resp);
@@ -936,7 +935,7 @@ function tripChecker_Dispatcher(
               collectionPassengers_profiles,
               user_fingerprint,
               user_nature,
-              (requestType = "ride"),
+              requestType,
               RIDE_REDIS_KEY,
               resolve
             );
@@ -956,7 +955,7 @@ function tripChecker_Dispatcher(
             collectionPassengers_profiles,
             user_fingerprint,
             user_nature,
-            (requestType = "ride"),
+            requestType,
             RIDE_REDIS_KEY,
             resolve
           );
@@ -977,7 +976,7 @@ function tripChecker_Dispatcher(
           collectionPassengers_profiles,
           user_fingerprint,
           user_nature,
-          (requestType = "ride"),
+          requestType,
           RIDE_REDIS_KEY,
           resolve
         );
@@ -1082,6 +1081,13 @@ function execTripChecker_Dispatcher(
         }
         //
         if (driverData === undefined || driverData.length <= 0) {
+          //! SAVE THE FINAL FULL RESULT - for 15 min ------
+          redisCluster.setex(
+            RIDE_REDIS_KEY,
+            parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
+            JSON.stringify(false)
+          );
+          //! ----------------------------------------------
           resolve(false);
         } //Found data
         else {
@@ -1175,6 +1181,13 @@ function execTripChecker_Dispatcher(
                         );
                       }).then(
                         (resultFinal) => {
+                          //! SAVE THE FINAL FULL RESULT - for 15 min ------
+                          redisCluster.setex(
+                            RIDE_REDIS_KEY,
+                            parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
+                            JSON.stringify(resultFinal)
+                          );
+                          //! ----------------------------------------------
                           resolve(resultFinal);
                         },
                         (error) => {
@@ -1197,6 +1210,13 @@ function execTripChecker_Dispatcher(
                         );
                       }).then(
                         (resultFinal) => {
+                          //! SAVE THE FINAL FULL RESULT - for 15 min ------
+                          redisCluster.setex(
+                            RIDE_REDIS_KEY,
+                            parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
+                            JSON.stringify(resultFinal)
+                          );
+                          //! ----------------------------------------------
                           resolve(resultFinal);
                         },
                         (error) => {
@@ -1221,6 +1241,13 @@ function execTripChecker_Dispatcher(
                   );
                 }).then(
                   (resultFinal) => {
+                    //! SAVE THE FINAL FULL RESULT - for 15 min ------
+                    redisCluster.setex(
+                      RIDE_REDIS_KEY,
+                      parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
+                      JSON.stringify(resultFinal)
+                    );
+                    //! ----------------------------------------------
                     resolve(resultFinal);
                   },
                   (error) => {
@@ -1590,7 +1617,8 @@ function parseRequests_forDrivers_view(
       //CHECK for any previous parsing
       redisGet(redisKey).then(
         (resp) => {
-          if (resp !== null) {
+          //! justLeaveMe variable to bypass the cached data.
+          if (resp !== null && resp.justLeaveMe !== undefined) {
             logger.info("Found single request cached stored!");
             //Has a previous record
             try {
@@ -2186,7 +2214,7 @@ function computeRouteDetails_skeleton(
                     //KEY: request_fp
                     redisGet(rideHistory.request_fp).then(
                       (resp0) => {
-                        if (resp0 !== null) {
+                        if (resp0 !== null && resp0.justLeaveMe !== undefined) {
                           try {
                             //Compute next route update ---------------------------------------------------
                             new Promise((reslv) => {
@@ -2196,6 +2224,7 @@ function computeRouteDetails_skeleton(
                                 driverProfile,
                                 riderCoords,
                                 requestStatusMain,
+                                RIDE_REDIS_KEY,
                                 reslv
                               );
                             }).then(
@@ -2229,6 +2258,7 @@ function computeRouteDetails_skeleton(
                               driverProfile,
                               riderCoords,
                               requestStatusMain,
+                              RIDE_REDIS_KEY,
                               reslv
                             );
                           }).then(
@@ -2237,15 +2267,6 @@ function computeRouteDetails_skeleton(
                               redisGet(rideHistory.request_fp).then(
                                 (result) => {
                                   logger.info(result);
-                                  //! SAVE THE FINAL FULL RESULT - for 15 min ------
-                                  redisCluster.setex(
-                                    RIDE_REDIS_KEY,
-                                    parseInt(
-                                      process.env.REDIS_EXPIRATION_5MIN
-                                    ) * 3,
-                                    JSON.stringify(result)
-                                  );
-                                  //! ----------------------------------------------
                                   resolve(result);
                                 },
                                 (error) => {
@@ -2270,6 +2291,7 @@ function computeRouteDetails_skeleton(
                             driverProfile,
                             riderCoords,
                             requestStatusMain,
+                            RIDE_REDIS_KEY,
                             reslv
                           );
                         }).then(
@@ -2277,14 +2299,6 @@ function computeRouteDetails_skeleton(
                             //Get route infos from cache.
                             redisGet(rideHistory.request_fp).then(
                               (result) => {
-                                //! SAVE THE FINAL FULL RESULT - for 15 min ------
-                                redisCluster.setex(
-                                  RIDE_REDIS_KEY,
-                                  parseInt(process.env.REDIS_EXPIRATION_5MIN) *
-                                    3,
-                                  JSON.stringify(result)
-                                );
-                                //! ----------------------------------------------
                                 resolve(result);
                               },
                               (error) => {
@@ -2322,6 +2336,7 @@ function computeRouteDetails_skeleton(
                         driverProfile,
                         riderCoords,
                         requestStatusMain,
+                        RIDE_REDIS_KEY,
                         reslv
                       );
                     }).then(
@@ -2329,13 +2344,6 @@ function computeRouteDetails_skeleton(
                         //Get route infos from cache.
                         redisGet(rideHistory.request_fp).then(
                           (result) => {
-                            //! SAVE THE FINAL FULL RESULT - for 15 min ------
-                            redisCluster.setex(
-                              RIDE_REDIS_KEY,
-                              parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
-                              JSON.stringify(result)
-                            );
-                            //! ----------------------------------------------
                             resolve(JSON.parse(result));
                           },
                           (error) => {
@@ -2380,6 +2388,7 @@ function computeRouteDetails_skeleton(
                                 driverProfile,
                                 riderCoords,
                                 requestStatusMain,
+                                RIDE_REDIS_KEY,
                                 reslv
                               );
                             }).then(
@@ -2392,13 +2401,6 @@ function computeRouteDetails_skeleton(
                             let tripData = JSON.parse(resp0);
                             //Found a precomputed record
                             logger.info("Trip data cached found!");
-                            //! SAVE THE FINAL FULL RESULT - for 15 min ------
-                            redisCluster.setex(
-                              RIDE_REDIS_KEY,
-                              parseInt(process.env.REDIS_EXPIRATION_5MIN),
-                              JSON.stringify(tripData)
-                            ) * 3;
-                            //! ----------------------------------------------
                             resolve(tripData);
                           } catch (error) {
                             //logger.info(error);
@@ -2410,6 +2412,7 @@ function computeRouteDetails_skeleton(
                                 driverProfile,
                                 riderCoords,
                                 requestStatusMain,
+                                RIDE_REDIS_KEY,
                                 reslv
                               );
                             }).then(
@@ -2417,15 +2420,6 @@ function computeRouteDetails_skeleton(
                                 //Get route infos from cache.
                                 redisGet(rideHistory.request_fp).then(
                                   (result) => {
-                                    //! SAVE THE FINAL FULL RESULT - for 15 min ------
-                                    redisCluster.setex(
-                                      RIDE_REDIS_KEY,
-                                      parseInt(
-                                        process.env.REDIS_EXPIRATION_5MIN
-                                      ) * 3,
-                                      JSON.stringify(result)
-                                    );
-                                    //! ----------------------------------------------
                                     resolve(result);
                                   },
                                   (error) => {
@@ -2449,6 +2443,7 @@ function computeRouteDetails_skeleton(
                               driverProfile,
                               riderCoords,
                               requestStatusMain,
+                              RIDE_REDIS_KEY,
                               reslv
                             );
                           }).then(
@@ -2456,15 +2451,6 @@ function computeRouteDetails_skeleton(
                               //Get route infos from cache.
                               redisGet(rideHistory.request_fp).then(
                                 (result) => {
-                                  //! SAVE THE FINAL FULL RESULT - for 15 min ------
-                                  redisCluster.setex(
-                                    RIDE_REDIS_KEY,
-                                    parseInt(
-                                      process.env.REDIS_EXPIRATION_5MIN
-                                    ) * 3,
-                                    JSON.stringify(result)
-                                  );
-                                  //! ----------------------------------------------
                                   resolve(result);
                                 },
                                 (error) => {
@@ -2489,6 +2475,7 @@ function computeRouteDetails_skeleton(
                             driverProfile,
                             riderCoords,
                             requestStatusMain,
+                            RIDE_REDIS_KEY,
                             reslv
                           );
                         }).then(
@@ -2496,14 +2483,6 @@ function computeRouteDetails_skeleton(
                             //Get route infos from cache.
                             redisGet(rideHistory.request_fp).then(
                               (result) => {
-                                //! SAVE THE FINAL FULL RESULT - for 15 min ------
-                                redisCluster.setex(
-                                  RIDE_REDIS_KEY,
-                                  parseInt(process.env.REDIS_EXPIRATION_5MIN) *
-                                    3,
-                                  JSON.stringify(result)
-                                );
-                                //! ----------------------------------------------
                                 resolve(result);
                               },
                               (error) => {
@@ -2540,6 +2519,7 @@ function computeRouteDetails_skeleton(
                         driverProfile,
                         riderCoords,
                         requestStatusMain,
+                        RIDE_REDIS_KEY,
                         reslv
                       );
                     }).then(
@@ -2547,13 +2527,6 @@ function computeRouteDetails_skeleton(
                         //Get route infos from cache.
                         redisGet(rideHistory.request_fp).then(
                           (result) => {
-                            //! SAVE THE FINAL FULL RESULT - for 15 min ------
-                            redisCluster.setex(
-                              RIDE_REDIS_KEY,
-                              parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
-                              JSON.stringify(result)
-                            );
-                            //! ----------------------------------------------
                             resolve(JSON.parse(result));
                           },
                           (error) => {
@@ -2856,6 +2829,7 @@ function computeAndCacheRouteDestination(
   driverProfile = false,
   riderCoords = false,
   request_status,
+  RIDE_REDIS_KEY,
   resolve
 ) {
   //Compute next route update ---------------------------------------------------
@@ -3183,7 +3157,15 @@ function computeAndCacheRouteDestination(
                     () => {}
                   );
                   //...
+                  //! SAVE THE FINAL FULL RESULT - for 15 min ------
+                  redisCluster.setex(
+                    RIDE_REDIS_KEY,
+                    parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
+                    JSON.stringify(result)
+                  );
+                  //! ----------------------------------------------
                   ///DONE
+                  console.trace(result);
                   resolve(result);
                 },
                 (error) => {
@@ -3228,6 +3210,13 @@ function computeAndCacheRouteDestination(
                     () => {}
                   );
                   //...
+                  //! SAVE THE FINAL FULL RESULT - for 15 min ------
+                  redisCluster.setex(
+                    RIDE_REDIS_KEY,
+                    parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
+                    JSON.stringify(result)
+                  );
+                  //! ----------------------------------------------
                   ///DONE
                   resolve(result);
                 }
@@ -4606,19 +4595,16 @@ redisCluster.on("connect", function () {
         //! MESSAGES -
         //? 1. For rides/deliveries to be refresh in the cache and any other server right after the booking.
         //? Waiting for the message in the format {user_fingerprint:..., request_fp:...}
-        channel.assertQueue(
-          process.env.RIDERS_TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
-          {
-            durable: false,
-          }
-        );
+        channel.assertQueue(process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME, {
+          durable: false,
+        });
         logger.info("[->RabbitMq] Waiting for messages");
         channel.consume(
-          process.env.RIDERS_TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
+          process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
           function (message) {
             try {
               message = JSON.parse(message.content);
-              console.log(`Message received -> ${JSON.stringify(message)}`);
+              console.trace(`Message received -> ${JSON.stringify(message)}`);
               let url =
                 process.env.LOCAL_URL +
                 ":" +
@@ -4626,10 +4612,11 @@ redisCluster.on("connect", function () {
                 "/updatePassengerLocation";
               //...
               let req = {
-                user_nature: "rider",
-                requestType: "rides",
+                user_nature: message.user_nature, //! Very important
+                requestType: message.requestType, //! Very important
                 user_fingerprint: message.user_fingerprint,
                 makeFreshRequest: true,
+                avoidCached_data: true,
               };
               //...
               requestAPI.post(
