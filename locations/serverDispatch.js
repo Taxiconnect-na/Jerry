@@ -1231,30 +1231,45 @@ function sendStagedNotificationsDrivers(
           function (err, reslt) {
             //! Update the drivers' list data located in the same city
             new Promise((resCompute) => {
-              driversFp.map((fingerprint) => {
-                //! RABBITMQ MESSAGE
-                channel.assertQueue(
-                  process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
-                  {
-                    durable: false,
-                  }
-                );
-                //Send message
-                let message = {
-                  user_fingerprint: fingerprint,
-                  requestType: /scheduled/i.test(snapshotTripInfos.request_type)
-                    ? "scheduled"
-                    : snapshotTripInfos.ride_type,
-                  user_nature: "driver",
-                };
-                //console.trace(fingerprint);
-                channel.sendToQueue(
-                  process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
-                  Buffer.from(JSON.stringify(message))
-                );
+              let parentPromises = driversFp.map((fingerprint) => {
+                return new Promise((resInside) => {
+                  //! RABBITMQ MESSAGE
+                  channel.assertQueue(
+                    process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
+                    {
+                      durable: false,
+                    }
+                  );
+                  //Send message
+                  let message = {
+                    user_fingerprint: fingerprint,
+                    requestType: /scheduled/i.test(
+                      snapshotTripInfos.request_type
+                    )
+                      ? "scheduled"
+                      : snapshotTripInfos.ride_type,
+                    user_nature: "driver",
+                  };
+                  //console.trace(fingerprint);
+                  channel.sendToQueue(
+                    process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
+                    Buffer.from(JSON.stringify(message)),
+                    {
+                      //persistent: true,
+                    }
+                  );
+                  //...
+                  resInside(true);
+                });
               });
               //...
-              resCompute(true);
+              Promise.all(parentPromises)
+                .then(() => {
+                  resCompute(true);
+                })
+                .catch(() => {
+                  resCompute(true);
+                });
             })
               .then()
               .catch();
@@ -1402,7 +1417,10 @@ function sendStagedNotificationsDrivers(
                   };
                   channel.sendToQueue(
                     process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
-                    Buffer.from(JSON.stringify(message))
+                    Buffer.from(JSON.stringify(message)),
+                    {
+                      //persistent: true,
+                    }
                   );
                 });
                 //...
@@ -1516,7 +1534,10 @@ function sendStagedNotificationsDrivers(
                 };
                 channel.sendToQueue(
                   process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
-                  Buffer.from(JSON.stringify(message))
+                  Buffer.from(JSON.stringify(message)),
+                  {
+                    //persistent: true,
+                  }
                 );
               });
               //...
@@ -1915,6 +1936,8 @@ function registerAllowedDriversForRidesAndNotify(
  * @param resolve
  * @param dropOffMeta_bundle: contains all the necessary information about the rating (rating_score, compliments array, personal note AND REQUEST FINGERPRINT)
  * @param collectionRidesDeliveryData: rides and deliveries collection
+ * @param collectionDrivers_profiles: the list of all the drivers.
+ * @param channel: rabbitmq communication channel.
  * Responsible for confirming the drop off of a ride EXCLUSIVELY for the riders.
  * Tasks:
  * 1. Mark as arrived to destination.
@@ -1922,11 +1945,13 @@ function registerAllowedDriversForRidesAndNotify(
  * 3. Assign the rating
  * 4. Assign compliments (if any)
  * 5. Assign custom note (if any)
- * //Reinforce all drop off vars in case
+ * ! Reinforce all drop off vars in case
  */
 function confirmDropoff_fromRider_side(
   dropOffMeta_bundle,
   collectionRidesDeliveryData,
+  collectionDrivers_profiles,
+  channel,
   resolve
 ) {
   resolveDate();
@@ -1959,6 +1984,82 @@ function confirmDropoff_fromRider_side(
       if (err) {
         resolve({ response: "error" });
       }
+      //! Update the  driver's cached list
+      new Promise((resCompute) => {
+        collectionRidesDeliveryData
+          .find(retrieveTrip)
+          .toArray(function (err, tripData) {
+            if (err) {
+              resCompute(false);
+            }
+            //...
+            if (tripData !== undefined && tripData.length > 0) {
+              let driverFilter = {
+                "operational_state.last_location.city":
+                  tripData[0].pickup_location_infos.city,
+              };
+              console.trace(driverFilter);
+              collectionDrivers_profiles
+                .find(driverFilter)
+                .collation({ locale: "en", strength: 2 })
+                .toArray(function (err, driversData) {
+                  if (err) {
+                    resCompute(false);
+                  }
+                  //...
+                  if (driversData !== undefined && driversData.length > 0) {
+                    //Found some drivers
+                    let parentPromises = driversData.map((driverInfo) => {
+                      return new Promise((resInside) => {
+                        //! RABBITMQ MESSAGE
+                        channel.assertQueue(
+                          process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
+                          {
+                            durable: false,
+                          }
+                        );
+                        //Send message
+                        let message = {
+                          user_fingerprint: driverInfo.driver_fingerprint,
+                          requestType: /scheduled/i.test(
+                            tripData[0].request_type
+                          )
+                            ? "scheduled"
+                            : tripData[0].ride_mode,
+                          user_nature: "driver",
+                        };
+                        console.trace(message);
+                        channel.sendToQueue(
+                          process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
+                          Buffer.from(JSON.stringify(message)),
+                          {
+                            persistent: true,
+                          }
+                        );
+                        resInside(true);
+                      });
+                    });
+                    //...
+                    Promise.all(parentPromises)
+                      .then(() => {
+                        resCompute(true);
+                      })
+                      .catch(() => {
+                        resCompute(true);
+                      });
+                  } //No drivers  found
+                  else {
+                    resCompute(false);
+                  }
+                });
+            } //No ride details
+            else {
+              resCompute(false);
+            }
+          });
+      })
+        .then()
+        .catch();
       //..
       resolve({ response: "successfully_confirmed" });
     }
@@ -1970,6 +2071,8 @@ function confirmDropoff_fromRider_side(
  * @param resolve
  * @param collectionRidesDeliveryData: list of all the rides/delivery requests
  * @param collection_cancelledRidesDeliveryData: list of all the cancelledd rides/delivery requests.
+ * @param collectionDrivers_profiles: list of all the drivers
+ * @param channel: rabbitmq communication channel.
  * @param requestBundle_data: object containing the request fp and the rider's fp
  * @param additionalData: contains additional data like the flag and so on.
  * Responsible for cancelling requests for riders and all the related processes.
@@ -1978,6 +2081,8 @@ function cancelRider_request(
   requestBundle_data,
   collectionRidesDeliveryData,
   collection_cancelledRidesDeliveryData,
+  collectionDrivers_profiles,
+  channel,
   resolve,
   additionalData
 ) {
@@ -2017,6 +2122,69 @@ function cancelRider_request(
                 if (err3) {
                   resolve({ response: "error_cancelling" });
                 }
+                //Get the regional list of all the drivers online/offline
+                new Promise((resCompute) => {
+                  let driverFilter = {
+                    "operational_state.last_location.city":
+                      requestData[0].pickup_location_infos.city,
+                  };
+                  collectionDrivers_profiles
+                    .find(driverFilter)
+                    .collation({ locale: "en", strength: 2 })
+                    .toArray(function (err, driversData) {
+                      if (err) {
+                        resCompute(false);
+                      }
+                      //...
+                      if (driversData !== undefined && driversData.length > 0) {
+                        //Found some drivers
+                        let parentPromises = driversData.map((driverInfo) => {
+                          return new Promise((resInside) => {
+                            //! RABBITMQ MESSAGE
+                            channel.assertQueue(
+                              process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
+                              {
+                                durable: false,
+                              }
+                            );
+                            //Send message
+                            let message = {
+                              user_fingerprint: driverInfo.driver_fingerprint,
+                              requestType: /scheduled/i.test(
+                                requestData[0].request_type
+                              )
+                                ? "scheduled"
+                                : requestData[0].ride_mode,
+                              user_nature: "driver",
+                            };
+                            console.trace(message);
+                            channel.sendToQueue(
+                              process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
+                              Buffer.from(JSON.stringify(message)),
+                              {
+                                persistent: true,
+                              }
+                            );
+                            resInside(true);
+                          });
+                        });
+                        //...
+                        Promise.all(parentPromises)
+                          .then(() => {
+                            resCompute(true);
+                          })
+                          .catch(() => {
+                            resCompute(true);
+                          });
+                      } //No drivers  found
+                      else {
+                        resCompute(false);
+                      }
+                    });
+                })
+                  .then()
+                  .catch();
+
                 //...DONE
                 resolve({ response: "successully_cancelled" });
               }
@@ -2122,6 +2290,7 @@ function declineRequest_driver(
  * @param collectionGlobalEvents: hold all the random events that happened somewhere.
  * @param collectionDrivers_profiles: list of all the drivers.
  * @param collectionPassengers_profiles: list off all the riders.
+ * @param channel: Rabbitmq communication channel.
  * @param resolve
  */
 function acceptRequest_driver(
@@ -2130,6 +2299,7 @@ function acceptRequest_driver(
   collectionGlobalEvents,
   collectionDrivers_profiles,
   collectionPassengers_profiles,
+  channel,
   resolve
 ) {
   resolveDate();
@@ -2198,6 +2368,74 @@ function acceptRequest_driver(
                     logger.info(err);
                     resolve({ response: "unable_to_accept_request_error" });
                   }
+                  //Get the regional list of all the drivers online/offline
+                  //! Update the  driver's cached list
+                  new Promise((resCompute) => {
+                    let driverFilter = {
+                      "operational_state.last_location.city":
+                        result[0].pickup_location_infos.city,
+                    };
+                    collectionDrivers_profiles
+                      .find(driverFilter)
+                      .collation({ locale: "en", strength: 2 })
+                      .toArray(function (err, driversData) {
+                        if (err) {
+                          resCompute(false);
+                        }
+                        //...
+                        if (
+                          driversData !== undefined &&
+                          driversData.length > 0
+                        ) {
+                          //Found some drivers
+                          let parentPromises = driversData.map((driverInfo) => {
+                            return new Promise((resInside) => {
+                              //! RABBITMQ MESSAGE
+                              channel.assertQueue(
+                                process.env
+                                  .TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
+                                {
+                                  durable: false,
+                                }
+                              );
+                              //Send message
+                              let message = {
+                                user_fingerprint: driverInfo.driver_fingerprint,
+                                requestType: /scheduled/i.test(
+                                  result[0].request_type
+                                )
+                                  ? "scheduled"
+                                  : result[0].ride_mode,
+                                user_nature: "driver",
+                              };
+                              channel.sendToQueue(
+                                process.env
+                                  .TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
+                                Buffer.from(JSON.stringify(message)),
+                                {
+                                  persistent: true,
+                                }
+                              );
+                              resInside(true);
+                            });
+                          });
+                          //...
+                          Promise.all(parentPromises)
+                            .then(() => {
+                              resCompute(true);
+                            })
+                            .catch(() => {
+                              resCompute(true);
+                            });
+                        } //No drivers  found
+                        else {
+                          resCompute(false);
+                        }
+                      });
+                  })
+                    .then()
+                    .catch();
+
                   //?Notify the cllient
                   //Send the push notifications - FOR Passengers
                   new Promise((resSendNotif) => {
@@ -2344,6 +2582,8 @@ function acceptRequest_driver(
  * @param collectionGlobalEvents: hold all the random events that happened somewhere.
  * @param bundleWorkingData: contains the driver_fp and the request_fp.
  * @param collectionPassengers_profiles: list of all the drivers.
+ * @param collectionDrivers_profiles: the liist of all the drivers.
+ * @param channel: rabbitmq communication channel.
  * @param resolve
  */
 function cancelRequest_driver(
@@ -2351,6 +2591,8 @@ function cancelRequest_driver(
   collectionRidesDeliveryData,
   collectionGlobalEvents,
   collectionPassengers_profiles,
+  collectionDrivers_profiles,
+  channel,
   resolve
 ) {
   resolveDate();
@@ -2400,6 +2642,67 @@ function cancelRequest_driver(
             if (err) {
               resolve({ response: "unable_to_cancel_request_error" });
             }
+            //! Update the  driver's cached list
+            new Promise((resCompute) => {
+              let driverFilter = {
+                "operational_state.last_location.city":
+                  result[0].pickup_location_infos.city,
+              };
+              console.trace(driverFilter);
+              collectionDrivers_profiles
+                .find(driverFilter)
+                .collation({ locale: "en", strength: 2 })
+                .toArray(function (err, driversData) {
+                  if (err) {
+                    resCompute(false);
+                  }
+                  //...
+                  if (driversData !== undefined && driversData.length > 0) {
+                    //Found some drivers
+                    let parentPromises = driversData.map((driverInfo) => {
+                      return new Promise((resInside) => {
+                        //! RABBITMQ MESSAGE
+                        channel.assertQueue(
+                          process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
+                          {
+                            durable: false,
+                          }
+                        );
+                        //Send message
+                        let message = {
+                          user_fingerprint: driverInfo.driver_fingerprint,
+                          requestType: /scheduled/i.test(result[0].request_type)
+                            ? "scheduled"
+                            : result[0].ride_mode,
+                          user_nature: "driver",
+                        };
+                        console.trace(message);
+                        channel.sendToQueue(
+                          process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
+                          Buffer.from(JSON.stringify(message)),
+                          {
+                            persistent: true,
+                          }
+                        );
+                        resInside(true);
+                      });
+                    });
+                    //...
+                    Promise.all(parentPromises)
+                      .then(() => {
+                        resCompute(true);
+                      })
+                      .catch(() => {
+                        resCompute(true);
+                      });
+                  } //No drivers  found
+                  else {
+                    resCompute(false);
+                  }
+                });
+            })
+              .then()
+              .catch();
             //? Update the accepted rides brief list in the driver's profile
             new Promise((resUpdateDriverProfile) => {
               //! Get the driver's details - to fetch the car's fingerprint
@@ -2413,6 +2716,7 @@ function cancelRequest_driver(
                   }
                   //...
                   if (driverData.length > 0) {
+                    driverData = driverData[0];
                     //Get request infos
                     collectionRidesDeliveryData
                       .find({ request_fp: bundleWorkingData.request_fp })
@@ -2422,6 +2726,7 @@ function cancelRequest_driver(
                         }
                         //...
                         if (
+                          requestPrevData !== undefined &&
                           requestPrevData.length > 0 &&
                           requestPrevData[0].request_fp !== undefined &&
                           requestPrevData[0].request_fp !== null
@@ -2444,9 +2749,14 @@ function cancelRequest_driver(
                                 };
                           //...
                           //? Update with new request - remove current request data
+
                           prevAcceptedData.total_passengers_number -= parseInt(
-                            driverData.accepted_requests_infos
-                              .total_passengers_number > 0
+                            driverData.accepted_requests_infos !== undefined &&
+                              driverData.accepted_requests_infos !== null &&
+                              driverData.accepted_requests_infos
+                                .total_passengers_number !== undefined &&
+                              driverData.accepted_requests_infos
+                                .total_passengers_number > 0
                               ? requestPrevData[0].passengers_number
                               : 0
                           ); //! DO not remove if the total number of passengers was zero already.
@@ -2573,6 +2883,8 @@ function confirmPickupRequest_driver(
   bundleWorkingData,
   collectionRidesDeliveryData,
   collectionGlobalEvents,
+  collectionDrivers_profiles,
+  channel,
   resolve
 ) {
   resolveDate();
@@ -2621,6 +2933,67 @@ function confirmPickupRequest_driver(
             if (err) {
               resolve({ response: "unable_to_confirm_pickup_request_error" });
             }
+            //! Update the  driver's cached list
+            new Promise((resCompute) => {
+              let driverFilter = {
+                "operational_state.last_location.city":
+                  result[0].pickup_location_infos.city,
+              };
+              console.trace(driverFilter);
+              collectionDrivers_profiles
+                .find(driverFilter)
+                .collation({ locale: "en", strength: 2 })
+                .toArray(function (err, driversData) {
+                  if (err) {
+                    resCompute(false);
+                  }
+                  //...
+                  if (driversData !== undefined && driversData.length > 0) {
+                    //Found some drivers
+                    let parentPromises = driversData.map((driverInfo) => {
+                      return new Promise((resInside) => {
+                        //! RABBITMQ MESSAGE
+                        channel.assertQueue(
+                          process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
+                          {
+                            durable: false,
+                          }
+                        );
+                        //Send message
+                        let message = {
+                          user_fingerprint: driverInfo.driver_fingerprint,
+                          requestType: /scheduled/i.test(result[0].request_type)
+                            ? "scheduled"
+                            : result[0].ride_mode,
+                          user_nature: "driver",
+                        };
+                        console.trace(message);
+                        channel.sendToQueue(
+                          process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
+                          Buffer.from(JSON.stringify(message)),
+                          {
+                            persistent: true,
+                          }
+                        );
+                        resInside(true);
+                      });
+                    });
+                    //...
+                    Promise.all(parentPromises)
+                      .then(() => {
+                        resCompute(true);
+                      })
+                      .catch(() => {
+                        resCompute(true);
+                      });
+                  } //No drivers  found
+                  else {
+                    resCompute(false);
+                  }
+                });
+            })
+              .then()
+              .catch();
             //DONE
             resolve({
               response: "successfully_confirmed_pickup",
@@ -2642,6 +3015,8 @@ function confirmPickupRequest_driver(
  * @param collectionGlobalEvents: hold all the random events that happened somewhere.
  * @param bundleWorkingData: contains the driver_fp and the request_fp.
  * @param collectionPassengers_profiles: list of all the passengers.
+ * @param collectionDrivers_profiles: the list of all the drivers.
+ * @param channel: rabbitmq communication
  * @param resolve
  */
 function confirmDropoffRequest_driver(
@@ -2649,6 +3024,8 @@ function confirmDropoffRequest_driver(
   collectionRidesDeliveryData,
   collectionGlobalEvents,
   collectionPassengers_profiles,
+  collectionDrivers_profiles,
+  channel,
   resolve
 ) {
   resolveDate();
@@ -2674,10 +3051,9 @@ function confirmDropoffRequest_driver(
             date: new Date(chaineDateUTC),
           });
           res(true);
-        }).then(
-          () => {},
-          () => {}
-        );
+        })
+          .then(() => {})
+          .catch();
         //Update the true request
         collectionRidesDeliveryData.updateOne(
           {
@@ -2697,6 +3073,67 @@ function confirmDropoffRequest_driver(
             if (err) {
               resolve({ response: "unable_to_confirm_dropoff_request_error" });
             }
+            //! Update the  driver's cached list
+            new Promise((resCompute) => {
+              let driverFilter = {
+                "operational_state.last_location.city":
+                  result[0].pickup_location_infos.city,
+              };
+              console.trace(driverFilter);
+              collectionDrivers_profiles
+                .find(driverFilter)
+                .collation({ locale: "en", strength: 2 })
+                .toArray(function (err, driversData) {
+                  if (err) {
+                    resCompute(false);
+                  }
+                  //...
+                  if (driversData !== undefined && driversData.length > 0) {
+                    //Found some drivers
+                    let parentPromises = driversData.map((driverInfo) => {
+                      return new Promise((resInside) => {
+                        //! RABBITMQ MESSAGE
+                        channel.assertQueue(
+                          process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
+                          {
+                            durable: false,
+                          }
+                        );
+                        //Send message
+                        let message = {
+                          user_fingerprint: driverInfo.driver_fingerprint,
+                          requestType: /scheduled/i.test(result[0].request_type)
+                            ? "scheduled"
+                            : result[0].ride_mode,
+                          user_nature: "driver",
+                        };
+                        console.trace(message);
+                        channel.sendToQueue(
+                          process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
+                          Buffer.from(JSON.stringify(message)),
+                          {
+                            persistent: true,
+                          }
+                        );
+                        resInside(true);
+                      });
+                    });
+                    //...
+                    Promise.all(parentPromises)
+                      .then(() => {
+                        resCompute(true);
+                      })
+                      .catch(() => {
+                        resCompute(true);
+                      });
+                  } //No drivers  found
+                  else {
+                    resCompute(false);
+                  }
+                });
+            })
+              .then()
+              .catch();
             //? Update the accepted rides brief list in the driver's profile
             new Promise((resUpdateDriverProfile) => {
               //! Get the driver's details - to fetch the car's fingerprint
@@ -2884,6 +3321,7 @@ function INIT_RIDE_DELIVERY_DISPATCH_ENTRY(
 
   collectionRidesDeliveryData
     .find(checkPrevRequest)
+    .collation({ locale: "en", strength: 2 })
     .toArray(function (err, prevRequest) {
       if (err) {
         logger.info(err);
@@ -2896,8 +3334,16 @@ function INIT_RIDE_DELIVERY_DISPATCH_ENTRY(
         prevRequest.length <= 0 ||
         prevRequest[0] === undefined
       ) {
-        collectionRidesDeliveryData.insertOne(
-          parsedReqest_data,
+        collectionRidesDeliveryData.updateOne(
+          {
+            client_id: parsedReqest_data.client_id,
+            "ride_state_vars.isRideCompleted_riderSide": false,
+            isArrivedToDestination: false,
+          },
+          { $set: parsedReqest_data },
+          {
+            upsert: true,
+          },
           function (err, requestDt) {
             if (err) {
               logger.info(err);
@@ -3671,7 +4117,10 @@ redisCluster.on("connect", function () {
                                         channel.sendToQueue(
                                           process.env
                                             .TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
-                                          Buffer.from(JSON.stringify(message))
+                                          Buffer.from(JSON.stringify(message)),
+                                          {
+                                            persistent: true,
+                                          }
                                         );
                                         //! -------------
                                         if (
@@ -3875,7 +4324,10 @@ redisCluster.on("connect", function () {
                               channel.sendToQueue(
                                 process.env
                                   .TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
-                                Buffer.from(JSON.stringify(message))
+                                Buffer.from(JSON.stringify(message)),
+                                {
+                                  persistent: true,
+                                }
                               );
                               //! -------------
                               res.send(resultDispatch);
@@ -3954,6 +4406,8 @@ redisCluster.on("connect", function () {
               confirmDropoff_fromRider_side(
                 req,
                 collectionRidesDeliveryData,
+                collectionDrivers_profiles,
+                channel,
                 res0
               );
             }).then(
@@ -3973,7 +4427,10 @@ redisCluster.on("connect", function () {
                 };
                 channel.sendToQueue(
                   process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
-                  Buffer.from(JSON.stringify(message))
+                  Buffer.from(JSON.stringify(message)),
+                  {
+                    persistent: true,
+                  }
                 );
                 //! -------------
                 res.send(result);
@@ -4012,6 +4469,8 @@ redisCluster.on("connect", function () {
                 req,
                 collectionRidesDeliveryData,
                 collection_cancelledRidesDeliveryData,
+                collectionDrivers_profiles,
+                channel,
                 res0,
                 additionalData
               );
@@ -4033,7 +4492,10 @@ redisCluster.on("connect", function () {
                 };
                 channel.sendToQueue(
                   process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
-                  Buffer.from(JSON.stringify(message))
+                  Buffer.from(JSON.stringify(message)),
+                  {
+                    persistent: true,
+                  }
                 );
                 //! -------------
                 res.send(result);
@@ -4110,6 +4572,7 @@ redisCluster.on("connect", function () {
                 collectionGlobalEvents,
                 collectionDrivers_profiles,
                 collectionPassengers_profiles,
+                channel,
                 res0
               );
             }).then(
@@ -4136,7 +4599,10 @@ redisCluster.on("connect", function () {
                   };
                   channel.sendToQueue(
                     process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
-                    Buffer.from(JSON.stringify(message))
+                    Buffer.from(JSON.stringify(message)),
+                    {
+                      persistent: true,
+                    }
                   );
                   //! -------------
                 }
@@ -4181,6 +4647,8 @@ redisCluster.on("connect", function () {
                 collectionRidesDeliveryData,
                 collectionGlobalEvents,
                 collectionPassengers_profiles,
+                collectionDrivers_profiles,
+                channel,
                 res0
               );
             }).then(
@@ -4206,7 +4674,10 @@ redisCluster.on("connect", function () {
                   };
                   channel.sendToQueue(
                     process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
-                    Buffer.from(JSON.stringify(message))
+                    Buffer.from(JSON.stringify(message)),
+                    {
+                      persistent: true,
+                    }
                   );
                   //! -------------
                 }
@@ -4249,6 +4720,8 @@ redisCluster.on("connect", function () {
                 req,
                 collectionRidesDeliveryData,
                 collectionGlobalEvents,
+                collectionDrivers_profiles,
+                channel,
                 res0
               );
             }).then(
@@ -4274,7 +4747,10 @@ redisCluster.on("connect", function () {
                   };
                   channel.sendToQueue(
                     process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
-                    Buffer.from(JSON.stringify(message))
+                    Buffer.from(JSON.stringify(message)),
+                    {
+                      persistent: true,
+                    }
                   );
                   //! -------------
                 }
@@ -4320,6 +4796,8 @@ redisCluster.on("connect", function () {
                 collectionRidesDeliveryData,
                 collectionGlobalEvents,
                 collectionPassengers_profiles,
+                collectionDrivers_profiles,
+                channel,
                 res0
               );
             }).then(
@@ -4345,7 +4823,10 @@ redisCluster.on("connect", function () {
                   };
                   channel.sendToQueue(
                     process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
-                    Buffer.from(JSON.stringify(message))
+                    Buffer.from(JSON.stringify(message)),
+                    {
+                      persistent: true,
+                    }
                   );
                   //! -------------
                 }

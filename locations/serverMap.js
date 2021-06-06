@@ -1210,6 +1210,7 @@ function execTripChecker_Dispatcher(
                         );
                       }).then(
                         (resultFinal) => {
+                          console.trace(resultFinal);
                           //! SAVE THE FINAL FULL RESULT - for 15 min ------
                           redisCluster.setex(
                             RIDE_REDIS_KEY,
@@ -1241,6 +1242,13 @@ function execTripChecker_Dispatcher(
                   );
                 }).then(
                   (resultFinal) => {
+                    if (
+                      /23c9d088e03653169b9c18193a0b8dd329ea1e43eb0626ef9f16b5b979694a429710561a3cb3ddae/i.test(
+                        user_fingerprint
+                      )
+                    ) {
+                      console.trace(resultFinal);
+                    }
                     //! SAVE THE FINAL FULL RESULT - for 15 min ------
                     redisCluster.setex(
                       RIDE_REDIS_KEY,
@@ -1615,7 +1623,24 @@ function parseRequests_forDrivers_view(
       //Build the redis key unique template
       let redisKey = request.request_fp + "cached_tempo-parsed-request";
       //CHECK for any previous parsing
-      redisGet(redisKey).then(
+      new Promise((resFresh) => {
+        execDriver_requests_parsing(
+          request,
+          collectionPassengers_profiles,
+          driverData,
+          redisKey,
+          resFresh
+        );
+      }).then(
+        (resultParsed) => {
+          res(resultParsed);
+        },
+        (error) => {
+          logger.warn(error);
+          res(false);
+        }
+      );
+      /*redisGet(redisKey).then(
         (resp) => {
           //! justLeaveMe variable to bypass the cached data.
           if (resp !== null && resp.justLeaveMe !== undefined) {
@@ -1702,7 +1727,7 @@ function parseRequests_forDrivers_view(
             }
           );
         }
-      );
+      );*/
     });
   });
   //...
@@ -4604,7 +4629,7 @@ redisCluster.on("connect", function () {
           function (message) {
             try {
               message = JSON.parse(message.content);
-              console.trace(`Message received -> ${JSON.stringify(message)}`);
+              //console.trace(`Message received -> ${JSON.stringify(message)}`);
               let url =
                 process.env.LOCAL_URL +
                 ":" +
