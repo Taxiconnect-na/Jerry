@@ -1237,7 +1237,7 @@ function sendStagedNotificationsDrivers(
                   channel.assertQueue(
                     process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
                     {
-                      durable: false,
+                      durable: true,
                     }
                   );
                   //Send message
@@ -1250,12 +1250,12 @@ function sendStagedNotificationsDrivers(
                       : snapshotTripInfos.ride_type,
                     user_nature: "driver",
                   };
-                  //console.trace(fingerprint);
+
                   channel.sendToQueue(
                     process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
                     Buffer.from(JSON.stringify(message)),
                     {
-                      //persistent: true,
+                      persistent: true,
                     }
                   );
                   //...
@@ -1275,61 +1275,67 @@ function sendStagedNotificationsDrivers(
               .catch();
             //! -------------
             //Send the push notifications - FOR DRIVERS
-            let message = {
-              app_id: process.env.DRIVERS_APP_ID_ONESIGNAL,
-              android_channel_id: /RIDE/i.test(snapshotTripInfos.ride_type)
-                ? process.env.DRIVERS_ONESIGNAL_CHANNEL_NEW_NOTIFICATION
-                : process.env.DRIVERS_ONESIGNAL_CHANNEL_NEW_NOTIFICATION, //Ride or delivery channel
-              priority: 10,
-              contents: /RIDE/i.test(snapshotTripInfos.ride_type)
-                ? {
-                    en:
-                      "You have a new ride request " +
-                      (snapshotTripInfos.pickup_suburb !== false
-                        ? "from " + snapshotTripInfos.pickup_suburb !==
-                            undefined &&
-                          snapshotTripInfos.pickup_suburb !== false &&
-                          snapshotTripInfos.pickup_suburb !== null
-                          ? snapshotTripInfos.pickup_suburb.toUpperCase()
-                          : "near your location" +
-                              " to " +
-                              snapshotTripInfos.destination_suburb !==
+            new Promise((resNotify) => {
+              let message = {
+                app_id: process.env.DRIVERS_APP_ID_ONESIGNAL,
+                android_channel_id: /RIDE/i.test(snapshotTripInfos.ride_type)
+                  ? process.env.DRIVERS_ONESIGNAL_CHANNEL_NEW_NOTIFICATION
+                  : process.env.DRIVERS_ONESIGNAL_CHANNEL_NEW_NOTIFICATION, //Ride or delivery channel
+                priority: 10,
+                contents: /RIDE/i.test(snapshotTripInfos.ride_type)
+                  ? {
+                      en:
+                        "You have a new ride request " +
+                        (snapshotTripInfos.pickup_suburb !== false
+                          ? "from " + snapshotTripInfos.pickup_suburb !==
                               undefined &&
-                            snapshotTripInfos.destination_suburb !== false &&
-                            snapshotTripInfos.destination_suburb !== null
-                          ? snapshotTripInfos.destination_suburb.toUpperCase()
-                          : "near your location" +
-                            ". Click here for more details."
-                        : "near your location, click here for more details."),
-                  }
-                : {
-                    en:
-                      "You have a new delivery request " +
-                      (snapshotTripInfos.pickup_suburb !== false
-                        ? "from " + snapshotTripInfos.pickup_suburb !==
-                            undefined &&
-                          snapshotTripInfos.pickup_suburb !== false &&
-                          snapshotTripInfos.pickup_suburb !== null
-                          ? snapshotTripInfos.pickup_suburb.toUpperCase()
-                          : "near your location" +
-                              " to " +
-                              snapshotTripInfos.destination_suburb !==
+                            snapshotTripInfos.pickup_suburb !== false &&
+                            snapshotTripInfos.pickup_suburb !== null
+                            ? snapshotTripInfos.pickup_suburb.toUpperCase()
+                            : "near your location" +
+                                " to " +
+                                snapshotTripInfos.destination_suburb !==
+                                undefined &&
+                              snapshotTripInfos.destination_suburb !== false &&
+                              snapshotTripInfos.destination_suburb !== null
+                            ? snapshotTripInfos.destination_suburb.toUpperCase()
+                            : "near your location" +
+                              ". Click here for more details."
+                          : "near your location, click here for more details."),
+                    }
+                  : {
+                      en:
+                        "You have a new delivery request " +
+                        (snapshotTripInfos.pickup_suburb !== false
+                          ? "from " + snapshotTripInfos.pickup_suburb !==
                               undefined &&
-                            snapshotTripInfos.destination_suburb !== false &&
-                            snapshotTripInfos.destination_suburb !== null
-                          ? snapshotTripInfos.destination_suburb.toUpperCase()
-                          : "near your location" +
-                            ". Click here for more details."
-                        : "near your location, click here for more details."),
-                  },
-              headings: /RIDE/i.test(snapshotTripInfos.ride_type)
-                ? { en: "New ride request, N$" + snapshotTripInfos.fare }
-                : { en: "New delivery request, N$" + snapshotTripInfos.fare },
-              content_available: true,
-              include_player_ids: driversPushNotif_token,
-            };
-            //Send
-            sendPushUPNotification(message);
+                            snapshotTripInfos.pickup_suburb !== false &&
+                            snapshotTripInfos.pickup_suburb !== null
+                            ? snapshotTripInfos.pickup_suburb.toUpperCase()
+                            : "near your location" +
+                                " to " +
+                                snapshotTripInfos.destination_suburb !==
+                                undefined &&
+                              snapshotTripInfos.destination_suburb !== false &&
+                              snapshotTripInfos.destination_suburb !== null
+                            ? snapshotTripInfos.destination_suburb.toUpperCase()
+                            : "near your location" +
+                              ". Click here for more details."
+                          : "near your location, click here for more details."),
+                    },
+                headings: /RIDE/i.test(snapshotTripInfos.ride_type)
+                  ? { en: "New ride request, N$" + snapshotTripInfos.fare }
+                  : { en: "New delivery request, N$" + snapshotTripInfos.fare },
+                content_available: true,
+                include_player_ids: driversPushNotif_token,
+              };
+              //Send
+              sendPushUPNotification(message);
+              resNotify(true);
+            })
+              .then()
+              .catch();
+
             resolve({ response: "successfully_dispatched" });
           }
         );
@@ -1402,7 +1408,7 @@ function sendStagedNotificationsDrivers(
                   channel.assertQueue(
                     process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
                     {
-                      durable: false,
+                      durable: true,
                     }
                   );
                   //Send message
@@ -1419,7 +1425,7 @@ function sendStagedNotificationsDrivers(
                     process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
                     Buffer.from(JSON.stringify(message)),
                     {
-                      //persistent: true,
+                      persistent: true,
                     }
                   );
                 });
@@ -1521,7 +1527,7 @@ function sendStagedNotificationsDrivers(
                 channel.assertQueue(
                   process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
                   {
-                    durable: false,
+                    durable: true,
                   }
                 );
                 //Send message
@@ -1536,7 +1542,7 @@ function sendStagedNotificationsDrivers(
                   process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
                   Buffer.from(JSON.stringify(message)),
                   {
-                    //persistent: true,
+                    persistent: true,
                   }
                 );
               });
@@ -1998,7 +2004,7 @@ function confirmDropoff_fromRider_side(
                 "operational_state.last_location.city":
                   tripData[0].pickup_location_infos.city,
               };
-              console.trace(driverFilter);
+
               collectionDrivers_profiles
                 .find(driverFilter)
                 .collation({ locale: "en", strength: 2 })
@@ -2015,7 +2021,7 @@ function confirmDropoff_fromRider_side(
                         channel.assertQueue(
                           process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
                           {
-                            durable: false,
+                            durable: true,
                           }
                         );
                         //Send message
@@ -2028,7 +2034,7 @@ function confirmDropoff_fromRider_side(
                             : tripData[0].ride_mode,
                           user_nature: "driver",
                         };
-                        console.trace(message);
+
                         channel.sendToQueue(
                           process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
                           Buffer.from(JSON.stringify(message)),
@@ -2144,7 +2150,7 @@ function cancelRider_request(
                             channel.assertQueue(
                               process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
                               {
-                                durable: false,
+                                durable: true,
                               }
                             );
                             //Send message
@@ -2157,7 +2163,7 @@ function cancelRider_request(
                                 : requestData[0].ride_mode,
                               user_nature: "driver",
                             };
-                            console.trace(message);
+
                             channel.sendToQueue(
                               process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
                               Buffer.from(JSON.stringify(message)),
@@ -2395,7 +2401,7 @@ function acceptRequest_driver(
                                 process.env
                                   .TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
                                 {
-                                  durable: false,
+                                  durable: true,
                                 }
                               );
                               //Send message
@@ -2648,7 +2654,7 @@ function cancelRequest_driver(
                 "operational_state.last_location.city":
                   result[0].pickup_location_infos.city,
               };
-              console.trace(driverFilter);
+
               collectionDrivers_profiles
                 .find(driverFilter)
                 .collation({ locale: "en", strength: 2 })
@@ -2665,7 +2671,7 @@ function cancelRequest_driver(
                         channel.assertQueue(
                           process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
                           {
-                            durable: false,
+                            durable: true,
                           }
                         );
                         //Send message
@@ -2676,7 +2682,7 @@ function cancelRequest_driver(
                             : result[0].ride_mode,
                           user_nature: "driver",
                         };
-                        console.trace(message);
+
                         channel.sendToQueue(
                           process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
                           Buffer.from(JSON.stringify(message)),
@@ -2939,7 +2945,7 @@ function confirmPickupRequest_driver(
                 "operational_state.last_location.city":
                   result[0].pickup_location_infos.city,
               };
-              console.trace(driverFilter);
+
               collectionDrivers_profiles
                 .find(driverFilter)
                 .collation({ locale: "en", strength: 2 })
@@ -2956,7 +2962,7 @@ function confirmPickupRequest_driver(
                         channel.assertQueue(
                           process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
                           {
-                            durable: false,
+                            durable: true,
                           }
                         );
                         //Send message
@@ -2967,7 +2973,7 @@ function confirmPickupRequest_driver(
                             : result[0].ride_mode,
                           user_nature: "driver",
                         };
-                        console.trace(message);
+
                         channel.sendToQueue(
                           process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
                           Buffer.from(JSON.stringify(message)),
@@ -3079,7 +3085,7 @@ function confirmDropoffRequest_driver(
                 "operational_state.last_location.city":
                   result[0].pickup_location_infos.city,
               };
-              console.trace(driverFilter);
+
               collectionDrivers_profiles
                 .find(driverFilter)
                 .collation({ locale: "en", strength: 2 })
@@ -3096,7 +3102,7 @@ function confirmDropoffRequest_driver(
                         channel.assertQueue(
                           process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
                           {
-                            durable: false,
+                            durable: true,
                           }
                         );
                         //Send message
@@ -3107,7 +3113,7 @@ function confirmDropoffRequest_driver(
                             : result[0].ride_mode,
                           user_nature: "driver",
                         };
-                        console.trace(message);
+
                         channel.sendToQueue(
                           process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
                           Buffer.from(JSON.stringify(message)),
@@ -3156,6 +3162,7 @@ function confirmDropoffRequest_driver(
                         }
                         //...
                         if (
+                          requestPrevData !== undefined &&
                           requestPrevData.length > 0 &&
                           requestPrevData[0].request_fp !== undefined &&
                           requestPrevData[0].request_fp !== null
@@ -3179,8 +3186,12 @@ function confirmDropoffRequest_driver(
                           //...
                           //? Update with new request - remove current request data
                           prevAcceptedData.total_passengers_number -= parseInt(
-                            driverData.accepted_requests_infos
-                              .total_passengers_number > 0
+                            driverData.accepted_requests_infos !== undefined &&
+                              driverData.accepted_requests_infos !== null &&
+                              driverData.accepted_requests_infos
+                                .total_passengers_number !== undefined &&
+                              driverData.accepted_requests_infos
+                                .total_passengers_number > 0
                               ? requestPrevData[0].passengers_number
                               : 0
                           ); //! DO not remove if the total number of passengers was zero already.
@@ -4104,7 +4115,7 @@ redisCluster.on("connect", function () {
                                           process.env
                                             .TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
                                           {
-                                            durable: false,
+                                            durable: true,
                                           }
                                         );
                                         //Send message
@@ -4312,7 +4323,7 @@ redisCluster.on("connect", function () {
                                 process.env
                                   .TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
                                 {
-                                  durable: false,
+                                  durable: true,
                                 }
                               );
                               //Send message
@@ -4416,7 +4427,7 @@ redisCluster.on("connect", function () {
                 channel.assertQueue(
                   process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
                   {
-                    durable: false,
+                    durable: true,
                   }
                 );
                 //Send message
@@ -4476,12 +4487,11 @@ redisCluster.on("connect", function () {
               );
             }).then(
               (result) => {
-                console.trace(result);
                 //! RABBITMQ MESSAGE
                 channel.assertQueue(
                   process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
                   {
-                    durable: false,
+                    durable: true,
                   }
                 );
                 //Send message
@@ -4501,14 +4511,12 @@ redisCluster.on("connect", function () {
                 res.send(result);
               },
               (error) => {
-                console.trace(error);
                 logger.info(error);
                 res.send({ response: "error_cancelling" });
               }
             );
           } //Invalid parameters
           else {
-            console.trace("error_cancelling");
             res.send({ response: "error_cancelling" });
           }
         });
@@ -4577,7 +4585,6 @@ redisCluster.on("connect", function () {
               );
             }).then(
               (result) => {
-                console.trace(result);
                 if (
                   result.response !== undefined &&
                   result.response !== null &&
@@ -4588,7 +4595,7 @@ redisCluster.on("connect", function () {
                   channel.assertQueue(
                     process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
                     {
-                      durable: false,
+                      durable: true,
                     }
                   );
                   //Send message
@@ -4663,7 +4670,7 @@ redisCluster.on("connect", function () {
                   channel.assertQueue(
                     process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
                     {
-                      durable: false,
+                      durable: true,
                     }
                   );
                   //Send message
@@ -4736,7 +4743,7 @@ redisCluster.on("connect", function () {
                   channel.assertQueue(
                     process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
                     {
-                      durable: false,
+                      durable: true,
                     }
                   );
                   //Send message
@@ -4812,7 +4819,7 @@ redisCluster.on("connect", function () {
                   channel.assertQueue(
                     process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
                     {
-                      durable: false,
+                      durable: true,
                     }
                   );
                   //Send message

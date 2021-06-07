@@ -1210,7 +1210,6 @@ function execTripChecker_Dispatcher(
                         );
                       }).then(
                         (resultFinal) => {
-                          console.trace(resultFinal);
                           //! SAVE THE FINAL FULL RESULT - for 15 min ------
                           redisCluster.setex(
                             RIDE_REDIS_KEY,
@@ -1242,13 +1241,6 @@ function execTripChecker_Dispatcher(
                   );
                 }).then(
                   (resultFinal) => {
-                    if (
-                      /23c9d088e03653169b9c18193a0b8dd329ea1e43eb0626ef9f16b5b979694a429710561a3cb3ddae/i.test(
-                        user_fingerprint
-                      )
-                    ) {
-                      console.trace(resultFinal);
-                    }
                     //! SAVE THE FINAL FULL RESULT - for 15 min ------
                     redisCluster.setex(
                       RIDE_REDIS_KEY,
@@ -3190,7 +3182,6 @@ function computeAndCacheRouteDestination(
                   );
                   //! ----------------------------------------------
                   ///DONE
-                  console.trace(result);
                   resolve(result);
                 },
                 (error) => {
@@ -4621,7 +4612,7 @@ redisCluster.on("connect", function () {
         //? 1. For rides/deliveries to be refresh in the cache and any other server right after the booking.
         //? Waiting for the message in the format {user_fingerprint:..., request_fp:...}
         channel.assertQueue(process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME, {
-          durable: false,
+          durable: true,
         });
         logger.info("[->RabbitMq] Waiting for messages");
         channel.consume(
@@ -4629,7 +4620,7 @@ redisCluster.on("connect", function () {
           function (message) {
             try {
               message = JSON.parse(message.content);
-              //console.trace(`Message received -> ${JSON.stringify(message)}`);
+              logger.info(`Message received -> ${JSON.stringify(message)}`);
               let url =
                 process.env.LOCAL_URL +
                 ":" +
