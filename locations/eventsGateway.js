@@ -996,12 +996,7 @@ io.on("connection", (socket) => {
    */
   socket.on("getRiders_walletInfos_io", function (req) {
     logger.info(req);
-    socket.emit("getRiders_walletInfos_io-response", {
-      total: 0,
-      response: "error",
-      tag: "invalid_parameters",
-    });
-    /*if (
+    if (
       req.user_fingerprint !== undefined &&
       req.user_fingerprint !== null &&
       req.mode !== undefined &&
@@ -1042,7 +1037,7 @@ io.on("connection", (socket) => {
         response: "error",
         tag: "invalid_parameters",
       });
-    }*/
+    }
   });
 
   /**

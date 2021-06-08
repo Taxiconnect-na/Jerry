@@ -391,12 +391,12 @@ function updateNext_paymentDateDrivers(
                 ); //In days
 
                 if (dateDiffChecker <= 0) {
-                  /*logger.info(
+                  logger.info(
                     `Found obsolete date, add 7 days --> Tag: ${driverData.driver_fingerprint.substr(
                       0,
                       10
                     )}`
-                  );*/
+                  );
                   //? Check the current comission state
                   let url =
                     process.env.LOCAL_URL +
@@ -423,7 +423,7 @@ function updateNext_paymentDateDrivers(
                                 process.env.DRIVERS_MAXIMUM_COMISSION_THRESHOLD
                               )
                             ) {
-                              /*amount += parseFloat(
+                              amount += parseFloat(
                                 body.header.remaining_commission
                               );
                               amount -= parseFloat(
@@ -438,7 +438,7 @@ function updateNext_paymentDateDrivers(
                                 logger.info(body.header);
                                 logger.info(driverData.driver_fingerprint);
                               }
-                              logger.info(amount);*/
+                              logger.info(amount);
                               //? Check the waiting period
                               if (
                                 parseFloat(
@@ -514,7 +514,7 @@ function updateNext_paymentDateDrivers(
                                             //Found a driver data
                                             resolveDate();
                                             //? Append the new suspension to the suspension array
-                                            /*let suspensionInfos_array =
+                                            let suspensionInfos_array =
                                               newDriverData[0]
                                                 .suspension_infos !==
                                                 undefined &&
@@ -523,15 +523,24 @@ function updateNext_paymentDateDrivers(
                                                 ? newDriverData[0]
                                                     .suspension_infos
                                                 : [];
-                                            suspensionInfos_array.push({
+                                            /*suspensionInfos_array.push({
                                               reason: "UNPAID_COMISSION",
                                               state: "SUSPENDED",
                                               amount: amount,
                                               bot_locker: "Junkstem",
                                               date: new Date(chaineDateUTC),
                                             });*/
+                                            suspensionInfos_array = [
+                                              {
+                                                reason: "UNPAID_COMISSION",
+                                                state: "SUSPENDED",
+                                                amount: amount,
+                                                bot_locker: "Junkstem",
+                                                date: new Date(chaineDateUTC),
+                                              },
+                                            ];
                                             //...
-                                            /*collectionDrivers_profiles.updateOne(
+                                            collectionDrivers_profiles.updateOne(
                                               {
                                                 driver_fingerprint:
                                                   driverData.driver_fingerprint,
@@ -539,7 +548,7 @@ function updateNext_paymentDateDrivers(
                                               {
                                                 $set: {
                                                   "operational_state.status":
-                                                    "online", //! PUT OFFLINE
+                                                    "offline", //! PUT OFFLINE
                                                   isDriverSuspended: false,
                                                   suspension_infos:
                                                     suspensionInfos_array,
@@ -555,7 +564,7 @@ function updateNext_paymentDateDrivers(
                                                 );
                                                 resPaymentCycle(true);
                                               }
-                                            );*/
+                                            );
                                             resPaymentCycle(true);
                                           } //No driver data found
                                           else {
@@ -564,7 +573,7 @@ function updateNext_paymentDateDrivers(
                                         });
                                     }
                                   });
-                                //logger.info(body.header);
+                                logger.info(body.header);
                               } //? Not yet over the waiting period
                               else {
                                 //? NOTIFICATION AREA
@@ -870,12 +879,20 @@ function lock_unlock_drivers(
             newDriverData[0].suspension_infos !== null
               ? newDriverData[0].suspension_infos
               : [];
-          suspensionInfos_array.push({
+          /*suspensionInfos_array.push({
             reason: reason,
             state: locking_state,
             bot_locker: locker,
             date: new Date(chaineDateUTC),
-          });
+          });*/
+          suspensionInfos_array = [
+            {
+              reason: reason,
+              state: locking_state,
+              bot_locker: locker,
+              date: new Date(chaineDateUTC),
+            },
+          ];
           //...
           collectionDrivers_profiles.updateOne(
             {
@@ -962,7 +979,7 @@ function sendComission_notificationsDrivers(
   };
   logger.info(messageText);
   //Send
-  //! TO UNCOMMENT!
+
   if (/production/i.test(String(process.env.EVIRONMENT))) {
     sendPushUPNotification(message);
   } //Notification development lock
@@ -1778,7 +1795,8 @@ function updateDrivers_walletCachedData(collectionDrivers_profiles, resolve) {
             ":" +
             process.env.ACCOUNTS_SERVICE_PORT +
             "/getDrivers_walletInfosDeep?user_fingerprint=" +
-            driverInfo.driver_fingerprint;
+            driverInfo.driver_fingerprint +
+            "&avoidCached_data=true";
 
           requestAPI(url, function (error, response, body) {
             if (error === null) {
@@ -1873,68 +1891,6 @@ redisCluster.on("connect", function () {
       resolveDate();
       //...
       logger.info(`[${chaineDateUTC}] - Watcher loopedi`);
-      //? 1. Clean X hold requests
-      new Promise((res1) => {
-        removeOldRequests_madeWithoutBeingAttended(
-          collectionPassengers_profiles,
-          collectionRidesDeliveryData,
-          res1
-        );
-      })
-        .then(
-          (result) => {
-            //logger.info(result);
-          },
-          (error) => {
-            //logger.info(error);
-          }
-        )
-        .catch((error) => {
-          //logger.info(error);
-        });
-
-      //? 2. Keep the drivers next payment date UP TO DATE
-      /*new Promise((res2) => {
-        updateNext_paymentDateDrivers(
-          collectionDrivers_profiles,
-          collectionWalletTransactions_logs,
-          collectionRidesDeliveryData,
-          collectionGlobalEvents,
-          res2
-        );
-      })
-        .then(
-          (result) => {
-            logger.info(result);
-          },
-          (error) => {
-            logger.info(error);
-          }
-        )
-        .catch((error) => {
-          logger.info(error);
-        });*/
-
-      //? 3. Observe all the scheduled requests for executions
-      new Promise((res3) => {
-        scheduledRequestsWatcher_junky(
-          collectionRidesDeliveryData,
-          collectionDrivers_profiles,
-          collectionPassengers_profiles,
-          res3
-        );
-      })
-        .then(
-          (result) => {
-            logger.info(result);
-          },
-          (error) => {
-            logger.info(error);
-          }
-        )
-        .catch((error) => {
-          logger.info(error);
-        });
 
       //? 4. Observe all the subscribeless requests
       /*new Promise((res4) => {
@@ -1989,10 +1945,73 @@ redisCluster.on("connect", function () {
         });
     }, process.env.INTERVAL_PERSISTER_MAIN_WATCHER_MILLISECONDS);
 
-    //! FOR HEAVY PROCESSES REQUIRING - 60sec
+    //! FOR HEAVY PROCESSES REQUIRING - 300sec
     _INTERVAL_PERSISTER_LATE_REQUESTS_HEAVY = setInterval(function () {
+      //? 1. Clean X hold requests
+      new Promise((res1) => {
+        removeOldRequests_madeWithoutBeingAttended(
+          collectionPassengers_profiles,
+          collectionRidesDeliveryData,
+          res1
+        );
+      })
+        .then(
+          (result) => {
+            //logger.info(result);
+          },
+          (error) => {
+            //logger.info(error);
+          }
+        )
+        .catch((error) => {
+          //logger.info(error);
+        });
+
+      //? 2. Keep the drivers next payment date UP TO DATE
+      new Promise((res2) => {
+        updateNext_paymentDateDrivers(
+          collectionDrivers_profiles,
+          collectionWalletTransactions_logs,
+          collectionRidesDeliveryData,
+          collectionGlobalEvents,
+          res2
+        );
+      })
+        .then(
+          (result) => {
+            logger.info(result);
+          },
+          (error) => {
+            logger.info(error);
+          }
+        )
+        .catch((error) => {
+          logger.info(error);
+        });
+
+      //? 3. Observe all the scheduled requests for executions
+      new Promise((res3) => {
+        scheduledRequestsWatcher_junky(
+          collectionRidesDeliveryData,
+          collectionDrivers_profiles,
+          collectionPassengers_profiles,
+          res3
+        );
+      })
+        .then(
+          (result) => {
+            logger.info(result);
+          },
+          (error) => {
+            logger.info(error);
+          }
+        )
+        .catch((error) => {
+          logger.info(error);
+        });
+
       //? 1. Refresh every driver's wallet
-      /*new Promise((res1) => {
+      new Promise((res1) => {
         updateDrivers_walletCachedData(collectionDrivers_profiles, res1);
       })
         .then(
@@ -2005,7 +2024,7 @@ redisCluster.on("connect", function () {
         )
         .catch((error) => {
           logger.info(error);
-        });*/
+        });
       //? 2. Reinforce the date type for the transaction logs
       /*new Promise((res2) => {
         collectionWalletTransactions_logs
@@ -2071,7 +2090,7 @@ redisCluster.on("connect", function () {
         .catch((error) => {
           logger.info(error);
         });*/
-    }, parseInt(process.env.INTERVAL_PERSISTER_MAIN_WATCHER_MILLISECONDS) * 12);
+    }, parseInt(process.env.INTERVAL_PERSISTER_MAIN_WATCHER_MILLISECONDS) * 30);
   });
 });
 
