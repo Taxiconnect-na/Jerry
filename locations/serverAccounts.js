@@ -1098,41 +1098,28 @@ function proceedTargeted_requestHistory_fetcher(
  * CACHED.
  * @param collectionRidesDeliveryData: the list of all the rides/deliveries
  * @param collectionDrivers_profiles: the list of all the drivers profiles
+ * @param avoidCached_data: to avoid the cached data
  * @param resolve
  */
 function getDaily_requestAmount_driver(
   collectionRidesDeliveryData,
   collectionDrivers_profiles,
   driver_fingerprint,
+  avoidCached_data = false,
   resolve
 ) {
   resolveDate();
   //Form the redis key
   let redisKey = "dailyAmount-" + driver_fingerprint;
+  console.log(driver_fingerprint);
   //..
   redisGet(redisKey).then(
     (resp) => {
-      if (resp !== null) {
+      if (resp !== null && avoidCached_data == false) {
         //Has a previous record
         try {
+          console.trace("CACHEDD");
           resp = JSON.parse(resp);
-          //Rehydrate the cached results
-          new Promise((res) => {
-            exec_computeDaily_amountMade(
-              collectionRidesDeliveryData,
-              collectionDrivers_profiles,
-              driver_fingerprint,
-              res
-            );
-          }).then(
-            (result) => {
-              //Cache as well
-              redisCluster.set(redisKey, JSON.stringify(result));
-            },
-            (error) => {
-              logger.info(error);
-            }
-          );
           //...
           resolve(resp);
         } catch (error) {
@@ -1165,6 +1152,7 @@ function getDaily_requestAmount_driver(
         }
       } //No computed amount yet - make a fresh request
       else {
+        console.trace("FRESHHH");
         new Promise((res) => {
           exec_computeDaily_amountMade(
             collectionRidesDeliveryData,
@@ -1238,6 +1226,7 @@ function exec_computeDaily_amountMade(
   resolveDate();
   //...
   //Get the driver's requests operation clearances
+  console.log(driver_fingerprint);
   collectionDrivers_profiles
     .find({ driver_fingerprint: driver_fingerprint })
     .toArray(function (error, driverProfile) {
@@ -1250,66 +1239,83 @@ function exec_computeDaily_amountMade(
           response: "error",
         });
       }
-      driverProfile = driverProfile[0];
-      //...
-      let filterRequest = {
-        taxi_id: driver_fingerprint,
-        "ride_state_vars.isRideCompleted_driverSide": true,
-        "ride_state_vars.isRideCompleted_riderSide": true,
-      };
+      if (driverProfile !== undefined && driverProfile.length > 0) {
+        driverProfile = driverProfile[0];
+        //...
+        let filterRequest = {
+          taxi_id: driver_fingerprint,
+          "ride_state_vars.isRideCompleted_driverSide": true,
+          "ride_state_vars.isRideCompleted_riderSide": true,
+        };
 
-      collectionRidesDeliveryData
-        .find(filterRequest)
-        .collation({ locale: "en", strength: 2 })
-        .toArray(function (err, requestsArray) {
-          if (err) {
-            resolve({
-              amount: 0,
-              currency: "NAD",
-              currency_symbol: "N$",
-              supported_requests_types:
-                driverProfile.operation_clearances.join("-"),
-              response: "error",
-            });
-          }
-          //...
-          let amount = 0;
-          if (requestsArray !== undefined && requestsArray.length > 0) {
-            requestsArray.map((request) => {
-              if (
-                String(chaineDateUTC).replace("T", " ").split(" ")[0].trim() ===
-                String(new Date(request.date_requested).toISOString())
-                  .replace("T", " ")
-                  .split(" ")[0]
-                  .trim()
-              ) {
-                //Same day
-                let tmpFare = parseFloat(request.fare);
-                amount += tmpFare;
-              }
-            });
-            resolve({
-              amount: amount,
-              currency: "NAD",
-              currency_symbol: "N$",
-              supported_requests_types:
-                driverProfile !== undefined && driverProfile !== null
-                  ? driverProfile.operation_clearances.join("-")
-                  : "Ride",
-              response: "success",
-            });
-          } //No infos
-          else {
-            resolve({
-              amount: 0,
-              currency: "NAD",
-              currency_symbol: "N$",
-              supported_requests_types:
-                driverProfile.operation_clearances.join("-"),
-              response: "error",
-            });
-          }
+        collectionRidesDeliveryData
+          .find(filterRequest)
+          .collation({ locale: "en", strength: 2 })
+          .toArray(function (err, requestsArray) {
+            if (err) {
+              resolve({
+                amount: 0,
+                currency: "NAD",
+                currency_symbol: "N$",
+                supported_requests_types:
+                  driverProfile !== undefined && driverProfile !== null
+                    ? driverProfile.operation_clearances.join("-")
+                    : "Ride",
+                response: "error",
+              });
+            }
+            //...
+            let amount = 0;
+            if (requestsArray !== undefined && requestsArray.length > 0) {
+              requestsArray.map((request) => {
+                if (
+                  String(chaineDateUTC)
+                    .replace("T", " ")
+                    .split(" ")[0]
+                    .trim() ===
+                  String(new Date(request.date_requested).toISOString())
+                    .replace("T", " ")
+                    .split(" ")[0]
+                    .trim()
+                ) {
+                  //Same day
+                  let tmpFare = parseFloat(request.fare);
+                  amount += tmpFare;
+                }
+              });
+              resolve({
+                amount: amount,
+                currency: "NAD",
+                currency_symbol: "N$",
+                supported_requests_types:
+                  driverProfile !== undefined && driverProfile !== null
+                    ? driverProfile.operation_clearances.join("-")
+                    : "Ride",
+                response: "success",
+              });
+            } //No infos
+            else {
+              resolve({
+                amount: 0,
+                currency: "NAD",
+                currency_symbol: "N$",
+                supported_requests_types:
+                  driverProfile !== undefined && driverProfile !== null
+                    ? driverProfile.operation_clearances.join("-")
+                    : "Ride",
+                response: "error",
+              });
+            }
+          });
+      } else {
+        resolve({
+          amount: 0,
+          currency: "NAD",
+          currency_symbol: "N$",
+          supported_requests_types: "none",
+          response: "error",
         });
+      }
     });
 }
 
@@ -1341,7 +1347,7 @@ function getRiders_wallet_summary(
   let redisKey = requestObj.user_fingerprint + "wallet-summary";
   redisGet(redisKey).then(
     (resp) => {
-      if (resp !== null) {
+      if (resp !== null && avoidCached_data == false) {
         logger.info("found cached data");
         //Has a previous record - reply with it and rehydrate the data
         try {
@@ -1355,7 +1361,8 @@ function getRiders_wallet_summary(
               collectionPassengers_profiles,
               redisKey,
               res,
-              userType
+              userType,
+              avoidCached_data
             );
           }).then(
             (result) => {
@@ -1391,7 +1398,8 @@ function getRiders_wallet_summary(
               collectionPassengers_profiles,
               redisKey,
               res,
-              userType
+              userType,
+              avoidCached_data
             );
           }).then(
             (result) => {
@@ -1417,7 +1425,8 @@ function getRiders_wallet_summary(
             collectionPassengers_profiles,
             redisKey,
             res,
-            userType
+            userType,
+            avoidCached_data
           );
         }).then(
           (result) => {
@@ -1444,7 +1453,8 @@ function getRiders_wallet_summary(
           collectionPassengers_profiles,
           redisKey,
           res,
-          userType
+          userType,
+          avoidCached_data
         );
       }).then(
         (result) => {
@@ -1652,6 +1662,7 @@ function parseDetailed_walletGetData(
  * @param collectionPassengers_profiles: collection of all the passengers.
  * @param resolve
  * @param user_type: rider or driver (the type of user for which to show the wallet details).
+ * @param avoidCached_data: to avoid cached data.
  *
  * ? transaction_nature types: topup, paidDriver, sentToDriver, sentToFriend.
  * ? The wallet payments for rides are stored in the rides/deliveries collection.
@@ -1664,13 +1675,14 @@ function execGet_ridersDrivers_walletSummary(
   collectionPassengers_profiles,
   redisKey,
   resolve,
-  user_type = "rider"
+  user_type = "rider",
+  avoidCached_data = false
 ) {
   let redisKeyHere = `${redisKey}-forExecRiders_drivers_summary`;
   redisGet(redisKeyHere)
     .then(
       (resp) => {
-        if (resp !== null) {
+        if (resp !== null && avoidCached_data == false) {
           //? Refresh the cached data
           new Promise((resFresh) => {
             truelyExec_ridersDrivers_walletSummary(
@@ -2451,21 +2463,7 @@ function computeDriver_walletDeepInsights(
         if (resp !== null && avoidCached_data == false) {
           //Send cached data
           try {
-            //Rehydrate cached data
-            new Promise((resNewData) => {
-              execGet_driversDeepInsights_fromWalletData(
-                walletBasicData,
-                collectionWalletTransactions_logs,
-                driver_fingerprint,
-                redisKey,
-                resNewData
-              );
-            }).then(
-              () => {},
-              () => {}
-            );
-            //-------
-            logger.info("FOUND CACHED DATA");
+            console.trace("FOUND CACHED DATA");
             resp = parse(resp);
             resolve(resp);
           } catch (error) {
@@ -2504,6 +2502,7 @@ function computeDriver_walletDeepInsights(
           }
         } //? Send freshly computed data
         else {
+          console.trace("FRESH DATA");
           new Promise((resNewData) => {
             execGet_driversDeepInsights_fromWalletData(
               walletBasicData,
@@ -3122,9 +3121,10 @@ function execGet_driversDeepInsights_fromWalletData(
                             //? Update the next payout date var
                             _GLOBAL_OBJECT.header.scheduled_payment_date =
                               resultPayoutDate;
-                            //! Cache data
-                            redisCluster.set(
+                            //! Cache data --- 45 min
+                            redisCluster.setex(
                               redisKey,
+                              process.env.REDIS_EXPIRATION_5MIN * 9,
                               stringify(_GLOBAL_OBJECT)
                             );
                             resolve(_GLOBAL_OBJECT);
@@ -4800,6 +4800,10 @@ redisCluster.on("connect", function () {
               collectionRidesDeliveryData,
               collectionDrivers_profiles,
               req.driver_fingerprint,
+              req.avoidCached_data !== undefined &&
+                req.avoidCached_data !== null
+                ? true
+                : false,
               res0
             );
           }).then(

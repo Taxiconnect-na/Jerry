@@ -4646,6 +4646,34 @@ redisCluster.on("connect", function () {
             }
           }
         );
+
+        //? 2. For updating the daily amount for the drivers
+        //? Waiting for the message in the format {driver_fingerprint}
+        channel.assertQueue(process.env.TRIPS_DAILY_AMOUNT_DRIVERS_QUEUE, {
+          durable: true,
+        });
+        channel.consume(
+          process.env.TRIPS_DAILY_AMOUNT_DRIVERS_QUEUE,
+          function (message) {
+            try {
+              message = JSON.parse(message.content);
+              logger.info(`Message received -> ${JSON.stringify(message)}`);
+              let url =
+                process.env.LOCAL_URL +
+                ":" +
+                process.env.ACCOUNTS_SERVICE_PORT +
+                "/computeDaily_amountMadeSoFar?driver_fingerprint=" +
+                message.driver_fingerprint +
+                "&avoidCached_data=true";
+              //...
+              requestAPI.get(url, function (error, response, body) {
+                console.log(body);
+              });
+            } catch (error) {
+              logger.warn(error);
+            }
+          }
+        );
         //! ----------
 
         /**

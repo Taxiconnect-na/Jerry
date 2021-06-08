@@ -4,3 +4,5 @@
 locations/node_modules
 combined.log
 newrelic_agent.log
+locations/combined.log
+locations/newrelic_agent.log

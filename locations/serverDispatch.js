@@ -2067,7 +2067,22 @@ function confirmDropoff_fromRider_side(
         .then()
         .catch();
       //..
-      resolve({ response: "successfully_confirmed" });
+      collectionRidesDeliveryData
+        .find(retrieveTrip)
+        .toArray(function (err, result) {
+          if (err) {
+            resolve({ response: "successfully_confirmed" });
+          }
+          //...
+          if (result !== undefined && result.length > 0) {
+            resolve({
+              response: "successfully_confirmed",
+              driver_fp: result[0].taxi_id,
+            });
+          } else {
+            resolve({ response: "successfully_confirmed" });
+          }
+        });
     }
   );
 }
@@ -4438,6 +4453,27 @@ redisCluster.on("connect", function () {
                 };
                 channel.sendToQueue(
                   process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
+                  Buffer.from(JSON.stringify(message)),
+                  {
+                    persistent: true,
+                  }
+                );
+                //! Send message to update the driver's daily amount
+                channel.assertQueue(
+                  process.env.TRIPS_DAILY_AMOUNT_DRIVERS_QUEUE,
+                  {
+                    durable: true,
+                  }
+                );
+                //Send message
+                message = {
+                  driver_fingerprint:
+                    result.driver_fp !== undefined && result.driver_fp !== null
+                      ? result.driver_fp
+                      : "unknown_fp",
+                };
+                channel.sendToQueue(
+                  process.env.TRIPS_DAILY_AMOUNT_DRIVERS_QUEUE,
                   Buffer.from(JSON.stringify(message)),
                   {
                     persistent: true,
