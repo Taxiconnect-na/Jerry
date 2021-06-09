@@ -538,11 +538,11 @@ function updateRidersRealtimeLocationData(
   resolveDate();
   //! Check if a driver has a ongoing trip and update the rider's realtime
   //! location of the car in the map.
-  if (/driver/i.test(locationData.user_fingerprint)) {
+  if (/rider/i.test(locationData.user_nature)) {
     new Promise((res0) => {
       collectionRidesDeliveries_data
         .find({
-          taxi_id: locationData.user_fingerprint,
+          client_id: locationData.user_fingerprint,
           "ride_state_vars.isRideCompleted_driverSide": false,
         })
         .toArray(function (err, tripData) {
@@ -588,6 +588,7 @@ function updateRidersRealtimeLocationData(
                 res0(false);
               });
           } else {
+            logger.info("No rides pending");
             res0(false);
           }
         });
@@ -595,7 +596,7 @@ function updateRidersRealtimeLocationData(
       .then()
       .catch();
   }
-  //! -----
+  //! ------------------------------------------------------------------
   //Update location log for riders
   new Promise((res) => {
     updateRiderLocationsLog(
