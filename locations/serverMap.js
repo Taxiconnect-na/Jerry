@@ -519,19 +519,83 @@ function getRouteInfos(coordsInfos, resolve) {
 
 /**
  * @func updateRidersRealtimeLocationData()
+ * @param collectionRidesDeliveries_data: list of trips.
+ * @param channel: rabbitmq communication channel.
  * @params mongoCollection, collectionRidersLocation_log, collectionDrivers_profiles, locationData
  * Update the rider's location informations in monogDB everytime a change occurs in the rider's app
  * related to the positioning.
  * Use promises as much as possible.
  */
 function updateRidersRealtimeLocationData(
+  collectionRidesDeliveries_data,
   collectionRidersLocation_log,
   collectionDrivers_profiles,
   collectionPassengers_profiles,
   locationData,
+  channel,
   resolve
 ) {
   resolveDate();
+  //! Check if a driver has a ongoing trip and update the rider's realtime
+  //! location of the car in the map.
+  if (/driver/i.test(locationData.user_fingerprint)) {
+    new Promise((res0) => {
+      collectionRidesDeliveries_data
+        .find({
+          taxi_id: locationData.user_fingerprint,
+          "ride_state_vars.isRideCompleted_driverSide": false,
+        })
+        .toArray(function (err, tripData) {
+          if (err) {
+            res0(false);
+          }
+          //...
+          if (tripData !== undefined && tripData.length > 0) {
+            //Found some rides
+            let parentPromises = tripData.map((tripInfos) => {
+              return new Promise((resCompute) => {
+                //! RABBITMQ MESSAGE
+                channel.assertQueue(
+                  process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
+                  {
+                    durable: true,
+                  }
+                );
+                //Send message
+                let message = {
+                  user_fingerprint: tripInfos.client_id,
+                  requestType: "rides",
+                  user_nature: "rider",
+                };
+                channel.sendToQueue(
+                  process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
+                  Buffer.from(JSON.stringify(message)),
+                  {
+                    persistent: true,
+                  }
+                );
+                //...
+                resCompute(message);
+              });
+            });
+            //DONE
+            Promise.all(parentPromises)
+              .then(() => {
+                res0(true);
+              })
+              .catch((error) => {
+                logger.warn(error);
+                res0(false);
+              });
+          } else {
+            res0(false);
+          }
+        });
+    })
+      .then()
+      .catch();
+  }
+  //! -----
   //Update location log for riders
   new Promise((res) => {
     updateRiderLocationsLog(
@@ -4912,10 +4976,12 @@ redisCluster.on("connect", function () {
               //Update rider's location - promise always
               let pro4 = new Promise((resolve2) => {
                 updateRidersRealtimeLocationData(
+                  collectionRidesDeliveries_data,
                   collectionRidersLocation_log,
                   collectionDrivers_profiles,
                   collectionPassengers_profiles,
                   req,
+                  channel,
                   resolve2
                 );
               }).then(
