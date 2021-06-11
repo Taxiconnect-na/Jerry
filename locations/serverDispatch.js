@@ -3597,70 +3597,74 @@ function diff_hours(dt1, dt2) {
 redisCluster.on("connect", function () {
   logger.info("[*] Redis connected");
   //Connect to Rabbit
-  amqp.connect("amqp://localhost", function (error0, connection) {
-    if (error0) {
-      throw error0;
-    }
-    //...
-    //...Create a channel
-    connection.createChannel(function (error1, channel) {
-      if (error1) {
-        throw error1;
+  amqp.connect(
+    /production/i.test(process.env.EVIRONMENT)
+      ? "amqp://user:RAbbitmqtestAwstaxiconn20something@172.31.21.87:5672/"
+      : "amqp://localhost",
+    function (error0, connection) {
+      if (error0) {
+        throw error0;
       }
       //...
-      logger.info("[*] Rabbitmq connected");
+      //...Create a channel
+      connection.createChannel(function (error1, channel) {
+        if (error1) {
+          throw error1;
+        }
+        //...
+        logger.info("[*] Rabbitmq connected");
 
-      clientMongo.connect(function (err) {
-        //if (err) throw err;
-        logger.info("[+] Dispatch services active.");
-        const dbMongo = clientMongo.db(process.env.DB_NAME_MONGODDB);
-        const collectionPassengers_profiles = dbMongo.collection(
-          "passengers_profiles"
-        ); //Hold the information about the riders
-        const collectionRidesDeliveryData = dbMongo.collection(
-          "rides_deliveries_requests"
-        ); //Hold all the requests made (rides and deliveries)
-        const collection_cancelledRidesDeliveryData = dbMongo.collection(
-          "cancelled_rides_deliveries_requests"
-        ); //Hold all the cancelled requests made (rides and deliveries)
-        const collectionRelativeDistances = dbMongo.collection(
-          "relative_distances_riders_drivers"
-        ); //Hold the relative distances between rider and the drivers (online, same city, same country) at any given time
-        const collectionRidersDriversLocation_log = dbMongo.collection(
-          "historical_positioning_logs"
-        ); //Hold all the location updated from the rider
-        const collectionDrivers_profiles =
-          dbMongo.collection("drivers_profiles"); //Hold all the drivers profiles
-        const collectionGlobalEvents = dbMongo.collection("global_events"); //Hold all the random events that happened somewhere.
-        const collectionWalletTransactions_logs = dbMongo.collection(
-          "wallet_transactions_logs"
-        ); //Hold the latest information about the riders topups
-        //-------------
-        const bodyParser = require("body-parser");
-        app
-          .get("/", function (req, res) {
-            res.send("Dispatch services up");
-          })
-          .use(
-            bodyParser.json({
-              limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
-              extended: true,
+        clientMongo.connect(function (err) {
+          //if (err) throw err;
+          logger.info("[+] Dispatch services active.");
+          const dbMongo = clientMongo.db(process.env.DB_NAME_MONGODDB);
+          const collectionPassengers_profiles = dbMongo.collection(
+            "passengers_profiles"
+          ); //Hold the information about the riders
+          const collectionRidesDeliveryData = dbMongo.collection(
+            "rides_deliveries_requests"
+          ); //Hold all the requests made (rides and deliveries)
+          const collection_cancelledRidesDeliveryData = dbMongo.collection(
+            "cancelled_rides_deliveries_requests"
+          ); //Hold all the cancelled requests made (rides and deliveries)
+          const collectionRelativeDistances = dbMongo.collection(
+            "relative_distances_riders_drivers"
+          ); //Hold the relative distances between rider and the drivers (online, same city, same country) at any given time
+          const collectionRidersDriversLocation_log = dbMongo.collection(
+            "historical_positioning_logs"
+          ); //Hold all the location updated from the rider
+          const collectionDrivers_profiles =
+            dbMongo.collection("drivers_profiles"); //Hold all the drivers profiles
+          const collectionGlobalEvents = dbMongo.collection("global_events"); //Hold all the random events that happened somewhere.
+          const collectionWalletTransactions_logs = dbMongo.collection(
+            "wallet_transactions_logs"
+          ); //Hold the latest information about the riders topups
+          //-------------
+          const bodyParser = require("body-parser");
+          app
+            .get("/", function (req, res) {
+              res.send("Dispatch services up");
             })
-          )
-          .use(
-            bodyParser.urlencoded({
-              limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
-              extended: true,
-            })
-          );
+            .use(
+              bodyParser.json({
+                limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
+                extended: true,
+              })
+            )
+            .use(
+              bodyParser.urlencoded({
+                limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
+                extended: true,
+              })
+            );
 
-        /**
-         * PARSE DATA WITHOUT DISPATCH
-         * Responsible for parsing the raw data without any dispatch
-         */
-        app.post("/parseRequestData_withoutDispatch", function (req, res) {
-          req = req.body;
-          /*req = {
+          /**
+           * PARSE DATA WITHOUT DISPATCH
+           * Responsible for parsing the raw data without any dispatch
+           */
+          app.post("/parseRequestData_withoutDispatch", function (req, res) {
+            req = req.body;
+            /*req = {
           actualRider: "me",
           actualRiderPhone_number: false,
           carTypeSelected: "normalTaxiEconomy",
@@ -3723,89 +3727,132 @@ redisCluster.on("connect", function () {
           car_fingerprint:
             "7df7fdfd528c258a1a6da994941d1d5ca1e8a0c3452f3198d0725d8cf432e3ab2c325232df92f2af",
         };*/
-          //...
-          if (req.request_fp !== undefined) {
-            //is present
-            new Promise((resParse) => {
-              parseRequestData(req, resParse);
-            })
-              .then(
-                (result) => {
-                  res.send(result);
-                },
-                (error) => {
+            //...
+            if (req.request_fp !== undefined) {
+              //is present
+              new Promise((resParse) => {
+                parseRequestData(req, resParse);
+              })
+                .then(
+                  (result) => {
+                    res.send(result);
+                  },
+                  (error) => {
+                    logger.info(error);
+                    res.send({ message: "Error parsing data", flag: error });
+                  }
+                )
+                .catch((error) => {
                   logger.info(error);
                   res.send({ message: "Error parsing data", flag: error });
-                }
-              )
-              .catch((error) => {
-                logger.info(error);
-                res.send({ message: "Error parsing data", flag: error });
-              });
-          } //No valid data received
-          else {
-            res.send({ message: "No valid data received" });
-          }
-        });
+                });
+            } //No valid data received
+            else {
+              res.send({ message: "No valid data received" });
+            }
+          });
 
-        /**
-         * REQUESTS GRAPH ASSEMBLER
-         * Responsible for getting the requests graphs to help the drivers selectedd the correct tab easily.
-         */
-        app.get("/getRequests_graphNumbers", function (req, res) {
-          new Promise((resMAIN) => {
-            resolveDate();
-            let params = urlParser.parse(req.url, true);
-            req = params.query;
+          /**
+           * REQUESTS GRAPH ASSEMBLER
+           * Responsible for getting the requests graphs to help the drivers selectedd the correct tab easily.
+           */
+          app.get("/getRequests_graphNumbers", function (req, res) {
+            new Promise((resMAIN) => {
+              resolveDate();
+              let params = urlParser.parse(req.url, true);
+              req = params.query;
 
-            if (req.driver_fingerprint !== undefined) {
-              let redisKey = `requestsGraph-${req.driver_fingerprint}`;
-              //OK
-              redisGet(redisKey).then(
-                (resp) => {
-                  if (resp !== null) {
-                    try {
-                      logger.info("cached resullts found!");
-                      //? Rehyddrate the cached results
-                      new Promise((res0) => {
-                        getRequests_graphPreview_forDrivers(
-                          req.driver_fingerprint,
-                          collectionRidesDeliveryData,
-                          collectionDrivers_profiles,
-                          res0
-                        );
-                      })
-                        .then(
-                          (result) => {
-                            redisCluster.setex(
-                              redisKey,
-                              process.env.REDIS_EXPIRATION_5MIN * 6,
-                              JSON.stringify(result)
-                            );
-                          },
-                          (error) => {
+              if (req.driver_fingerprint !== undefined) {
+                let redisKey = `requestsGraph-${req.driver_fingerprint}`;
+                //OK
+                redisGet(redisKey).then(
+                  (resp) => {
+                    if (resp !== null) {
+                      try {
+                        logger.info("cached resullts found!");
+                        //? Rehyddrate the cached results
+                        new Promise((res0) => {
+                          getRequests_graphPreview_forDrivers(
+                            req.driver_fingerprint,
+                            collectionRidesDeliveryData,
+                            collectionDrivers_profiles,
+                            res0
+                          );
+                        })
+                          .then(
+                            (result) => {
+                              redisCluster.setex(
+                                redisKey,
+                                process.env.REDIS_EXPIRATION_5MIN * 6,
+                                JSON.stringify(result)
+                              );
+                            },
+                            (error) => {
+                              logger.info(error);
+                              redisCluster.setex(
+                                redisKey,
+                                process.env.REDIS_EXPIRATION_5MIN * 6,
+                                JSON.stringify(result)
+                              );
+                            }
+                          )
+                          .catch((error) => {
                             logger.info(error);
                             redisCluster.setex(
                               redisKey,
                               process.env.REDIS_EXPIRATION_5MIN * 6,
                               JSON.stringify(result)
                             );
-                          }
-                        )
-                        .catch((error) => {
-                          logger.info(error);
-                          redisCluster.setex(
-                            redisKey,
-                            process.env.REDIS_EXPIRATION_5MIN * 6,
-                            JSON.stringify(result)
+                          });
+                        //...
+                        resp = JSON.parse(resp);
+                        //...Return the cached results quickly
+                        resMAIN(resp);
+                      } catch (error) {
+                        logger.info(error);
+                        new Promise((res0) => {
+                          getRequests_graphPreview_forDrivers(
+                            req.driver_fingerprint,
+                            collectionRidesDeliveryData,
+                            collectionDrivers_profiles,
+                            res0
                           );
-                        });
-                      //...
-                      resp = JSON.parse(resp);
-                      //...Return the cached results quickly
-                      resMAIN(resp);
-                    } catch (error) {
-                      logger.info(error);
+                        })
+                          .then(
+                            (result) => {
+                              redisCluster.setex(
+                                redisKey,
+                                process.env.REDIS_EXPIRATION_5MIN * 6,
+                                JSON.stringify(result)
+                              );
+                              resMAIN(result);
+                            },
+                            (error) => {
+                              logger.info(error);
+                              redisCluster.setex(
+                                redisKey,
+                                process.env.REDIS_EXPIRATION_5MIN * 6,
+                                JSON.stringify(result)
+                              );
+                              resMAIN({
+                                rides: 0,
+                                deliveries: 0,
+                                scheduled: 0,
+                              });
+                            }
+                          )
+                          .catch((error) => {
+                            logger.info(error);
+                            redisCluster.setex(
+                              redisKey,
+                              process.env.REDIS_EXPIRATION_5MIN * 6,
+                              JSON.stringify(result)
+                            );
+                            resMAIN({ rides: 0, deliveries: 0, scheduled: 0 });
+                          });
+                      }
+                    } //No cached data yet
+                    else {
                       new Promise((res0) => {
                         getRequests_graphPreview_forDrivers(
                           req.driver_fingerprint,
@@ -3843,8 +3890,9 @@ redisCluster.on("connect", function () {
                           resMAIN({ rides: 0, deliveries: 0, scheduled: 0 });
                         });
                     }
-                  } //No cached data yet
-                  else {
+                  },
+                  (error) => {
+                    logger.info(error);
                     new Promise((res0) => {
                       getRequests_graphPreview_forDrivers(
                         req.driver_fingerprint,
@@ -3882,113 +3930,73 @@ redisCluster.on("connect", function () {
                         resMAIN({ rides: 0, deliveries: 0, scheduled: 0 });
                       });
                   }
-                },
-                (error) => {
-                  logger.info(error);
-                  new Promise((res0) => {
-                    getRequests_graphPreview_forDrivers(
-                      req.driver_fingerprint,
-                      collectionRidesDeliveryData,
-                      collectionDrivers_profiles,
-                      res0
-                    );
-                  })
-                    .then(
-                      (result) => {
-                        redisCluster.setex(
-                          redisKey,
-                          process.env.REDIS_EXPIRATION_5MIN * 6,
-                          JSON.stringify(result)
-                        );
-                        resMAIN(result);
-                      },
-                      (error) => {
-                        logger.info(error);
-                        redisCluster.setex(
-                          redisKey,
-                          process.env.REDIS_EXPIRATION_5MIN * 6,
-                          JSON.stringify(result)
-                        );
-                        resMAIN({ rides: 0, deliveries: 0, scheduled: 0 });
-                      }
-                    )
-                    .catch((error) => {
-                      logger.info(error);
-                      redisCluster.setex(
-                        redisKey,
-                        process.env.REDIS_EXPIRATION_5MIN * 6,
-                        JSON.stringify(result)
-                      );
-                      resMAIN({ rides: 0, deliveries: 0, scheduled: 0 });
-                    });
-                }
-              );
-            } //Invalid params
-            else {
-              resMAIN({ rides: 0, deliveries: 0, scheduled: 0 });
-            }
-          })
-            .then((result) => {
-              res.send(result);
+                );
+              } //Invalid params
+              else {
+                resMAIN({ rides: 0, deliveries: 0, scheduled: 0 });
+              }
             })
-            .catch((error) => {
-              logger.info(error);
-              resMAIN({ rides: 0, deliveries: 0, scheduled: 0 });
-            });
-        });
-
-        /**
-         * RIDES OR DELIVERY DECOUPLED DISPATCHER
-         * Responsible for redispatching already parsed requests.
-         * @param requestStructured: already parsed request coming straight from Mongo
-         */
-        app.post("/redispatcherAlreadyParsedRequests", function (req, res) {
-          req = req.body;
-          new Promise((resInit) => {
-            INIT_RIDE_DELIVERY_DISPATCH_ENTRY(
-              req,
-              collectionDrivers_profiles,
-              collectionRidesDeliveryData,
-              resInit
-            );
-          }).then(
-            (resultDispatch) => {
-              //...
-              res.send(resultDispatch);
-            },
-            (error) => {
-              logger.info(error);
-              res.send({
-                response: "Unable_to_redispatch_the_request",
+              .then((result) => {
+                res.send(result);
+              })
+              .catch((error) => {
+                logger.info(error);
+                resMAIN({ rides: 0, deliveries: 0, scheduled: 0 });
               });
+          });
+
+          /**
+           * RIDES OR DELIVERY DECOUPLED DISPATCHER
+           * Responsible for redispatching already parsed requests.
+           * @param requestStructured: already parsed request coming straight from Mongo
+           */
+          app.post("/redispatcherAlreadyParsedRequests", function (req, res) {
+            req = req.body;
+            new Promise((resInit) => {
+              INIT_RIDE_DELIVERY_DISPATCH_ENTRY(
+                req,
+                collectionDrivers_profiles,
+                collectionRidesDeliveryData,
+                resInit
+              );
+            }).then(
+              (resultDispatch) => {
+                //...
+                res.send(resultDispatch);
+              },
+              (error) => {
+                logger.info(error);
+                res.send({
+                  response: "Unable_to_redispatch_the_request",
+                });
+              }
+            );
+          });
+
+          /**
+           * @func ucFirst
+           * Responsible to uppercase only the first character and lowercase the rest.
+           * @param stringData: the string to be processed.
+           */
+          function ucFirst(stringData) {
+            try {
+              return `${stringData[0].toUpperCase()}${stringData.substr(1).toLowerCase()}`;
+            } catch (error) {
+              logger.info(error);
+              return stringData;
             }
-          );
-        });
-
-        /**
-         * @func ucFirst
-         * Responsible to uppercase only the first character and lowercase the rest.
-         * @param stringData: the string to be processed.
-         */
-        function ucFirst(stringData) {
-          try {
-            return `${stringData[0].toUpperCase()}${stringData.substr(1).toLowerCase()}`;
-          } catch (error) {
-            logger.info(error);
-            return stringData;
           }
-        }
 
-        /**
-         * RIDES OR DELIVERY DISPATCHER
-         * Responsible for sending staged ride or delivery requests to the drivers in the best position
-         * of accepting it.
-         * @param requestRawData: ride or delivery data coming from the rider's device for booking (MUST contain the city and country)
-         */
-        app.post("/dispatchRidesOrDeliveryRequests", function (req, res) {
-          req = req.body;
-          //TEST DATA
-          /*let testData = {
+          /**
+           * RIDES OR DELIVERY DISPATCHER
+           * Responsible for sending staged ride or delivery requests to the drivers in the best position
+           * of accepting it.
+           * @param requestRawData: ride or delivery data coming from the rider's device for booking (MUST contain the city and country)
+           */
+          app.post("/dispatchRidesOrDeliveryRequests", function (req, res) {
+            req = req.body;
+            //TEST DATA
+            /*let testData = {
             actualRider: "someonelese",
             actualRiderPhone_number: "0817563369",
             carTypeSelected: "normalTaxiEconomy",
@@ -4064,338 +4072,354 @@ redisCluster.on("connect", function () {
               "5b29bb1b9ac69d884f13fd4be2badcd22b72b98a69189bfab806dcf7c5f5541b6cbe8087cf60c791",
           };
           req = testData;*/
-          //...
-          if (
-            req.user_fingerprint !== undefined &&
-            req.user_fingerprint !== null
-          ) {
-            //1. CHECK THAT THIS RIDER DOESN'T ALREADY HAVE AN ACTIVE RIDE/DELIVERY
-            //Request is considered as completed when the rider has submited a rating.
-            let checkPrevRequest = {
-              client_id: req.user_fingerprint,
-              isArrivedToDestination: false,
-            }; //?Indexed
-            collectionRidesDeliveryData
-              .find(checkPrevRequest)
-              .toArray(function (err, prevRequest) {
-                if (
-                  prevRequest === undefined ||
-                  prevRequest === null ||
-                  prevRequest.length <= 0 ||
-                  prevRequest[0] === undefined
-                ) {
-                  //No previous pending request - MAKE REQUEST VALID
-                  //Parse the data
-                  new Promise((res) => {
-                    parseRequestData(req, res);
-                  }).then(
-                    (result) => {
-                      let parsedRequest = result;
-                      if (result !== false) {
-                        //! IF WALLET SELECTED - CHECK THE BALANCE, it should be >= to the trip fare, else ERROR_UNSIFFICIENT_FUNDS
-                        if (/wallet/i.test(result.payment_method)) {
-                          //? WALLET PAYMENT METHOD
-                          let url = `
+            //...
+            if (
+              req.user_fingerprint !== undefined &&
+              req.user_fingerprint !== null
+            ) {
+              //1. CHECK THAT THIS RIDER DOESN'T ALREADY HAVE AN ACTIVE RIDE/DELIVERY
+              //Request is considered as completed when the rider has submited a rating.
+              let checkPrevRequest = {
+                client_id: req.user_fingerprint,
+                isArrivedToDestination: false,
+              }; //?Indexed
+              collectionRidesDeliveryData
+                .find(checkPrevRequest)
+                .toArray(function (err, prevRequest) {
+                  if (
+                    prevRequest === undefined ||
+                    prevRequest === null ||
+                    prevRequest.length <= 0 ||
+                    prevRequest[0] === undefined
+                  ) {
+                    //No previous pending request - MAKE REQUEST VALID
+                    //Parse the data
+                    new Promise((res) => {
+                      parseRequestData(req, res);
+                    }).then(
+                      (result) => {
+                        let parsedRequest = result;
+                        if (result !== false) {
+                          //! IF WALLET SELECTED - CHECK THE BALANCE, it should be >= to the trip fare, else ERROR_UNSIFFICIENT_FUNDS
+                          if (/wallet/i.test(result.payment_method)) {
+                            //? WALLET PAYMENT METHOD
+                            let url = `
                         ${process.env.LOCAL_URL}:${process.env.ACCOUNTS_SERVICE_PORT}/getRiders_walletInfos?user_fingerprint=${req.user_fingerprint}&mode=total&avoidCached_data=true
                         `;
-                          requestAPI(url, function (error, response, body) {
-                            if (error === null) {
-                              try {
-                                body = JSON.parse(body);
-                                if (body.total !== undefined) {
-                                  logger.info(
-                                    parseFloat(result.fare),
-                                    parseFloat(body.total)
-                                  );
-                                  if (
-                                    parseFloat(result.fare) <=
-                                    parseFloat(body.total)
-                                  ) {
-                                    //? HAS ENOUGH MONEY IN THE WALLET
+                            requestAPI(url, function (error, response, body) {
+                              if (error === null) {
+                                try {
+                                  body = JSON.parse(body);
+                                  if (body.total !== undefined) {
                                     logger.info(
-                                      "Has enough funds in the wallet"
+                                      parseFloat(result.fare),
+                                      parseFloat(body.total)
                                     );
-                                    new Promise((resInit) => {
-                                      INIT_RIDE_DELIVERY_DISPATCH_ENTRY(
-                                        result,
-                                        collectionDrivers_profiles,
-                                        collectionRidesDeliveryData,
-                                        channel,
-                                        resInit
+                                    if (
+                                      parseFloat(result.fare) <=
+                                      parseFloat(body.total)
+                                    ) {
+                                      //? HAS ENOUGH MONEY IN THE WALLET
+                                      logger.info(
+                                        "Has enough funds in the wallet"
                                       );
-                                    }).then(
-                                      (resultDispatch) => {
-                                        //! RABBITMQ MESSAGE
-                                        channel.assertQueue(
-                                          process.env
-                                            .TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
-                                          {
-                                            durable: true,
-                                          }
+                                      new Promise((resInit) => {
+                                        INIT_RIDE_DELIVERY_DISPATCH_ENTRY(
+                                          result,
+                                          collectionDrivers_profiles,
+                                          collectionRidesDeliveryData,
+                                          channel,
+                                          resInit
                                         );
-                                        //Send message
-                                        let message = {
-                                          user_fingerprint:
-                                            req.user_fingerprint,
-                                          requestType: "rides",
-                                          user_nature: "rider",
-                                        };
-                                        channel.sendToQueue(
-                                          process.env
-                                            .TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
-                                          Buffer.from(JSON.stringify(message)),
-                                          {
-                                            persistent: true,
-                                          }
-                                        );
-                                        //! -------------
-                                        if (
-                                          /successfully_requested/i.test(
-                                            resultDispatch.response
-                                          )
-                                        ) {
-                                          //? CHECK IF IT'S A DELIVERY REQUEST TO NOTIFY THE RECEIVER
+                                      }).then(
+                                        (resultDispatch) => {
+                                          //! RABBITMQ MESSAGE
+                                          channel.assertQueue(
+                                            process.env
+                                              .TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
+                                            {
+                                              durable: true,
+                                            }
+                                          );
+                                          //Send message
+                                          let message = {
+                                            user_fingerprint:
+                                              req.user_fingerprint,
+                                            requestType: "rides",
+                                            user_nature: "rider",
+                                          };
+                                          channel.sendToQueue(
+                                            process.env
+                                              .TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
+                                            Buffer.from(
+                                              JSON.stringify(message)
+                                            ),
+                                            {
+                                              persistent: true,
+                                            }
+                                          );
+                                          //! -------------
                                           if (
-                                            /delivery/i.test(
-                                              parsedRequest.ride_mode
+                                            /successfully_requested/i.test(
+                                              resultDispatch.response
                                             )
                                           ) {
-                                            //Delivery
-                                            new Promise((resNotifyReceiver) => {
-                                              let receiversPhone =
-                                                parsedRequest.delivery_infos.receiverPhone_delivery.replace(
-                                                  "+",
-                                                  ""
-                                                );
-                                              let receiverName = ucFirst(
-                                                parsedRequest.delivery_infos.receiverName_delivery.trim()
-                                              );
-                                              let message = `Hello ${receiverName}, a package is being delivered to you via TaxiConnect, you can track it by creating a TaxiConnect account with your current number.\n\nThe TaxiConnect teams.`;
-                                              //!Check if the receiver is a current user
-                                              collectionPassengers_profiles
-                                                .find({
-                                                  phone_number:
-                                                    parsedRequest.delivery_infos.receiverPhone_delivery.trim(),
-                                                })
-                                                .toArray(function (
-                                                  err,
-                                                  userReceiverData
-                                                ) {
-                                                  if (err) {
-                                                    resNotifyReceiver(false);
-                                                  }
-                                                  //...
-                                                  if (
-                                                    userReceiverData !==
-                                                      undefined &&
-                                                    userReceiverData.length > 0
-                                                  ) {
-                                                    //Is a TaxiConnect user, check for how long the app has not been used.
-                                                    resolveDate();
-                                                    if (
-                                                      userReceiverData.last_updated !==
-                                                        undefined &&
-                                                      userReceiverData.last_updated !==
-                                                        null
+                                            //? CHECK IF IT'S A DELIVERY REQUEST TO NOTIFY THE RECEIVER
+                                            if (
+                                              /delivery/i.test(
+                                                parsedRequest.ride_mode
+                                              )
+                                            ) {
+                                              //Delivery
+                                              new Promise(
+                                                (resNotifyReceiver) => {
+                                                  let receiversPhone =
+                                                    parsedRequest.delivery_infos.receiverPhone_delivery.replace(
+                                                      "+",
+                                                      ""
+                                                    );
+                                                  let receiverName = ucFirst(
+                                                    parsedRequest.delivery_infos.receiverName_delivery.trim()
+                                                  );
+                                                  let message = `Hello ${receiverName}, a package is being delivered to you via TaxiConnect, you can track it by creating a TaxiConnect account with your current number.\n\nThe TaxiConnect teams.`;
+                                                  //!Check if the receiver is a current user
+                                                  collectionPassengers_profiles
+                                                    .find({
+                                                      phone_number:
+                                                        parsedRequest.delivery_infos.receiverPhone_delivery.trim(),
+                                                    })
+                                                    .toArray(function (
+                                                      err,
+                                                      userReceiverData
                                                     ) {
-                                                      //Check the time
-                                                      let lastUserUpdated =
-                                                        new Date(
-                                                          userReceiverData.last_updated
+                                                      if (err) {
+                                                        resNotifyReceiver(
+                                                          false
                                                         );
-                                                      let refNowDate = new Date(
-                                                        chaineDateUTC
-                                                      );
+                                                      }
                                                       //...
                                                       if (
-                                                        diff_hours(
-                                                          refNowDate,
-                                                          lastUserUpdated
-                                                        ).difference >
-                                                        7 * 24
+                                                        userReceiverData !==
+                                                          undefined &&
+                                                        userReceiverData.length >
+                                                          0
                                                       ) {
-                                                        //If greater than 7 days - send SMS
+                                                        //Is a TaxiConnect user, check for how long the app has not been used.
+                                                        resolveDate();
+                                                        if (
+                                                          userReceiverData.last_updated !==
+                                                            undefined &&
+                                                          userReceiverData.last_updated !==
+                                                            null
+                                                        ) {
+                                                          //Check the time
+                                                          let lastUserUpdated =
+                                                            new Date(
+                                                              userReceiverData.last_updated
+                                                            );
+                                                          let refNowDate =
+                                                            new Date(
+                                                              chaineDateUTC
+                                                            );
+                                                          //...
+                                                          if (
+                                                            diff_hours(
+                                                              refNowDate,
+                                                              lastUserUpdated
+                                                            ).difference >
+                                                            7 * 24
+                                                          ) {
+                                                            //If greater than 7 days - send SMS
+                                                            SendSMSTo(
+                                                              receiversPhone,
+                                                              message
+                                                            );
+                                                            resNotifyReceiver(
+                                                              true
+                                                            );
+                                                          } //Send push notification
+                                                          else {
+                                                            let messageNotify =
+                                                              {
+                                                                app_id:
+                                                                  process.env
+                                                                    .RIDERS_APP_ID_ONESIGNAL,
+                                                                android_channel_id:
+                                                                  process.env
+                                                                    .RIDERS_ONESIGNAL_CHANNEL_ACCEPTTEDD_REQUEST, //Ride - Accepted request
+                                                                priority: 10,
+                                                                contents: {
+                                                                  en: message,
+                                                                },
+                                                                headings: {
+                                                                  en: "Delivery in progress",
+                                                                },
+                                                                content_available: true,
+                                                                include_player_ids:
+                                                                  [
+                                                                    userReceiverData.pushnotif_token !==
+                                                                      false &&
+                                                                    userReceiverData.pushnotif_token !==
+                                                                      null &&
+                                                                    userReceiverData.pushnotif_token !==
+                                                                      "false"
+                                                                      ? userReceiverData
+                                                                          .pushnotif_token
+                                                                          .userId
+                                                                      : null,
+                                                                  ],
+                                                              };
+                                                            //Send
+                                                            sendPushUPNotification(
+                                                              messageNotify
+                                                            );
+                                                            resNotifyReceiver(
+                                                              true
+                                                            );
+                                                          }
+                                                        } //Send an SMS, not logged in yet
+                                                        else {
+                                                          SendSMSTo(
+                                                            receiversPhone,
+                                                            message
+                                                          );
+                                                          resNotifyReceiver(
+                                                            true
+                                                          );
+                                                        }
+                                                      } //Not a TaxiConnect user, Send an SMS
+                                                      else {
                                                         SendSMSTo(
                                                           receiversPhone,
                                                           message
                                                         );
                                                         resNotifyReceiver(true);
-                                                      } //Send push notification
-                                                      else {
-                                                        let messageNotify = {
-                                                          app_id:
-                                                            process.env
-                                                              .RIDERS_APP_ID_ONESIGNAL,
-                                                          android_channel_id:
-                                                            process.env
-                                                              .RIDERS_ONESIGNAL_CHANNEL_ACCEPTTEDD_REQUEST, //Ride - Accepted request
-                                                          priority: 10,
-                                                          contents: {
-                                                            en: message,
-                                                          },
-                                                          headings: {
-                                                            en: "Delivery in progress",
-                                                          },
-                                                          content_available: true,
-                                                          include_player_ids: [
-                                                            userReceiverData.pushnotif_token !==
-                                                              false &&
-                                                            userReceiverData.pushnotif_token !==
-                                                              null &&
-                                                            userReceiverData.pushnotif_token !==
-                                                              "false"
-                                                              ? userReceiverData
-                                                                  .pushnotif_token
-                                                                  .userId
-                                                              : null,
-                                                          ],
-                                                        };
-                                                        //Send
-                                                        sendPushUPNotification(
-                                                          messageNotify
-                                                        );
-                                                        resNotifyReceiver(true);
                                                       }
-                                                    } //Send an SMS, not logged in yet
-                                                    else {
-                                                      SendSMSTo(
-                                                        receiversPhone,
-                                                        message
-                                                      );
-                                                      resNotifyReceiver(true);
-                                                    }
-                                                  } //Not a TaxiConnect user, Send an SMS
-                                                  else {
-                                                    SendSMSTo(
-                                                      receiversPhone,
-                                                      message
-                                                    );
-                                                    resNotifyReceiver(true);
-                                                  }
-                                                });
-                                            })
-                                              .then()
-                                              .catch(() => {});
+                                                    });
+                                                }
+                                              )
+                                                .then()
+                                                .catch(() => {});
+                                            }
                                           }
+                                          //...
+                                          res.send(resultDispatch);
+                                        },
+                                        (error) => {
+                                          logger.info(error);
+                                          res.send({
+                                            response:
+                                              "Unable_to_make_the_request",
+                                          });
                                         }
-                                        //...
-                                        res.send(resultDispatch);
-                                      },
-                                      (error) => {
-                                        logger.info(error);
-                                        res.send({
-                                          response:
-                                            "Unable_to_make_the_request",
-                                        });
-                                      }
-                                    );
-                                  } //Not enough money in the wallet
+                                      );
+                                    } //Not enough money in the wallet
+                                    else {
+                                      logger.info(
+                                        "Has NOT enough funds in the wallet"
+                                      );
+                                      res.send({
+                                        response:
+                                          "Unable_to_make_the_request_unsufficient_funds",
+                                      });
+                                    }
+                                  } //Error getting wallet amount
                                   else {
-                                    logger.info(
-                                      "Has NOT enough funds in the wallet"
-                                    );
                                     res.send({
                                       response:
-                                        "Unable_to_make_the_request_unsufficient_funds",
+                                        "Unable_to_make_the_request_error_wallet_check",
                                     });
                                   }
-                                } //Error getting wallet amount
-                                else {
+                                } catch (error) {
+                                  logger.info(error);
                                   res.send({
                                     response:
                                       "Unable_to_make_the_request_error_wallet_check",
                                   });
                                 }
-                              } catch (error) {
-                                logger.info(error);
+                              } else {
                                 res.send({
                                   response:
                                     "Unable_to_make_the_request_error_wallet_check",
                                 });
                               }
-                            } else {
-                              res.send({
-                                response:
-                                  "Unable_to_make_the_request_error_wallet_check",
-                              });
-                            }
-                          });
-                        } //? CASH PAYMENT METHOD
-                        else {
-                          //Do as usual without a wallet balance check
-                          new Promise((resInit) => {
-                            INIT_RIDE_DELIVERY_DISPATCH_ENTRY(
-                              result,
-                              collectionDrivers_profiles,
-                              collectionRidesDeliveryData,
-                              channel,
-                              resInit
+                            });
+                          } //? CASH PAYMENT METHOD
+                          else {
+                            //Do as usual without a wallet balance check
+                            new Promise((resInit) => {
+                              INIT_RIDE_DELIVERY_DISPATCH_ENTRY(
+                                result,
+                                collectionDrivers_profiles,
+                                collectionRidesDeliveryData,
+                                channel,
+                                resInit
+                              );
+                            }).then(
+                              (resultDispatch) => {
+                                //! RABBITMQ MESSAGE
+                                channel.assertQueue(
+                                  process.env
+                                    .TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
+                                  {
+                                    durable: true,
+                                  }
+                                );
+                                //Send message
+                                let message = {
+                                  user_fingerprint: req.user_fingerprint,
+                                  requestType: "rides",
+                                  user_nature: "rider",
+                                };
+                                channel.sendToQueue(
+                                  process.env
+                                    .TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
+                                  Buffer.from(JSON.stringify(message)),
+                                  {
+                                    persistent: true,
+                                  }
+                                );
+                                //! -------------
+                                res.send(resultDispatch);
+                              },
+                              (error) => {
+                                logger.info(error);
+                                res.send({
+                                  response: "Unable_to_make_the_request",
+                                });
+                              }
                             );
-                          }).then(
-                            (resultDispatch) => {
-                              //! RABBITMQ MESSAGE
-                              channel.assertQueue(
-                                process.env
-                                  .TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
-                                {
-                                  durable: true,
-                                }
-                              );
-                              //Send message
-                              let message = {
-                                user_fingerprint: req.user_fingerprint,
-                                requestType: "rides",
-                                user_nature: "rider",
-                              };
-                              channel.sendToQueue(
-                                process.env
-                                  .TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
-                                Buffer.from(JSON.stringify(message)),
-                                {
-                                  persistent: true,
-                                }
-                              );
-                              //! -------------
-                              res.send(resultDispatch);
-                            },
-                            (error) => {
-                              logger.info(error);
-                              res.send({
-                                response: "Unable_to_make_the_request",
-                              });
-                            }
-                          );
+                          }
+                        } //Error
+                        else {
+                          res.send({ response: "Unable_to_make_the_request" });
                         }
-                      } //Error
-                      else {
+                      },
+                      (error) => {
+                        logger.info(error);
                         res.send({ response: "Unable_to_make_the_request" });
                       }
-                    },
-                    (error) => {
-                      logger.info(error);
-                      res.send({ response: "Unable_to_make_the_request" });
-                    }
-                  );
-                } //Has a previous uncompleted ride
-                else {
-                  res.send({ response: "already_have_a_pending_request" });
-                }
-              });
-          } //Invalid user fp
-          else {
-            res.send({ response: "Unable_to_make_the_request" });
-          }
-        });
+                    );
+                  } //Has a previous uncompleted ride
+                  else {
+                    res.send({ response: "already_have_a_pending_request" });
+                  }
+                });
+            } //Invalid user fp
+            else {
+              res.send({ response: "Unable_to_make_the_request" });
+            }
+          });
 
-        /**
-         * CONFIRM RIDER DROP OFF
-         * Responsible for handling all the processes related to the drop off confirmation of a rider.
-         */
-        app.post("/confirmRiderDropoff_requests", function (req, res) {
-          req = req.body;
-          logger.info(req);
-          //TEST data
-          /*req = {
+          /**
+           * CONFIRM RIDER DROP OFF
+           * Responsible for handling all the processes related to the drop off confirmation of a rider.
+           */
+          app.post("/confirmRiderDropoff_requests", function (req, res) {
+            req = req.body;
+            logger.info(req);
+            //TEST data
+            /*req = {
           user_fingerprint:
             "7c57cb6c9471fd33fd265d5441f253eced2a6307c0207dea57c987035b496e6e8dfa7105b86915da",
           dropoff_compliments: {
@@ -4411,222 +4435,33 @@ redisCluster.on("connect", function () {
             "87109d03cab8bc5032a71683e084551107f1c1bafb5136f6ee5a7c990550b81ef3ecf5c96b13f2afde2cc75e6c8187ce290c973dd1e8d137caf27fee334a68e8",
         };*/
 
-          //Do basic checking
-          if (
-            req.user_fingerprint !== undefined &&
-            req.user_fingerprint !== null &&
-            req.request_fp !== undefined &&
-            req.request_fp !== null
-          ) {
-            //Auto assign 5 stars if invalid score found
-            req.rating_score =
-              req.rating_score === undefined ||
-              req.rating_score === null ||
-              req.rating_score < 0
-                ? 5
-                : req.rating_score > 5
-                ? 2
-                : req.rating_score; //Driver's rating safety shield - give 2 stars for fraudulous dropoffs
-            //...
-            new Promise((res0) => {
-              confirmDropoff_fromRider_side(
-                req,
-                collectionRidesDeliveryData,
-                collectionDrivers_profiles,
-                channel,
-                res0
-              );
-            }).then(
-              (result) => {
-                //! RABBITMQ MESSAGE
-                channel.assertQueue(
-                  process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
-                  {
-                    durable: true,
-                  }
+            //Do basic checking
+            if (
+              req.user_fingerprint !== undefined &&
+              req.user_fingerprint !== null &&
+              req.request_fp !== undefined &&
+              req.request_fp !== null
+            ) {
+              //Auto assign 5 stars if invalid score found
+              req.rating_score =
+                req.rating_score === undefined ||
+                req.rating_score === null ||
+                req.rating_score < 0
+                  ? 5
+                  : req.rating_score > 5
+                  ? 2
+                  : req.rating_score; //Driver's rating safety shield - give 2 stars for fraudulous dropoffs
+              //...
+              new Promise((res0) => {
+                confirmDropoff_fromRider_side(
+                  req,
+                  collectionRidesDeliveryData,
+                  collectionDrivers_profiles,
+                  channel,
+                  res0
                 );
-                //Send message
-                let message = {
-                  user_fingerprint: req.user_fingerprint,
-                  requestType: "rides",
-                  user_nature: "rider",
-                };
-                channel.sendToQueue(
-                  process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
-                  Buffer.from(JSON.stringify(message)),
-                  {
-                    persistent: true,
-                  }
-                );
-                //! Send message to update the driver's daily amount
-                channel.assertQueue(
-                  process.env.TRIPS_DAILY_AMOUNT_DRIVERS_QUEUE,
-                  {
-                    durable: true,
-                  }
-                );
-                //Send message
-                message = {
-                  driver_fingerprint:
-                    result.driver_fp !== undefined && result.driver_fp !== null
-                      ? result.driver_fp
-                      : "unknown_fp",
-                };
-                channel.sendToQueue(
-                  process.env.TRIPS_DAILY_AMOUNT_DRIVERS_QUEUE,
-                  Buffer.from(JSON.stringify(message)),
-                  {
-                    persistent: true,
-                  }
-                );
-                //! -------------
-                res.send(result);
-              },
-              (error) => {
-                logger.info(error);
-                res.send({ response: "error" });
-              }
-            );
-          }
-        });
-
-        /**
-         * CANCEL RIDER REQUESTS
-         * Responsible for cancelling the rider's requests and all it's the related process
-         */
-        app.post("/cancelRiders_request", function (req, res) {
-          req = req.body;
-          logger.info(req);
-
-          //Do basic checking
-          if (
-            req.user_fingerprint !== undefined &&
-            req.user_fingerprint !== null &&
-            req.request_fp !== undefined &&
-            req.request_fp !== null
-          ) {
-            //? Add a flag if provided: the flag can be used to know who cancelled the request, if not provided, - it's the rider
-            let additionalData = {
-              flag:
-                req.flag !== undefined && req.flag !== null ? req.flag : null,
-            };
-            //...
-            new Promise((res0) => {
-              cancelRider_request(
-                req,
-                collectionRidesDeliveryData,
-                collection_cancelledRidesDeliveryData,
-                collectionDrivers_profiles,
-                channel,
-                res0,
-                additionalData
-              );
-            }).then(
-              (result) => {
-                //! RABBITMQ MESSAGE
-                channel.assertQueue(
-                  process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
-                  {
-                    durable: true,
-                  }
-                );
-                //Send message
-                let message = {
-                  user_fingerprint: req.user_fingerprint,
-                  requestType: "rides",
-                  user_nature: "rider",
-                };
-                channel.sendToQueue(
-                  process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
-                  Buffer.from(JSON.stringify(message)),
-                  {
-                    persistent: true,
-                  }
-                );
-                //! -------------
-                res.send(result);
-              },
-              (error) => {
-                logger.info(error);
-                res.send({ response: "error_cancelling" });
-              }
-            );
-          } //Invalid parameters
-          else {
-            res.send({ response: "error_cancelling" });
-          }
-        });
-
-        /**
-         * DECLINE REQUESTS - DRIVERS
-         * Responsible for handling the declining of requests from the drivers side.
-         */
-        app.post("/decline_request", function (req, res) {
-          req = req.body;
-          logger.info(req);
-
-          //Do basic checking
-          if (
-            req.driver_fingerprint !== undefined &&
-            req.driver_fingerprint !== null &&
-            req.request_fp !== undefined &&
-            req.request_fp !== null
-          ) {
-            //...
-            new Promise((res0) => {
-              declineRequest_driver(
-                req,
-                collectionRidesDeliveryData,
-                collectionGlobalEvents,
-                res0
-              );
-            }).then(
-              (result) => {
-                res.send(result);
-              },
-              (error) => {
-                logger.info(error);
-                res.send({ response: "unable_to_decline_request_error" });
-              }
-            );
-          }
-        });
-
-        /**
-         * ACCEPT REQUESTS - DRIVERS
-         * Responsible for handling the accepting of requests from the drivers side.
-         */
-        app.post("/accept_request", function (req, res) {
-          //...
-          req = req.body;
-          logger.info(req);
-
-          //Do basic checking
-          if (
-            req.driver_fingerprint !== undefined &&
-            req.driver_fingerprint !== null &&
-            req.request_fp !== undefined &&
-            req.request_fp !== null
-          ) {
-            //...
-            new Promise((res0) => {
-              acceptRequest_driver(
-                req,
-                collectionRidesDeliveryData,
-                collectionGlobalEvents,
-                collectionDrivers_profiles,
-                collectionPassengers_profiles,
-                channel,
-                res0
-              );
-            }).then(
-              (result) => {
-                if (
-                  result.response !== undefined &&
-                  result.response !== null &&
-                  result.rider_fp !== undefined &&
-                  result.rider_fp !== null
-                ) {
+              }).then(
+                (result) => {
                   //! RABBITMQ MESSAGE
                   channel.assertQueue(
                     process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
@@ -4636,7 +4471,93 @@ redisCluster.on("connect", function () {
                   );
                   //Send message
                   let message = {
-                    user_fingerprint: result.rider_fp,
+                    user_fingerprint: req.user_fingerprint,
+                    requestType: "rides",
+                    user_nature: "rider",
+                  };
+                  channel.sendToQueue(
+                    process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
+                    Buffer.from(JSON.stringify(message)),
+                    {
+                      persistent: true,
+                    }
+                  );
+                  //! Send message to update the driver's daily amount
+                  channel.assertQueue(
+                    process.env.TRIPS_DAILY_AMOUNT_DRIVERS_QUEUE,
+                    {
+                      durable: true,
+                    }
+                  );
+                  //Send message
+                  message = {
+                    driver_fingerprint:
+                      result.driver_fp !== undefined &&
+                      result.driver_fp !== null
+                        ? result.driver_fp
+                        : "unknown_fp",
+                  };
+                  channel.sendToQueue(
+                    process.env.TRIPS_DAILY_AMOUNT_DRIVERS_QUEUE,
+                    Buffer.from(JSON.stringify(message)),
+                    {
+                      persistent: true,
+                    }
+                  );
+                  //! -------------
+                  res.send(result);
+                },
+                (error) => {
+                  logger.info(error);
+                  res.send({ response: "error" });
+                }
+              );
+            }
+          });
+
+          /**
+           * CANCEL RIDER REQUESTS
+           * Responsible for cancelling the rider's requests and all it's the related process
+           */
+          app.post("/cancelRiders_request", function (req, res) {
+            req = req.body;
+            logger.info(req);
+
+            //Do basic checking
+            if (
+              req.user_fingerprint !== undefined &&
+              req.user_fingerprint !== null &&
+              req.request_fp !== undefined &&
+              req.request_fp !== null
+            ) {
+              //? Add a flag if provided: the flag can be used to know who cancelled the request, if not provided, - it's the rider
+              let additionalData = {
+                flag:
+                  req.flag !== undefined && req.flag !== null ? req.flag : null,
+              };
+              //...
+              new Promise((res0) => {
+                cancelRider_request(
+                  req,
+                  collectionRidesDeliveryData,
+                  collection_cancelledRidesDeliveryData,
+                  collectionDrivers_profiles,
+                  channel,
+                  res0,
+                  additionalData
+                );
+              }).then(
+                (result) => {
+                  //! RABBITMQ MESSAGE
+                  channel.assertQueue(
+                    process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
+                    {
+                      durable: true,
+                    }
+                  );
+                  //Send message
+                  let message = {
+                    user_fingerprint: req.user_fingerprint,
                     requestType: "rides",
                     user_nature: "rider",
                   };
@@ -4648,245 +4569,350 @@ redisCluster.on("connect", function () {
                     }
                   );
                   //! -------------
+                  res.send(result);
+                },
+                (error) => {
+                  logger.info(error);
+                  res.send({ response: "error_cancelling" });
                 }
-                //...
-                res.send(result);
-              },
-              (error) => {
-                logger.info(error);
-                res.send({ response: "unable_to_accept_request_error" });
-              }
-            );
-          }
-        });
+              );
+            } //Invalid parameters
+            else {
+              res.send({ response: "error_cancelling" });
+            }
+          });
 
-        /**
-         * CANCEL REQUESTS - DRIVERS
-         * Responsible for handling the cancelling of requests from the drivers side.
-         */
-        app.post("/cancel_request_driver", function (req, res) {
-          //DEBUG
-          /*req.body = {
+          /**
+           * DECLINE REQUESTS - DRIVERS
+           * Responsible for handling the declining of requests from the drivers side.
+           */
+          app.post("/decline_request", function (req, res) {
+            req = req.body;
+            logger.info(req);
+
+            //Do basic checking
+            if (
+              req.driver_fingerprint !== undefined &&
+              req.driver_fingerprint !== null &&
+              req.request_fp !== undefined &&
+              req.request_fp !== null
+            ) {
+              //...
+              new Promise((res0) => {
+                declineRequest_driver(
+                  req,
+                  collectionRidesDeliveryData,
+                  collectionGlobalEvents,
+                  res0
+                );
+              }).then(
+                (result) => {
+                  res.send(result);
+                },
+                (error) => {
+                  logger.info(error);
+                  res.send({ response: "unable_to_decline_request_error" });
+                }
+              );
+            }
+          });
+
+          /**
+           * ACCEPT REQUESTS - DRIVERS
+           * Responsible for handling the accepting of requests from the drivers side.
+           */
+          app.post("/accept_request", function (req, res) {
+            //...
+            req = req.body;
+            logger.info(req);
+
+            //Do basic checking
+            if (
+              req.driver_fingerprint !== undefined &&
+              req.driver_fingerprint !== null &&
+              req.request_fp !== undefined &&
+              req.request_fp !== null
+            ) {
+              //...
+              new Promise((res0) => {
+                acceptRequest_driver(
+                  req,
+                  collectionRidesDeliveryData,
+                  collectionGlobalEvents,
+                  collectionDrivers_profiles,
+                  collectionPassengers_profiles,
+                  channel,
+                  res0
+                );
+              }).then(
+                (result) => {
+                  if (
+                    result.response !== undefined &&
+                    result.response !== null &&
+                    result.rider_fp !== undefined &&
+                    result.rider_fp !== null
+                  ) {
+                    //! RABBITMQ MESSAGE
+                    channel.assertQueue(
+                      process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
+                      {
+                        durable: true,
+                      }
+                    );
+                    //Send message
+                    let message = {
+                      user_fingerprint: result.rider_fp,
+                      requestType: "rides",
+                      user_nature: "rider",
+                    };
+                    channel.sendToQueue(
+                      process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
+                      Buffer.from(JSON.stringify(message)),
+                      {
+                        persistent: true,
+                      }
+                    );
+                    //! -------------
+                  }
+                  //...
+                  res.send(result);
+                },
+                (error) => {
+                  logger.info(error);
+                  res.send({ response: "unable_to_accept_request_error" });
+                }
+              );
+            }
+          });
+
+          /**
+           * CANCEL REQUESTS - DRIVERS
+           * Responsible for handling the cancelling of requests from the drivers side.
+           */
+          app.post("/cancel_request_driver", function (req, res) {
+            //DEBUG
+            /*req.body = {
           driver_fingerprint:
             "23c9d088e03653169b9c18193a0b8dd329ea1e43eb0626ef9f16b5b979694a429710561a3cb3ddae",
           request_fp:
             "999999f5c51c380ef9dee9680872a6538cc9708ef079a8e42de4d762bfa7d49efdcde41c6009cbdd9cdf6f0ae0544f74cb52caa84439cbcda40ce264f90825e8",
         };*/
-          //...
-          req = req.body;
-          logger.info(req);
-
-          //Do basic checking
-          if (
-            req.driver_fingerprint !== undefined &&
-            req.driver_fingerprint !== null &&
-            req.request_fp !== undefined &&
-            req.request_fp !== null
-          ) {
             //...
-            new Promise((res0) => {
-              cancelRequest_driver(
-                req,
-                collectionRidesDeliveryData,
-                collectionGlobalEvents,
-                collectionPassengers_profiles,
-                collectionDrivers_profiles,
-                channel,
-                res0
-              );
-            }).then(
-              (result) => {
-                if (
-                  result.response !== undefined &&
-                  result.response !== null &&
-                  result.rider_fp !== undefined &&
-                  result.rider_fp !== null
-                ) {
-                  //! RABBITMQ MESSAGE
-                  channel.assertQueue(
-                    process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
-                    {
-                      durable: true,
-                    }
-                  );
-                  //Send message
-                  let message = {
-                    user_fingerprint: result.rider_fp,
-                    requestType: "rides",
-                    user_nature: "rider",
-                  };
-                  channel.sendToQueue(
-                    process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
-                    Buffer.from(JSON.stringify(message)),
-                    {
-                      persistent: true,
-                    }
-                  );
-                  //! -------------
-                }
-                res.send(result);
-              },
-              (error) => {
-                logger.info(error);
-                res.send({ response: "unable_to_cancel_request_error" });
-              }
-            );
-          }
-        });
+            req = req.body;
+            logger.info(req);
 
-        /**
-         * CONFIRM PICKUP REQUESTS - DRIVERS
-         * Responsible for handling the pickup confirmation of requests from the drivers side.
-         */
-        app.post("/confirm_pickup_request_driver", function (req, res) {
-          //DEBUG
-          /*req.body = {
+            //Do basic checking
+            if (
+              req.driver_fingerprint !== undefined &&
+              req.driver_fingerprint !== null &&
+              req.request_fp !== undefined &&
+              req.request_fp !== null
+            ) {
+              //...
+              new Promise((res0) => {
+                cancelRequest_driver(
+                  req,
+                  collectionRidesDeliveryData,
+                  collectionGlobalEvents,
+                  collectionPassengers_profiles,
+                  collectionDrivers_profiles,
+                  channel,
+                  res0
+                );
+              }).then(
+                (result) => {
+                  if (
+                    result.response !== undefined &&
+                    result.response !== null &&
+                    result.rider_fp !== undefined &&
+                    result.rider_fp !== null
+                  ) {
+                    //! RABBITMQ MESSAGE
+                    channel.assertQueue(
+                      process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
+                      {
+                        durable: true,
+                      }
+                    );
+                    //Send message
+                    let message = {
+                      user_fingerprint: result.rider_fp,
+                      requestType: "rides",
+                      user_nature: "rider",
+                    };
+                    channel.sendToQueue(
+                      process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
+                      Buffer.from(JSON.stringify(message)),
+                      {
+                        persistent: true,
+                      }
+                    );
+                    //! -------------
+                  }
+                  res.send(result);
+                },
+                (error) => {
+                  logger.info(error);
+                  res.send({ response: "unable_to_cancel_request_error" });
+                }
+              );
+            }
+          });
+
+          /**
+           * CONFIRM PICKUP REQUESTS - DRIVERS
+           * Responsible for handling the pickup confirmation of requests from the drivers side.
+           */
+          app.post("/confirm_pickup_request_driver", function (req, res) {
+            //DEBUG
+            /*req.body = {
           driver_fingerprint:
             "23c9d088e03653169b9c18193a0b8dd329ea1e43eb0626ef9f16b5b979694a429710561a3cb3ddae",
           request_fp:
             "999999f5c51c380ef9dee9680872a6538cc9708ef079a8e42de4d762bfa7d49efdcde41c6009cbdd9cdf6f0ae0544f74cb52caa84439cbcda40ce264f90825e8",
         };*/
-          //...
-          req = req.body;
-          logger.info(req);
-
-          //Do basic checking
-          if (
-            req.driver_fingerprint !== undefined &&
-            req.driver_fingerprint !== null &&
-            req.request_fp !== undefined &&
-            req.request_fp !== null
-          ) {
             //...
-            new Promise((res0) => {
-              confirmPickupRequest_driver(
-                req,
-                collectionRidesDeliveryData,
-                collectionGlobalEvents,
-                collectionDrivers_profiles,
-                channel,
-                res0
-              );
-            }).then(
-              (result) => {
-                if (
-                  result.response !== undefined &&
-                  result.response !== null &&
-                  result.rider_fp !== undefined &&
-                  result.rider_fp !== null
-                ) {
-                  //! RABBITMQ MESSAGE
-                  channel.assertQueue(
-                    process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
-                    {
-                      durable: true,
-                    }
-                  );
-                  //Send message
-                  let message = {
-                    user_fingerprint: result.rider_fp,
-                    requestType: "rides",
-                    user_nature: "rider",
-                  };
-                  channel.sendToQueue(
-                    process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
-                    Buffer.from(JSON.stringify(message)),
-                    {
-                      persistent: true,
-                    }
-                  );
-                  //! -------------
-                }
-                res.send(result);
-              },
-              (error) => {
-                logger.info(error);
-                res.send({
-                  response: "unable_to_confirm_pickup_request_error",
-                });
-              }
-            );
-          }
-        });
+            req = req.body;
+            logger.info(req);
 
-        /**
-         * CONFIRM DROPOFF REQUESTS - DRIVERS
-         * Responsible for handling the dropoff confirmation of requests from the drivers side.
-         */
-        app.post("/confirm_dropoff_request_driver", function (req, res) {
-          //DEBUG
-          /*req.body = {
+            //Do basic checking
+            if (
+              req.driver_fingerprint !== undefined &&
+              req.driver_fingerprint !== null &&
+              req.request_fp !== undefined &&
+              req.request_fp !== null
+            ) {
+              //...
+              new Promise((res0) => {
+                confirmPickupRequest_driver(
+                  req,
+                  collectionRidesDeliveryData,
+                  collectionGlobalEvents,
+                  collectionDrivers_profiles,
+                  channel,
+                  res0
+                );
+              }).then(
+                (result) => {
+                  if (
+                    result.response !== undefined &&
+                    result.response !== null &&
+                    result.rider_fp !== undefined &&
+                    result.rider_fp !== null
+                  ) {
+                    //! RABBITMQ MESSAGE
+                    channel.assertQueue(
+                      process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
+                      {
+                        durable: true,
+                      }
+                    );
+                    //Send message
+                    let message = {
+                      user_fingerprint: result.rider_fp,
+                      requestType: "rides",
+                      user_nature: "rider",
+                    };
+                    channel.sendToQueue(
+                      process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
+                      Buffer.from(JSON.stringify(message)),
+                      {
+                        persistent: true,
+                      }
+                    );
+                    //! -------------
+                  }
+                  res.send(result);
+                },
+                (error) => {
+                  logger.info(error);
+                  res.send({
+                    response: "unable_to_confirm_pickup_request_error",
+                  });
+                }
+              );
+            }
+          });
+
+          /**
+           * CONFIRM DROPOFF REQUESTS - DRIVERS
+           * Responsible for handling the dropoff confirmation of requests from the drivers side.
+           */
+          app.post("/confirm_dropoff_request_driver", function (req, res) {
+            //DEBUG
+            /*req.body = {
           driver_fingerprint:
             "23c9d088e03653169b9c18193a0b8dd329ea1e43eb0626ef9f16b5b979694a429710561a3cb3ddae",
           request_fp:
             "999999f5c51c380ef9dee9680872a6538cc9708ef079a8e42de4d762bfa7d49efdcde41c6009cbdd9cdf6f0ae0544f74cb52caa84439cbcda40ce264f90825e8",
         };*/
-          //...
-          req = req.body;
-          logger.info(req);
-
-          //Do basic checking
-          if (
-            req.driver_fingerprint !== undefined &&
-            req.driver_fingerprint !== null &&
-            req.request_fp !== undefined &&
-            req.request_fp !== null
-          ) {
             //...
-            new Promise((res0) => {
-              confirmDropoffRequest_driver(
-                req,
-                collectionRidesDeliveryData,
-                collectionGlobalEvents,
-                collectionPassengers_profiles,
-                collectionDrivers_profiles,
-                channel,
-                res0
-              );
-            }).then(
-              (result) => {
-                if (
-                  result.response !== undefined &&
-                  result.response !== null &&
-                  result.rider_fp !== undefined &&
-                  result.rider_fp !== null
-                ) {
-                  //! RABBITMQ MESSAGE
-                  channel.assertQueue(
-                    process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
-                    {
-                      durable: true,
-                    }
-                  );
-                  //Send message
-                  let message = {
-                    user_fingerprint: result.rider_fp,
-                    requestType: "rides",
-                    user_nature: "rider",
-                  };
-                  channel.sendToQueue(
-                    process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
-                    Buffer.from(JSON.stringify(message)),
-                    {
-                      persistent: true,
-                    }
-                  );
-                  //! -------------
+            req = req.body;
+            logger.info(req);
+
+            //Do basic checking
+            if (
+              req.driver_fingerprint !== undefined &&
+              req.driver_fingerprint !== null &&
+              req.request_fp !== undefined &&
+              req.request_fp !== null
+            ) {
+              //...
+              new Promise((res0) => {
+                confirmDropoffRequest_driver(
+                  req,
+                  collectionRidesDeliveryData,
+                  collectionGlobalEvents,
+                  collectionPassengers_profiles,
+                  collectionDrivers_profiles,
+                  channel,
+                  res0
+                );
+              }).then(
+                (result) => {
+                  if (
+                    result.response !== undefined &&
+                    result.response !== null &&
+                    result.rider_fp !== undefined &&
+                    result.rider_fp !== null
+                  ) {
+                    //! RABBITMQ MESSAGE
+                    channel.assertQueue(
+                      process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
+                      {
+                        durable: true,
+                      }
+                    );
+                    //Send message
+                    let message = {
+                      user_fingerprint: result.rider_fp,
+                      requestType: "rides",
+                      user_nature: "rider",
+                    };
+                    channel.sendToQueue(
+                      process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
+                      Buffer.from(JSON.stringify(message)),
+                      {
+                        persistent: true,
+                      }
+                    );
+                    //! -------------
+                  }
+                  res.send(result);
+                },
+                (error) => {
+                  logger.info(error);
+                  res.send({
+                    response: "unable_to_confirm_dropoff_request_error",
+                  });
                 }
-                res.send(result);
-              },
-              (error) => {
-                logger.info(error);
-                res.send({
-                  response: "unable_to_confirm_dropoff_request_error",
-                });
-              }
-            );
-          }
+              );
+            }
+          });
         });
       });
-    });
-  });
+    }
+  );
 });
 
 server.listen(process.env.DISPATCH_SERVICE_PORT);
