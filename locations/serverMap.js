@@ -1007,8 +1007,15 @@ function tripChecker_Dispatcher(
             //...
             resCompute(true);
           })
-            .then()
-            .catch();
+            .then(
+              () => {},
+              () => {
+                resolve(false);
+              }
+            )
+            .catch((error) => {
+              resolve(false);
+            });
         }
       } //No record
       else {
@@ -1027,8 +1034,15 @@ function tripChecker_Dispatcher(
           //...
           resCompute(true);
         })
-          .then()
-          .catch();
+          .then(
+            () => {},
+            () => {
+              resolve(false);
+            }
+          )
+          .catch((error) => {
+            resolve(false);
+          });
       }
     })
     .catch((error) => {
@@ -1048,8 +1062,15 @@ function tripChecker_Dispatcher(
         //...
         resCompute(true);
       })
-        .then()
-        .catch();
+        .then(
+          () => {},
+          () => {
+            resolve(false);
+          }
+        )
+        .catch((error) => {
+          resolve(false);
+        });
     });
 }
 
@@ -4621,7 +4642,7 @@ redisCluster.on("connect", function () {
   //Connect to Rabbit
   amqp.connect(
     /production/i.test(process.env.EVIRONMENT)
-      ? "amqp://user:RAbbitmqtestAwstaxiconn20something@172.31.21.87:5672/"
+      ? "amqp://user:RAbbitmqProductiontestAwstaxiconn20somethingProductION@172.31.20.74:5672/"
       : "amqp://localhost",
     function (error0, connection) {
       if (error0) {
