@@ -4965,9 +4965,11 @@ redisCluster.on("connect", function () {
                                   () => {}
                                 );
                                 //CACHE
-                                redisCluster.set(
+                                redisCluster.setex(
                                   redisKey,
-                                  stringify({
+                                  parseInt(process.env.REDIS_EXPIRATION_5MIN) *
+                                    9,
+                                  JSON.stringify({
                                     response: "successfully_done",
                                     flag: /online/i.test(req.state)
                                       ? "online"
@@ -5018,8 +5020,9 @@ redisCluster.on("connect", function () {
                                 () => {}
                               );
                               //CACHE
-                              redisCluster.set(
+                              redisCluster.setex(
                                 redisKey,
+                                parseInt(process.env.REDIS_EXPIRATION_5MIN) * 9,
                                 stringify({
                                   response: "successfully_done",
                                   flag: /online/i.test(req.state)
@@ -5055,59 +5058,42 @@ redisCluster.on("connect", function () {
               }
             );
           } else if (/get/i.test(req.action)) {
-            resMAIN({
-              response: "successfully_got",
-              flag: "online",
-            });
-            //! Avoid cache by defaut
-            //req.avoidCached_data = true;
-            //! ---------------------
-            //? Avoid cache if specified
-            /*if (
-            req.avoidCached_data !== undefined &&
-            req.avoidCached_data !== null
-          ) {
-            new Promise((resGetStatus) => {
-              getDriver_onlineOffline_status(req, resGetStatus);
-            })
-              .then(
-                (result) => {
-                  //!Cache the result
-                  redisCluster.set(redisKey, stringify(result));
-                  //...
-                  res.send(result);
-                },
-                (error) => {
-                  logger.info(error);
-                  res.send({ response: "error_invalid_request" });
-                }
-              )
-              .catch((error) => {
-                logger.info(error);
-                res.send({ response: "error_invalid_request" });
-              });
-          } //? USE CACHED METHOD
-          else {
-            logger.warn("CACHED");
+            // resMAIN({
+            //   response: "successfully_got",
+            //   flag: "online",
+            // });
             //Check the cache first
             redisGet(redisKey).then(
               (resp) => {
                 if (resp !== null) {
-                  //Found a cached result
-                  //? Update the cache in background
-                  new Promise((resGetStatus) => {
-                    getDriver_onlineOffline_status(req, resGetStatus);
-                  })
-                    .then(
-                      (result) => {
-                        //!Cache the result
-                        redisCluster.set(redisKey, stringify(result));
-                      },
-                      (error) => {}
-                    )
-                    .catch();
-                  //Quickly return result
-                  resMAIN(JSON.parse(resp));
+                  try {
+                    //Quickly return result
+                    resMAIN(JSON.parse(resp));
+                  } catch (error) {
+                    new Promise((resGetStatus) => {
+                      getDriver_onlineOffline_status(req, resGetStatus);
+                    })
+                      .then(
+                        (result) => {
+                          //!Cache the result
+                          redisCluster.setex(
+                            redisKey,
+                            parseInt(process.env.REDIS_EXPIRATION_5MIN) * 9,
+                            JSON.stringify(result)
+                          );
+                          //...
+                          resMAIN(result);
+                        },
+                        (error) => {
+                          logger.info(error);
+                          resMAIN({ response: "error_invalid_request" });
+                        }
+                      )
+                      .catch((error) => {
+                        logger.info(error);
+                        resMAIN({ response: "error_invalid_request" });
+                      });
+                  }
                 } //Make a fresh request
                 else {
                   new Promise((resGetStatus) => {
@@ -5116,7 +5102,11 @@ redisCluster.on("connect", function () {
                     .then(
                       (result) => {
                         //!Cache the result
-                        redisCluster.set(redisKey, stringify(result));
+                        redisCluster.setex(
+                          redisKey,
+                          parseInt(process.env.REDIS_EXPIRATION_5MIN) * 9,
+                          JSON.stringify(result)
+                        );
                         //...
                         resMAIN(result);
                       },
@@ -5140,7 +5130,11 @@ redisCluster.on("connect", function () {
                   .then(
                     (result) => {
                       //!Cache the result
-                      redisCluster.set(redisKey, stringify(result));
+                      redisCluster.setex(
+                        redisKey,
+                        parseInt(process.env.REDIS_EXPIRATION_5MIN) * 9,
+                        JSON.stringify(result)
+                      );
                       //...
                       resMAIN(result);
                     },
@@ -5155,7 +5149,6 @@ redisCluster.on("connect", function () {
                   });
               }
             );
-          }*/
           }
         } //Invalid data
         else {

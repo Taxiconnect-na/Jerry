@@ -1914,7 +1914,7 @@ redisCluster.on("connect", function () {
 
       //? 5. Auto switch on all the drivers by default
       //! TO BE REVISED
-      new Promise((res5) => {
+      /*new Promise((res5) => {
         collectionDrivers_profiles
           .find({ "operational_state.status": "offline" })
           .toArray(function (err, driverData) {
@@ -1942,7 +1942,7 @@ redisCluster.on("connect", function () {
         })
         .catch((error) => {
           logger.info(error);
-        });
+        });*/
     }, process.env.INTERVAL_PERSISTER_MAIN_WATCHER_MILLISECONDS);
 
     //! FOR HEAVY PROCESSES REQUIRING - 300sec
