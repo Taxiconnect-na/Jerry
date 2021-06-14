@@ -55,23 +55,19 @@ function restoreSearchedLocations_cache(res, collectionMongoDb) {
         //Empty initialize
         logger.info("Initializing empty cache");
         //Initialize location cache - redis
-        redisCluster.set("search_locations", JSON.stringify([]), redis.print);
+        redisCluster.set("search_locations", JSON.stringify([]));
         res(true);
       } //Not empty restore - redis
       else {
         logger.info("Restoring location cache");
-        redisCluster.set(
-          "search_locations",
-          JSON.stringify(cachedData),
-          redis.print
-        );
+        redisCluster.set("search_locations", JSON.stringify(cachedData));
         res(true);
       }
     });
   } catch (err) {
     logger.info(err);
     //Initialize location cache - redis
-    redisCluster.set("search_locations", JSON.stringify([]), redis.print);
+    redisCluster.set("search_locations", JSON.stringify([]));
     res(true);
   }
 }
@@ -322,8 +318,7 @@ function newLoaction_search_engine(
                               redisCluster.setex(
                                 keyREDIS,
                                 process.env.REDIS_EXPIRATION_5MIN * 16,
-                                cachedString,
-                                redis.print
+                                cachedString
                               );
                               //Update mongodb - cache
                               res({
@@ -352,8 +347,7 @@ function newLoaction_search_engine(
                           redisCluster.setex(
                             keyREDIS,
                             process.env.REDIS_EXPIRATION_5MIN * 16,
-                            JSON.stringify(result),
-                            redis.print
+                            JSON.stringify(result)
                           );
                           res({
                             search_timestamp: timestamp,

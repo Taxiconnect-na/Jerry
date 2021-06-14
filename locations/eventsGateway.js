@@ -1168,7 +1168,7 @@ io.on("connection", (socket) => {
       }
 
       requestAPI(url, function (error, response, body) {
-        //logger.info(body);
+        console.log(body, error);
         if (error === null) {
           try {
             body = JSON.parse(body);

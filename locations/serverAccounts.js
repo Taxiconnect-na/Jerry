@@ -4964,19 +4964,27 @@ redisCluster.on("connect", function () {
                                   () => {},
                                   () => {}
                                 );
-                                //CACHE
-                                redisCluster.setex(
-                                  redisKey,
-                                  parseInt(process.env.REDIS_EXPIRATION_5MIN) *
-                                    9,
-                                  JSON.stringify({
-                                    response: "successfully_done",
-                                    flag: /online/i.test(req.state)
-                                      ? "online"
-                                      : "offline",
-                                    suspension_infos: suspensionInfos,
-                                  })
-                                );
+                                //? Update the cache
+                                new Promise((resGetStatus) => {
+                                  getDriver_onlineOffline_status(
+                                    req,
+                                    resGetStatus
+                                  );
+                                })
+                                  .then(
+                                    (result) => {
+                                      //!Cache the result
+                                      redisCluster.setex(
+                                        redisKey,
+                                        parseInt(
+                                          process.env.REDIS_EXPIRATION_5MIN
+                                        ) * 9,
+                                        JSON.stringify(result)
+                                      );
+                                    },
+                                    (error) => {}
+                                  )
+                                  .catch();
                                 //Done
                                 res0({
                                   response: "successfully_done",
@@ -5019,18 +5027,27 @@ redisCluster.on("connect", function () {
                                 () => {},
                                 () => {}
                               );
-                              //CACHE
-                              redisCluster.setex(
-                                redisKey,
-                                parseInt(process.env.REDIS_EXPIRATION_5MIN) * 9,
-                                stringify({
-                                  response: "successfully_done",
-                                  flag: /online/i.test(req.state)
-                                    ? "online"
-                                    : "offline",
-                                  suspension_infos: suspensionInfos,
-                                })
-                              );
+                              //? Update the cache
+                              new Promise((resGetStatus) => {
+                                getDriver_onlineOffline_status(
+                                  req,
+                                  resGetStatus
+                                );
+                              })
+                                .then(
+                                  (result) => {
+                                    //!Cache the result
+                                    redisCluster.setex(
+                                      redisKey,
+                                      parseInt(
+                                        process.env.REDIS_EXPIRATION_5MIN
+                                      ) * 9,
+                                      JSON.stringify(result)
+                                    );
+                                  },
+                                  (error) => {}
+                                )
+                                .catch();
                               //Done
                               res0({
                                 response: "successfully_done",
