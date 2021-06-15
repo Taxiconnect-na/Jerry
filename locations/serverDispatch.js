@@ -2675,6 +2675,128 @@ function cancelRequest_driver(
             if (err) {
               resolve({ response: "unable_to_cancel_request_error" });
             }
+            //Send the push notifications - FOR DRIVERS
+            new Promise((resNotify) => {
+              //! Get all the drivers
+              let driverFilter = {
+                "operational_state.status": { $in: ["online"] },
+                "operational_state.last_location.city":
+                  result[0].pickup_location_infos.city,
+                /*"operational_state.last_location.country": snapshotTripInfos.country,
+                operation_clearances: snapshotTripInfos.ride_type,*/
+                //Filter the drivers based on the vehicle type if provided
+                "operational_state.default_selected_car.vehicle_type":
+                  result[0].carTypeSelected,
+              };
+              //..
+              collectionDrivers_profiles
+                .find(driverFilter)
+                .collation({ locale: "en", strength: 2 })
+                .toArray(function (err, driversProfiles) {
+                  //Filter the drivers based on their car's maximum capacity (the amount of passengers it can handle)
+                  //They can receive 3 additional requests on top of the limit of sits in their selected cars.
+                  //! DISBALE PASSENGERS CHECK
+                  /*driversProfiles = driversProfiles.filter(
+                    (dData) =>
+                      dData.operational_state.accepted_requests_infos === null ||
+                      dData.operational_state.accepted_requests_infos
+                        .total_passengers_number <=
+                        dData.operational_state.default_selected_car.max_passengers + 3 ||
+                      dData.operational_state.accepted_requests_infos === undefined ||
+                      dData.operational_state.accepted_requests_infos === null ||
+                      dData.operational_state.accepted_requests_infos
+                        .total_passengers_number === undefined ||
+                      dData.operational_state.accepted_requests_infos
+                        .total_passengers_number === null
+                  );*/
+
+                  //...Register the drivers fp so that thei can see tne requests
+                  let driversPushNotif_token = driversProfiles.map((data) => {
+                    if (
+                      /online/i.test(data.operational_state.status) &&
+                      data.driver_fingerprint.trim() !==
+                        bundleWorkingData.driver_fingerprint.trim()
+                    ) {
+                      return data.operational_state.push_notification_token !==
+                        null &&
+                        data.operational_state.push_notification_token !==
+                          undefined
+                        ? data.operational_state.push_notification_token.userId
+                        : null;
+                    } else {
+                      return null; //Only notify the drivers that are online.
+                    }
+                  }); //Push notification token
+                  //....
+                  let message = {
+                    app_id: process.env.DRIVERS_APP_ID_ONESIGNAL,
+                    android_channel_id: /RIDE/i.test(result[0].ride_mode)
+                      ? process.env.DRIVERS_ONESIGNAL_CHANNEL_NEW_NOTIFICATION
+                      : process.env.DRIVERS_ONESIGNAL_CHANNEL_NEW_NOTIFICATION, //Ride or delivery channel
+                    priority: 10,
+                    contents: /RIDE/i.test(result[0].ride_mode)
+                      ? {
+                          en:
+                            "You have a new ride request " +
+                            (result[0].pickup_location_infos.suburb !== false
+                              ? "from " +
+                                  result[0].pickup_location_infos.suburb !==
+                                  undefined &&
+                                result[0].pickup_location_infos.suburb !==
+                                  false &&
+                                result[0].pickup_location_infos.suburb !== null
+                                ? result[0].pickup_location_infos.suburb.toUpperCase()
+                                : "near your location" +
+                                    " to " +
+                                    result[0].pickup_location_infos.suburb !==
+                                    undefined &&
+                                  result[0].pickup_location_infos.suburb !==
+                                    false &&
+                                  result[0].pickup_location_infos.suburb !==
+                                    null
+                                ? result[0].pickup_location_infos.suburb.toUpperCase()
+                                : "near your location" +
+                                  ". Click here for more details."
+                              : "near your location, click here for more details."),
+                        }
+                      : {
+                          en:
+                            "You have a new delivery request " +
+                            (result[0].pickup_location_infos.suburb !== false
+                              ? "from " +
+                                  result[0].pickup_location_infos.suburb !==
+                                  undefined &&
+                                result[0].pickup_location_infos.suburb !==
+                                  false &&
+                                result[0].pickup_location_infos.suburb !== null
+                                ? result[0].pickup_location_infos.suburb.toUpperCase()
+                                : "near your location" +
+                                    " to " +
+                                    result[0].pickup_location_infos.suburb !==
+                                    undefined &&
+                                  result[0].pickup_location_infos.suburb !==
+                                    false &&
+                                  result[0].pickup_location_infos.suburb !==
+                                    null
+                                ? result[0].pickup_location_infos.suburb.toUpperCase()
+                                : "near your location" +
+                                  ". Click here for more details."
+                              : "near your location, click here for more details."),
+                        },
+                    headings: /RIDE/i.test(result[0].ride_mode)
+                      ? { en: "New ride request, N$" + result[0].fare }
+                      : { en: "New delivery request, N$" + result[0].fare },
+                    content_available: true,
+                    include_player_ids: driversPushNotif_token,
+                  };
+                  //Send
+                  sendPushUPNotification(message);
+                  resNotify(true);
+                });
+            })
+              .then()
+              .catch();
+
             //! Update the  driver's cached list
             new Promise((resCompute) => {
               let driverFilter = {
