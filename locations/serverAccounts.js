@@ -1118,7 +1118,6 @@ function getDaily_requestAmount_driver(
       if (resp !== null && avoidCached_data == false) {
         //Has a previous record
         try {
-          console.trace("CACHEDD");
           resp = JSON.parse(resp);
           //...
           resolve(resp);
@@ -1152,7 +1151,6 @@ function getDaily_requestAmount_driver(
         }
       } //No computed amount yet - make a fresh request
       else {
-        console.trace("FRESHHH");
         new Promise((res) => {
           exec_computeDaily_amountMade(
             collectionRidesDeliveryData,
@@ -2463,7 +2461,6 @@ function computeDriver_walletDeepInsights(
         if (resp !== null && avoidCached_data == false) {
           //Send cached data
           try {
-            console.trace("FOUND CACHED DATA");
             resp = parse(resp);
             resolve(resp);
           } catch (error) {
@@ -2502,7 +2499,6 @@ function computeDriver_walletDeepInsights(
           }
         } //? Send freshly computed data
         else {
-          console.trace("FRESH DATA");
           new Promise((resNewData) => {
             execGet_driversDeepInsights_fromWalletData(
               walletBasicData,

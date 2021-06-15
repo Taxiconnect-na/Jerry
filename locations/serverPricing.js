@@ -812,12 +812,37 @@ function doMongoSearchForAutocompletedSuburbs(
           );*/
           logger.info("FOUND REDIS RECORD OF SUBURB!");
           resp = JSON.parse(resp);
-          resp["passenger_number_id"] =
-            locationInfos.passenger_number_id !== undefined &&
-            locationInfos.passenger_number_id !== null
-              ? locationInfos.passenger_number_id
-              : 1;
-          resolve(resp);
+          if (
+            resp.location_name !== undefined &&
+            resp.location_name !== null &&
+            resp.suburb !== undefined &&
+            resp.suburb !== null
+          ) {
+            resp["passenger_number_id"] =
+              locationInfos.passenger_number_id !== undefined &&
+              locationInfos.passenger_number_id !== null
+                ? locationInfos.passenger_number_id
+                : 1;
+            resolve(resp);
+          } //Do fresh search
+          else {
+            new Promise((res) => {
+              execMongoSearchAutoComplete(
+                res,
+                locationInfos,
+                redisKey,
+                collectionSavedSuburbResults,
+                annotate
+              );
+            }).then(
+              (result) => {
+                resolve(result);
+              },
+              (error) => {
+                resolve(false);
+              }
+            );
+          }
         } catch (
           error //Error parsing -get from mongodb
         ) {
@@ -1001,8 +1026,7 @@ function execMongoSearchAutoComplete(
                         body.address.road !== null
                           ? body.address.road
                           : body.namedetails["name:en"],
-                    }),
-                    redis.print
+                    })
                   );
                   //...
                   res2(true);
@@ -1140,8 +1164,7 @@ function execMongoSearchAutoComplete(
                           body.address.road !== null
                             ? body.address.road
                             : body.namedetails["name:en"],
-                      }),
-                      redis.print
+                      })
                     );
                     //...
                     res2(true);

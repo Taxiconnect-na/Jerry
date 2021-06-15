@@ -211,7 +211,6 @@ function parseRequestData(inputData, resolve) {
       ) {
         //Valid input
         let parsedData = {};
-        let tmpDate = new Date();
         //Complete unnested data
         parsedData.client_id = inputData.user_fingerprint;
         parsedData.request_fp = dateObject.unix();
@@ -234,7 +233,7 @@ function parseRequestData(inputData, resolve) {
                   : result; //Update with the fingerprint;
             },
             (error) => {
-              logger.info(error);
+              logger.warn(error);
               parsedData.request_fp =
                 parsedData.user_fingerprint + dateObject.unix(); //Make a fingerprint out of the timestamp
             }
@@ -455,10 +454,12 @@ function parseRequestData(inputData, resolve) {
                     };
                     //! APPLY BLUE OCEAN BUG FIX FOR THE PICKUP LOCATION COORDINATES
                     //? Get temporary vars
-                    let pickLatitude =
-                      parsedData.pickup_location_infos.coordinates.latitude;
-                    let pickLongitude =
-                      parsedData.pickup_location_infos.coordinates.longitude;
+                    let pickLatitude = parseFloat(
+                      parsedData.pickup_location_infos.coordinates.latitude
+                    );
+                    let pickLongitude = parseFloat(
+                      parsedData.pickup_location_infos.coordinates.longitude
+                    );
                     //! Coordinates order fix - major bug fix for ocean bug
                     if (
                       pickLatitude !== undefined &&
@@ -509,9 +510,20 @@ function parseRequestData(inputData, resolve) {
                                 : body.suburb; //! Suburb
                             parsedData.pickup_location_infos.state = body.state; //! State
                             parsedData.pickup_location_infos.location_name =
-                              body.location_name; //! Location name
+                              body.location_name !== undefined &&
+                              body.location_name !== null &&
+                              body.location_name !== false &&
+                              body.location_name !== "false"
+                                ? body.location_name
+                                : parsedData.pickup_location_infos
+                                    .location_name; //! Location name
                             parsedData.pickup_location_infos.street_name =
-                              body.street_name; //! Street name
+                              body.street_name !== undefined &&
+                              body.street_name !== null &&
+                              body.street_name !== false &&
+                              body.street_name !== "false"
+                                ? body.street_name
+                                : parsedData.pickup_location_infos.street_name; //! Street name
 
                             res3(true);
                           } catch (error) {
