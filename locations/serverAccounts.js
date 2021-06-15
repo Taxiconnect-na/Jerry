@@ -1349,36 +1349,7 @@ function getRiders_wallet_summary(
         logger.info("found cached data");
         //Has a previous record - reply with it and rehydrate the data
         try {
-          //Rehydrate the cache
-          new Promise((res) => {
-            execGet_ridersDrivers_walletSummary(
-              requestObj,
-              collectionRidesDeliveryData,
-              collectionWalletTransactions_logs,
-              collectionDrivers_profiles,
-              collectionPassengers_profiles,
-              redisKey,
-              res,
-              userType,
-              avoidCached_data
-            );
-          }).then(
-            (result) => {
-              //? Cache
-              redisCluster.set(redisKey, stringify(result));
-              if (avoidCached_data !== false && avoidCached_data === true) {
-                //Avoid cache
-                resolve(result);
-              }
-            },
-            (error) => {
-              if (avoidCached_data !== false && avoidCached_data === true) {
-                //Avoid cache
-                logger.info(error);
-                resolve({ total: 0, transactions_data: null });
-              }
-            }
-          );
+          //! USE MESSAGE QUEUES TO UPDATE THE WALLET
           //...Immediatly reply
           if (avoidCached_data === false || avoidCached_data === undefined) {
             resp = parse(resp);
