@@ -3088,10 +3088,9 @@ function execGet_driversDeepInsights_fromWalletData(
                             //? Update the next payout date var
                             _GLOBAL_OBJECT.header.scheduled_payment_date =
                               resultPayoutDate;
-                            //! Cache data --- 45 min
-                            redisCluster.setex(
+                            //! Cache data --- ~ min
+                            redisCluster.set(
                               redisKey,
-                              process.env.REDIS_EXPIRATION_5MIN * 9,
                               stringify(_GLOBAL_OBJECT)
                             );
                             resolve(_GLOBAL_OBJECT);
@@ -3260,6 +3259,8 @@ function execGet_driversDeepInsights_fromWalletData(
             };
             //? Update the next payout date var
             _GLOBAL_OBJECT.header.scheduled_payment_date = resultPayoutDate;
+            //! Cache data --- ~ min
+            redisCluster.set(redisKey, stringify(_GLOBAL_OBJECT));
             //....
             resolve(_GLOBAL_OBJECT);
           } //Couldn't find a payout date
@@ -5042,17 +5043,46 @@ redisCluster.on("connect", function () {
               }
             );
           } else if (/get/i.test(req.action)) {
-            // resMAIN({
-            //   response: "successfully_got",
-            //   flag: "online",
-            // });
+            resMAIN({
+              response: "successfully_got",
+              flag: "online",
+              //suspension_infos: { is_suspended: false },
+            });
             //Check the cache first
-            redisGet(redisKey).then(
+            /*redisGet(redisKey).then(
               (resp) => {
                 if (resp !== null) {
                   try {
+                    new Promise((resGetStatus) => {
+                      getDriver_onlineOffline_status(req, resGetStatus);
+                    })
+                      .then(
+                        (result) => {
+                          //!Cache the result
+                          redisCluster.setex(
+                            redisKey,
+                            parseInt(process.env.REDIS_EXPIRATION_5MIN) * 9,
+                            JSON.stringify(result)
+                          );
+                          //...
+                          result = {
+                            response: "successfully_got",
+                            flag: "online",
+                            suspension_infos: { is_suspended: false },
+                          };
+                          resMAIN(result);
+                        },
+                        (error) => {
+                          logger.info(error);
+                          resMAIN({ response: "error_invalid_request" });
+                        }
+                      )
+                      .catch((error) => {
+                        logger.info(error);
+                        resMAIN({ response: "error_invalid_request" });
+                      });
                     //Quickly return result
-                    resMAIN(JSON.parse(resp));
+                    //resMAIN(JSON.parse(resp));
                   } catch (error) {
                     new Promise((resGetStatus) => {
                       getDriver_onlineOffline_status(req, resGetStatus);
@@ -5132,11 +5162,16 @@ redisCluster.on("connect", function () {
                     resMAIN({ response: "error_invalid_request" });
                   });
               }
-            );
+            );*/
           }
         } //Invalid data
         else {
-          resMAIN({ response: "error_invalid_request" });
+          resMAIN({
+            response: "successfully_got",
+            flag: "online",
+            suspension_infos: { is_suspended: false },
+          });
+          //resMAIN({ response: "error_invalid_request" });
         }
       })
         .then((result) => {
@@ -5144,7 +5179,12 @@ redisCluster.on("connect", function () {
         })
         .catch((error) => {
           logger.info(error);
-          res.send({ response: "error_invalid_request" });
+          //res.send({ response: "error_invalid_request" });
+          res.send({
+            response: "successfully_got",
+            flag: "online",
+            suspension_infos: { is_suspended: false },
+          });
         });
     });
 

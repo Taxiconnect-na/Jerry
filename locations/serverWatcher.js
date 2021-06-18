@@ -548,8 +548,8 @@ function updateNext_paymentDateDrivers(
                                               {
                                                 $set: {
                                                   "operational_state.status":
-                                                    "offline", //! PUT OFFLINE
-                                                  isDriverSuspended: false,
+                                                    "online", //! PUT OFFLINE - ONLINE TO KEEP RECEIVING REQUESTS.
+                                                  isDriverSuspended: false, //!DO NOT SUSPEND FOR NOW
                                                   suspension_infos:
                                                     suspensionInfos_array,
                                                 },
@@ -697,6 +697,23 @@ function updateNext_paymentDateDrivers(
                               }
                             } //Not reached the threshold already - so update the payment cycle
                             else {
+                              //? Unlock the driver if locked --------------------------------
+                              new Promise((resUnlock) => {
+                                lock_unlock_drivers(
+                                  "PAID_COMISSION",
+                                  "Junkstem",
+                                  false,
+                                  driverData,
+                                  collectionDrivers_profiles,
+                                  resUnlock
+                                );
+                              })
+                                .then(
+                                  () => {},
+                                  () => {}
+                                )
+                                .catch((error) => logger.info(error));
+                              //?----------------------------------------------------------------------
                               //! Day passed already by 24 hours - update - ADD 7 days
                               //! Update the payment cycle
                               new Promise((resCompute) => {
@@ -1914,7 +1931,7 @@ redisCluster.on("connect", function () {
 
       //? 5. Auto switch on all the drivers by default
       //! TO BE REVISED
-      /*new Promise((res5) => {
+      new Promise((res5) => {
         collectionDrivers_profiles
           .find({ "operational_state.status": "offline" })
           .toArray(function (err, driverData) {
@@ -1942,8 +1959,28 @@ redisCluster.on("connect", function () {
         })
         .catch((error) => {
           logger.info(error);
-        });*/
+        });
     }, process.env.INTERVAL_PERSISTER_MAIN_WATCHER_MILLISECONDS);
+
+    //! FOR SUPER HEAVY PROCESSES - 30min
+    _INTERVAL_PERSISTER_LATE_REQUESTS_SUPER_HEAVY = setInterval(function () {
+      //? 1. Refresh every driver's wallet
+      new Promise((res1) => {
+        updateDrivers_walletCachedData(collectionDrivers_profiles, res1);
+      })
+        .then(
+          (result) => {
+            logger.info(result);
+          },
+          (error) => {
+            logger.info(error);
+          }
+        )
+        .catch((error) => {
+          logger.info(error);
+        });
+    }, parseInt(process.env.INTERVAL_PERSISTER_MAIN_WATCHER_MILLISECONDS) *
+      180);
 
     //! FOR HEAVY PROCESSES REQUIRING - 300sec
     _INTERVAL_PERSISTER_LATE_REQUESTS_HEAVY = setInterval(function () {
@@ -2010,21 +2047,6 @@ redisCluster.on("connect", function () {
           logger.info(error);
         });
 
-      //? 1. Refresh every driver's wallet
-      new Promise((res1) => {
-        updateDrivers_walletCachedData(collectionDrivers_profiles, res1);
-      })
-        .then(
-          (result) => {
-            logger.info(result);
-          },
-          (error) => {
-            logger.info(error);
-          }
-        )
-        .catch((error) => {
-          logger.info(error);
-        });
       //? 2. Reinforce the date type for the transaction logs
       /*new Promise((res2) => {
         collectionWalletTransactions_logs

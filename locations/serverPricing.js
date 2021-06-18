@@ -1308,7 +1308,7 @@ function estimateFullVehiclesCatPrices(
                 if (result.length > 0) {
                   //Found corresponding prices maps
                   res(result);
-                } //No prices map found - Set default prices NAD 12 - non realistic and fixed prices
+                } //No prices map found - Set default prices NAD 14 - non realistic and fixed prices
                 else {
                   //Did not find suburbs with mathing suburbs included
                   //Register in mongo
@@ -1350,10 +1350,10 @@ function estimateFullVehiclesCatPrices(
                     () => {}
                   );
                   res([
-                    { pickup_suburb: false, fare: 12 },
-                    { pickup_suburb: false, fare: 12 },
-                    { pickup_suburb: false, fare: 12 },
-                    { pickup_suburb: false, fare: 12 },
+                    { pickup_suburb: false, fare: 14 },
+                    { pickup_suburb: false, fare: 14 },
+                    { pickup_suburb: false, fare: 14 },
+                    { pickup_suburb: false, fare: 14 },
                   ]);
                 }
               });

@@ -987,6 +987,26 @@ function tripChecker_Dispatcher(
       if (resp !== null && avoidCached_data === false) {
         //Has a record
         try {
+          //Make a rehydrate request
+          new Promise((resCompute) => {
+            execTripChecker_Dispatcher(
+              collectionRidesDeliveries_data,
+              collectionDrivers_profiles,
+              collectionPassengers_profiles,
+              user_fingerprint,
+              user_nature,
+              requestType,
+              RIDE_REDIS_KEY,
+              resolve
+            );
+            //...
+            resCompute(true);
+          })
+            .then(
+              () => {},
+              () => {}
+            )
+            .catch((error) => {});
           resp = JSON.parse(resp);
           //....
           resolve(resp);
