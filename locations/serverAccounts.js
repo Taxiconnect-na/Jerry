@@ -97,7 +97,7 @@ function SendSMSTo(phone_number, message) {
   });
 
   req.on("error", (e) => {
-    console.error(e);
+    logger.warn(e);
   });
 
   req.write(postData);
@@ -1111,7 +1111,7 @@ function getDaily_requestAmount_driver(
   resolveDate();
   //Form the redis key
   let redisKey = "dailyAmount-" + driver_fingerprint;
-  console.log(driver_fingerprint);
+  logger.info(driver_fingerprint);
   //..
   redisGet(redisKey).then(
     (resp) => {
@@ -1224,7 +1224,7 @@ function exec_computeDaily_amountMade(
   resolveDate();
   //...
   //Get the driver's requests operation clearances
-  console.log(driver_fingerprint);
+  logger.info(driver_fingerprint);
   collectionDrivers_profiles
     .find({ driver_fingerprint: driver_fingerprint })
     .toArray(function (error, driverProfile) {
@@ -5066,14 +5066,14 @@ redisCluster.on("connect", function () {
                           );
                         },
                         (error) => {
-                          console.log(error);
+                          logger.info(error);
                         }
                       )
                       .catch((error) => {
-                        console.log(error);
+                        logger.info(error);
                       });
                     //Quickly return result
-                    console.log(resp);
+                    logger.info(resp);
                     resMAIN(JSON.parse(resp));
                   } catch (error) {
                     new Promise((resGetStatus) => {
