@@ -1,5 +1,5 @@
 require("dotenv").config();
-require("newrelic");
+//require("newrelic");
 //var dash = require("appmetrics-dash");
 var express = require("express");
 const http = require("http");
@@ -549,7 +549,7 @@ function updateNext_paymentDateDrivers(
                                                 $set: {
                                                   "operational_state.status":
                                                     "online", //! PUT OFFLINE - ONLINE TO KEEP RECEIVING REQUESTS.
-                                                  isDriverSuspended: false, //!DO NOT SUSPEND FOR NOW
+                                                  isDriverSuspended: true, //!DO NOT SUSPEND FOR NOW
                                                   suspension_infos:
                                                     suspensionInfos_array,
                                                 },
@@ -886,15 +886,17 @@ function lock_unlock_drivers(
           newDriverData.length > 0 &&
           newDriverData[0].suspension_infos !== undefined &&
           newDriverData[0].suspension_infos !== null &&
-          /UNPAID_COMISSION/i.test(newDriverData[0].suspension_infos.reason)
+          /UNPAID_COMISSION/i.test(newDriverData[0].suspension_infos[0].reason)
         ) {
           //Found a driver data
           resolveDate();
           //? Append the new suspension to the suspension array
           let suspensionInfos_array =
             newDriverData[0].suspension_infos !== undefined &&
-            newDriverData[0].suspension_infos !== null
-              ? newDriverData[0].suspension_infos
+            newDriverData[0].suspension_infos !== null &&
+            newDriverData[0].suspension_infos[0] !== undefined &&
+            newDriverData[0].suspension_infos[0] !== null
+              ? newDriverData[0].suspension_infos[0]
               : [];
           /*suspensionInfos_array.push({
             reason: reason,
@@ -929,7 +931,7 @@ function lock_unlock_drivers(
                   15
                 )}`
               );
-              resUnlock(true);
+              resolve(true);
             }
           );
         } //! No proper suspension reason found - pass
@@ -1898,6 +1900,7 @@ redisCluster.on("connect", function () {
         })
       )
       .use(bodyParser.urlencoded({ extended: true }));
+    redisCluster.h;
 
     /**
      * MAIN Watcher loop
@@ -1931,7 +1934,7 @@ redisCluster.on("connect", function () {
 
       //? 5. Auto switch on all the drivers by default
       //! TO BE REVISED
-      new Promise((res5) => {
+      /*new Promise((res5) => {
         collectionDrivers_profiles
           .find({ "operational_state.status": "offline" })
           .toArray(function (err, driverData) {
@@ -1959,7 +1962,7 @@ redisCluster.on("connect", function () {
         })
         .catch((error) => {
           logger.info(error);
-        });
+        });*/
     }, process.env.INTERVAL_PERSISTER_MAIN_WATCHER_MILLISECONDS);
 
     //! FOR SUPER HEAVY PROCESSES - 30min

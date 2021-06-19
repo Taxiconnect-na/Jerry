@@ -1027,15 +1027,8 @@ function tripChecker_Dispatcher(
             //...
             resCompute(true);
           })
-            .then(
-              () => {},
-              () => {
-                resolve(false);
-              }
-            )
-            .catch((error) => {
-              resolve(false);
-            });
+            .then(() => {})
+            .catch((error) => {});
         }
       } //No record
       else {
@@ -1054,15 +1047,8 @@ function tripChecker_Dispatcher(
           //...
           resCompute(true);
         })
-          .then(
-            () => {},
-            () => {
-              resolve(false);
-            }
-          )
-          .catch((error) => {
-            resolve(false);
-          });
+          .then(() => {})
+          .catch((error) => {});
       }
     })
     .catch((error) => {
@@ -1082,15 +1068,8 @@ function tripChecker_Dispatcher(
         //...
         resCompute(true);
       })
-        .then(
-          () => {},
-          () => {
-            resolve(false);
-          }
-        )
-        .catch((error) => {
-          resolve(false);
-        });
+        .then(() => {})
+        .catch((error) => {});
     });
 }
 
