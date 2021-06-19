@@ -1,5 +1,5 @@
 require("dotenv").config();
-require("newrelic");
+//require("newrelic");
 //var dash = require("appmetrics-dash");
 var express = require("express");
 const http = require("http");
@@ -80,7 +80,7 @@ resolveDate();
   date_logged: chaineDateUTC,
 };
 //Cache
-//logger.info("[1] Initialize debug data in cache");
+////logger.info("[1] Initialize debug data in cache");
 redisCluster.set(
   driverCacheData.user_fingerprint,
   JSON.stringify(driverCacheData),
@@ -89,7 +89,7 @@ redisCluster.set(
 //-----------------------------------------------------------------------------------------------------
 
 function logObject(obj) {
-  //logger.info(inspect(obj, { maxArrayLength: null, depth: null, showHidden: true, colors: true }));
+  ////logger.info(inspect(obj, { maxArrayLength: null, depth: null, showHidden: true, colors: true }));
 }
 
 function logToSimulator(socket, data) {
@@ -242,7 +242,7 @@ function getRouteInfosDestination(
                 );
               }).then(
                 () => {
-                  //logger.info("Updated relative eta cache.");
+                  ////logger.info("Updated relative eta cache.");
                 },
                 () => {}
               );
@@ -379,9 +379,9 @@ function getRouteInfos(coordsInfos, resolve) {
     }
   }
   //!!! --------------------------
-  logger.info(`DRIVER POSITION -> ${JSON.stringify(driverPosition)}`);
-  logger.info(`PASSENGER POSITION -> ${JSON.stringify(passengerPosition)}`);
-  logger.info(`DESTINATION POSITION -> ${JSON.stringify(destinationPosition)}`);
+  //logger.info(`DRIVER POSITION -> ${JSON.stringify(driverPosition)}`);
+  //logger.info(`PASSENGER POSITION -> ${JSON.stringify(passengerPosition)}`);
+  //logger.info(`DESTINATION POSITION -> ${JSON.stringify(destinationPosition)}`);
 
   url =
     process.env.URL_ROUTE_SERVICES +
@@ -395,7 +395,7 @@ function getRouteInfos(coordsInfos, resolve) {
     passengerPosition.longitude +
     "&heading_penalty=0&avoid=residential&avoid=ferry&ch.disable=true&locale=en&details=street_name&details=time&optimize=true&points_encoded=false&details=max_speed&snap_prevention=ferry&profile=car&pass_through=true&instructions=false";
 
-  //logger.info(url);
+  ////logger.info(url);
 
   requestAPI(url, function (error, response, body) {
     if (body != undefined) {
@@ -427,7 +427,7 @@ function getRouteInfos(coordsInfos, resolve) {
                 );
               }).then(
                 (result) => {
-                  logger.info("Ready to place");
+                  //logger.info("Ready to place");
                   if (
                     result !== false &&
                     result !== undefined &&
@@ -584,11 +584,11 @@ function updateRidersRealtimeLocationData(
                 res0(true);
               })
               .catch((error) => {
-                logger.warn(error);
+                //logger.warn(error);
                 res0(false);
               });
           } else {
-            logger.info("No rides pending");
+            //logger.info("No rides pending");
             res0(false);
           }
         });
@@ -644,7 +644,7 @@ function updateRiderLocationsLog(
       },
       function (err, res) {
         if (err) {
-          logger.info(err);
+          //logger.info(err);
         }
       }
     );
@@ -678,7 +678,7 @@ function updateRiderLocationsLog(
       },
       function (err, res) {
         if (err) {
-          logger.info(err);
+          //logger.info(err);
         }
       }
     );
@@ -687,7 +687,7 @@ function updateRiderLocationsLog(
       .find(filterDriver)
       .toArray(function (err, driverData) {
         if (err) {
-          logger.info(err);
+          //logger.info(err);
           resolve(false);
         }
         //...
@@ -805,7 +805,7 @@ function updateRiderLocationsLog(
               filterDriver,
               dataBundle,
               function (err, res) {
-                logger.info(err);
+                //logger.info(err);
                 //! Update the city and the country
                 new Promise((resUpdateRest) => {
                   completeLastLoccation_infosSubsAndRest(
@@ -896,7 +896,7 @@ function completeLastLoccation_infosSubsAndRest(
           if (error === null) {
             try {
               body = JSON.parse(body);
-              //logger.info(body);
+              ////logger.info(body);
               //? Complete the suburb data
               objFinal.suburb = body.suburb !== undefined ? body.suburb : false;
               //Update the user's profile
@@ -929,7 +929,7 @@ function completeLastLoccation_infosSubsAndRest(
                     },
                   },
                   function (err, res) {
-                    logger.info(err);
+                    //logger.info(err);
                     resolve(true);
                   }
                 );
@@ -1011,7 +1011,7 @@ function tripChecker_Dispatcher(
           //....
           resolve(resp);
         } catch (error) {
-          logger.warn(error);
+          //logger.warn(error);
           //Make a fresh request
           new Promise((resCompute) => {
             execTripChecker_Dispatcher(
@@ -1066,7 +1066,7 @@ function tripChecker_Dispatcher(
       }
     })
     .catch((error) => {
-      logger.warn(error);
+      //logger.warn(error);
       //Make a fresh request
       new Promise((resCompute) => {
         execTripChecker_Dispatcher(
@@ -1273,7 +1273,7 @@ function execTripChecker_Dispatcher(
                     }
                     //...
                     if (result1.length > 0) {
-                      logger.info("PENDING_CONNECTME");
+                      //logger.info("PENDING_CONNECTME");
                       //Has an uncompleted connectMe request - only send this connectMe request until it is completed
                       new Promise((res) => {
                         execGetDrivers_requests_and_provide(
@@ -1297,13 +1297,13 @@ function execTripChecker_Dispatcher(
                           resolve(resultFinal);
                         },
                         (error) => {
-                          logger.info(error);
+                          //logger.info(error);
                           resolve(false);
                         }
                       );
                     } //Has no uncompleted connectMe requests - so, send the accepted requests and add additional virgin allowed to see rides
                     else {
-                      logger.info("ACCEPTED_AND_ADDITIONAL_REQUESTS");
+                      //logger.info("ACCEPTED_AND_ADDITIONAL_REQUESTS");
                       new Promise((res) => {
                         execGetDrivers_requests_and_provide(
                           driverData,
@@ -1326,7 +1326,7 @@ function execTripChecker_Dispatcher(
                           resolve(resultFinal);
                         },
                         (error) => {
-                          logger.info(error);
+                          //logger.info(error);
                           resolve(false);
                         }
                       );
@@ -1334,7 +1334,7 @@ function execTripChecker_Dispatcher(
                   });
               } //NO rides already accepted yet - send full list of allowed to see rides
               else {
-                //logger.info("FULL_ALLLOWEDTOSEE_REQUESTS");
+                ////logger.info("FULL_ALLLOWEDTOSEE_REQUESTS");
                 new Promise((res) => {
                   execGetDrivers_requests_and_provide(
                     driverData,
@@ -1357,7 +1357,7 @@ function execTripChecker_Dispatcher(
                     resolve(resultFinal);
                   },
                   (error) => {
-                    logger.info(error);
+                    //logger.info(error);
                     resolve(false);
                   }
                 );
@@ -1398,7 +1398,7 @@ function sharedTripChecker_Dispatcher(
   requestType = "ride",
   resolve
 ) {
-  logger.info("share the trip action");
+  //logger.info("share the trip action");
 }
 
 /**
@@ -1443,7 +1443,7 @@ function execGetDrivers_requests_and_provide(
         resolve(resultFinal);
       },
       (error) => {
-        logger.info(error);
+        //logger.info(error);
         resolve(false);
       }
     );
@@ -1512,7 +1512,7 @@ function execGetDrivers_requests_and_provide(
               resolve(resultFinal);
             },
             (error) => {
-              logger.info(error);
+              //logger.info(error);
               resolve(false);
             }
           );
@@ -1531,7 +1531,7 @@ function execGetDrivers_requests_and_provide(
               resolve(resultFinal);
             },
             (error) => {
-              logger.info(error);
+              //logger.info(error);
               resolve(false);
             }
           );
@@ -1680,12 +1680,12 @@ function execGetDrivers_requests_and_provide(
             );
           }).then(
             (resultFinal) => {
-              //logger.info("REFINED");
-              logger.info("REFINED -> ", resultFinal);
+              ////logger.info("REFINED");
+              //logger.info("REFINED -> ", resultFinal);
               resolve(resultFinal);
             },
             (error) => {
-              logger.info(error);
+              //logger.info(error);
               resolve(false);
             }
           );
@@ -1734,7 +1734,7 @@ function parseRequests_forDrivers_view(
           res(resultParsed);
         },
         (error) => {
-          logger.warn(error);
+          //logger.warn(error);
           res(false);
         }
       );
@@ -1742,7 +1742,7 @@ function parseRequests_forDrivers_view(
         (resp) => {
           //! justLeaveMe variable to bypass the cached data.
           if (resp !== null && resp.justLeaveMe !== undefined) {
-            logger.info("Found single request cached stored!");
+            //logger.info("Found single request cached stored!");
             //Has a previous record
             try {
               resp = JSON.parse(resp);
@@ -1763,7 +1763,7 @@ function parseRequests_forDrivers_view(
               //Quickly return the cached result
               res(resp);
             } catch (error) {
-              logger.warn(error);
+              //logger.warn(error);
               //Error make a fresh request
               new Promise((resFresh) => {
                 execDriver_requests_parsing(
@@ -1778,7 +1778,7 @@ function parseRequests_forDrivers_view(
                   res(resultParsed);
                 },
                 (error) => {
-                  logger.warn(error);
+                  //logger.warn(error);
                   res(false);
                 }
               );
@@ -1798,14 +1798,14 @@ function parseRequests_forDrivers_view(
                 res(resultParsed);
               },
               (error) => {
-                logger.warn(error);
+                //logger.warn(error);
                 res(false);
               }
             );
           }
         },
         (error) => {
-          logger.info(error);
+          //logger.info(error);
           //Error make a fresh request
           new Promise((resFresh) => {
             execDriver_requests_parsing(
@@ -1820,7 +1820,7 @@ function parseRequests_forDrivers_view(
               res(resultParsed);
             },
             (error) => {
-              logger.warn(error);
+              //logger.warn(error);
               res(false);
             }
           );
@@ -1840,12 +1840,12 @@ function parseRequests_forDrivers_view(
         resolve(batchRequestsResults);
       },
       (error) => {
-        logger.warn(error);
+        //logger.warn(error);
         resolve(false);
       }
     )
     .catch((error) => {
-      logger.warn(error);
+      //logger.warn(error);
       resolve(false);
     });
 }
@@ -1916,7 +1916,7 @@ function execDriver_requests_parsing(
     .collation({ locale: "en", strength: 2 })
     .toArray(function (err, passengerData) {
       if (err) {
-        logger.info(err);
+        //logger.info(err);
         res(false);
       }
 
@@ -2092,7 +2092,7 @@ function execDriver_requests_parsing(
                         resCache(true);
                       }).then(
                         () => {
-                          logger.info("Single processing cached!");
+                          //logger.info("Single processing cached!");
                         },
                         () => {}
                       );
@@ -2121,7 +2121,7 @@ function execDriver_requests_parsing(
                         resCache(true);
                       }).then(
                         () => {
-                          logger.info("Single processing cached!");
+                          //logger.info("Single processing cached!");
                         },
                         () => {}
                       );
@@ -2130,7 +2130,7 @@ function execDriver_requests_parsing(
                     }
                   },
                   (error) => {
-                    logger.warn(error);
+                    //logger.warn(error);
                     //! Salvage anyway
                     //Save the ETA to destination data
                     parsedRequestsArray.origin_destination_infos.eta_to_destination_infos.eta =
@@ -2153,7 +2153,7 @@ function execDriver_requests_parsing(
                       resCache(true);
                     }).then(
                       () => {
-                        logger.info("Single processing cached!");
+                        //logger.info("Single processing cached!");
                       },
                       () => {}
                     );
@@ -2162,7 +2162,7 @@ function execDriver_requests_parsing(
                   }
                 )
                 .catch((error) => {
-                  logger.warn(error);
+                  //logger.warn(error);
                   //! Salvage anyway
                   //Save the ETA to destination data
                   parsedRequestsArray.origin_destination_infos.eta_to_destination_infos.eta =
@@ -2185,7 +2185,7 @@ function execDriver_requests_parsing(
                     resCache(true);
                   }).then(
                     () => {
-                      logger.info("Single processing cached!");
+                      //logger.info("Single processing cached!");
                     },
                     () => {}
                   );
@@ -2194,12 +2194,12 @@ function execDriver_requests_parsing(
                 });
             },
             (error) => {
-              logger.info(error);
+              //logger.info(error);
               res(false);
             }
           )
           .catch((error) => {
-            logger.info(error);
+            //logger.info(error);
             resolve(false);
           });
       } //No data found - strange
@@ -2234,14 +2234,14 @@ function getUserRideCachedData_andComputeRoute(
     );
   }).then(
     (reslt) => {
-      //logger.info("precomputed for later use done.");
+      ////logger.info("precomputed for later use done.");
     },
     (error) => {
-      //logger.info(error);
+      ////logger.info(error);
     }
   );
   //........Return cached data
-  //logger.info("found cached user trip infos");
+  ////logger.info("found cached user trip infos");
   //Compute route via compute skeleton
   computeRouteDetails_skeleton([respUser], resolve);
 }
@@ -2308,7 +2308,7 @@ function computeRouteDetails_skeleton(
         .find({ driver_fingerprint: rideHistory.taxi_id })
         .toArray(function (err, driverProfile) {
           if (err) {
-            logger.info(err);
+            //logger.info(err);
             resolve(false); //An error happened
           }
 
@@ -2324,9 +2324,9 @@ function computeRouteDetails_skeleton(
               rideHistory.ride_state_vars.inRideToDestination === false &&
               rideHistory.ride_state_vars.isRideCompleted_driverSide === false
             ) {
-              logger.info("IN ROUTE TO PICKUP -- HERE");
+              //logger.info("IN ROUTE TO PICKUP -- HERE");
               //In route to pickup
-              //logger.info("In  route to pickup");
+              ////logger.info("In  route to pickup");
               let requestStatusMain = "inRouteToPickup";
               //Get driver's coordinates
               //Get driver coords from cache, it non existant, get from mongo
@@ -2357,8 +2357,8 @@ function computeRouteDetails_skeleton(
                             //............Return cached
                             let tripData = JSON.parse(resp0);
                             //Found a precomputed record
-                            //logger.info("Trip data cached found!");
-                            logger.info(tripData);
+                            ////logger.info("Trip data cached found!");
+                            //logger.info(tripData);
                             //! SAVE THE FINAL FULL RESULT - for 15 min ------
                             redisCluster.setex(
                               RIDE_REDIS_KEY,
@@ -2368,7 +2368,7 @@ function computeRouteDetails_skeleton(
                             //! ----------------------------------------------
                             resolve(tripData);
                           } catch (error) {
-                            logger.info(error);
+                            //logger.info(error);
                             resolve(false);
                           }
                         } //no record create a new one
@@ -2389,195 +2389,11 @@ function computeRouteDetails_skeleton(
                               //Get route infos from cache.
                               redisGet(rideHistory.request_fp).then(
                                 (result) => {
-                                  logger.info(result);
+                                  //logger.info(result);
                                   resolve(result);
                                 },
                                 (error) => {
-                                  //logger.info(error);
-                                  resolve(false);
-                                }
-                              );
-                            },
-                            (error) => {
-                              resolve(false);
-                            }
-                          );
-                        }
-                      },
-                      (err0) => {
-                        logger.info(err0);
-                        //Compute next route update ---------------------------------------------------
-                        new Promise((reslv) => {
-                          computeAndCacheRouteDestination(
-                            resp,
-                            rideHistory,
-                            driverProfile,
-                            riderCoords,
-                            requestStatusMain,
-                            RIDE_REDIS_KEY,
-                            reslv
-                          );
-                        }).then(
-                          () => {
-                            //Get route infos from cache.
-                            redisGet(rideHistory.request_fp).then(
-                              (result) => {
-                                resolve(result);
-                              },
-                              (error) => {
-                                //logger.info(error);
-                                resolve(false);
-                              }
-                            );
-                          },
-                          (error) => {
-                            resolve(false);
-                          }
-                        );
-                      }
-                    );
-                  } else {
-                    logger.info("Skip cache");
-                    //GET THE DRIVER'S LOCATION FROM MONGO DB
-                    //! auto cache the driver's location - Major performance update!
-                    redisCluster.setex(
-                      rideHistory.taxi_id,
-                      process.env.REDIS_EXPIRATION_5MIN,
-                      JSON.stringify(
-                        driverProfile.operational_state.last_location
-                          .coordinates
-                      )
-                    );
-                    //Compute next route update ---------------------------------------------------
-                    new Promise((reslv) => {
-                      computeAndCacheRouteDestination(
-                        JSON.stringify(
-                          driverProfile.operational_state.last_location
-                            .coordinates
-                        ),
-                        rideHistory,
-                        driverProfile,
-                        riderCoords,
-                        requestStatusMain,
-                        RIDE_REDIS_KEY,
-                        reslv
-                      );
-                    }).then(
-                      () => {
-                        //Get route infos from cache.
-                        redisGet(rideHistory.request_fp).then(
-                          (result) => {
-                            resolve(JSON.parse(result));
-                          },
-                          (error) => {
-                            //logger.info(error);
-                            resolve(false);
-                          }
-                        );
-                      },
-                      (error) => {
-                        resolve(false);
-                      }
-                    );
-                  }
-                },
-                (error) => {
-                  //logger.info(error);
-                  resolve(false);
-                }
-              );
-            } else if (
-              rideHistory.ride_state_vars.inRideToDestination === true &&
-              rideHistory.ride_state_vars.isRideCompleted_driverSide === false
-            ) {
-              //In route to drop off
-              //logger.info("In route to drop off");
-              let requestStatusMain = "inRouteToDestination";
-              //Get driver coords from cache, it non existant, get from mongo
-              redisGet(rideHistory.taxi_id).then(
-                (resp) => {
-                  if (resp !== null) {
-                    //Check for any trip record related to the route infos in the cache
-                    //KEY: request_fp
-                    redisGet(rideHistory.request_fp).then(
-                      (resp0) => {
-                        if (resp0 !== null) {
-                          try {
-                            //Compute next route update ---------------------------------------------------
-                            new Promise((reslv) => {
-                              computeAndCacheRouteDestination(
-                                resp,
-                                rideHistory,
-                                driverProfile,
-                                riderCoords,
-                                requestStatusMain,
-                                RIDE_REDIS_KEY,
-                                reslv
-                              );
-                            }).then(
-                              () => {
-                                logger.info("Updated");
-                              },
-                              () => {}
-                            );
-                            //............Return cached
-                            let tripData = JSON.parse(resp0);
-                            //Found a precomputed record
-                            logger.info("Trip data cached found!");
-                            resolve(tripData);
-                          } catch (error) {
-                            //logger.info(error);
-                            //Compute next route update ---------------------------------------------------
-                            new Promise((reslv) => {
-                              computeAndCacheRouteDestination(
-                                resp,
-                                rideHistory,
-                                driverProfile,
-                                riderCoords,
-                                requestStatusMain,
-                                RIDE_REDIS_KEY,
-                                reslv
-                              );
-                            }).then(
-                              () => {
-                                //Get route infos from cache.
-                                redisGet(rideHistory.request_fp).then(
-                                  (result) => {
-                                    resolve(result);
-                                  },
-                                  (error) => {
-                                    //logger.info(error);
-                                    resolve(false);
-                                  }
-                                );
-                              },
-                              (error) => {
-                                resolve(false);
-                              }
-                            );
-                          }
-                        } //no record create a new one
-                        else {
-                          //Compute next route update ---------------------------------------------------
-                          new Promise((reslv) => {
-                            computeAndCacheRouteDestination(
-                              resp,
-                              rideHistory,
-                              driverProfile,
-                              riderCoords,
-                              requestStatusMain,
-                              RIDE_REDIS_KEY,
-                              reslv
-                            );
-                          }).then(
-                            () => {
-                              //Get route infos from cache.
-                              redisGet(rideHistory.request_fp).then(
-                                (result) => {
-                                  resolve(result);
-                                },
-                                (error) => {
-                                  //logger.info(error);
+                                  ////logger.info(error);
                                   resolve(false);
                                 }
                               );
@@ -2609,7 +2425,191 @@ function computeRouteDetails_skeleton(
                                 resolve(result);
                               },
                               (error) => {
-                                //logger.info(error);
+                                ////logger.info(error);
+                                resolve(false);
+                              }
+                            );
+                          },
+                          (error) => {
+                            resolve(false);
+                          }
+                        );
+                      }
+                    );
+                  } else {
+                    //logger.info("Skip cache");
+                    //GET THE DRIVER'S LOCATION FROM MONGO DB
+                    //! auto cache the driver's location - Major performance update!
+                    redisCluster.setex(
+                      rideHistory.taxi_id,
+                      process.env.REDIS_EXPIRATION_5MIN,
+                      JSON.stringify(
+                        driverProfile.operational_state.last_location
+                          .coordinates
+                      )
+                    );
+                    //Compute next route update ---------------------------------------------------
+                    new Promise((reslv) => {
+                      computeAndCacheRouteDestination(
+                        JSON.stringify(
+                          driverProfile.operational_state.last_location
+                            .coordinates
+                        ),
+                        rideHistory,
+                        driverProfile,
+                        riderCoords,
+                        requestStatusMain,
+                        RIDE_REDIS_KEY,
+                        reslv
+                      );
+                    }).then(
+                      () => {
+                        //Get route infos from cache.
+                        redisGet(rideHistory.request_fp).then(
+                          (result) => {
+                            resolve(JSON.parse(result));
+                          },
+                          (error) => {
+                            ////logger.info(error);
+                            resolve(false);
+                          }
+                        );
+                      },
+                      (error) => {
+                        resolve(false);
+                      }
+                    );
+                  }
+                },
+                (error) => {
+                  ////logger.info(error);
+                  resolve(false);
+                }
+              );
+            } else if (
+              rideHistory.ride_state_vars.inRideToDestination === true &&
+              rideHistory.ride_state_vars.isRideCompleted_driverSide === false
+            ) {
+              //In route to drop off
+              ////logger.info("In route to drop off");
+              let requestStatusMain = "inRouteToDestination";
+              //Get driver coords from cache, it non existant, get from mongo
+              redisGet(rideHistory.taxi_id).then(
+                (resp) => {
+                  if (resp !== null) {
+                    //Check for any trip record related to the route infos in the cache
+                    //KEY: request_fp
+                    redisGet(rideHistory.request_fp).then(
+                      (resp0) => {
+                        if (resp0 !== null) {
+                          try {
+                            //Compute next route update ---------------------------------------------------
+                            new Promise((reslv) => {
+                              computeAndCacheRouteDestination(
+                                resp,
+                                rideHistory,
+                                driverProfile,
+                                riderCoords,
+                                requestStatusMain,
+                                RIDE_REDIS_KEY,
+                                reslv
+                              );
+                            }).then(
+                              () => {
+                                //logger.info("Updated");
+                              },
+                              () => {}
+                            );
+                            //............Return cached
+                            let tripData = JSON.parse(resp0);
+                            //Found a precomputed record
+                            //logger.info("Trip data cached found!");
+                            resolve(tripData);
+                          } catch (error) {
+                            ////logger.info(error);
+                            //Compute next route update ---------------------------------------------------
+                            new Promise((reslv) => {
+                              computeAndCacheRouteDestination(
+                                resp,
+                                rideHistory,
+                                driverProfile,
+                                riderCoords,
+                                requestStatusMain,
+                                RIDE_REDIS_KEY,
+                                reslv
+                              );
+                            }).then(
+                              () => {
+                                //Get route infos from cache.
+                                redisGet(rideHistory.request_fp).then(
+                                  (result) => {
+                                    resolve(result);
+                                  },
+                                  (error) => {
+                                    ////logger.info(error);
+                                    resolve(false);
+                                  }
+                                );
+                              },
+                              (error) => {
+                                resolve(false);
+                              }
+                            );
+                          }
+                        } //no record create a new one
+                        else {
+                          //Compute next route update ---------------------------------------------------
+                          new Promise((reslv) => {
+                            computeAndCacheRouteDestination(
+                              resp,
+                              rideHistory,
+                              driverProfile,
+                              riderCoords,
+                              requestStatusMain,
+                              RIDE_REDIS_KEY,
+                              reslv
+                            );
+                          }).then(
+                            () => {
+                              //Get route infos from cache.
+                              redisGet(rideHistory.request_fp).then(
+                                (result) => {
+                                  resolve(result);
+                                },
+                                (error) => {
+                                  ////logger.info(error);
+                                  resolve(false);
+                                }
+                              );
+                            },
+                            (error) => {
+                              resolve(false);
+                            }
+                          );
+                        }
+                      },
+                      (err0) => {
+                        ////logger.info(err0);
+                        //Compute next route update ---------------------------------------------------
+                        new Promise((reslv) => {
+                          computeAndCacheRouteDestination(
+                            resp,
+                            rideHistory,
+                            driverProfile,
+                            riderCoords,
+                            requestStatusMain,
+                            RIDE_REDIS_KEY,
+                            reslv
+                          );
+                        }).then(
+                          () => {
+                            //Get route infos from cache.
+                            redisGet(rideHistory.request_fp).then(
+                              (result) => {
+                                resolve(result);
+                              },
+                              (error) => {
+                                ////logger.info(error);
                                 resolve(false);
                               }
                             );
@@ -2653,7 +2653,7 @@ function computeRouteDetails_skeleton(
                             resolve(JSON.parse(result));
                           },
                           (error) => {
-                            //logger.info(error);
+                            ////logger.info(error);
                             resolve(false);
                           }
                         );
@@ -2665,7 +2665,7 @@ function computeRouteDetails_skeleton(
                   }
                 },
                 (error) => {
-                  //logger.info(error);
+                  ////logger.info(error);
                   resolve(false);
                 }
               );
@@ -2691,7 +2691,7 @@ function computeRouteDetails_skeleton(
                   profile_picture: null,
                 },
               };
-              logger.info("Riders confirmation of drop off");
+              //logger.info("Riders confirmation of drop off");
 
               //1. Resolve pickup location name
               confirmation_request_schema.trip_details.pickup_name =
@@ -2804,7 +2804,7 @@ function computeRouteDetails_skeleton(
         });
     } //Request pending
     else {
-      //logger.info("request pending...");
+      ////logger.info("request pending...");
       //!!! ONLY SUPPORT ONE DESTINATION TRACKING.
       /*let bundle = {
         driver: undefined,
@@ -2827,7 +2827,7 @@ function computeRouteDetails_skeleton(
           resolve(result);
         },
         (error) => {
-          //logger.info(error);
+          ////logger.info(error);
           resolve(false);
         }
       );*/
@@ -2922,7 +2922,7 @@ function computeRouteDetails_skeleton(
     }
   } //No ride present
   else {
-    logger.info("No ride in progress");
+    //logger.info("No ride in progress");
     //! SAVE THE FINAL FULL RESULT - for 15 min ------
     redisCluster.setex(
       RIDE_REDIS_KEY,
@@ -2962,7 +2962,7 @@ function computeAndCacheRouteDestination(
   new Promise((reslv) => {
     let redisKey = rideHistory.client_id + "-" + rideHistory.taxi_id;
     if (request_status === "inRouteToPickup") {
-      //logger.info("In route to pickup quick!");
+      ////logger.info("In route to pickup quick!");
       //For to pickup only
       bundle = {
         driver: {
@@ -2980,7 +2980,7 @@ function computeAndCacheRouteDestination(
       //...
       getRouteInfos(bundle, reslv);
     } else if (request_status === "inRouteToDestination") {
-      logger.info("in route to destination");
+      //logger.info("in route to destination");
       //For to drop off only
       bundle = {
         passenger_origin: {
@@ -3052,14 +3052,14 @@ function computeAndCacheRouteDestination(
         .then(
           () => {},
           (error) => {
-            logger.warn(error);
+            //logger.warn(error);
           }
         )
         .catch((error) => {
-          logger.warn(error);
+          //logger.warn(error);
         });
-      //logger.info("HEEEEEEEE->", result);
-      //logger.info(rideHistory.destinationData);
+      ////logger.info("HEEEEEEEE->", result);
+      ////logger.info(rideHistory.destinationData);
       //Add request status variable - inRouteToPickup, inRouteToDestination
       result["request_status"] = request_status;
       let additionalInfos = {
@@ -3256,7 +3256,7 @@ function computeAndCacheRouteDestination(
                           resPromiseresult(true);
                         } //Update cache anyways
                         else {
-                          //logger.info("Update cache");
+                          ////logger.info("Update cache");
                           redisCluster.setex(
                             rideHistory.request_fp,
                             process.env.REDIS_EXPIRATION_5MIN,
@@ -3266,7 +3266,7 @@ function computeAndCacheRouteDestination(
                         }
                       },
                       (errorGet) => {
-                        //logger.info("Update cache");
+                        ////logger.info("Update cache");
                         redisCluster.setex(
                           rideHistory.request_fp,
                           process.env.REDIS_EXPIRATION_5MIN,
@@ -3291,7 +3291,7 @@ function computeAndCacheRouteDestination(
                   resolve(result);
                 },
                 (error) => {
-                  logger.warn(error);
+                  //logger.warn(error);
                   //If couldn't get the ETA to destination - just leave it as null
                   result = { ...result, ...additionalInfos }; //Merge all the data
                   //Cache-
@@ -3308,7 +3308,7 @@ function computeAndCacheRouteDestination(
                           resPromiseresult(true);
                         } //Update cache anyways
                         else {
-                          //logger.info("Update cache");
+                          ////logger.info("Update cache");
                           redisCluster.setex(
                             rideHistory.request_fp,
                             process.env.REDIS_EXPIRATION_5MIN,
@@ -3318,7 +3318,7 @@ function computeAndCacheRouteDestination(
                         }
                       },
                       (errorGet) => {
-                        //logger.info("Update cache");
+                        ////logger.info("Update cache");
                         redisCluster.setex(
                           rideHistory.request_fp,
                           process.env.REDIS_EXPIRATION_5MIN,
@@ -3344,7 +3344,7 @@ function computeAndCacheRouteDestination(
                 }
               )
               .catch((error) => {
-                logger.warn(error);
+                //logger.warn(error);
               });
           } //No requester data found
           else {
@@ -3353,7 +3353,7 @@ function computeAndCacheRouteDestination(
         });
     },
     (error) => {
-      logger.warn(error);
+      //logger.warn(error);
       resolve(false);
     }
   );
@@ -3401,7 +3401,7 @@ function updateRiderLocationInfosCache(req, resolve) {
       }
     },
     (error) => {
-      logger.info(error);
+      //logger.info(error);
       //Create or update the current cache entry
       redisCluster.setex(
         req.user_fingerprint.trim(),
@@ -3431,7 +3431,7 @@ function reverseGeocodeUserLocation(resolve, req) {
         //Do a fresh request to update the cache
         //Make a new reseach
         new Promise((res) => {
-          //logger.info("Fresh geocpding launched");
+          ////logger.info("Fresh geocpding launched");
           reverseGeocoderExec(res, req, JSON.parse(resp), redisKey);
         }).then(
           (result) => {},
@@ -3515,16 +3515,39 @@ function reverseGeocodeUserLocation(resolve, req) {
  * Responsible for executing the geocoding new fresh requests
  */
 function reverseGeocoderExec(resolve, req, updateCache = false, redisKey) {
+  //! APPLY BLUE OCEAN BUG FIX FOR THE PICKUP LOCATION COORDINATES
+  //? 1. Destination
+  //? Get temporary vars
+  let pickLatitude1 = parseFloat(req.latitude);
+  let pickLongitude1 = parseFloat(req.longitude);
+  //! Coordinates order fix - major bug fix for ocean bug
+  if (
+    pickLatitude1 !== undefined &&
+    pickLatitude1 !== null &&
+    pickLatitude1 !== 0 &&
+    pickLongitude1 !== undefined &&
+    pickLongitude1 !== null &&
+    pickLongitude1 !== 0
+  ) {
+    //? Switch latitude and longitude - check the negative sign
+    if (parseFloat(pickLongitude1) < 0) {
+      //Negative - switch
+      req.latitude = pickLongitude1;
+      req.longitude = pickLatitude1;
+    }
+  }
+  //! -------
   let url =
     process.env.URL_SEARCH_SERVICES +
     "reverse?lon=" +
     req.longitude +
     "&lat=" +
     req.latitude;
+  logger.info(url);
   requestAPI(url, function (error, response, body) {
     //body = JSON.parse(body);
     try {
-      //logger.info(body);
+      ////logger.info(body);
       body = JSON.parse(body);
       if (body != undefined) {
         if (body.features[0].properties != undefined) {
@@ -3876,7 +3899,7 @@ function findRouteSnapshotExec(resolve, pointData) {
       resolve(result);
     },
     (error) => {
-      logger.info(error);
+      //logger.info(error);
       resolve(false);
     }
   );
@@ -3917,7 +3940,7 @@ function updateRelativeDistancesRiderDrivers(
         };
         //...
         collectionRelativeDistances.insertOne(record, function (err, res) {
-          logger.info("New relative distance record added.");
+          //logger.info("New relative distance record added.");
           resolve(true);
         });
       } //Not empty - just update
@@ -3937,7 +3960,7 @@ function updateRelativeDistancesRiderDrivers(
           queryChecker,
           updatedRecord,
           function (err, res) {
-            //logger.info("Updated relative distance record.");
+            ////logger.info("Updated relative distance record.");
             resolve(true);
           }
         );
@@ -4019,7 +4042,7 @@ function cleanAndAdjustRelativeDistancesList(rawList, list_limit = 7, resolve) {
         resolve({ response: "no_close_drivers_found" });
       }
     } catch (error) {
-      logger.info(error);
+      //logger.info(error);
       list_limit = 7;
       rawList = rawList.slice(0, list_limit);
       //Check if there are any results
@@ -4091,7 +4114,7 @@ function getFreshProximity_driversList(
     .collation({ locale: "en", strength: 2 })
     .toArray(function (err, driversProfiles) {
       if (err) {
-        logger.info(err);
+        //logger.info(err);
         resolveMother({ response: "no_close_drivers_found" });
       }
       //check that some drivers where found
@@ -4160,7 +4183,7 @@ function getFreshProximity_driversList(
                         resp[valueIndex] !== null &&
                         resp[valueIndex] !== false
                       ) {
-                        //logger.info("Foudn cached data");
+                        ////logger.info("Foudn cached data");
                         //Update the cache as well
                         new Promise((res) => {
                           makeFreshSearch_ETA_2points(
@@ -4260,7 +4283,7 @@ function getFreshProximity_driversList(
                               resolve(result);
                             },
                             (error) => {
-                              logger.info(error);
+                              //logger.info(error);
                               let driverRepr = {
                                 eta: null,
                                 distance: null,
@@ -4282,7 +4305,7 @@ function getFreshProximity_driversList(
                             }
                           )
                           .catch((error) => {
-                            logger.info(error);
+                            //logger.info(error);
                             let driverRepr = {
                               eta: null,
                               distance: null,
@@ -4303,7 +4326,7 @@ function getFreshProximity_driversList(
                           });
                       }
                     } catch (error) {
-                      logger.info(error);
+                      //logger.info(error);
                       //Make a fresh search
                       new Promise((res) => {
                         makeFreshSearch_ETA_2points(
@@ -4320,7 +4343,7 @@ function getFreshProximity_driversList(
                             resolve(result);
                           },
                           (error) => {
-                            logger.info(error);
+                            //logger.info(error);
                             let driverRepr = {
                               eta: null,
                               distance: null,
@@ -4341,7 +4364,7 @@ function getFreshProximity_driversList(
                           }
                         )
                         .catch((error) => {
-                          logger.info(error);
+                          //logger.info(error);
                           let driverRepr = {
                             eta: null,
                             distance: null,
@@ -4378,7 +4401,7 @@ function getFreshProximity_driversList(
                           resolve(result);
                         },
                         (error) => {
-                          logger.info(error);
+                          //logger.info(error);
                           let driverRepr = {
                             eta: null,
                             distance: null,
@@ -4399,7 +4422,7 @@ function getFreshProximity_driversList(
                         }
                       )
                       .catch((error) => {
-                        logger.info(error);
+                        //logger.info(error);
                         let driverRepr = {
                           eta: null,
                           distance: null,
@@ -4421,7 +4444,7 @@ function getFreshProximity_driversList(
                   }
                 },
                 (error) => {
-                  logger.info(error);
+                  //logger.info(error);
                   //Make a fresh search
                   new Promise((res) => {
                     makeFreshSearch_ETA_2points(
@@ -4438,7 +4461,7 @@ function getFreshProximity_driversList(
                         resolve(result);
                       },
                       (error) => {
-                        logger.info(error);
+                        //logger.info(error);
                         let driverRepr = {
                           eta: null,
                           distance: null,
@@ -4459,7 +4482,7 @@ function getFreshProximity_driversList(
                       }
                     )
                     .catch((error) => {
-                      logger.info(error);
+                      //logger.info(error);
                       let driverRepr = {
                         eta: null,
                         distance: null,
@@ -4523,19 +4546,19 @@ function getFreshProximity_driversList(
                     () => {}
                   )
                   .catch((error) => {
-                    logger.info(error);
+                    //logger.info(error);
                   });
                 //? DONE
                 resolveMother(reslt);
               },
               (error) => {
-                logger.info(error);
+                //logger.info(error);
                 resolveMother({ response: "no_close_drivers_found" });
               }
             );
           },
           (error) => {
-            logger.info(error);
+            //logger.info(error);
             resolveMother({ response: "no_close_drivers_found" });
           }
         );
@@ -4628,7 +4651,7 @@ function makeFreshSearch_ETA_2points(
       resolve(result);
     },
     (error) => {
-      logger.info(error);
+      //logger.info(error);
       let driverRepr = {
         eta: null,
         distance: null,
@@ -4658,7 +4681,7 @@ var collectionGlobalEvents = null;
 var collectionWalletTransactions_logs = null;
 
 redisCluster.on("connect", function () {
-  logger.info("[*] Redis connected");
+  //logger.info("[*] Redis connected");
   //Connect to Rabbit
   amqp.connect(
     /production/i.test(process.env.EVIRONMENT)
@@ -4675,11 +4698,11 @@ redisCluster.on("connect", function () {
           throw error1;
         }
         //...
-        logger.info("[*] Rabbitmq connected");
+        //logger.info("[*] Rabbitmq connected");
 
         clientMongo.connect(function (err) {
           //if (err) throw err;
-          logger.info("[+] MAP services active.");
+          //logger.info("[+] MAP services active.");
           const dbMongo = clientMongo.db(process.env.DB_NAME_MONGODDB);
           collectionRidesDeliveries_data = dbMongo.collection(
             "rides_deliveries_requests"
@@ -4727,14 +4750,14 @@ redisCluster.on("connect", function () {
               durable: true,
             }
           );
-          logger.info("[->RabbitMq] Waiting for messages");
+          //logger.info("[->RabbitMq] Waiting for messages");
           channel.consume(
             process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
             function (message) {
               try {
                 let orgMessage = message;
                 message = JSON.parse(message.content);
-                logger.info(`Message received -> ${JSON.stringify(message)}`);
+                //logger.info(`Message received -> ${JSON.stringify(message)}`);
                 let url =
                   process.env.LOCAL_URL +
                   ":" +
@@ -4757,7 +4780,7 @@ redisCluster.on("connect", function () {
                   }
                 );
               } catch (error) {
-                logger.warn(error);
+                //logger.warn(error);
               }
             },
             {
@@ -4776,7 +4799,7 @@ redisCluster.on("connect", function () {
               try {
                 let orgMessage = message;
                 message = JSON.parse(message.content);
-                logger.info(`Message received -> ${JSON.stringify(message)}`);
+                //logger.info(`Message received -> ${JSON.stringify(message)}`);
                 let url =
                   process.env.LOCAL_URL +
                   ":" +
@@ -4790,7 +4813,7 @@ redisCluster.on("connect", function () {
                   channel.ack(orgMessage);
                 });
               } catch (error) {
-                logger.warn(error);
+                //logger.warn(error);
               }
             },
             {
@@ -4859,9 +4882,9 @@ redisCluster.on("connect", function () {
                           },
                         },
                         function (err, reslt) {
-                          logger.info("HERE");
+                          //logger.info("HERE");
                           if (err) {
-                            logger.info(err);
+                            //logger.info(err);
                             resUpdateNotifToken(false);
                           }
                           //...
@@ -4985,7 +5008,7 @@ redisCluster.on("connect", function () {
 
                 //Check for any existing ride
                 let pro2 = new Promise((res) => {
-                  //logger.info("fetching data");
+                  ////logger.info("fetching data");
                   tripChecker_Dispatcher(
                     req.avoidCached_data !== undefined &&
                       req.avoidCached_data !== null
@@ -5019,7 +5042,7 @@ redisCluster.on("connect", function () {
                     }
                   },
                   (error) => {
-                    logger.info(error);
+                    //logger.info(error);
                     resMAIN({ request_status: "no_rides" });
                   }
                 );
@@ -5029,7 +5052,7 @@ redisCluster.on("connect", function () {
                   updateRiderLocationInfosCache(req, resolve1);
                 }).then(
                   () => {
-                    //logger.info("updated cache");
+                    ////logger.info("updated cache");
                   },
                   () => {}
                 );
@@ -5047,7 +5070,7 @@ redisCluster.on("connect", function () {
                   );
                 }).then(
                   () => {
-                    //logger.info("Location updated [rider]");
+                    ////logger.info("Location updated [rider]");
                   },
                   () => {}
                 );
@@ -5058,7 +5081,7 @@ redisCluster.on("connect", function () {
                 //Make a fresh request
                 //Check for any existing ride
                 new Promise((res) => {
-                  //logger.info("fetching data");
+                  ////logger.info("fetching data");
                   tripChecker_Dispatcher(
                     true,
                     collectionRidesDeliveries_data,
@@ -5089,7 +5112,7 @@ redisCluster.on("connect", function () {
                     }
                   },
                   (error) => {
-                    logger.info(error);
+                    //logger.info(error);
                     resMAIN({ request_status: "no_rides" });
                   }
                 );
@@ -5103,7 +5126,7 @@ redisCluster.on("connect", function () {
                 res.send(result);
               })
               .catch((error) => {
-                logger.info(error);
+                //logger.info(error);
                 res.send({ request_status: "no_rides" });
               });
           });
@@ -5155,7 +5178,7 @@ redisCluster.on("connect", function () {
                 res.send(result);
               })
               .catch((error) => {
-                logger.info(error);
+                //logger.info(error);
                 res.send(false);
               });
           });
@@ -5204,7 +5227,7 @@ redisCluster.on("connect", function () {
                 res.send(result);
               })
               .catch((error) => {
-                logger.info(error);
+                //logger.info(error);
                 res.send({ locationType: "PrivateLocation" });
               });
           });
@@ -5217,7 +5240,7 @@ redisCluster.on("connect", function () {
             new Promise((resMAIN) => {
               let params = urlParser.parse(req.url, true);
               req = params.query;
-              logger.info("here");
+              //logger.info("here");
               //...
               if (
                 req.user_fingerprint !== undefined &&
@@ -5246,7 +5269,7 @@ redisCluster.on("connect", function () {
                     resMAIN(result);
                   },
                   (error) => {
-                    logger.info(error);
+                    //logger.info(error);
                     resMAIN(false);
                   }
                 );
@@ -5259,7 +5282,7 @@ redisCluster.on("connect", function () {
                 res.send(result);
               })
               .catch((error) => {
-                logger.info(error);
+                //logger.info(error);
                 res.send(false);
               });
           });
@@ -5306,7 +5329,7 @@ redisCluster.on("connect", function () {
                   req.make_new === "true" ||
                   req.make_new
                 ) {
-                  logger.info("MAKE NEW");
+                  //logger.info("MAKE NEW");
                   //Get the list of drivers match the availability criteria
                   new Promise((resGetFreshList) => {
                     getFreshProximity_driversList(
@@ -5324,22 +5347,22 @@ redisCluster.on("connect", function () {
                         resMAIN(result);
                       },
                       (error) => {
-                        logger.info(error);
+                        //logger.info(error);
                         resMAIN({ response: "no_close_drivers_found" });
                       }
                     )
                     .catch((error) => {
-                      logger.info(error);
+                      //logger.info(error);
                       resMAIN({ response: "no_close_drivers_found" });
                     });
                 } //Get the cached first
                 else {
-                  logger.info("Get cached first");
+                  //logger.info("Get cached first");
                   redisGet(redisKey)
                     .then(
                       (resp) => {
                         if (resp !== null) {
-                          logger.info("FOUND CACHED DRIVER LIST");
+                          //logger.info("FOUND CACHED DRIVER LIST");
                           //Has some cached data
                           try {
                             //Rehydrate the data
@@ -5358,18 +5381,18 @@ redisCluster.on("connect", function () {
                                   //? DONE
                                 },
                                 (error) => {
-                                  logger.info(error);
+                                  //logger.info(error);
                                 }
                               )
                               .catch((error) => {
-                                logger.info(error);
+                                //logger.info(error);
                               });
                             //...
                             resp = parse(resp);
                             //? Quickly respond
                             resMAIN(resp);
                           } catch (error) {
-                            logger.info(error);
+                            //logger.info(error);
                             //Get the list of drivers match the availability criteria
                             new Promise((resGetFreshList) => {
                               getFreshProximity_driversList(
@@ -5387,14 +5410,14 @@ redisCluster.on("connect", function () {
                                   resMAIN(result);
                                 },
                                 (error) => {
-                                  logger.info(error);
+                                  //logger.info(error);
                                   resMAIN({
                                     response: "no_close_drivers_found",
                                   });
                                 }
                               )
                               .catch((error) => {
-                                logger.info(error);
+                                //logger.info(error);
                                 resMAIN({ response: "no_close_drivers_found" });
                               });
                           }
@@ -5417,18 +5440,18 @@ redisCluster.on("connect", function () {
                                 resMAIN(result);
                               },
                               (error) => {
-                                logger.info(error);
+                                //logger.info(error);
                                 resMAIN({ response: "no_close_drivers_found" });
                               }
                             )
                             .catch((error) => {
-                              logger.info(error);
+                              //logger.info(error);
                               resMAIN({ response: "no_close_drivers_found" });
                             });
                         }
                       },
                       (error) => {
-                        logger.info(error);
+                        //logger.info(error);
                         //Get the list of drivers match the availability criteria
                         new Promise((resGetFreshList) => {
                           getFreshProximity_driversList(
@@ -5446,18 +5469,18 @@ redisCluster.on("connect", function () {
                               resMAIN(result);
                             },
                             (error) => {
-                              logger.info(error);
+                              //logger.info(error);
                               resMAIN({ response: "no_close_drivers_found" });
                             }
                           )
                           .catch((error) => {
-                            logger.info(error);
+                            //logger.info(error);
                             resMAIN({ response: "no_close_drivers_found" });
                           });
                       }
                     )
                     .catch((error) => {
-                      logger.info(error);
+                      //logger.info(error);
                       //Get the list of drivers match the availability criteria
                       new Promise((resGetFreshList) => {
                         getFreshProximity_driversList(
@@ -5475,12 +5498,12 @@ redisCluster.on("connect", function () {
                             resMAIN(result);
                           },
                           (error) => {
-                            logger.info(error);
+                            //logger.info(error);
                             resMAIN({ response: "no_close_drivers_found" });
                           }
                         )
                         .catch((error) => {
-                          logger.info(error);
+                          //logger.info(error);
                           resMAIN({ response: "no_close_drivers_found" });
                         });
                     });
@@ -5493,7 +5516,7 @@ redisCluster.on("connect", function () {
                 res.send(result);
               })
               .catch((error) => {
-                logger.info(error);
+                //logger.info(error);
                 res.send({ response: "no_close_drivers_found" });
               });
           });
@@ -5570,16 +5593,16 @@ redisCluster.on("connect", function () {
                             }
                           },
                           (error) => {
-                            logger.info(error);
+                            //logger.info(error);
                           }
                         );
                         //.....
                         resp = JSON.parse(resp);
-                        logger.info("Found realtime REDIS record!");
+                        //logger.info("Found realtime REDIS record!");
                         //Quickly return data
                         resMAIN(resp);
                       } catch (error) {
-                        logger.info(error);
+                        //logger.info(error);
                         //Error - make a fresh search
                         new Promise((res0) => {
                           getRouteInfosDestination(
@@ -5615,7 +5638,7 @@ redisCluster.on("connect", function () {
                             }
                           },
                           (error) => {
-                            logger.info(error);
+                            //logger.info(error);
                             //...
                             resMAIN(false);
                           }
@@ -5657,7 +5680,7 @@ redisCluster.on("connect", function () {
                           }
                         },
                         (error) => {
-                          logger.info(error);
+                          //logger.info(error);
                           //...
                           resMAIN(false);
                         }
@@ -5665,7 +5688,7 @@ redisCluster.on("connect", function () {
                     }
                   },
                   (error) => {
-                    logger.info(error);
+                    //logger.info(error);
                     //Error - make a fresh search
                     new Promise((res0) => {
                       getRouteInfosDestination(
@@ -5701,7 +5724,7 @@ redisCluster.on("connect", function () {
                         }
                       },
                       (error) => {
-                        logger.info(error);
+                        //logger.info(error);
                         //...
                         resMAIN(false);
                       }
@@ -5717,7 +5740,7 @@ redisCluster.on("connect", function () {
                 res.send(result);
               })
               .catch((error) => {
-                logger.info(error);
+                //logger.info(error);
                 res.send(false);
               });
           });
@@ -5763,7 +5786,7 @@ redisCluster.on("connect", function () {
                     };
                     //Check for any existing ride
                     new Promise((res) => {
-                      //logger.info("fetching data");
+                      ////logger.info("fetching data");
                       tripChecker_Dispatcher(
                         collectionRidesDeliveries_data,
                         collectionDrivers_profiles,
@@ -5777,7 +5800,7 @@ redisCluster.on("connect", function () {
                       (result) => {
                         let doneTime = new Date();
                         timeTaken = doneTime.getTime() - timeTaken;
-                        //logger.info("[" + chaineDateUTC + "] Compute and dispatch time (trip) ------>  " + timeTaken + " ms");
+                        ////logger.info("[" + chaineDateUTC + "] Compute and dispatch time (trip) ------>  " + timeTaken + " ms");
                         //Save the shared result event
                         new Promise((resSharedEvent) => {
                           //Complete the event bundle with the response of the request
@@ -5790,7 +5813,7 @@ redisCluster.on("connect", function () {
                           );
                         }).then(
                           () => {
-                            logger.info("Save the shared ride event");
+                            //logger.info("Save the shared ride event");
                           },
                           () => {}
                         );
@@ -5805,7 +5828,7 @@ redisCluster.on("connect", function () {
                               })
                               .toArray(function (err, riderTripOwner) {
                                 if (err) {
-                                  logger.info(err);
+                                  //logger.info(err);
                                   res.send({ request_status: "no_rides" });
                                 }
                                 //...
@@ -5851,9 +5874,9 @@ redisCluster.on("connect", function () {
                         }
                       },
                       (error) => {
-                        logger.info(error);
-                        res.send({ request_status: "no_rides" });
                         //logger.info(error);
+                        res.send({ request_status: "no_rides" });
+                        ////logger.info(error);
                       }
                     );
                   } //No rides in progress

@@ -1,6 +1,6 @@
 require("dotenv").config();
 //var dash = require("appmetrics-dash");
-require("newrelic");
+//require("newrelic");
 var express = require("express");
 const http = require("http");
 const https = require("https");
@@ -5043,13 +5043,13 @@ redisCluster.on("connect", function () {
               }
             );
           } else if (/get/i.test(req.action)) {
-            resMAIN({
+            /*resMAIN({
               response: "successfully_got",
               flag: "online",
               //suspension_infos: { is_suspended: false },
-            });
+            });*/
             //Check the cache first
-            /*redisGet(redisKey).then(
+            redisGet(redisKey).then(
               (resp) => {
                 if (resp !== null) {
                   try {
@@ -5064,25 +5064,17 @@ redisCluster.on("connect", function () {
                             parseInt(process.env.REDIS_EXPIRATION_5MIN) * 9,
                             JSON.stringify(result)
                           );
-                          //...
-                          result = {
-                            response: "successfully_got",
-                            flag: "online",
-                            suspension_infos: { is_suspended: false },
-                          };
-                          resMAIN(result);
                         },
                         (error) => {
-                          logger.info(error);
-                          resMAIN({ response: "error_invalid_request" });
+                          console.log(error);
                         }
                       )
                       .catch((error) => {
-                        logger.info(error);
-                        resMAIN({ response: "error_invalid_request" });
+                        console.log(error);
                       });
                     //Quickly return result
-                    //resMAIN(JSON.parse(resp));
+                    console.log(resp);
+                    resMAIN(JSON.parse(resp));
                   } catch (error) {
                     new Promise((resGetStatus) => {
                       getDriver_onlineOffline_status(req, resGetStatus);
@@ -5162,7 +5154,7 @@ redisCluster.on("connect", function () {
                     resMAIN({ response: "error_invalid_request" });
                   });
               }
-            );*/
+            );
           }
         } //Invalid data
         else {
