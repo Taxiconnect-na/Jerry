@@ -4157,6 +4157,73 @@ function TrulyGetAdsManagerRunningInfos(req, redisKey, resolve) {
 }
 
 /**
+ * @func getReferredDrivers_list
+ * Responsible for getting the list of all the referred drivers for a specific user.
+ * @param requestInfos: all the gets infos
+ * @param collectionReferralsInfos: hold all the referrals
+ * @param redisKey: the redis key to cache the result to.
+ * @param resolve
+ */
+function getReferredDrivers_list(
+  requestInfos,
+  collectionReferralsInfos,
+  redisKey,
+  resolve
+) {
+  let req = requestInfos;
+  new Promise((resCompute) => {
+    //? 2. Check if there are any referral data
+    let finderNarrower = {
+      user_referrer: req.user_fingerprint,
+      user_referrer_nature: req.user_nature,
+    };
+    //...
+    collectionReferralsInfos
+      .find(finderNarrower)
+      .collation({ locale: "en", strength: 2 })
+      .toArray(function (err, result) {
+        if (err) {
+          resCompute({ response: "error_unexpected" });
+        }
+        //...
+        if (result !== undefined && result.length > 0) {
+          //! Remove irrelevant infos
+          result = result.map((itemReferral, index) => {
+            itemReferral.amount_paid_percentage = null;
+            itemReferral.expiration_time = null;
+            itemReferral.driver_phone = null;
+            itemReferral.driver_name = null;
+            itemReferral.referral_fingerprint = index;
+            itemReferral.user_referrer = null;
+            //...
+            return itemReferral;
+          });
+          //! ----
+          //? Found some data
+          resCompute({
+            response: result,
+          });
+        } //? No referral data found.
+        else {
+          resCompute({
+            response: "no_data",
+          });
+        }
+      });
+  })
+    .then((result) => {
+      //CACHE
+      redisCluster.set(redisKey, JSON.stringify(result));
+      //-----
+      resolve(result);
+    })
+    .catch((error) => {
+      logger.info(error);
+      resolve({ response: "error_unexpected" });
+    });
+}
+
+/**
  * MAIN
  */
 var collectionPassengers_profiles = null;
@@ -4187,6 +4254,9 @@ redisCluster.on("connect", function () {
     collectionAdsCompanies_central = dbMongo.collection(
       "ads_companies_central"
     ); //Hold all the companies that subscribed for the Ad program.
+    collectionReferralsInfos = dbMongo.collection(
+      "referrals_information_global"
+    ); //Hold all the referrals infos
     //-------------
     const bodyParser = require("body-parser");
     app
@@ -5647,6 +5717,219 @@ redisCluster.on("connect", function () {
     else {
       res.send({ response: "error", flag: "invalid_data" });
     }*/
+    });
+
+    /**
+     * DRIVERS REFERRAL API
+     * ? Responsible for performing all the referral related information: checking drivers, submitting referrals,
+     * ? getting the list of referred drivers by a specific user.
+     * ! Cache as much as possible.
+     * @param user_fingerprint
+     * @param user_nature: rider/driver
+     * @param action: get, submit or check
+     * @param driver_infos: name, taxi_number and phone_number of the driver being referred.
+     */
+    app.get("/performDriversReferralOperations", function (req, res) {
+      resolveDate();
+      let params = urlParser.parse(req.url, true);
+      req = params.query;
+
+      if (
+        req.user_fingerprint !== undefined &&
+        req.user_fingerprint !== null &&
+        req.user_nature !== undefined &&
+        req.user_nature !== null &&
+        /(rider|driver)/i.test(req.user_nature) &&
+        req.action !== undefined &&
+        req.action !== null
+      ) {
+        if (/get/i.test(req.action)) {
+          //Get the list of referred drivers
+          //? Save the get event
+          new Promise((resEvent) => {
+            let eventSaverObj = {
+              event_name: "getting_referral_forTaxiDriver_userList",
+              user_referrer: req.user_fingerprint,
+              user_referrer_nature: req.user_nature,
+              date: new Date(chaineDateUTC),
+            };
+            //...
+            collectionGlobalEvents.insertOne(
+              eventSaverObj,
+              function (err, reslt) {
+                resEvent(true);
+              }
+            );
+          });
+          //? --------------------
+          let redisKey = `${req.user_fingerprint}-referredDriversList-CACHE`;
+          redisGet(redisKey)
+            .then((resp) => {
+              if (resp !== null) {
+                //REHYDRATE
+                new Promise((resCompute) => {
+                  getReferredDrivers_list(
+                    req,
+                    collectionReferralsInfos,
+                    redisKey,
+                    resCompute
+                  );
+                })
+                  .then()
+                  .catch();
+                //...
+                res.send(JSON.parse(resp));
+              } //No records found - do a fresh request
+              else {
+                new Promise((resCompute) => {
+                  getReferredDrivers_list(
+                    req,
+                    collectionReferralsInfos,
+                    redisKey,
+                    resCompute
+                  );
+                })
+                  .then((result) => {
+                    res.send(result);
+                  })
+                  .catch((error) => {
+                    logger.info(error);
+                    res.send({ response: "error_unexpected" });
+                  });
+              }
+            })
+            .catch((error) => {
+              new Promise((resCompute) => {
+                getReferredDrivers_list(
+                  req,
+                  collectionReferralsInfos,
+                  redisKey,
+                  resCompute
+                );
+              })
+                .then((result) => {
+                  res.send(result);
+                })
+                .catch((error) => {
+                  logger.info(error);
+                  res.send({ response: "error_unexpected" });
+                });
+            });
+        } else if (
+          /check/i.test(req.action) &&
+          req.taxi_number !== undefined &&
+          req.taxi_number !== null
+        ) {
+          //Check the driver's taxi number
+          //? Save the checking event
+          new Promise((resEvent) => {
+            let eventSaverObj = {
+              event_name: "checking_referral_forTaxiDriver",
+              user_referrer: req.user_fingerprint,
+              user_referrer_nature: req.user_nature,
+              taxi_number: req.taxi_number,
+              date: new Date(chaineDateUTC),
+            };
+            //...
+            collectionGlobalEvents.insertOne(
+              eventSaverObj,
+              function (err, reslt) {
+                resEvent(true);
+              }
+            );
+          });
+          //? --------------------
+          //! Check that the user is authentic
+          let collectionToCheck = /rider/i.test(req.user_nature)
+            ? collectionPassengers_profiles
+            : collectionDrivers_profiles;
+          let finderUserQuery = /rider/i.test(req.user_nature)
+            ? { user_fingerprint: req.user_fingerprint }
+            : { driver_fingerprint: req.user_fingerprint };
+
+          collectionToCheck
+            .find(finderUserQuery)
+            .toArray(function (err, userData) {
+              if (err) {
+                res.send({ response: "error_unexpected_auth" });
+              }
+              //...
+              if (userData !== undefined && userData.length > 0) {
+                //? Authentic user
+                //! Format the driver's taxi number
+                req.taxi_number = req.taxi_number.toUpperCase().trim();
+                //!---
+                new Promise((resCompute) => {
+                  //1. Check if the driver is already registered
+                  let finderQuery = {
+                    "cars_data.taxi_number": req.taxi_number,
+                  };
+                  collectionDrivers_profiles
+                    .find(finderQuery)
+                    .collation({ locale: "en", strength: 2 })
+                    .toArray(function (err, reslt) {
+                      if (err) {
+                        resCompute({ response: "error_unexpected" });
+                      }
+                      //...
+                      if (reslt !== undefined && reslt.length > 0) {
+                        //Driver already registered
+                        resCompute({ response: "driver_alreadyRegistered" });
+                      } //Driver not yet officially registered
+                      else {
+                        //? 2. Check if the driver was already referred
+                        let finderNarrower = {
+                          taxi_number: req.taxi_number,
+                          user_referrer: req.user_fingerprint,
+                          user_referrer_nature: req.user_nature,
+                          is_referralExpired: false,
+                        };
+                        //...
+                        collectionReferralsInfos
+                          .find(finderNarrower)
+                          .collation({ locale: "en", strength: 2 })
+                          .toArray(function (err, result) {
+                            if (err) {
+                              resCompute({ response: "error_unexpected" });
+                            }
+                            //...
+                            if (result !== undefined && result.length > 0) {
+                              //! Driver already referred
+                              resCompute({
+                                response: "driver_alreadyReferred",
+                              });
+                            } //? Not yet referred
+                            else {
+                              resCompute({
+                                response: "driver_freeForReferral",
+                              });
+                            }
+                          });
+                      }
+                    });
+                })
+                  .then((result) => {
+                    res.send(result);
+                  })
+                  .catch((error) => {
+                    logger.info(error);
+                    res.send({ response: "error_unexpected" });
+                  });
+              } //Fraud user
+              else {
+                res.send({ response: "error_unexpected_auth" });
+              }
+            });
+        } else if (/submit/i.test(req.action)) {
+          //Submit the user's (rider/driver) referral request
+        } //Invalid data received
+        else {
+          res.send({ response: "error_invalid_data" });
+        }
+      } //Invalid data received
+      else {
+        res.send({ response: "error_invalid_data" });
+      }
     });
   });
 });

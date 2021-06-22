@@ -549,7 +549,7 @@ function updateNext_paymentDateDrivers(
                                                 $set: {
                                                   "operational_state.status":
                                                     "online", //! PUT OFFLINE - ONLINE TO KEEP RECEIVING REQUESTS.
-                                                  isDriverSuspended: true, //!DO NOT SUSPEND FOR NOW
+                                                  isDriverSuspended: false, //!DO NOT SUSPEND FOR NOW
                                                   suspension_infos:
                                                     suspensionInfos_array,
                                                 },

@@ -1,5 +1,5 @@
 require("dotenv").config();
-require("newrelic");
+//require("newrelic");
 //var dash = require("appmetrics-dash");
 var express = require("express");
 const http = require("http");
@@ -798,7 +798,8 @@ function doMongoSearchForAutocompletedSuburbs(
         //Has a previous record
         try {
           //Rehydrate the cached data
-          /*new Promise((res) => {
+          //! HIGH PERFORMANCE RISK CODE
+          new Promise((res) => {
             execMongoSearchAutoComplete(
               res,
               locationInfos,
@@ -809,7 +810,7 @@ function doMongoSearchForAutocompletedSuburbs(
           }).then(
             (result) => {},
             (error) => {}
-          );*/
+          );
           logger.info("FOUND REDIS RECORD OF SUBURB!");
           resp = JSON.parse(resp);
           if (
@@ -1005,9 +1006,8 @@ function execMongoSearchAutoComplete(
                 new Promise((res2) => {
                   //Update the cache
                   //add new record
-                  redisCluster.setex(
+                  redisCluster.set(
                     redisKey,
-                    parseInt(process.env.REDIS_EXPIRATION_5MIN) * 9,
                     JSON.stringify({
                       suburb: body.address.suburb,
                       state: body.address.state,
@@ -1143,9 +1143,8 @@ function execMongoSearchAutoComplete(
                   new Promise((res2) => {
                     //Update the cache
                     //add new record
-                    redisCluster.setex(
+                    redisCluster.set(
                       redisKey,
-                      parseInt(process.env.REDIS_EXPIRATION_5MIN) * 9,
                       JSON.stringify({
                         suburb: body.address.suburb,
                         state: body.address.state,
