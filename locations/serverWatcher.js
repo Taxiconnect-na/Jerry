@@ -1863,10 +1863,14 @@ function updateDrivers_walletCachedData(collectionDrivers_profiles, resolve) {
  * @func observeReferralData_andUpdateExpiration
  * Responsible for checking the expiration dates for the referrals and update their respective expiration status.
  * @param collectionReferralsInfos: hold all the referrals.
+ * @param collectionPassengers_profiles: hold all the riders data
+ * @param collectionDrivers_profiles: hold all the drivers data
  * @param resolve
  */
 function observeReferralData_andUpdateExpiration(
   collectionReferralsInfos,
+  collectionPassengers_profiles,
+  collectionDrivers_profiles,
   resolve
 ) {
   resolveDate();
@@ -1905,6 +1909,61 @@ function observeReferralData_andUpdateExpiration(
                     resCompute(false);
                   }
                   //...
+                  //Notify the user
+                  new Promise((resNotify) => {
+                    //! Check that the user is authentic
+                    let collectionToCheck = /rider/i.test(refData.user_nature)
+                      ? collectionPassengers_profiles
+                      : collectionDrivers_profiles;
+                    let finderUserQuery = /rider/i.test(refData.user_nature)
+                      ? { user_fingerprint: refData.user_referrer }
+                      : { driver_fingerprint: refData.user_referrer };
+
+                    //....
+                    collectionToCheck
+                      .find(finderUserQuery)
+                      .toArray(function (err, refererData) {
+                        if (err) {
+                          resNotify(false);
+                        }
+                        //...
+                        if (
+                          refererData !== undefined &&
+                          refererData.length > 0
+                        ) {
+                          //Found a user
+                          //! Notify the rider
+                          //Send the push notifications
+                          let message = {
+                            app_id: process.env.RIDERS_APP_ID_ONESIGNAL,
+                            android_channel_id:
+                              process.env
+                                .RIDERS_ONESIGNAL_CHANNEL_AUTOCANCELLED_REQUEST, //Ride - Auto-cancelled group
+                            priority: 10,
+                            contents: {
+                              en: `Hi ${refererData.name}, your referral for the taxi driver ${refData.taxi_number} has expired.`,
+                            },
+                            headings: { en: "Referral expired" },
+                            content_available: true,
+                            include_player_ids: [
+                              refererData.pushnotif_token !== null &&
+                              refererData.pushnotif_token.userId !== undefined
+                                ? refererData.pushnotif_token.userId
+                                : "false",
+                            ],
+                          };
+                          //Send
+                          sendPushUPNotification(message);
+                          resNotify(true);
+                        } //No user
+                        else {
+                          resNotify(false);
+                        }
+                      });
+                  })
+                    .then()
+                    .catch();
+                  //...DONE
                   resCompute(true);
                 }
               );
@@ -2040,7 +2099,12 @@ redisCluster.on("connect", function () {
 
       //? 6. Watch all the referral's expiration dates and updates the corresponding expiration flag.
       new Promise((res6) => {
-        observeReferralData_andUpdateExpiration(collectionReferralsInfos, res6);
+        observeReferralData_andUpdateExpiration(
+          collectionReferralsInfos,
+          collectionPassengers_profiles,
+          collectionDrivers_profiles,
+          res6
+        );
       })
         .then(
           (result) => {

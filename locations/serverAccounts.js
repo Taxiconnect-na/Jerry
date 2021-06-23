@@ -4170,6 +4170,7 @@ function getReferredDrivers_list(
   redisKey,
   resolve
 ) {
+  resolveDate();
   let req = requestInfos;
   new Promise((resCompute) => {
     //? 2. Check if there are any referral data
@@ -4189,15 +4190,136 @@ function getReferredDrivers_list(
         if (result !== undefined && result.length > 0) {
           //! Remove irrelevant infos
           result = result.map((itemReferral, index) => {
-            itemReferral.amount_paid_percentage = null;
-            itemReferral.expiration_time = null;
-            itemReferral.driver_phone = null;
-            itemReferral.driver_name = null;
-            itemReferral.referral_fingerprint = index;
-            itemReferral.user_referrer = null;
-            //...
-            return itemReferral;
+            try {
+              let freshObject = {
+                referral_fingerprint: itemReferral.referral_fingerprint,
+                taxi_number: itemReferral.taxi_number,
+                is_referralExpired: itemReferral.is_referralExpired,
+                is_referral_rejected:
+                  itemReferral.is_referral_rejected === undefined ||
+                  itemReferral.is_referral_rejected === null
+                    ? false
+                    : itemReferral.is_referral_rejected,
+                is_paid: itemReferral.is_paid,
+                amount_paid: itemReferral.amount_paid,
+                date_referred: new Date(itemReferral.date_referred),
+                date_referred_beautified: null,
+                time_left: null,
+              };
+              //? Compute the time left
+              let timeLeftRaw =
+                new Date(itemReferral.expiration_time) -
+                new Date(chaineDateUTC);
+              if (timeLeftRaw < 0) {
+                freshObject.time_left = "Expired";
+              } //Still have some time left
+              else {
+                timeLeftRaw /= 1000;
+                if (timeLeftRaw > 60) {
+                  //Change in minutes
+                  timeLeftRaw /= 60; //? minutes
+                  if (timeLeftRaw > 0) {
+                    //Change in hours
+                    timeLeftRaw /= 60; //? Hours
+                    if (timeLeftRaw > 24) {
+                      timeLeftRaw /= 24; //? days
+                      //? Change in days
+                      timeLeftRaw = Math.round(timeLeftRaw);
+                      if (timeLeftRaw > 1) {
+                        timeLeftRaw = `${Math.round(timeLeftRaw)} days`;
+                      } else {
+                        timeLeftRaw = `${Math.round(timeLeftRaw)} day`;
+                      }
+                    } //Keep in hours
+                    else {
+                      timeLeftRaw = `${Math.round(timeLeftRaw)} h`;
+                    }
+                  } //Keep in minutes
+                  else {
+                    timeLeftRaw = `${Math.round(timeLeftRaw)} min`;
+                  }
+                } else {
+                  timeLeftRaw = `${Math.round(timeLeftRaw)} sec`;
+                }
+                //............
+                freshObject.time_left = timeLeftRaw;
+              }
+              //...
+              freshObject.date_referred_beautified = `${freshObject.date_referred.getDate()}-${
+                freshObject.date_referred.getMonth() + 1
+              }-${freshObject.date_referred.getFullYear()} at ${freshObject.date_referred.getHours()}:${freshObject.date_referred.getSeconds()}`;
+              //...
+              return freshObject;
+            } catch (error) {
+              let freshObject = {
+                referral_fingerprint: itemReferral.referral_fingerprint,
+                taxi_number: itemReferral.taxi_number,
+                is_referralExpired: itemReferral.is_referralExpired,
+                is_referral_rejected:
+                  itemReferral.is_referral_rejected === undefined ||
+                  itemReferral.is_referral_rejected === null
+                    ? false
+                    : itemReferral.is_referral_rejected,
+                is_paid: itemReferral.is_paid,
+                amount_paid: itemReferral.amount_paid,
+                date_referred: new Date(itemReferral.date_referred),
+                date_referred_beautified: null,
+                time_left: null,
+              };
+              //? Compute the time left
+              let timeLeftRaw =
+                new Date(itemReferral.expiration_time) -
+                new Date(chaineDateUTC);
+              if (timeLeftRaw < 0) {
+                freshObject.time_left = "Expired";
+              } //Still have some time left
+              else {
+                timeLeftRaw /= 1000;
+                if (timeLeftRaw > 60) {
+                  //Change in minutes
+                  timeLeftRaw /= 60; //? minutes
+                  if (timeLeftRaw > 0) {
+                    //Change in hours
+                    timeLeftRaw /= 60; //? Hours
+                    if (timeLeftRaw > 24) {
+                      timeLeftRaw /= 24; //? days
+                      //? Change in days
+                      timeLeftRaw = Math.round(timeLeftRaw);
+                      if (timeLeftRaw > 1) {
+                        timeLeftRaw = `${Math.round(timeLeftRaw)} days`;
+                      } else {
+                        timeLeftRaw = `${Math.round(timeLeftRaw)} day`;
+                      }
+                    } //Keep in hours
+                    else {
+                      timeLeftRaw = `${Math.round(timeLeftRaw)} h`;
+                    }
+                  } //Keep in minutes
+                  else {
+                    timeLeftRaw = `${Math.round(timeLeftRaw)} min`;
+                  }
+                } else {
+                  timeLeftRaw = `${Math.round(timeLeftRaw)} sec`;
+                }
+                //............
+                freshObject.time_left = timeLeftRaw;
+              }
+              //...
+              freshObject.date_referred_beautified = `${freshObject.date_referred.getDate()}-${
+                freshObject.date_referred.getMonth() + 1
+              }-${freshObject.date_referred.getFullYear()} at ${freshObject.date_referred.getHours()}:${freshObject.date_referred.getSeconds()}`;
+              //...
+              return freshObject;
+            }
           });
+          //! Sort based on dat
+          result = result.sort((a, b) =>
+            a.date_referred > b.date_referred
+              ? -1
+              : b.date_referred > a.date_referred
+              ? 1
+              : 0
+          );
           //! ----
           //? Found some data
           resCompute({
@@ -5970,6 +6092,8 @@ redisCluster.on("connect", function () {
                     is_paid: false,
                     amount_paid: false,
                     amount_paid_percentage: 50,
+                    is_referral_rejected: false, //! Whether the referral is rejected or not: Rejected referrals cannot receive payments.
+                    is_official_deleted_user_side: false, //! Deleted referrals on the user side cannot receive payment or be seen ever again by the user, only not paid referrals can be deleted.
                     date_referred: new Date(chaineDateUTC),
                   };
                   new Promise((res) => {
