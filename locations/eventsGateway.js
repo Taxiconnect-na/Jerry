@@ -1757,6 +1757,93 @@ io.on("connection", (socket) => {
       });
     }
   });
+
+  /**
+   * ACCOUNTS SERVICE, port 9696
+   * Route: performDriversReferralOperations
+   * event: referralOperations_perform_io
+   * Responsible for performing all the referral based operations for any kind of users (riders/drivers).
+   */
+  socket.on("referralOperations_perform_io", function (req) {
+    console.log(req);
+    if (req.user_fingerprint !== undefined && req.user_fingerprint !== null) {
+      let url =
+        process.env.LOCAL_URL +
+        ":" +
+        process.env.ACCOUNTS_SERVICE_PORT +
+        "/performDriversReferralOperations?user_fingerprint=" +
+        req.user_fingerprint +
+        "&user_nature=" +
+        req.user_nature +
+        "&action=" +
+        req.action;
+      //Add any additional submissional infos
+      if (req.driver_name !== undefined && req.driver_name !== null) {
+        url +=
+          "&driver_name=" +
+          req.driver_name +
+          "&driver_phone=" +
+          req.driver_phone +
+          "&taxi_number=" +
+          req.taxi_number;
+      }
+      //? Add the taxi number only for checking scenarios
+      if (/check/i.test(req.action)) {
+        url += "&taxi_number=" + req.taxi_number;
+      }
+
+      //...
+      requestAPI(url, function (error, response, body) {
+        console.log(error, body);
+        if (error === null) {
+          try {
+            body = JSON.parse(body);
+            socket.emit(
+              /check/i.test(req.action)
+                ? "referralOperations_perform_io_CHECKING-response"
+                : /submit/i.test(req.action)
+                ? "referralOperations_perform_io_SUBMIT-response"
+                : "referralOperations_perform_io-response",
+              body
+            );
+          } catch (error) {
+            socket.emit(
+              /check/i.test(req.action)
+                ? "referralOperations_perform_io_CHECKING-response"
+                : /submit/i.test(req.action)
+                ? "referralOperations_perform_io_SUBMIT-response"
+                : "referralOperations_perform_io-response",
+              {
+                response: "error_unexpected",
+              }
+            );
+          }
+        } else {
+          socket.emit(
+            /check/i.test(req.action)
+              ? "referralOperations_perform_io_CHECKING-response"
+              : /submit/i.test(req.action)
+              ? "referralOperations_perform_io_SUBMIT-response"
+              : "referralOperations_perform_io-response",
+            {
+              response: "error_unexpected",
+            }
+          );
+        }
+      });
+    } else {
+      socket.emit(
+        /check/i.test(req.action)
+          ? "referralOperations_perform_io_CHECKING-response"
+          : /submit/i.test(req.action)
+          ? "referralOperations_perform_io_SUBMIT-response"
+          : "referralOperations_perform_io-response",
+        {
+          response: "error_unexpected",
+        }
+      );
+    }
+  });
 });
 
 server.listen(process.env.EVENT_GATEWAY_PORT);

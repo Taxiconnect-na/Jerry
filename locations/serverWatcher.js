@@ -1860,6 +1860,77 @@ function updateDrivers_walletCachedData(collectionDrivers_profiles, resolve) {
 }
 
 /**
+ * @func observeReferralData_andUpdateExpiration
+ * Responsible for checking the expiration dates for the referrals and update their respective expiration status.
+ * @param collectionReferralsInfos: hold all the referrals.
+ * @param resolve
+ */
+function observeReferralData_andUpdateExpiration(
+  collectionReferralsInfos,
+  resolve
+) {
+  resolveDate();
+  //...
+  collectionReferralsInfos
+    .find({
+      is_referralExpired: false,
+    })
+    .toArray(function (err, referralData) {
+      if (err) {
+        resolve(false);
+      }
+      //..
+      if (referralData !== undefined && referralData.length > 0) {
+        //Found some referral data
+        let parentPromises = referralData.map((refData) => {
+          return new Promise((resCompute) => {
+            //? Compute the time left in days
+            let diff =
+              new Date(refData.expiration_time) - new Date(chaineDateUTC);
+            //...
+            if (diff < 0) {
+              //! Already expired
+              //UPdate the expiration flag to false
+              collectionReferralsInfos.updateOne(
+                {
+                  referral_fingerprint: refData.referral_fingerprint,
+                },
+                {
+                  $set: {
+                    is_referralExpired: true,
+                  },
+                },
+                function (err, result) {
+                  if (err) {
+                    resCompute(false);
+                  }
+                  //...
+                  resCompute(true);
+                }
+              );
+            } //? Still valid
+            else {
+              resCompute(true);
+            }
+          });
+        });
+        //Done
+        Promise.all(parentPromises)
+          .then((result) => {
+            resolve(result);
+          })
+          .catch((error) => {
+            logger.warn(error);
+            resolve(false);
+          });
+      } //No data - done
+      else {
+        resolve(true);
+      }
+    });
+}
+
+/**
  * MAIN
  */
 
@@ -1881,6 +1952,9 @@ redisCluster.on("connect", function () {
     const collectionWalletTransactions_logs = dbMongo.collection(
       "wallet_transactions_logs"
     ); //Hold all the wallet transactions (exlude rides/deliveries records which are in the rides/deliveries collection)
+    collectionReferralsInfos = dbMongo.collection(
+      "referrals_information_global"
+    ); //Hold all the referrals infos
     //-------------
     const bodyParser = require("body-parser");
     app
@@ -1963,7 +2037,23 @@ redisCluster.on("connect", function () {
         .catch((error) => {
           logger.info(error);
         });*/
-    }, process.env.INTERVAL_PERSISTER_MAIN_WATCHER_MILLISECONDS);
+
+      //? 6. Watch all the referral's expiration dates and updates the corresponding expiration flag.
+      new Promise((res6) => {
+        observeReferralData_andUpdateExpiration(collectionReferralsInfos, res6);
+      })
+        .then(
+          (result) => {
+            logger.info(result);
+          },
+          (error) => {
+            logger.info(error);
+          }
+        )
+        .catch((error) => {
+          logger.info(error);
+        });
+    }, process.env.INTERVAL_PERSISTER_MAIN_WATCHER_MILLISECONDS * 12); //! 2min
 
     //! FOR SUPER HEAVY PROCESSES - 30min
     _INTERVAL_PERSISTER_LATE_REQUESTS_SUPER_HEAVY = setInterval(function () {

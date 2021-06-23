@@ -5880,8 +5880,6 @@ redisCluster.on("connect", function () {
                         //? 2. Check if the driver was already referred
                         let finderNarrower = {
                           taxi_number: req.taxi_number,
-                          user_referrer: req.user_fingerprint,
-                          user_referrer_nature: req.user_nature,
                           is_referralExpired: false,
                         };
                         //...
@@ -5920,8 +5918,100 @@ redisCluster.on("connect", function () {
                 res.send({ response: "error_unexpected_auth" });
               }
             });
-        } else if (/submit/i.test(req.action)) {
+        } else if (
+          /submit/i.test(req.action) &&
+          req.taxi_number !== undefined &&
+          req.taxi_number !== null &&
+          req.driver_phone !== undefined &&
+          req.driver_phone !== null &&
+          req.driver_name !== undefined &&
+          req.driver_name !== null
+        ) {
           //Submit the user's (rider/driver) referral request
+          //! Format the infos
+          req.taxi_number = req.taxi_number.toUpperCase().trim();
+          req.driver_phone = req.driver_phone.trim();
+          new Promise((resCompute) => {
+            //! 1. Check for non duplicata
+            let finderNarrower = {
+              taxi_number: req.taxi_number,
+              user_referrer: req.user_fingerprint,
+              user_referrer_nature: req.user_nature,
+              is_referralExpired: false,
+            };
+            //...
+            collectionReferralsInfos
+              .find(finderNarrower)
+              .collation({ locale: "en", strength: 2 })
+              .toArray(function (err, result) {
+                if (err) {
+                  resCompute({ response: "error_unexpected" });
+                }
+                //...
+                if (result !== undefined && result.length > 0) {
+                  //! Found an active referral
+                  resCompute({
+                    response: "error_unexpected_foundActive",
+                  });
+                } //? Not yet referred
+                else {
+                  //ADD 2 DAYS MAX OF EXPIRATION TIME.
+                  let referralObject = {
+                    referral_fingerprint: dateObject.unix(),
+                    driver_name: req.driver_name,
+                    driver_phone: req.driver_phone,
+                    taxi_number: req.taxi_number,
+                    user_referrer: req.user_fingerprint,
+                    user_referrer_nature: req.user_nature,
+                    expiration_time: new Date(
+                      new Date(chaineDateUTC).getTime() + 2 * 24 * 3600 * 1000
+                    ),
+                    is_referralExpired: false,
+                    is_paid: false,
+                    amount_paid: false,
+                    amount_paid_percentage: 50,
+                    date_referred: new Date(chaineDateUTC),
+                  };
+                  new Promise((res) => {
+                    generateUniqueFingerprint(
+                      `${chaineDateUTC}-${req.user_fingerprint}-${req.driver_phone}`,
+                      false,
+                      res
+                    );
+                  })
+                    .then(
+                      (result) => {
+                        referralObject.referral_fingerprint = result; //Update with the fingerprint;
+                      },
+                      (error) => {
+                        logger.warn(error);
+                        referralObject.referral_fingerprint =
+                          parsedData.user_fingerprint + dateObject.unix(); //Make a fingerprint out of the timestamp
+                      }
+                    )
+                    .finally(() => {
+                      //...
+                      collectionReferralsInfos.insertOne(
+                        referralObject,
+                        function (err, result) {
+                          if (err) {
+                            resCompute({ response: "error_unexpected" });
+                          }
+                          //...
+                          resCompute({ response: "successfully_referred" });
+                        }
+                      );
+                    });
+                }
+              });
+          })
+            .then((result) => {
+              res.send(result);
+            })
+            .catch((error) => {
+              logger.warn(error);
+              resCompute({ response: "error_unexpected" });
+            });
         } //Invalid data received
         else {
           res.send({ response: "error_invalid_data" });
