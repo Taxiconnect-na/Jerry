@@ -3066,6 +3066,11 @@ function computeAndCacheRouteDestination(
           ride_mode: null, //Ride or delivery
           ride_simplified_id: null, //Very useful for sharing/tracking the trip infos
           request_fp: null, //! VERY IMPORTANT
+          isGoingUntilHome:
+            rideHistory.isGoingUntilHome !== undefined &&
+            rideHistory.isGoingUntilHome !== null
+              ? rideHistory.isGoingUntilHome
+              : false, //To know whether or not the rider is going until home
         },
       }; //Will contain all the additional informations needed
       //Add the driver's basic information (name, profile picture, taxi number-if any, car brand, car image, general rating, plate number, phone number)

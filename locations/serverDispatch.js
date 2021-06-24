@@ -250,6 +250,15 @@ function parseRequestData(inputData, resolve) {
             parsedData.connect_type = inputData.connectType;
             parsedData.ride_mode = inputData.rideType;
             parsedData.fare = inputData.fareAmount;
+            parsedData.isGoingUntilHome =
+              inputData.isGoingUntilHome !== undefined &&
+              inputData.isGoingUntilHome !== null
+                ? /false/i.test(inputData.isGoingUntilHome)
+                  ? false
+                  : /true/i.test(inputData.isGoingUntilHome)
+                  ? true
+                  : inputData.isGoingUntilHome
+                : false; //! Careful: Doubled the fares for the Economy type
             parsedData.passengers_number = inputData.passengersNo;
             parsedData.request_type = /now/i.test(inputData.timeScheduled)
               ? "immediate"

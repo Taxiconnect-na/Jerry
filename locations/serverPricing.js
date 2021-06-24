@@ -1697,7 +1697,7 @@ function computeInDepthPricesMap(
                   //Add base fare for one person
                   basePrice += vehicle.base_fare;
                 }
-              } //ConnectMe - for comfort and luxury only
+              } //? ConnectMe - for comfort and luxury only
               else {
                 if (/RIDE/i.test(vehicle.ride_type)) {
                   //RIDES
@@ -1719,6 +1719,11 @@ function computeInDepthPricesMap(
         }
         //Add header price and time multiplier ONLY for the Economy category and not airport rides
         if (/Economy/i.test(vehicle.category) && isGoingToAirport === false) {
+          basePrice =
+            completedInputData.isGoingUntilHome &&
+            /RIDE/i.test(completedInputData.ride_mode)
+              ? basePrice * 2
+              : basePrice; //! Apply the going until home doubling effect on the rides only.
           basePrice *= timeDayMultiplier;
           basePrice += headerPrice; //Add header price LAST
         }
@@ -1785,6 +1790,15 @@ function parsePricingInputData(resolve, inputData) {
       cleanInputData.connect_type = inputData.connectType;
       cleanInputData.ride_mode = inputData.rideType;
       cleanInputData.passengers_number = inputData.passengersNo;
+      cleanInputData.isGoingUntilHome =
+        inputData.isGoingUntilHome !== undefined &&
+        inputData.isGoingUntilHome !== null
+          ? /false/i.test(inputData.isGoingUntilHome)
+            ? false
+            : /true/i.test(inputData.isGoingUntilHome)
+            ? true
+            : inputData.isGoingUntilHome
+          : false; //! Careful: Will double the fares for the Economy type
       cleanInputData.request_type = /now/i.test(inputData.timeScheduled)
         ? "immediate"
         : "scheduled";
@@ -2235,6 +2249,7 @@ redisCluster.on("connect", function () {
           connectType: "ConnectUs",
           country: "Namibia",
           isAllGoingToSameDestination: false,
+          isGoingUntilHome: false,
           naturePickup: "PrivateLocation",
           passengersNo: 1,
           rideType: "RIDE",
