@@ -1078,12 +1078,6 @@ function execMongoSearchAutoComplete(
         });
       } //Do a fresh search
       else {
-        logger.info(
-          "PERFORM FRESH GEOCODINGR -->",
-          locationInfos.coordinates.latitude,
-          ",",
-          locationInfos.coordinates.longitude
-        );
         let url =
           process.env.URL_NOMINATIM_SERVICES +
           "/reverse?format=json&lat=" +
@@ -1099,8 +1093,17 @@ function execMongoSearchAutoComplete(
             if (body.address !== undefined && body.address !== null) {
               if (
                 body.address.state !== undefined &&
-                body.address.suburb !== undefined
+                (body.address.suburb !== undefined ||
+                  body.address.neighbourhood !== undefined ||
+                  body.address.highway !== undefined)
               ) {
+                //! Check that the suburb are present if not use the neighbourhood, if not use the highway
+                body.address["suburb"] =
+                  body.address.suburb !== undefined
+                    ? body.address.suburb
+                    : body.address.neighbourhood !== undefined
+                    ? body.address.neighbourhood
+                    : body.address.highway;
                 //! PICKUP LOCATION REINFORCEMENTS
                 logger.info("fresh search done! - MAKE NEW");
                 try {
@@ -2228,38 +2231,31 @@ redisCluster.on("connect", function () {
         //DELIVERY TEST DATA - DEBUG
         /*let deliveryPricingInputDataRaw = {
           user_fingerprint:
-            "4ec9a3cac550584cfe04108e63b61961af32f9162ca09bee59bc0fc264c6dd1d61dbd97238a27e147e1134e9b37299d160c0f0ee1c620c9f012e3a08a4505fd6",
+            "5b29bb1b9ac69d884f13fd4be2badcd22b72b98a69189bfab806dcf7c5f5541b6cbe8087cf60c791",
           connectType: "ConnectUs",
           country: "Namibia",
-          isAllGoingToSameDestination: true,
-          naturePickup: "PrivateLocation", //Force PrivateLocation type if nothing found
-          passengersNo: 3, //Default 2 possible destination
+          isAllGoingToSameDestination: false,
+          naturePickup: "PrivateLocation",
+          passengersNo: 1,
           rideType: "RIDE",
-          timeScheduled: "Now",
+          timeScheduled: "now",
           pickupData: {
-            coordinates: [-22.611291, 17.071366],
-            location_name: "Academia",
-            street_name: "Academia",
+            coordinates: [-22.5667633, 17.0843917],
+            location_name: "Independence Avenue",
+            street_name: false,
             city: "Windhoek",
           },
           destinationData: {
             passenger1Destination: {
-              coordinates: [-22.605981, 17.096875],
-              location_name: "Suiderhof",
-              street: "Suiderhof",
+              location_id: 651035941,
+              location_name: "Sesriem Street",
+              coordinates: [17.1025078, -22.6212097],
+              averageGeo: -11.037478099999998,
               city: "Windhoek",
-            },
-            passenger2Destination: {
-              coordinates: [-22.522764, 17.056328],
-              location_name: "Katutura",
-              street: "Police station",
-              city: "Windhoek",
-            },
-            passenger3Destination: {
-              coordinates: [-22.522764, 17.056328],
-              location_name: "Katutura",
-              street: "Police station",
-              city: "Windhoek",
+              street: false,
+              state: "Khomas Region",
+              country: "Namibia",
+              query: "Ses",
             },
             passenger2Destination: false,
             passenger3Destination: false,
