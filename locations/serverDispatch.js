@@ -104,7 +104,7 @@ function SendSMSTo(phone_number, message) {
   });
 
   req.on("error", (e) => {
-    console.error(e);
+    //console.error(e);
   });
 
   req.write(postData);

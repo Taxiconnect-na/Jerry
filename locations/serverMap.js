@@ -4759,7 +4759,6 @@ redisCluster.on("connect", function () {
                 requestAPI.post(
                   { url, form: req },
                   function (error, response, body) {
-                    console.log(body);
                     channel.ack(orgMessage);
                   }
                 );
@@ -4793,7 +4792,6 @@ redisCluster.on("connect", function () {
                   "&avoidCached_data=true";
                 //...
                 requestAPI.get(url, function (error, response, body) {
-                  console.log(body);
                   channel.ack(orgMessage);
                 });
               } catch (error) {

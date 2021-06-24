@@ -1168,7 +1168,6 @@ io.on("connection", (socket) => {
       }
 
       requestAPI(url, function (error, response, body) {
-        console.log(body, error);
         if (error === null) {
           try {
             body = JSON.parse(body);
@@ -1765,7 +1764,6 @@ io.on("connection", (socket) => {
    * Responsible for performing all the referral based operations for any kind of users (riders/drivers).
    */
   socket.on("referralOperations_perform_io", function (req) {
-    console.log(req);
     if (req.user_fingerprint !== undefined && req.user_fingerprint !== null) {
       let url =
         process.env.LOCAL_URL +
@@ -1794,7 +1792,6 @@ io.on("connection", (socket) => {
 
       //...
       requestAPI(url, function (error, response, body) {
-        console.log(error, body);
         if (error === null) {
           try {
             body = JSON.parse(body);
