@@ -1,9 +1,40 @@
 const winston = require("winston");
+const { addColors } = require("winston/lib/winston/config");
+
+const customLevels = {
+  levels: {
+    emerg: 0,
+    alert: 1,
+    crit: 2,
+    error: 3,
+    warn: 4,
+    notice: 5,
+    info: 6,
+    debug: 7,
+  },
+};
 
 module.exports = {
   logger: winston.createLogger({
-    level: "info",
-    format: winston.format.json(),
+    levels: customLevels.levels,
+    format: winston.format.combine(
+      winston.format.colorize({
+        message: true,
+      }),
+      winston.format.timestamp({
+        format: "YY-MM-DD HH:MM:SS",
+      }),
+      winston.format.printf(
+        (info) => ` ${info.timestamp}  ${info.level} : ${info.message}`
+      )
+    ),
+    addColors: winston.addColors({
+      error: "red",
+      alert: "red",
+      warn: "yellow",
+      info: "cyan",
+      debug: "green",
+    }),
     defaultMeta: { service: "user-service" },
     transports: [
       //

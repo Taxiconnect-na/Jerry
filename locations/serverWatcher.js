@@ -1990,6 +1990,116 @@ function observeReferralData_andUpdateExpiration(
 }
 
 /**
+ * @func notifyRidersOf_completedRides
+ * Responsible for checking for the completed rides that are not yet confirmed by the rider
+ * and notify them accordingly.
+ * @param collectionPassengers_profiles: contains all the riders.
+ * @param collectionRidesDeliveryData: contains all the requests made.
+ * @param collectionGlobalEvents: contains all the events
+ * @param resolve
+ */
+function notifyRidersOf_completedRides(
+  collectionPassengers_profiles,
+  collectionRidesDeliveryData,
+  collectionGlobalEvents,
+  resolve
+) {
+  logger.info("Finding trips that are not comfirmed drop off by the riders.");
+  let requestFilter = {
+    isArrivedToDestination: false,
+    "ride_state_vars.isRideCompleted_driverSide": true,
+    "ride_state_vars.isRideCompleted_riderSide": false,
+  }; //?Indexed
+
+  collectionRidesDeliveryData
+    .find(requestFilter)
+    .toArray(function (err, tripsData) {
+      if (err) {
+        logger.warn(err);
+        resolve(false);
+      }
+      //...
+      if (tripsData !== undefined && tripsData.length > 0) {
+        logger.info("Found some unconfirmed trips by the rider.");
+        //Found some rides that are not completed yet
+        let parentPromises = tripsData.map((trip, index) => {
+          return new Promise((resCompute) => {
+            //Find the passenger
+            collectionPassengers_profiles
+              .find({ user_fingerprint: tripsData[index].client_id })
+              .toArray(function (err, riderData) {
+                if (err) {
+                  logger.warn(err);
+                  resCompute(false);
+                }
+                //...
+                if (riderData !== undefined && riderData.length > 0) {
+                  //? Save the event
+                  new Promise((res) => {
+                    collectionGlobalEvents.insertOne({
+                      event_name: "reminding_rider_toConfirm_dropofff",
+                      request_fp: tripsData[index].request_fp,
+                      driver_fingerprint: tripsData[index].taxi_id,
+                      user_fingerprint: tripsData[index].client_id,
+                      date: new Date(chaineDateUTC),
+                    });
+                    res(true);
+                  }).then(
+                    () => {},
+                    () => {}
+                  );
+
+                  //Found the rider
+                  riderData = riderData[0];
+                  //...
+                  //! Notify the rider
+                  //Send the push notifications
+                  let message = {
+                    app_id: process.env.RIDERS_APP_ID_ONESIGNAL,
+                    android_channel_id:
+                      process.env
+                        .RIDERS_ONESIGNAL_CHANNEL_AUTOCANCELLED_REQUEST, //Ride - Auto-cancelled group
+                    priority: 10,
+                    contents: {
+                      en: `Hi ${riderData.name}, don't forget to confirm your drop off.`,
+                    },
+                    headings: { en: "Your trip is completed" },
+                    content_available: true,
+                    include_player_ids: [
+                      riderData.pushnotif_token !== null &&
+                      riderData.pushnotif_token.userId !== undefined
+                        ? riderData.pushnotif_token.userId
+                        : "false",
+                    ],
+                  };
+                  //Send
+                  sendPushUPNotification(message);
+                  resCompute(true);
+                } //No rider found? Strange
+                else {
+                  logger.info("No unconfirmed trips by riders.");
+                  resCompute(false);
+                }
+              });
+          });
+        });
+        //...DONE
+        Promise.all(parentPromises)
+          .then((result) => {
+            resolve(result);
+          })
+          .catch((error) => {
+            logger.warn(error);
+            resolve(false);
+          });
+      } //No unconfirmed rides
+      else {
+        resolve(false);
+      }
+    });
+}
+
+/**
  * MAIN
  */
 
@@ -2033,7 +2143,6 @@ redisCluster.on("connect", function () {
         })
       )
       .use(bodyParser.urlencoded({ extended: true }));
-    redisCluster.h;
 
     /**
      * MAIN Watcher loop
@@ -2117,13 +2226,33 @@ redisCluster.on("connect", function () {
         .catch((error) => {
           logger.info(error);
         });
-    }, process.env.INTERVAL_PERSISTER_MAIN_WATCHER_MILLISECONDS * 12); //! 2min
+    }, parseInt(process.env.INTERVAL_PERSISTER_MAIN_WATCHER_MILLISECONDS) * 12); //! 2min -> * 12
 
     //! FOR SUPER HEAVY PROCESSES - 30min
     _INTERVAL_PERSISTER_LATE_REQUESTS_SUPER_HEAVY = setInterval(function () {
       //? 1. Refresh every driver's wallet
       new Promise((res1) => {
         updateDrivers_walletCachedData(collectionDrivers_profiles, res1);
+      })
+        .then(
+          (result) => {
+            logger.info(result);
+          },
+          (error) => {
+            logger.info(error);
+          }
+        )
+        .catch((error) => {
+          logger.info(error);
+        });
+      //? 7. Watch all the trips which are not confirmed by the riders yet
+      new Promise((res7) => {
+        notifyRidersOf_completedRides(
+          collectionPassengers_profiles,
+          collectionRidesDeliveryData,
+          collectionGlobalEvents,
+          res7
+        );
       })
         .then(
           (result) => {
