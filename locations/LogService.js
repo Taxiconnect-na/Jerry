@@ -1,5 +1,4 @@
 const winston = require("winston");
-const { addColors } = require("winston/lib/winston/config");
 
 const customLevels = {
   levels: {

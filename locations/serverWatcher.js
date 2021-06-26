@@ -8,6 +8,7 @@ const MongoClient = require("mongodb").MongoClient;
 var app = express();
 var server = http.createServer(app);
 const crypto = require("crypto");
+const cron = require("node-cron");
 //....
 const { logger } = require("./LogService");
 const requestAPI = require("request");
@@ -2004,6 +2005,7 @@ function notifyRidersOf_completedRides(
   collectionGlobalEvents,
   resolve
 ) {
+  let antiNotificationSpammerLog = new Set(); //To hold unique user fps to avoid sending many notifications to one user.
   logger.info("Finding trips that are not comfirmed drop off by the riders.");
   let requestFilter = {
     isArrivedToDestination: false,
@@ -2022,25 +2024,34 @@ function notifyRidersOf_completedRides(
       if (tripsData !== undefined && tripsData.length > 0) {
         logger.info("Found some unconfirmed trips by the rider.");
         //Found some rides that are not completed yet
-        let parentPromises = tripsData.map((trip, index) => {
+        let parentPromises = tripsData.map((trip) => {
           return new Promise((resCompute) => {
             //Find the passenger
             collectionPassengers_profiles
-              .find({ user_fingerprint: tripsData[index].client_id })
+              .find({ user_fingerprint: trip.client_id })
               .toArray(function (err, riderData) {
                 if (err) {
                   logger.warn(err);
                   resCompute(false);
                 }
                 //...
-                if (riderData !== undefined && riderData.length > 0) {
+                if (
+                  riderData !== undefined &&
+                  riderData.length > 0 &&
+                  antiNotificationSpammerLog.has(
+                    riderData[0].user_fingerprint
+                  ) === false
+                ) {
+                  //! Save fp in antiSpam
+                  antiNotificationSpammerLog.add(riderData.user_fingerprint);
+                  //!...
                   //? Save the event
                   new Promise((res) => {
                     collectionGlobalEvents.insertOne({
                       event_name: "reminding_rider_toConfirm_dropofff",
-                      request_fp: tripsData[index].request_fp,
-                      driver_fingerprint: tripsData[index].taxi_id,
-                      user_fingerprint: tripsData[index].client_id,
+                      request_fp: trip.request_fp,
+                      driver_fingerprint: trip.taxi_id,
+                      user_fingerprint: trip.client_id,
                       date: new Date(chaineDateUTC),
                     });
                     res(true);
@@ -2052,29 +2063,35 @@ function notifyRidersOf_completedRides(
                   //Found the rider
                   riderData = riderData[0];
                   //...
-                  //! Notify the rider
-                  //Send the push notifications
-                  let message = {
-                    app_id: process.env.RIDERS_APP_ID_ONESIGNAL,
-                    android_channel_id:
-                      process.env
-                        .RIDERS_ONESIGNAL_CHANNEL_AUTOCANCELLED_REQUEST, //Ride - Auto-cancelled group
-                    priority: 10,
-                    contents: {
-                      en: `Hi ${riderData.name}, don't forget to confirm your drop off.`,
-                    },
-                    headings: { en: "Your trip is completed" },
-                    content_available: true,
-                    include_player_ids: [
-                      riderData.pushnotif_token !== null &&
-                      riderData.pushnotif_token.userId !== undefined
-                        ? riderData.pushnotif_token.userId
-                        : "false",
-                    ],
-                  };
-                  //Send
-                  sendPushUPNotification(message);
-                  resCompute(true);
+                  new Promise((resNotify) => {
+                    //! Notify the rider
+                    //Send the push notifications
+                    let message = {
+                      app_id: process.env.RIDERS_APP_ID_ONESIGNAL,
+                      android_channel_id:
+                        process.env
+                          .RIDERS_ONESIGNAL_CHANNEL_AUTOCANCELLED_REQUEST, //Ride - Auto-cancelled group
+                      priority: 10,
+                      contents: {
+                        en: `Hi ${riderData.name}, don't forget to confirm your drop off.`,
+                      },
+                      headings: { en: "Your trip is completed" },
+                      content_available: true,
+                      include_player_ids: [
+                        riderData.pushnotif_token !== null &&
+                        riderData.pushnotif_token.userId !== undefined
+                          ? riderData.pushnotif_token.userId
+                          : "false",
+                      ],
+                    };
+                    //Send
+                    sendPushUPNotification(message);
+                    resNotify(true);
+                  })
+                    .then()
+                    .catch();
+                  //...
+                  resCompute(riderData.user_fingerprint);
                 } //No rider found? Strange
                 else {
                   logger.info("No unconfirmed trips by riders.");
@@ -2149,7 +2166,8 @@ redisCluster.on("connect", function () {
      * ! ONLY USE PROMISIFIED FUNCTIONS!
      * ! ALWAYS CATCH TROUBLE!
      */
-    _INTERVAL_PERSISTER_LATE_REQUESTS = setInterval(function () {
+    //! Every 2 min - Light work
+    cron.schedule("*/2 * * * *", function () {
       resolveDate();
       //...
       logger.info(`[${chaineDateUTC}] - Watcher loopedi`);
@@ -2226,10 +2244,10 @@ redisCluster.on("connect", function () {
         .catch((error) => {
           logger.info(error);
         });
-    }, parseInt(process.env.INTERVAL_PERSISTER_MAIN_WATCHER_MILLISECONDS) * 12); //! 2min -> * 12
+    });
 
     //! FOR SUPER HEAVY PROCESSES - 30min
-    _INTERVAL_PERSISTER_LATE_REQUESTS_SUPER_HEAVY = setInterval(function () {
+    cron.schedule("*/30 * * * *", function () {
       //? 1. Refresh every driver's wallet
       new Promise((res1) => {
         updateDrivers_walletCachedData(collectionDrivers_profiles, res1);
@@ -2265,11 +2283,10 @@ redisCluster.on("connect", function () {
         .catch((error) => {
           logger.info(error);
         });
-    }, parseInt(process.env.INTERVAL_PERSISTER_MAIN_WATCHER_MILLISECONDS) *
-      180);
+    });
 
-    //! FOR HEAVY PROCESSES REQUIRING - 300sec
-    _INTERVAL_PERSISTER_LATE_REQUESTS_HEAVY = setInterval(function () {
+    //! FOR LIGHT HEAVY PROCESSES REQUIRING - 5min
+    cron.schedule("*/5 * * * *", function () {
       //? 1. Clean X hold requests
       new Promise((res1) => {
         removeOldRequests_madeWithoutBeingAttended(
@@ -2398,7 +2415,7 @@ redisCluster.on("connect", function () {
         .catch((error) => {
           logger.info(error);
         });*/
-    }, parseInt(process.env.INTERVAL_PERSISTER_MAIN_WATCHER_MILLISECONDS) * 30);
+    });
   });
 });
 
