@@ -207,7 +207,6 @@ function autocompleteInputData(
       if (resp !== null) {
         try {
           resp = parse(resp);
-
           //TODO:  Restore essential data, BUT do not overwrite unique trip data
           inputData.pickup_location_infos.suburb =
             resp.pickup_location_infos.suburb; //Update main object
@@ -215,8 +214,6 @@ function autocompleteInputData(
             resp.pickup_location_infos.state;
           inputData.destination_location_infos =
             resp.destination_location_infos;
-          inputData.pickup_location_infos.city =
-            resp.pickup_location_infos.city;
           //?--
           //! Do a quick pre-integrity check
           if (
@@ -228,16 +225,11 @@ function autocompleteInputData(
             inputData.destination_location_infos[0].suburb !== undefined &&
             inputData.destination_location_infos[0].suburb !== false &&
             inputData.destination_location_infos[0].state !== undefined &&
-            inputData.destination_location_infos[0].state !== false &&
-            inputData.pickup_location_infos.city !== false &&
-            inputData.pickup_location_infos.city !== "false" &&
-            inputData.pickup_location_infos.city !== undefined &&
-            inputData.pickup_location_infos.city !== null
+            inputData.destination_location_infos[0].state !== false
           ) {
             resolve(inputData);
           } //Make a fresh test
           else {
-            logger.error("Found invalid pickup location infos, fixing...");
             new Promise((resCompute) => {
               execTrueAutocompleteInputData(
                 redisKey,
@@ -344,16 +336,8 @@ function execTrueAutocompleteInputData(
           logger.info("Found something in the cache");
           //Check if there's our concerned record for the pickup location
           let focusedRecord = resp;
-          logger.error(focusedRecord);
           //Check for wanted record
-          if (
-            focusedRecord !== false &&
-            focusedRecord.suburb !== undefined &&
-            focusedRecord.city !== false &&
-            focusedRecord.city !== "false" &&
-            focusedRecord.city !== undefined &&
-            focusedRecord.city !== null
-          ) {
+          if (focusedRecord !== false && focusedRecord.suburb !== undefined) {
             //Found something
             logger.info("Found a wanted cached record.");
             //TODO: Keep as essential data  when getting cached data
@@ -361,8 +345,6 @@ function execTrueAutocompleteInputData(
             inputData.pickup_location_infos.state = focusedRecord.state;
             //? ---------
             pickupInfos = inputData.pickup_location_infos.state; //Update shortcut var
-            pickupInfos = inputData.pickup_location_infos.city =
-              focusedRecord.city; //! Very crucial
             //...Done auto complete destination locations
             new Promise((res) => {
               manageAutoCompleteDestinationLocations(
@@ -414,7 +396,7 @@ function execTrueAutocompleteInputData(
                   inputData.pickup_location_infos.state = result.state;
                   pickupInfos = inputData.pickup_location_infos; //Update shortcut var
                   //...Done auto complete destination locations
-                  logger.info(result);
+                  //logger.info(result);
                   new Promise((res) => {
                     manageAutoCompleteDestinationLocations(
                       res,
@@ -467,10 +449,8 @@ function execTrueAutocompleteInputData(
           }).then(
             (result) => {
               if (result !== false) {
-                logger.error(result);
-                inputData.pickup_location_infos.suburb = result.suburb; //! Update main object
+                inputData.pickup_location_infos.suburb = result.suburb; //Update main object
                 inputData.pickup_location_infos.state = result.state;
-                inputData.pickup_location_infos.city = result.city; //! Very crucial
                 pickupInfos = inputData.pickup_location_infos; //Update shortcut var
                 //...Done auto complete destination locations
                 new Promise((res) => {
@@ -837,11 +817,7 @@ function doMongoSearchForAutocompletedSuburbs(
             resp.location_name !== undefined &&
             resp.location_name !== null &&
             resp.suburb !== undefined &&
-            resp.suburb !== null &&
-            resp.city !== false &&
-            resp.city !== "false" &&
-            resp.city !== undefined &&
-            resp.city !== null
+            resp.suburb !== null
           ) {
             resp["passenger_number_id"] =
               locationInfos.passenger_number_id !== undefined &&
@@ -986,15 +962,6 @@ function execMongoSearchAutoComplete(
                 body.address.state !== undefined &&
                 body.address.suburb !== undefined
               ) {
-                //! Check that the city is present else, take the destination's city - or default to Windhoek
-                body.address["city"] =
-                  body.address.city !== false &&
-                  body.address.city !== "false" &&
-                  body.address.city !== undefined &&
-                  body.address.city !== null
-                    ? body.address.city
-                    : "Windhoek";
-
                 //? Update the previous record
                 logger.info("fresh search done!");
                 new Promise((res1) => {
@@ -1139,15 +1106,6 @@ function execMongoSearchAutoComplete(
                     : body.address.highway;
                 //! PICKUP LOCATION REINFORCEMENTS
                 logger.info("fresh search done! - MAKE NEW");
-                //! Check that the city is present else, take the destination's city - or default to Windhoek
-                body.address["city"] =
-                  body.address.city !== false &&
-                  body.address.city !== "false" &&
-                  body.address.city !== undefined &&
-                  body.address.city !== null
-                    ? body.address.city
-                    : "Windhoek";
-
                 try {
                   new Promise((res1) => {
                     //Save result in MongoDB
@@ -1328,13 +1286,11 @@ function estimateFullVehiclesCatPrices(
       availability: { $in: ["available", "unavailable"] },
     };
 
-    logger.warn(filterQuery);
-
     collectionVehiclesInfos
       .find(filterQuery)
-      .collation({ locale: "en", strength: 2 })
+      //!.collation({ locale: "en", strength: 2 })
       .toArray(function (err, result) {
-        logger.warn(result);
+        logger.info(err);
         if (result !== undefined && result.length > 0) {
           //Found something
           let genericRidesInfos = result;
@@ -1343,15 +1299,13 @@ function estimateFullVehiclesCatPrices(
             filterQuery = {
               country: completedInputData.country,
               city: completedInputData.pickup_location_infos.city,
-              pickup_suburb: completedInputData.pickup_location_infos.suburb
-                .toUpperCase()
-                .trim(),
+              pickup_suburb:
+                completedInputData.pickup_location_infos.suburb.trim(),
             };
             collectionPricesLocationsMap
               .find(filterQuery)
-              .collation({ locale: "en", strength: 2 })
+              //!.collation({ locale: "en", strength: 2 })
               .toArray(function (err, result) {
-                logger.warn(result);
                 if (result.length > 0) {
                   //Found corresponding prices maps
                   res(result);
@@ -1407,7 +1361,6 @@ function estimateFullVehiclesCatPrices(
           }).then(
             (reslt) => {
               let globalPricesMap = reslt;
-              logger.warn(reslt);
               //call computeInDepthPricesMap
               new Promise((res) => {
                 computeInDepthPricesMap(
@@ -1673,7 +1626,7 @@ function computeInDepthPricesMap(
                         didFindRegisteredSuburbs = true; //Found registered suburbs.
                         //If the car type is economy electric, add its base price
                         if (/electricEconomy/i.test(vehicle.car_type)) {
-                          logger.info(vehicle.base_fare);
+                          //logger.info(vehicle.base_fare);
                           //basePrice += vehicle.base_fare;
                           //? Remove N$2 discount for electric rides
                           basePrice += parseFloat(suburbToSuburbInfo.fare) - 2;
@@ -1774,12 +1727,7 @@ function computeInDepthPricesMap(
           basePrice += headerPrice; //Add header price LAST
         }
         //DONE update base price...
-        logger.info(
-          "ESTIMATED BASE PRICE (car type:",
-          vehicle.car_type,
-          ") --> ",
-          basePrice
-        );
+        //logger.info("ESTIMATED BASE PRICE (car type:", vehicle.car_type, ") --> ", basePrice);
         //Update the rides infos data
         genericRidesInfos[index].base_fare = basePrice;
         //Only get relevant information form the metadata

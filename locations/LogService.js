@@ -1,3 +1,6 @@
+const OS = require("os");
+process.env.UV_THREADPOOL_SIZE = OS.cpus().length;
+//---
 const winston = require("winston");
 
 const customLevels = {
