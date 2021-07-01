@@ -368,12 +368,20 @@ function getBachRidesHistory(
           req.user_nature === null ||
           /rider/i.test(req.user_nature)
             ? {
-                client_id: req.user_fingerprint,
-                "ride_state_vars.isRideCompleted_riderSide": true,
+                KeyConditionExpression:
+                  "client_id =: client_id AND ride_state_vars.isRideCompleted_riderSide =: ride_params",
+                ExpressionAttributeValues: {
+                  ":client_id": req.user_fingerprint,
+                  ":ride_params": true,
+                },
               }
             : {
-                taxi_id: req.user_fingerprint,
-                "ride_state_vars.isRideCompleted_riderSide": true,
+                KeyConditionExpression:
+                  "taxi_id =: taxi_id AND ride_state_vars.isRideCompleted_riderSide =: ride_params",
+                ExpressionAttributeValues: {
+                  ":taxi_id": req.user_fingerprint,
+                  ":ride_params": true,
+                },
               };
         //...
         res0(resolveResponse);
@@ -384,12 +392,20 @@ function getBachRidesHistory(
           req.user_nature === null ||
           /rider/i.test(req.user_nature)
             ? {
-                client_id: req.user_fingerprint,
-                request_type: "scheduled",
+                KeyConditionExpression:
+                  "client_id =: client_id AND request_type =: request_type",
+                ExpressionAttributeValues: {
+                  ":client_id": req.user_fingerprint,
+                  ":request_type": "scheduled",
+                },
               }
             : {
-                taxi_id: req.user_fingerprint,
-                request_type: "scheduled",
+                KeyConditionExpression:
+                  "taxi_id =: taxi_id AND request_type =: request_type",
+                ExpressionAttributeValues: {
+                  ":taxi_id": req.user_fingerprint,
+                  ":request_type": "scheduled",
+                },
               };
         //...
         res0(resolveResponse);
@@ -400,12 +416,20 @@ function getBachRidesHistory(
           req.user_nature === null ||
           /rider/i.test(req.user_nature)
             ? {
-                client_id: req.user_fingerprint,
-                ride_flag: "business",
+                KeyConditionExpression:
+                  "client_id =: client_id AND ride_flag =: ride_flag",
+                ExpressionAttributeValues: {
+                  ":client_id": req.user_fingerprint,
+                  ":ride_flag": "business",
+                },
               }
             : {
-                taxi_id: req.user_fingerprint,
-                ride_flag: "business",
+                KeyConditionExpression:
+                  "taxi_id =: taxi_id AND ride_flag =: ride_flag",
+                ExpressionAttributeValues: {
+                  ":taxi_id": req.user_fingerprint,
+                  ":ride_flag": "business",
+                },
               };
         //...
         res0(resolveResponse);
@@ -421,12 +445,20 @@ function getBachRidesHistory(
         req.user_nature === null ||
         /rider/i.test(req.user_nature)
           ? {
-              client_id: req.user_fingerprint,
-              request_fp: req.request_fp,
+              KeyConditionExpression:
+                "client_id =: client_id AND request_fp =: request_fp",
+              ExpressionAttributeValues: {
+                ":client_id": req.user_fingerprint,
+                ":request_fp": req.request_fp,
+              },
             }
           : {
-              taxi_id: req.user_fingerprint,
-              request_fp: req.request_fp,
+              KeyConditionExpression:
+                "taxi_id =: taxi_id AND request_fp =: request_fp",
+              ExpressionAttributeValues: {
+                ":taxi_id": req.user_fingerprint,
+                ":request_fp": req.request_fp,
+              },
             }; //?Indexed
       //...
       res0(resolveResponse);
@@ -436,13 +468,14 @@ function getBachRidesHistory(
       if (result !== false) {
         //Got some object
         //Get the mongodb data
-        collectionRidesDeliveryData
-          .find(result)
-          .collation({ locale: "en", strength: 2 })
-          .toArray(function (error, ridesData) {
+        dynamoClient.query(
+          { ...result, ...{ TableName: "rides_deliveries_requests" } },
+          function (error, ridesData) {
             if (error) {
               resolve({ response: "error_authentication_failed" });
             }
+            //...
+            ridesData = ridesData.Items;
             //...
             if (ridesData.length > 0) {
               //Found something - reformat
@@ -477,86 +510,101 @@ function getBachRidesHistory(
             } //Empty
             else {
               //Get the rider's inos
-              collectionPassengers_profiles
-                .find({
-                  user_fingerprint: req.user_fingerprint.trim(),
-                })
-                .toArray(function (err, riderData) {
+              dynamoClient.query(
+                {
+                  TableName: "rides_deliveries_requests",
+                  KeyConditionExpression:
+                    "user_fingerprint =: user_fingerprint",
+                  ExpressionAttributeValues: {
+                    ":user_fingerprint": req.user_fingerprint.trim(),
+                  },
+                },
+                function (err, riderData) {
                   if (err) {
                     resolve(false);
                   }
+                  //...
+                  riderData = riderData.Items;
                   //...
                   if (riderData !== undefined && riderData.length > 0) {
                     //Found something
                     //? Check if the user is part of a delivery request iin which he is the receiver.
                     let rideChecker = {
-                      "ride_state_vars.isRideCompleted_riderSide": true,
-                      request_type: /scheduled/i.test(req.ride_type)
-                        ? "scheduled"
-                        : {
-                            $in: ["scheduled", "business", "immediate"],
-                          },
-                      "delivery_infos.receiverPhone_delivery":
-                        riderData[0].phone_number.trim(),
+                      TableName: "rides_deliveries_requests",
+                      KeyConditionExpression:
+                        "ride_state_vars.isRideCompleted_riderSide =: ride_params AND delivery_infos.receiverPhone_delivery =: delivery_params AND request_type IN (:scheduled, :business, :immediate)",
+                      ExpressionAttributeValues: {
+                        ":ride_params": true,
+                        // request_type: /scheduled/i.test(req.ride_type)
+                        //   ? "scheduled"
+                        //   : {
+                        //       $in: ["scheduled", "business", "immediate"],
+                        //     },
+                        ":scheduled": "scheduled",
+                        ":business": /scheduled/i.test(req.ride_type)
+                          ? "scheduled"
+                          : "business",
+                        ":immediate": /scheduled/i.test(req.ride_type)
+                          ? "scheduled"
+                          : "immediate",
+                        ":delivery_params": riderData[0].phone_number.trim(),
+                      },
                     }; //?Indexed
                     //...
-                    collectionRidesDeliveryData
-                      .find(rideChecker)
-                      .collation({ locale: "en", strength: 2 })
-                      .toArray(function (err, tripData) {
-                        if (err) {
-                          resolve(false);
-                        }
-                        //...
-                        if (tripData !== undefined && tripData.length > 0) {
-                          let ridesData = tripData;
-                          //Found the trip data
-                          //Check if there are any requests cached
-                          //Found something - reformat
-                          let parentPromises = ridesData.map(
-                            (requestSingle) => {
-                              return new Promise((res1) => {
-                                shrinkDataSchema_forBatchRidesHistory(
-                                  requestSingle,
-                                  collectionDrivers_profiles,
-                                  res1,
-                                  req.target !== undefined ? true : false
-                                );
-                              });
-                            }
-                          );
-                          //Done
-                          Promise.all(parentPromises).then(
-                            (batchResults) => {
-                              logger.info(batchResults);
-                              resolve({
-                                response: "success",
-                                ride_type:
-                                  req.ride_type !== undefined
-                                    ? req.ride_type.trim().toUpperCase()
-                                    : "Targeted",
-                                data: batchResults,
-                              });
-                            },
-                            (error) => {
-                              logger.info(error);
-                              resolve({
-                                response: "error_authentication_failed",
-                              });
-                            }
-                          );
-                        } //No trip data
-                        else {
-                          resolve({
-                            response: "success",
-                            ride_type:
-                              req.ride_type !== undefined
-                                ? req.ride_type.trim().toUpperCase()
-                                : "Targeted",
-                            data: [],
+                    dynamoClient.query(rideChecker, function (err, tripData) {
+                      if (err) {
+                        resolve(false);
+                      }
+                      //...
+                      tripData = tripData.Items;
+                      //...
+                      if (tripData !== undefined && tripData.length > 0) {
+                        let ridesData = tripData;
+                        //Found the trip data
+                        //Check if there are any requests cached
+                        //Found something - reformat
+                        let parentPromises = ridesData.map((requestSingle) => {
+                          return new Promise((res1) => {
+                            shrinkDataSchema_forBatchRidesHistory(
+                              requestSingle,
+                              collectionDrivers_profiles,
+                              res1,
+                              req.target !== undefined ? true : false
+                            );
                           });
-                        }
-                      });
+                        });
+                        //Done
+                        Promise.all(parentPromises).then(
+                          (batchResults) => {
+                            logger.info(batchResults);
+                            resolve({
+                              response: "success",
+                              ride_type:
+                                req.ride_type !== undefined
+                                  ? req.ride_type.trim().toUpperCase()
+                                  : "Targeted",
+                              data: batchResults,
+                            });
+                          },
+                          (error) => {
+                            logger.info(error);
+                            resolve({
+                              response: "error_authentication_failed",
+                            });
+                          }
+                        );
+                      } //No trip data
+                      else {
+                        resolve({
+                          response: "success",
+                          ride_type:
+                            req.ride_type !== undefined
+                              ? req.ride_type.trim().toUpperCase()
+                              : "Targeted",
+                          data: [],
+                        });
+                      }
+                    });
                   } //No rider data, strange
                   else {
                     resolve({
@@ -568,9 +616,11 @@ function getBachRidesHistory(
                       data: [],
                     });
                   }
-                });
+                }
+              );
             }
-          });
+          }
+        );
       } //invalid data
       else {
         logger.info("Invalid");
@@ -667,12 +717,18 @@ function shrinkDataSchema_forBatchRidesHistory(
     //2. Get the car brand
     new Promise((res) => {
       let findCar = {
-        "cars_data.car_fingerprint": request.car_fingerprint,
+        TableName: "drivers_profiles",
+        KeyConditionExpression: "cars_data.car_fingerprint =: car_details",
+        ExpressionAttributeValues: {
+          ":car_details": request.car_fingerprint,
+        },
       };
-      collectionDrivers_profiles.find(findCar).toArray(function (err, result) {
+      dynamoClient.query(findCar, function (err, result) {
         if (err) {
           res(false);
         }
+        //...
+        result = result.Items;
         //...
         logger.info(result);
         if (result.length > 0) {
@@ -691,12 +747,21 @@ function shrinkDataSchema_forBatchRidesHistory(
         } //Empty - strange
         else {
           //! Get the first car for the driver
-          collectionDrivers_profiles
-            .find({ driver_fingerprint: request.taxi_id })
-            .toArray(function (err, driverProfile) {
+          dynamoClient.query(
+            {
+              TableName: "drivers_profiles",
+              KeyConditionExpression:
+                "driver_fingerprint =: driver_fingerprint",
+              ExpressionAttributeValues: {
+                ":driver_fingerprint": request.taxi_id,
+              },
+            },
+            function (err, driverProfile) {
               if (err) {
                 res(false);
               }
+              //...
+              driverProfile = driverProfile.Items;
               ///.
               if (
                 driverProfile.cars_data !== undefined &&
@@ -710,7 +775,8 @@ function shrinkDataSchema_forBatchRidesHistory(
               else {
                 res(false);
               }
-            });
+            }
+          );
         }
       });
     }).then(
@@ -911,12 +977,19 @@ function proceedTargeted_requestHistory_fetcher(
   //2. Get the car details and driver details
   new Promise((res) => {
     let findCar = {
-      "cars_data.car_fingerprint": request.car_fingerprint,
+      TableName: "drivers_profiles",
+      KeyConditionExpression: "cars_data.car_fingerprint =: car_details",
+      ExpressionAttributeValues: {
+        ":car_details": request.car_fingerprint,
+      },
+      //"cars_data.car_fingerprint": request.car_fingerprint,
     };
-    collectionDrivers_profiles.find(findCar).toArray(function (err, result) {
+    dynamoClient.query(findCar, function (err, result) {
       if (err) {
         res(false);
       }
+      //...
+      result = result.Items;
       //...
       if (result.length > 0) {
         //FOund something
@@ -1237,9 +1310,15 @@ function exec_computeDaily_amountMade(
   //...
   //Get the driver's requests operation clearances
   logger.info(driver_fingerprint);
-  collectionDrivers_profiles
-    .find({ driver_fingerprint: driver_fingerprint })
-    .toArray(function (error, driverProfile) {
+  dynamoClient.query(
+    {
+      TableName: "drivers_profiles",
+      KeyConditionExpression: "driver_fingerprint =: driver_fingerprint",
+      ExpressionAttributeValues: {
+        ":driver_fingerprint": driver_fingerprint,
+      },
+    },
+    function (error, driverProfile) {
       if (error) {
         resolve({
           amount: 0,
@@ -1249,74 +1328,83 @@ function exec_computeDaily_amountMade(
           response: "error",
         });
       }
+      //...
+      driverProfile = driverProfile.Items;
+      //...
       if (driverProfile !== undefined && driverProfile.length > 0) {
         driverProfile = driverProfile[0];
         //...
         let filterRequest = {
-          taxi_id: driver_fingerprint,
-          "ride_state_vars.isRideCompleted_driverSide": true,
-          "ride_state_vars.isRideCompleted_riderSide": true,
+          TableName: "rides_deliveries_requests",
+          KeyConditionExpression:
+            "taxi_id =: taxi_id AND ride_state_vars.isRideCompleted_driverSide =: rideDriver_params AND ride_state_vars.isRideCompleted_riderSide =: rideRider_params",
+          ExpressionAttributeValues: {
+            ":taxi_id": driver_fingerprint,
+            ":rideDriver_params": true,
+            ":rideRider_params": true,
+          },
+          // {
+          //   taxi_id: driver_fingerprint,
+          //   "ride_state_vars.isRideCompleted_driverSide": true,
+          //   "ride_state_vars.isRideCompleted_riderSide": true,
+          // }
         };
 
-        collectionRidesDeliveryData
-          .find(filterRequest)
-          .collation({ locale: "en", strength: 2 })
-          .toArray(function (err, requestsArray) {
-            if (err) {
-              resolve({
-                amount: 0,
-                currency: "NAD",
-                currency_symbol: "N$",
-                supported_requests_types:
-                  driverProfile !== undefined && driverProfile !== null
-                    ? driverProfile.operation_clearances.join("-")
-                    : "Ride",
-                response: "error",
-              });
-            }
-            //...
-            let amount = 0;
-            if (requestsArray !== undefined && requestsArray.length > 0) {
-              requestsArray.map((request) => {
-                if (
-                  String(chaineDateUTC)
-                    .replace("T", " ")
-                    .split(" ")[0]
-                    .trim() ===
-                  String(new Date(request.date_requested).toISOString())
-                    .replace("T", " ")
-                    .split(" ")[0]
-                    .trim()
-                ) {
-                  //Same day
-                  let tmpFare = parseFloat(request.fare);
-                  amount += tmpFare;
-                }
-              });
-              resolve({
-                amount: amount,
-                currency: "NAD",
-                currency_symbol: "N$",
-                supported_requests_types:
-                  driverProfile !== undefined && driverProfile !== null
-                    ? driverProfile.operation_clearances.join("-")
-                    : "Ride",
-                response: "success",
-              });
-            } //No infos
-            else {
-              resolve({
-                amount: 0,
-                currency: "NAD",
-                currency_symbol: "N$",
-                supported_requests_types:
-                  driverProfile !== undefined && driverProfile !== null
-                    ? driverProfile.operation_clearances.join("-")
-                    : "Ride",
-                response: "error",
-              });
-            }
-          });
+        dynamoClient.query(filterRequest, function (err, requestsArray) {
+          if (err) {
+            resolve({
+              amount: 0,
+              currency: "NAD",
+              currency_symbol: "N$",
+              supported_requests_types:
+                driverProfile !== undefined && driverProfile !== null
+                  ? driverProfile.operation_clearances.join("-")
+                  : "Ride",
+              response: "error",
+            });
+          }
+          //...
+          requestsArray = requestsArray.Items;
+          //...
+          let amount = 0;
+          if (requestsArray !== undefined && requestsArray.length > 0) {
+            requestsArray.map((request) => {
+              if (
+                String(chaineDateUTC).replace("T", " ").split(" ")[0].trim() ===
+                String(new Date(request.date_requested).toISOString())
+                  .replace("T", " ")
+                  .split(" ")[0]
+                  .trim()
+              ) {
+                //Same day
+                let tmpFare = parseFloat(request.fare);
+                amount += tmpFare;
+              }
+            });
+            resolve({
+              amount: amount,
+              currency: "NAD",
+              currency_symbol: "N$",
+              supported_requests_types:
+                driverProfile !== undefined && driverProfile !== null
+                  ? driverProfile.operation_clearances.join("-")
+                  : "Ride",
+              response: "success",
+            });
+          } //No infos
+          else {
+            resolve({
+              amount: 0,
+              currency: "NAD",
+              currency_symbol: "N$",
+              supported_requests_types:
+                driverProfile !== undefined && driverProfile !== null
+                  ? driverProfile.operation_clearances.join("-")
+                  : "Ride",
+              response: "error",
+            });
+          }
+        });
       } else {
         resolve({
           amount: 0,
@@ -1326,7 +1414,8 @@ function exec_computeDaily_amountMade(
           response: "error",
         });
       }
-    });
+    }
+  );
 }
 
 /**
@@ -4398,14 +4487,14 @@ redisCluster.on("connect", function () {
       })
       .use(
         express.json({
-          limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,,
-          extended: true
+          limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
+          extended: true,
         })
       )
       .use(
         express.urlencoded({
-          limit:process.env.MAX_DATA_BANDWIDTH_EXPRESS,
-          extended: true
+          limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
+          extended: true,
         })
       )
       .use(helmet());
@@ -4840,19 +4929,20 @@ redisCluster.on("connect", function () {
             //   user_fingerprint: req.user_fingerprint,
             // };
             let updateProfile = {
-              TableName: 'passengers_profiles',
+              TableName: "passengers_profiles",
               Key: {
-                user_fingerprint: req.user_fingerprint
+                user_fingerprint: req.user_fingerprint,
               },
-              UpdateExpression: "set name=:name, email=:email, gender=:gender, account_state=:account_state, last_updated=:last_updated",
+              UpdateExpression:
+                "set name=:name, email=:email, gender=:gender, account_state=:account_state, last_updated=:last_updated",
               ExpressionAttributeValues: {
-                ':name': req.name,
-                ':email': req.email,
-                ':gender': req.gender,
-                ':account_state': 'full',  //! ADDD ACCOUNT STATE - full
-                ':last_updated': new Date(chaineDateUTC),
+                ":name": req.name,
+                ":email": req.email,
+                ":gender": req.gender,
+                ":account_state": "full", //! ADDD ACCOUNT STATE - full
+                ":last_updated": new Date(chaineDateUTC),
               },
-              ReturnValues: 'UPDATED_NEW'
+              ReturnValues: "UPDATED_NEW",
               // $set: {
               //   name: req.name,
               //   email: req.email,
@@ -4862,58 +4952,60 @@ redisCluster.on("connect", function () {
               // },
             };
             //Update
-            dynamoClient.update(updateProfile,
-              function (error, result) {
-                if (error) {
-                  logger.info(error);
-                  res0({
-                    response:
-                      "error_adding_additional_profile_details_new_account",
-                  });
-                }
-                //Get the profile details
-              dynamoClient.query({
-                TableName: 'passengers_profiles',
-                KeyConditionExpression: 'user_fingerprint = :user_fingerprint',
-                ExpressionAttributeValues: {
-                  ':user_fingerprint': req.user_fingerprint
-                }
-              }, function (err, riderProfile) {
-                    if (err) {
-                      logger.info(err);
-                      res0({
-                        response:
-                          "error_adding_additional_profile_details_new_account",
-                      });
-                    }
-                    logger.info(riderProfile);
-                    //...
-                    riderProfile = riderProfile.Items;
-                    //...
-                    if (riderProfile.length > 0) {
-                      //Found something
-                      res0({
-                        response: "updated",
-                        user_fp: riderProfile[0].user_fingerprint,
-                        name: riderProfile[0].name,
-                        surname: riderProfile[0].surname,
-                        gender: riderProfile[0].gender,
-                        phone_number: riderProfile[0].phone_number,
-                        email: riderProfile[0].email,
-                        account_state: "full", //!VERY IMPORTANT - MARK ACCOUNT CREATION STATE AS FULL - to avoid redirection to complete details screen.
-                        profile_picture: `${process.env.AWS_S3_RIDERS_PROFILE_PICTURES_PATH}/${riderProfile[0].media.profile_picture}`,
-                        pushnotif_token: riderProfile[0].pushnotif_token,
-                      });
-                    } //Error finding profile
-                    else {
-                      res0({
-                        response:
-                          "error_adding_additional_profile_details_new_account",
-                      });
-                    }
-                  });
+            dynamoClient.update(updateProfile, function (error, result) {
+              if (error) {
+                logger.info(error);
+                res0({
+                  response:
+                    "error_adding_additional_profile_details_new_account",
+                });
               }
-            );
+              //Get the profile details
+              dynamoClient.query(
+                {
+                  TableName: "passengers_profiles",
+                  KeyConditionExpression:
+                    "user_fingerprint = :user_fingerprint",
+                  ExpressionAttributeValues: {
+                    ":user_fingerprint": req.user_fingerprint,
+                  },
+                },
+                function (err, riderProfile) {
+                  if (err) {
+                    logger.info(err);
+                    res0({
+                      response:
+                        "error_adding_additional_profile_details_new_account",
+                    });
+                  }
+                  logger.info(riderProfile);
+                  //...
+                  riderProfile = riderProfile.Items;
+                  //...
+                  if (riderProfile.length > 0) {
+                    //Found something
+                    res0({
+                      response: "updated",
+                      user_fp: riderProfile[0].user_fingerprint,
+                      name: riderProfile[0].name,
+                      surname: riderProfile[0].surname,
+                      gender: riderProfile[0].gender,
+                      phone_number: riderProfile[0].phone_number,
+                      email: riderProfile[0].email,
+                      account_state: "full", //!VERY IMPORTANT - MARK ACCOUNT CREATION STATE AS FULL - to avoid redirection to complete details screen.
+                      profile_picture: `${process.env.AWS_S3_RIDERS_PROFILE_PICTURES_PATH}/${riderProfile[0].media.profile_picture}`,
+                      pushnotif_token: riderProfile[0].pushnotif_token,
+                    });
+                  } //Error finding profile
+                  else {
+                    res0({
+                      response:
+                        "error_adding_additional_profile_details_new_account",
+                    });
+                  }
+                }
+              );
+            });
           }).then(
             (result) => {
               res.send(result);
@@ -4949,6 +5041,7 @@ redisCluster.on("connect", function () {
      * ride_type: Past (already completed - can include scheduled), Scheduled (upcoming) or Business (with business flag)
      * LIMIT: last 50 rides
      */
+    //? MIGRATED
     app.get("/getRides_historyRiders", function (req, res) {
       resolveDate();
       let params = urlParser.parse(req.url, true);
@@ -5014,6 +5107,7 @@ redisCluster.on("connect", function () {
      * COMPUTE DAILY REQUESTS AMMOUNT FOR DRIVERS
      * Responsible for getting the daily amount made so far by the driver for exactly all the completed requests.
      */
+    //? MIGRATED
     app.get("/computeDaily_amountMadeSoFar", function (req, res) {
       new Promise((resMAIN) => {
         resolveDate();
@@ -5123,12 +5217,21 @@ redisCluster.on("connect", function () {
             //Valid data received
             new Promise((res0) => {
               //Check the driver
-              collectionDrivers_profiles
-                .find({ driver_fingerprint: req.driver_fingerprint })
-                .toArray(function (err, driverData) {
+              dynamoClient.query(
+                {
+                  TableName: "drivers_profiles",
+                  KeyConditionExpression:
+                    "driver_fingerprint =: driver_fingerprint",
+                  ExpressionAttributeValues: {
+                    ":driver_fingerprint": req.driver_fingerprint,
+                  },
+                },
+                function (err, driverData) {
                   if (err) {
                     res0({ response: "error_invalid_request" });
                   }
+                  //...
+                  driverData = driverData.Items;
                   //...
                   if (driverData.length > 0) {
                     //! GET THE SUSPENSION INFOS
@@ -5153,17 +5256,29 @@ redisCluster.on("connect", function () {
                     //! ------------------------
                     //Check if the driver has an active request - NOT LOG OUT WITH AN ACTIVE REQUEST
                     let checkActiveRequests = {
-                      taxi_id: req.driver_fingerprint,
-                      "ride_state_vars.isAccepted": true,
-                      "ride_state_vars.isRideCompleted_driverSide": false,
+                      TableName: "rides_deliveries_requests",
+                      KeyConditionExpression:
+                        "taxi_id =: taxi_id AND ride_state_vars.isAccepted =: rideAccepted_params AND ride_state_vars.isRideCompleted_driverSide =: rideDriver_params",
+                      ExpressionAttributeValues: {
+                        ":taxi_id": req.driver_fingerprint,
+                        ":rideAccepted_params": true,
+                        ":rideDriver_params": false,
+                      },
+                      // {
+                      //   taxi_id: req.driver_fingerprint,
+                      //   "ride_state_vars.isAccepted": true,
+                      //   "ride_state_vars.isRideCompleted_driverSide": false,
+                      // }
                     };
                     //check
-                    collectionRidesDeliveryData
-                      .find(checkActiveRequests)
-                      .toArray(function (err, currentActiveRequests) {
+                    dynamoClient.query(
+                      checkActiveRequests,
+                      function (err, currentActiveRequests) {
                         if (err) {
                           res0({ response: "error_invalid_request" });
                         }
+                        //...
+                        currentActiveRequests = currentActiveRequests.Items;
                         //...
                         if (/offline/i.test(req.state)) {
                           //Only if the driver wants to go out
@@ -5288,12 +5403,14 @@ redisCluster.on("connect", function () {
                             }
                           );
                         }
-                      });
+                      }
+                    );
                   } //Error - unknown driver
                   else {
                     res0({ response: "error_invalid_request" });
                   }
-                });
+                }
+              );
             }).then(
               (result) => {
                 resMAIN(result);
