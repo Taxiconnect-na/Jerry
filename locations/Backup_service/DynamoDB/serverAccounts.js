@@ -4392,21 +4392,20 @@ redisCluster.on("connect", function () {
       "referrals_information_global"
     ); //Hold all the referrals infos
     //-------------
-    const bodyParser = require("body-parser");
     app
       .get("/", function (req, res) {
         logger.info("Account services up");
       })
       .use(
-        bodyParser.json({
-          limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
-          extended: true,
+        express.json({
+          limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,,
+          extended: true
         })
       )
       .use(
-        bodyParser.urlencoded({
-          limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
-          extended: true,
+        express.urlencoded({
+          limit:process.env.MAX_DATA_BANDWIDTH_EXPRESS,
+          extended: true
         })
       )
       .use(helmet());
@@ -4593,6 +4592,7 @@ redisCluster.on("connect", function () {
      * CHECK THAT THE OTP ENTERED BY THE USER IS CORRECT
      * Responsible for checking that the otp entered by the user matches the one generated.
      */
+    //? MIGRATED
     app.get("/checkSMSOTPTruly", function (req, res) {
       resolveDate();
       let params = urlParser.parse(req.url, true);
@@ -4610,25 +4610,30 @@ redisCluster.on("connect", function () {
           if (/^unregistered$/i.test(req.user_nature.trim())) {
             //Checking for unregistered users
             let checkOTP = {
-              phone_number: { $regex: req.phone_number },
-              otp: parseInt(req.otp),
+              TableName: "OTP_dispatch_map",
+              KeyConditionExpression:
+                "phone_number =:phone_number AND otp=:otp",
+              ExpressionAttributeValues: {
+                ":phone_number": req.phone_number,
+                ":otp": parseInt(req.otp),
+              },
             };
             //Check if it exists for this number
-            collection_OTP_dispatch_map
-              .find(checkOTP)
-              .toArray(function (error, result) {
-                if (error) {
-                  res0({ response: "error_checking_otp" });
-                }
-                //...
-                if (result.length > 0) {
-                  //True OTP
-                  res0({ response: true });
-                } //Wrong otp
-                else {
-                  res0({ response: false });
-                }
-              });
+            dynamoClient.query(checkOTP, function (error, result) {
+              if (error) {
+                res0({ response: "error_checking_otp" });
+              }
+              //?---
+              result = result.Items;
+              //...
+              if (result.length > 0) {
+                //True OTP
+                res0({ response: true });
+              } //Wrong otp
+              else {
+                res0({ response: false });
+              }
+            });
           } //Checking for registered user - check the OTP secrets binded to the profile
           else {
             //! Will need the user_fingerprint to be provided.
@@ -4640,26 +4645,30 @@ redisCluster.on("connect", function () {
             ) {
               logger.info("Passenger");
               let checkOTP = {
-                phone_number: { $regex: req.phone_number },
-                "account_verifications.phone_verification_secrets.otp":
-                  parseInt(req.otp),
+                TableName: "passengers_profiles",
+                KeyConditionExpression:
+                  "account_verifications.phone_verification_secrets.otp =:verification AND phone_number=:phone_number",
+                ExpressionAttributeValues: {
+                  ":verification": parseInt(req.otp),
+                  ":phone_number": req.phone_number,
+                },
               }; //?Indexed
               //Check if it exists for this number
-              collectionPassengers_profiles
-                .find(checkOTP)
-                .toArray(function (error, result) {
-                  if (error) {
-                    res0({ response: "error_checking_otp" });
-                  }
-                  //...
-                  if (result.length > 0) {
-                    //True OTP
-                    res0({ response: true });
-                  } //Wrong otp
-                  else {
-                    res0({ response: true }); //! BUG
-                  }
-                });
+              dynamoClient.query(checkOTP, function (error, result) {
+                if (error) {
+                  res0({ response: "error_checking_otp" });
+                }
+                //...
+                result = result.Items;
+                //...
+                if (result.length > 0) {
+                  //True OTP
+                  res0({ response: true });
+                } //Wrong otp
+                else {
+                  res0({ response: true }); //! BUG
+                }
+              });
             } else if (
               req.user_nature !== undefined &&
               req.user_nature !== null &&
@@ -4668,27 +4677,31 @@ redisCluster.on("connect", function () {
               logger.info(req);
               //2. Drivers
               let checkOTP = {
-                phone_number: { $regex: req.phone_number },
-                "account_verifications.phone_verification_secrets.otp":
-                  parseInt(req.otp),
+                TableName: "drivers_profiles",
+                KeyConditionExpression:
+                  "account_verifications.phone_verification_secrets.otp =:verification AND phone_number=:phone_number",
+                ExpressionAttributeValues: {
+                  ":verification": parseInt(req.otp),
+                  ":phone_number": req.phone_number,
+                },
               };
               //Check if it exists for this number
-              collectionDrivers_profiles
-                .find(checkOTP)
-                .toArray(function (error, result) {
-                  if (error) {
-                    logger.info(error);
-                    res0({ response: "error_checking_otp" });
-                  }
-                  //...
-                  if (result.length > 0) {
-                    //True OTP
-                    res0({ response: true });
-                  } //Wrong otp
-                  else {
-                    res0({ response: false });
-                  }
-                });
+              dynamoClient.query(checkOTP, function (error, result) {
+                if (error) {
+                  logger.info(error);
+                  res0({ response: "error_checking_otp" });
+                }
+                //...
+                result = result.Items;
+                //...
+                if (result.length > 0) {
+                  //True OTP
+                  res0({ response: true });
+                } //Wrong otp
+                else {
+                  res0({ response: false });
+                }
+              });
             }
           }
         }).then(
@@ -4709,6 +4722,7 @@ redisCluster.on("connect", function () {
      * CREATE A NEW ACCOUNT - RIDER
      * Responsible for creating a minimal rider account with only the phone number as an argument.
      */
+    //? MIGRATED
     app.get("/createMinimalRiderAccount", function (req, res) {
       resolveDate();
       let params = urlParser.parse(req.url, true);
@@ -4726,50 +4740,51 @@ redisCluster.on("connect", function () {
           }).then(
             (user_fingerprint) => {
               let minimalAccount = {
-                name: "User",
-                surname: "",
-                gender: "Unknown",
-                user_fingerprint: user_fingerprint,
-                phone_number: /^\+/.test(req.phone_number)
-                  ? req.phone_number
-                  : "+" + req.phone_number.trim(),
-                email: false,
-                password: false,
-                account_state: "minimal", //The state of the account in terms of it's creation: minimal or full
-                media: {
-                  profile_picture: "user.png",
-                },
-                account_verifications: {
-                  is_accountVerified: true, //Account already checked
-                  is_policies_accepted: true, //Terms and conditions implicitly accepted
-                },
-                pushnotif_token:
-                  req.pushnotif_token !== undefined &&
-                  req.pushnotif_token !== null
-                    ? decodeURIComponent(req.pushnotif_token)
-                    : false,
-                last_updated: {
-                  date: new Date(chaineDateUTC),
-                },
-                date_registered: {
-                  date: new Date(chaineDateUTC),
+                TableName: "passengers_profiles",
+                Item: {
+                  _id: { HashKey: `${new Date().getTime()}` }.HashKey,
+                  name: "User",
+                  surname: "",
+                  gender: "Unknown",
+                  user_fingerprint: user_fingerprint,
+                  phone_number: /^\+/.test(req.phone_number)
+                    ? req.phone_number
+                    : "+" + req.phone_number.trim(),
+                  email: false,
+                  password: false,
+                  account_state: "minimal", //The state of the account in terms of it's creation: minimal or full
+                  media: {
+                    profile_picture: "user.png",
+                  },
+                  account_verifications: {
+                    is_accountVerified: true, //Account already checked
+                    is_policies_accepted: true, //Terms and conditions implicitly accepted
+                  },
+                  pushnotif_token:
+                    req.pushnotif_token !== undefined &&
+                    req.pushnotif_token !== null
+                      ? decodeURIComponent(req.pushnotif_token)
+                      : false,
+                  last_updated: {
+                    date: new Date(chaineDateUTC),
+                  },
+                  date_registered: {
+                    date: new Date(chaineDateUTC),
+                  },
                 },
               };
               logger.info(minimalAccount);
               //..
-              collectionPassengers_profiles.insertOne(
-                minimalAccount,
-                function (error, result) {
-                  if (error) {
-                    res0({ response: "error_creating_account" });
-                  }
-                  //...Send back the status and fingerprint
-                  res0({
-                    response: "successfully_created",
-                    user_fp: user_fingerprint,
-                  });
+              dynamoClient.put(minimalAccount, function (error, result) {
+                if (error) {
+                  res0({ response: "error_creating_account" });
                 }
-              );
+                //...Send back the status and fingerprint
+                res0({
+                  response: "successfully_created",
+                  user_fp: user_fingerprint,
+                });
+              });
             },
             (error) => {
               res0({ response: "error_creating_account" });
@@ -4794,6 +4809,7 @@ redisCluster.on("connect", function () {
      * UDPATE ADDITIONAL DETAILS WHILE CREATING ACCOUNT - RIDER
      * Responsible for updating the rider's profile with the additional profile infos (name, gender and email)
      */
+    //? MIGRATED
     app.get("/updateAdditionalProfileData_newAccount", function (req, res) {
       resolveDate();
       let params = urlParser.parse(req.url, true);
@@ -4820,22 +4836,33 @@ redisCluster.on("connect", function () {
         //..
         try {
           new Promise((res0) => {
-            let findProfile = {
-              user_fingerprint: req.user_fingerprint,
-            };
+            // let findProfile = {
+            //   user_fingerprint: req.user_fingerprint,
+            // };
             let updateProfile = {
-              $set: {
-                name: req.name,
-                email: req.email,
-                gender: req.gender,
-                account_state: "full", //! ADDD ACCOUNT STATE - full
-                last_updated: new Date(chaineDateUTC),
+              TableName: 'passengers_profiles',
+              Key: {
+                user_fingerprint: req.user_fingerprint
               },
+              UpdateExpression: "set name=:name, email=:email, gender=:gender, account_state=:account_state, last_updated=:last_updated",
+              ExpressionAttributeValues: {
+                ':name': req.name,
+                ':email': req.email,
+                ':gender': req.gender,
+                ':account_state': 'full',  //! ADDD ACCOUNT STATE - full
+                ':last_updated': new Date(chaineDateUTC),
+              },
+              ReturnValues: 'UPDATED_NEW'
+              // $set: {
+              //   name: req.name,
+              //   email: req.email,
+              //   gender: req.gender,
+              //   account_state: "full", //! ADDD ACCOUNT STATE - full
+              //   last_updated: new Date(chaineDateUTC),
+              // },
             };
             //Update
-            collectionPassengers_profiles.updateOne(
-              findProfile,
-              updateProfile,
+            dynamoClient.update(updateProfile,
               function (error, result) {
                 if (error) {
                   logger.info(error);
@@ -4845,9 +4872,13 @@ redisCluster.on("connect", function () {
                   });
                 }
                 //Get the profile details
-                collectionPassengers_profiles
-                  .find(findProfile)
-                  .toArray(function (err, riderProfile) {
+              dynamoClient.query({
+                TableName: 'passengers_profiles',
+                KeyConditionExpression: 'user_fingerprint = :user_fingerprint',
+                ExpressionAttributeValues: {
+                  ':user_fingerprint': req.user_fingerprint
+                }
+              }, function (err, riderProfile) {
                     if (err) {
                       logger.info(err);
                       res0({
@@ -4856,6 +4887,8 @@ redisCluster.on("connect", function () {
                       });
                     }
                     logger.info(riderProfile);
+                    //...
+                    riderProfile = riderProfile.Items;
                     //...
                     if (riderProfile.length > 0) {
                       //Found something
