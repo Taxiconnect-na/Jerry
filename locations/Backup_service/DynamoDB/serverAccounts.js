@@ -1625,12 +1625,21 @@ function parseDetailed_walletGetData(
 
               if (/sentToFriend/i.test(tmpClean.transaction_nature)) {
                 //Check the name from the passenger collection
-                collectionPassengers_profiles
-                  .find({ user_fingerprint: transaction.recipient_fp })
-                  .toArray(function (err, recipientData) {
+                dynamoClient.query(
+                  {
+                    TableName: "passengers_profiles",
+                    KeyConditionExpression:
+                      "user_fingerprint =: user_fingerprint",
+                    ExpressionAttributeValues: {
+                      ":user_fingerprint": transaction.recipient_fp,
+                    },
+                  },
+                  function (err, recipientData) {
                     if (err) {
                       res(false);
                     }
+                    //...
+                    recipientData = recipientData.Items;
                     //...
                     if (
                       recipientData.length > 0 &&
@@ -1645,17 +1654,27 @@ function parseDetailed_walletGetData(
                     else {
                       res(false);
                     }
-                  });
+                  }
+                );
               } else if (
                 /(paidDriver|sentToDriver)/i.test(tmpClean.transaction_nature)
               ) {
                 //Check from the driver collection
-                collectionDrivers_profiles
-                  .find({ driver_fingerprint: transaction.recipient_fp })
-                  .toArray(function (err, recipientData) {
+                dynamoClient.query(
+                  {
+                    TableName: "drivers_profiles",
+                    KeyConditionExpression:
+                      "driver_fingerprint =: driver_fingerprint",
+                    ExpressionAttributeValues: {
+                      ":driver_fingerprint": transaction.recipient_fp,
+                    },
+                  },
+                  function (err, recipientData) {
                     if (err) {
                       res(false);
                     }
+                    //...
+                    recipientData = recipientData.Items;
                     //...
                     if (
                       recipientData.length > 0 &&
@@ -1670,7 +1689,8 @@ function parseDetailed_walletGetData(
                     else {
                       res(false);
                     }
-                  });
+                  }
+                );
               } else {
                 res(false);
               }
@@ -1894,27 +1914,40 @@ function truelyExec_ridersDrivers_walletSummary(
   //? 0. Get all the transactions received from other users
   new Promise((resReceivedTransactions) => {
     //! Should be user_fingerprint instead of recipient_fp for DRIVERS
-    let filterReceived = {
-      recipient_fp: requestObj.user_fingerprint,
-      transaction_nature: {
-        $in: [
-          "sentToFriend",
-          "paidDriver",
-          "sentToDriver",
-          "weeklyPaidDriverAutomatic",
-          "commissionTCSubtracted",
-        ],
-      },
-    }; //?Indexed
+    // let filterReceived = {
+    //   recipient_fp: requestObj.user_fingerprint,
+    //   transaction_nature: {
+    //     $in: [
+    //       "sentToFriend",
+    //       "paidDriver",
+    //       "sentToDriver",
+    //       "weeklyPaidDriverAutomatic",
+    //       "commissionTCSubtracted",
+    //     ],
+    //   },
+    // }; //?Indexed
     //...
-    collectionWalletTransactions_logs
-      .find(filterReceived)
-      .collation({ locale: "en", strength: 2 })
-      .toArray(function (err, resultTransactionsReceived) {
+    dynamoClient.query(
+      {
+        TableName: "wallet_transactions_logs",
+        KeyConditionExpression:
+          "recipient_fp =: recipient_fp AND transaction_nature IN (:val1, :val2, :val3, :val4, :val5)",
+        ExpressionAttributeValues: {
+          ":recipient_fp": requestObj.user_fingerprint,
+          ":val1": "sentToFriend",
+          ":val2": "paidDriver",
+          ":val3": "sentToDriver",
+          ":val4": "weeklyPaidDriverAutomatic",
+          ":val5": "commissionTCSubtracted",
+        },
+      },
+      function (err, resultTransactionsReceived) {
         if (err) {
           logger.info(err);
           resReceivedTransactions({ total: 0, transactions_data: null });
         }
+        //...
+        resultTransactionsReceived = resultTransactionsReceived.Items;
         //...
         if (
           resultTransactionsReceived !== undefined &&
@@ -1947,34 +1980,48 @@ function truelyExec_ridersDrivers_walletSummary(
         else {
           resReceivedTransactions({ total: 0, transactions_data: null });
         }
-      });
+      }
+    );
   })
     .then(
       (receivedTransactionsData) => {
         //1. Get the total topups
         //? Or the drivers weekly payouts.
         new Promise((res) => {
-          let filterTopups = {
-            user_fingerprint: requestObj.user_fingerprint,
-            transaction_nature: {
-              $in: [
-                "topup",
-                "paidDriver",
-                "sentToDriver",
-                "sentToFriend",
-                "weeklyPaidDriverAutomatic",
-              ],
-            },
-          }; //?Indexed
+          // let filterTopups = {
+          //   user_fingerprint: requestObj.user_fingerprint,
+          //   transaction_nature: {
+          //     $in: [
+          //       "topup",
+          //       "paidDriver",
+          //       "sentToDriver",
+          //       "sentToFriend",
+          //       "weeklyPaidDriverAutomatic",
+          //     ],
+          //   },
+          // }; //?Indexed
           //...
-          collectionWalletTransactions_logs
-            .find(filterTopups)
-            .collation({ locale: "en", strength: 2 })
-            .toArray(function (err, resultTransactions) {
+          dynamoClient.query(
+            {
+              TableName: "wallet_transactions_logs",
+              KeyConditionExpression:
+                "recipient_fp =: recipient_fp AND transaction_nature IN (:val1, :val2, :val3, :val4, :val5)",
+              ExpressionAttributeValues: {
+                ":recipient_fp": requestObj.user_fingerprint,
+                ":val1": "topup",
+                ":val2": "paidDriver",
+                ":val3": "sentToDriver",
+                ":val4": "sentToFriend",
+                ":val5": "weeklyPaidDriverAutomatic",
+              },
+            },
+            function (err, resultTransactions) {
               if (err) {
                 logger.info(err);
                 res({ total: 0, transactions_data: null });
               }
+              //...
+              resultTransactions = resultTransactions.Items;
               //..
               if (
                 (resultTransactions !== undefined &&
@@ -2029,25 +2076,34 @@ function truelyExec_ridersDrivers_walletSummary(
                 //! Will only consider rides after the 31-03-2021 at exactly 23:59:59
                 let filterPaidRequests = /rider/i.test(user_type)
                   ? {
-                      client_id: requestObj.user_fingerprint,
-                      isArrivedToDestination: true,
+                      TableName: "rides_deliveries_requests",
+                      KeyConditionExpression:
+                        "client_id =: client_id AND isArrivedToDestination =: isArrivedToDestination",
+                      ExpressionAttributeValues: {
+                        ":client_id": requestObj.user_fingerprint,
+                        ":isArrivedToDestination": true,
+                      },
                     }
                   : {
-                      taxi_id: requestObj.user_fingerprint,
-                      isArrivedToDestination: true,
-                      date_requested: {
-                        $gte: new Date("2021-03-31T21:59:59.000Z"),
+                      TableName: "rides_deliveries_requests",
+                      KeyConditionExpression:
+                        "taxi_id =: taxi_id AND isArrivedToDestination =: isArrivedToDestination AND date_requested >= :date_ref",
+                      ExpressionAttributeValues: {
+                        ":taxi_id": requestObj.user_fingerprint,
+                        ":isArrivedToDestination": true,
+                        ":date_ref": "2021-03-31T21:59:59.000Z", //! Warning: GO AWAY, DO NOT TOUCH
                       },
                     };
                 //...Only consider the completed requests
-                collectionRidesDeliveryData
-                  .find(filterPaidRequests)
-                  .collation({ locale: "en", strength: 2 })
-                  .toArray(function (err, resultPaidRequests) {
+                dynamoClient.query(
+                  filterPaidRequests,
+                  function (err, resultPaidRequests) {
                     if (err) {
                       logger.info(err);
                       res({ total: 0, transactions_data: null });
                     }
+                    //...
+                    resultPaidRequests = resultPaidRequests.Items;
                     //...
                     if (
                       resultPaidRequests !== undefined &&
@@ -2059,11 +2115,16 @@ function truelyExec_ridersDrivers_walletSummary(
                         (paidRequests) => {
                           return new Promise((partialResolver) => {
                             //Get driver infos : for Taxis - taxi number / for private cars - drivers name
-                            collectionDrivers_profiles
-                              .find({
-                                driver_fingerprint: paidRequests.taxi_id,
-                              })
-                              .toArray(function (err, driverProfile) {
+                            dynamoClient.query(
+                              {
+                                TableName: "drivers_profiles",
+                                KeyConditionExpression:
+                                  "driver_fingerprint =: driver_fingerprint",
+                                ExpressionAttributeValues: {
+                                  ":driver_fingerprint": paidRequests.taxi_id,
+                                },
+                              },
+                              function (err, driverProfile) {
                                 if (err) {
                                   logger.info(err);
                                   partialResolver({
@@ -2071,6 +2132,8 @@ function truelyExec_ridersDrivers_walletSummary(
                                     transactions_data: null,
                                   });
                                 }
+                                //...
+                                driverProfile = driverProfile.Items;
                                 //...
                                 //Gather driver data
                                 let driverData = {
@@ -2154,7 +2217,8 @@ function truelyExec_ridersDrivers_walletSummary(
                                   });
                                 }
                                 //...
-                              });
+                              }
+                            );
                           });
                         }
                       );
@@ -2224,29 +2288,41 @@ function truelyExec_ridersDrivers_walletSummary(
                             : detailsData.transactions_data,
                       });
                     }
-                  });
+                  }
+                );
               } //No topups records found - so return the transactions data
               else {
                 //Find the sum of all the paid transactions (rides/deliveries) - for wallet only
                 //? Happend the cash data to the transaction data as well.
                 let filterPaidRequests = /rider/i.test(user_type)
                   ? {
-                      client_id: requestObj.user_fingerprint,
-                      isArrivedToDestination: true,
+                      TableName: "rides_deliveries_requests",
+                      KeyConditionExpression:
+                        "client_id =: client_id AND isArrivedToDestination =: isArrivedToDestination",
+                      ExpressionAttributeValues: {
+                        ":client_id": requestObj.user_fingerprint,
+                        ":isArrivedToDestination": true,
+                      },
                     }
                   : {
-                      taxi_id: requestObj.user_fingerprint,
-                      isArrivedToDestination: true,
+                      TableName: "rides_deliveries_requests",
+                      KeyConditionExpression:
+                        "taxi_id =: taxi_id AND isArrivedToDestination =: isArrivedToDestination",
+                      ExpressionAttributeValues: {
+                        ":taxi_id": requestObj.user_fingerprint,
+                        ":isArrivedToDestination": true,
+                      },
                     };
                 //...Only consider the completed requests
-                collectionRidesDeliveryData
-                  .find(filterPaidRequests)
-                  .collation({ locale: "en", strength: 2 })
-                  .toArray(function (err, resultPaidRequests) {
+                dynamoClient.query(
+                  filterPaidRequests,
+                  function (err, resultPaidRequests) {
                     if (err) {
                       logger.info(err);
                       res({ total: 0, transactions_data: null });
                     }
+                    //...
+                    resultPaidRequests = resultPaidRequests.Items;
                     //...
                     if (
                       resultPaidRequests !== undefined &&
@@ -2258,11 +2334,16 @@ function truelyExec_ridersDrivers_walletSummary(
                         (paidRequests) => {
                           return new Promise((partialResolver) => {
                             //Get driver infos : for Taxis - taxi number / for private cars - drivers name
-                            collectionDrivers_profiles
-                              .find({
-                                driver_fingerprint: paidRequests.taxi_id,
-                              })
-                              .toArray(function (err, driverProfile) {
+                            dynamoClient.query(
+                              {
+                                TableName: "drivers_profiles",
+                                KeyConditionExpression:
+                                  "driver_fingerprint =: driver_fingerprint",
+                                ExpressionAttributeValues: {
+                                  ":driver_fingerprint": paidRequests.taxi_id,
+                                },
+                              },
+                              function (err, driverProfile) {
                                 if (err) {
                                   logger.info(err);
                                   partialResolver({
@@ -2270,6 +2351,8 @@ function truelyExec_ridersDrivers_walletSummary(
                                     transactions_data: null,
                                   });
                                 }
+                                //...
+                                driverProfile = driverProfile.Items;
                                 //...
                                 //Gather driver data
                                 let driverData = {
@@ -2353,7 +2436,8 @@ function truelyExec_ridersDrivers_walletSummary(
                                   });
                                 }
                                 //...
-                              });
+                              }
+                            );
                           });
                         }
                       );
@@ -2437,9 +2521,11 @@ function truelyExec_ridersDrivers_walletSummary(
                         });
                       }
                     }
-                  });
+                  }
+                );
               }
-            });
+            }
+          );
         }).then(
           (result) => {
             //? Clean data and CACHE
@@ -3108,16 +3194,23 @@ function execGet_driversDeepInsights_fromWalletData(
                     new Promise((resFindNexyPayoutDate) => {
                       resolveDate(); //! Update the date
                       //? Find the last payout and from there - compute the next one
-                      collectionWalletTransactions_logs
-                        .find({
-                          transaction_nature: "startingPoint_forFreshPayouts",
-                          recipient_fp: driver_fingerprint,
-                        })
-                        .collation({ locale: "en", strength: 2 })
-                        .toArray(function (err, resultLastPayout) {
+                      dynamoClient.query(
+                        {
+                          TableName: "wallet_transactions_logs",
+                          KeyConditionExpression:
+                            "transaction_nature =: transaction_nature AND recipient_fp =: recipient_fp",
+                          ExpressionAttributeValues: {
+                            ":transaction_nature":
+                              "startingPoint_forFreshPayouts",
+                            ":recipient_fp": driver_fingerprint,
+                          },
+                        },
+                        function (err, resultLastPayout) {
                           if (err) {
                             resFindNexyPayoutDate(false);
                           }
+                          //...
+                          resultLastPayout = resultLastPayout.Items;
                           //...
                           if (
                             resultLastPayout !== undefined &&
@@ -3132,17 +3225,23 @@ function execGet_driversDeepInsights_fromWalletData(
                           else {
                             //!Check if a reference point exists - if not set one to NOW
                             //! Annotation string: startingPoint_forFreshPayouts
-                            collectionWalletTransactions_logs
-                              .find({
-                                flag_annotation:
-                                  "startingPoint_forFreshPayouts",
-                                user_fingerprint: driver_fingerprint,
-                              })
-                              .collation({ locale: "en", strength: 2 })
-                              .toArray(function (err, referenceData) {
+                            dynamoClient.query(
+                              {
+                                TableName: "wallet_transactions_logs",
+                                KeyConditionExpression:
+                                  "flag_annotation =: flag_annotation AND user_fingerprint =: user_fingerprint",
+                                ExpressionAttributeValues: {
+                                  ":flag_annotation":
+                                    "startingPoint_forFreshPayouts",
+                                  ":user_fingerprint": driver_fingerprint,
+                                },
+                              },
+                              function (err, referenceData) {
                                 if (err) {
                                   resFindNexyPayoutDate(false);
                                 }
+                                //...
+                                referenceData = referenceData.Items;
                                 //...
                                 if (
                                   referenceData !== undefined &&
@@ -3157,12 +3256,18 @@ function execGet_driversDeepInsights_fromWalletData(
                                   resFindNexyPayoutDate(lastPayoutDate);
                                 } //No annotation yet - create one
                                 else {
-                                  collectionWalletTransactions_logs.insertOne(
+                                  dynamoClient.put(
                                     {
-                                      flag_annotation:
-                                        "startingPoint_forFreshPayouts",
-                                      user_fingerprint: driver_fingerprint,
-                                      date_captured: chaineDateUTC,
+                                      TableName: "wallet_transactions_logs",
+                                      Item: {
+                                        _id: {
+                                          HashKey: `${new Date().getTime()}-${driver_fingerprint}`,
+                                        }.HashKey,
+                                        flag_annotation:
+                                          "startingPoint_forFreshPayouts",
+                                        user_fingerprint: driver_fingerprint,
+                                        date_captured: chaineDateUTC,
+                                      },
                                     },
                                     function (err, reslt) {
                                       let lastPayoutDate = new Date(
@@ -3179,9 +3284,11 @@ function execGet_driversDeepInsights_fromWalletData(
                                     }
                                   );
                                 }
-                              });
+                              }
+                            );
                           }
-                        });
+                        }
+                      );
                     })
                       .then(
                         (resultPayoutDate) => {
@@ -3277,16 +3384,22 @@ function execGet_driversDeepInsights_fromWalletData(
     new Promise((resFindNexyPayoutDate) => {
       resolveDate(); //! Update the date
       //? Find the last payout and from there - compute the next one
-      collectionWalletTransactions_logs
-        .find({
-          transaction_nature: "weeklyPaidDriverAutomatic",
-          recipient_fp: driver_fingerprint,
-        })
-        .collation({ locale: "en", strength: 2 })
-        .toArray(function (err, resultLastPayout) {
+      dynamoClient.query(
+        {
+          TableName: "wallet_transactions_logs",
+          KeyConditionExpression:
+            "transaction_nature =: transaction_nature AND recipient_fp =: recipient_fp",
+          ExpressionAttributeValues: {
+            ":transaction_nature": "weeklyPaidDriverAutomatic",
+            ":recipient_fp": driver_fingerprint,
+          },
+        },
+        function (err, resultLastPayout) {
           if (err) {
             resFindNexyPayoutDate(false);
           }
+          //...
+          resultLastPayout = resultLastPayout.Items;
           //...
           if (
             resultLastPayout !== undefined &&
@@ -3302,16 +3415,22 @@ function execGet_driversDeepInsights_fromWalletData(
           else {
             //!Check if a reference point exists - if not set one to NOW
             //! Annotation string: startingPoint_forFreshPayouts
-            collectionWalletTransactions_logs
-              .find({
-                flag_annotation: "startingPoint_forFreshPayouts",
-                user_fingerprint: driver_fingerprint,
-              })
-              .collation({ locale: "en", strength: 2 })
-              .toArray(function (err, referenceData) {
+            dynamoClient.query(
+              {
+                TableName: "wallet_transactions_logs",
+                KeyConditionExpression:
+                  "flag_annotation =: flag_annotation AND user_fingerprint =: user_fingerprint",
+                ExpressionAttributeValues: {
+                  ":flag_annotation": "startingPoint_forFreshPayouts",
+                  ":user_fingerprint": driver_fingerprint,
+                },
+              },
+              function (err, referenceData) {
                 if (err) {
                   resFindNexyPayoutDate(false);
                 }
+                //...
+                referenceData = referenceData.Items;
                 //...
                 if (
                   referenceData !== undefined &&
@@ -3327,11 +3446,17 @@ function execGet_driversDeepInsights_fromWalletData(
                   resFindNexyPayoutDate(lastPayoutDate);
                 } //No annotation yet - create one
                 else {
-                  collectionWalletTransactions_logs.insertOne(
+                  dynamoClient.put(
                     {
-                      flag_annotation: "startingPoint_forFreshPayouts",
-                      user_fingerprint: driver_fingerprint,
-                      date_captured: chaineDateUTC,
+                      TableName: "wallet_transactions_logs",
+                      Item: {
+                        _id: {
+                          HashKey: `${new Date().getTime()}-${driver_fingerprint}`,
+                        }.HashKey,
+                        flag_annotation: "startingPoint_forFreshPayouts",
+                        user_fingerprint: driver_fingerprint,
+                        date_captured: chaineDateUTC,
+                      },
                     },
                     function (err, reslt) {
                       let lastPayoutDate = new Date(
@@ -3345,9 +3470,11 @@ function execGet_driversDeepInsights_fromWalletData(
                     }
                   );
                 }
-              });
+              }
+            );
           }
-        });
+        }
+      );
     })
       .then(
         (resultPayoutDate) => {
@@ -4007,13 +4134,21 @@ function updateRiders_generalProfileInfos(
 function getDriver_onlineOffline_status(req, resolve) {
   //Get information about the state
   new Promise((res0) => {
-    collectionDrivers_profiles
-      .find({ driver_fingerprint: req.driver_fingerprint })
-      .toArray(function (err, driverData) {
+    dynamoClient.query(
+      {
+        TableName: "drivers_profiles",
+        KeyConditionExpression: "driver_fingerprint =: driver_fingerprint",
+        ExpressionAttributeValues: {
+          ":driver_fingerprint": req.driver_fingerprint,
+        },
+      },
+      function (err, driverData) {
         if (err) {
           logger.info(err);
           res0({ response: "error_invalid_request" });
         }
+        //...
+        driverData = driverData.Items;
         //...
         if (
           driverData !== undefined &&
@@ -4059,7 +4194,8 @@ function getDriver_onlineOffline_status(req, resolve) {
             flag: driverData.operational_state.status,
           });
         }
-      });
+      }
+    );
   }).then(
     (result) => {
       resolve(result);
@@ -5189,6 +5325,7 @@ redisCluster.on("connect", function () {
      * @param driver_fingerprint
      * @param state: online or offline
      */
+    //? MIGRATED
     app.get("/goOnline_offlineDrivers", function (req, res) {
       new Promise((resMAIN) => {
         resolveDate();
@@ -5207,11 +5344,15 @@ redisCluster.on("connect", function () {
           if (/make/i.test(req.action)) {
             //Found a driver
             let updateData = {
-              $set: {
-                "operational_state.status": /online/i.test(req.state)
-                  ? "online"
-                  : "offline",
+              TableName: "drivers_profiles",
+              Key: {
+                driver_fingerprint: req.driver_fingerprint,
               },
+              UpdateExpression: "set operational_state.status =: new_data",
+              ExpressionAttributeValues: {
+                ":new_data": /online/i.test(req.state) ? "online" : "offline",
+              },
+              ReturnValues: "UPDATED_NEW",
             };
             //Make a modification
             //Valid data received
@@ -5284,8 +5425,7 @@ redisCluster.on("connect", function () {
                           //Only if the driver wants to go out
                           if (currentActiveRequests.length <= 0) {
                             //No active requests - proceed
-                            collectionDrivers_profiles.updateOne(
-                              { driver_fingerprint: req.driver_fingerprint },
+                            dynamoClient.update(
                               updateData,
                               function (err, reslt) {
                                 if (err) {
@@ -5294,14 +5434,23 @@ redisCluster.on("connect", function () {
                                 //...
                                 //Save the going offline event
                                 new Promise((res) => {
-                                  collectionGlobalEvents.insertOne({
-                                    event_name:
-                                      "driver_switching_status_request",
-                                    status: /online/i.test(req.state)
-                                      ? "online"
-                                      : "offline",
-                                    driver_fingerprint: req.driver_fingerprint,
-                                    date: new Date(chaineDateUTC),
+                                  dynamoClient.put({
+                                    TableName: "drivers_profiles",
+                                    Item: {
+                                      _id: {
+                                        HashKey: `${new Date().getTime()}-${
+                                          req.driver_fingerprint
+                                        }`,
+                                      }.HashKey,
+                                      event_name:
+                                        "driver_switching_status_request",
+                                      status: /online/i.test(req.state)
+                                        ? "online"
+                                        : "offline",
+                                      driver_fingerprint:
+                                        req.driver_fingerprint,
+                                      date: new Date(chaineDateUTC),
+                                    },
                                   });
                                   res(true);
                                 }).then(
@@ -5348,8 +5497,7 @@ redisCluster.on("connect", function () {
                           }
                         } //If the driver want to go online - proceed
                         else {
-                          collectionDrivers_profiles.updateOne(
-                            { driver_fingerprint: req.driver_fingerprint },
+                          dynamoClient.update(
                             updateData,
                             function (err, reslt) {
                               if (err) {
@@ -5358,13 +5506,22 @@ redisCluster.on("connect", function () {
                               //...
                               //Save the going offline event
                               new Promise((res) => {
-                                collectionGlobalEvents.insertOne({
-                                  event_name: "driver_switching_status_request",
-                                  status: /online/i.test(req.state)
-                                    ? "online"
-                                    : "offline",
-                                  driver_fingerprint: req.driver_fingerprint,
-                                  date: new Date(chaineDateUTC),
+                                dynamoClient.put({
+                                  TableName: "drivers_profiles",
+                                  Item: {
+                                    _id: {
+                                      HashKey: `${new Date().getTime()}-${
+                                        req.driver_fingerprint
+                                      }`,
+                                    }.HashKey,
+                                    event_name:
+                                      "driver_switching_status_request",
+                                    status: /online/i.test(req.state)
+                                      ? "online"
+                                      : "offline",
+                                    driver_fingerprint: req.driver_fingerprint,
+                                    date: new Date(chaineDateUTC),
+                                  },
                                 });
                                 res(true);
                               }).then(
@@ -5563,6 +5720,7 @@ redisCluster.on("connect", function () {
      * ? Responsible for computing the wallet summary (total and detailed) for the riders.
      * ! Supports 2 modes: total (will only return the current total wallet balance) or detailed (will return the total amount and the list of all wallet transactions)
      */
+    //? MIGRATED
     app.get("/getRiders_walletInfos", function (req, res) {
       resolveDate();
       let params = urlParser.parse(req.url, true);
@@ -5691,6 +5849,7 @@ redisCluster.on("connect", function () {
      * COMPUTE THE DETAILED WALLET SUMMARY FOR THE DRIVERS
      * ? Responsible for computing the wallet summary (total and detailed) for the drivers.
      */
+    //? MIGRATED
     app.get("/getDrivers_walletInfosDeep", function (req, res) {
       new Promise((resMAIN) => {
         resolveDate();
