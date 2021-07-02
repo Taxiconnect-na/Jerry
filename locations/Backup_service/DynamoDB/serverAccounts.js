@@ -3573,54 +3573,66 @@ function updateRiders_generalProfileInfos(
     if (requestData.dataToUpdate.length > 2) {
       //Acceptable
       let filter = {
-        user_fingerprint: requestData.user_fingerprint,
+        TableName: "passengers_profiles",
+        KeyConditionExpression: "user_fingerprint =: user_fingerprint",
+        ExpressionAttributeValues: {
+          ":user_fingerprint": requestData.user_fingerprint,
+        },
       };
       let updateData = {
-        $set: {
-          name: ucFirst(requestData.dataToUpdate),
-          last_updated: new Date(chaineDateUTC),
+        TableName: "passengers_profiles",
+        Key: {
+          user_fingerprint: requestData.user_fingerprint,
         },
+        UpdateExpression: "set name =: name, last_updated =: last_updated",
+        ExpressionAttributeValues: {
+          ":name": ucFirst(requestData.dataToUpdate),
+          ":last_updated": new Date(chaineDateUTC),
+        },
+        ReturnValues: "UPDATED_NEW",
       };
       //..
       //1. Get the old data
-      collectionPassengers_profiles
-        .find(filter)
-        .toArray(function (err, riderProfile) {
+      dynamoClient.query(filter, function (err, riderProfile) {
+        if (err) {
+          res.send({ response: "error", flag: "unexpected_error" });
+        }
+        //...
+        riderProfile = riderProfile.Items;
+        //...
+        //2. Update the new data
+        dynamoClient.update(updateData, function (err, result) {
           if (err) {
             res.send({ response: "error", flag: "unexpected_error" });
           }
-          //2. Update the new data
-          collectionPassengers_profiles.updateOne(
-            filter,
-            updateData,
-            function (err, result) {
-              if (err) {
-                res.send({ response: "error", flag: "unexpected_error" });
-              }
-              //...Update the general event log
-              new Promise((res) => {
-                let dataEvent = {
-                  event_name: "rider_name_update",
-                  user_fingerprint: requestData.user_fingerprint,
-                  old_data: riderProfile[0].name,
-                  new_data: requestData.dataToUpdate,
-                  date: new Date(chaineDateUTC),
-                };
-                collectionGlobalEvents.insertOne(
-                  dataEvent,
-                  function (err, reslt) {
-                    res(true);
-                  }
-                );
-              }).then(
-                () => {},
-                () => {}
-              );
-              //...
-              resolve({ response: "success", flag: "operation successful" });
-            }
+          //...Update the general event log
+          new Promise((res) => {
+            let dataEvent = {
+              TableName: "global_events",
+              Item: {
+                _id: {
+                  HashKey: `${new Date().getTime()}-${
+                    requestData.user_fingerprint
+                  }`,
+                },
+                event_name: "rider_name_update",
+                user_fingerprint: requestData.user_fingerprint,
+                old_data: riderProfile[0].name,
+                new_data: requestData.dataToUpdate,
+                date: new Date(chaineDateUTC),
+              },
+            };
+            dynamoClient.put(dataEvent, function (err, reslt) {
+              res(true);
+            });
+          }).then(
+            () => {},
+            () => {}
           );
+          //...
+          resolve({ response: "success", flag: "operation successful" });
         });
+      });
     } //Name too short
     else {
       resolve({ response: "error", flag: "The name's too short." });
@@ -3630,54 +3642,69 @@ function updateRiders_generalProfileInfos(
     if (requestData.dataToUpdate.length > 2) {
       //Acceptable
       let filter = {
-        user_fingerprint: requestData.user_fingerprint,
-      };
-      let updateData = {
-        $set: {
-          surname: ucFirst(requestData.dataToUpdate),
-          last_updated: new Date(chaineDateUTC),
+        TableName: "passengers_profiles",
+        KeyConditionExpression: "user_fingerprint =: user_fingerprint",
+        ExpressionAttributeValues: {
+          ":user_fingerprint": requestData.user_fingerprint,
         },
+      };
+      //...
+      let updateData = {
+        TableName: "passengers_profiles",
+        Key: {
+          user_fingerprint: requestData.user_fingerprint,
+        },
+        UpdateExpression:
+          "set surname =: surname, last_updated =: last_updated",
+        ExpressionAttributeValues: {
+          ":surname": ucFirst(requestData.dataToUpdate),
+          ":last_updated": new Date(chaineDateUTC),
+        },
+        ReturnValues: "UPDATED_NEW",
       };
       //..
       //1. Get the old data
-      collectionPassengers_profiles
-        .find(filter)
-        .toArray(function (err, riderProfile) {
+      dynamoClient.query(filter, function (err, riderProfile) {
+        if (err) {
+          res.send({ response: "error", flag: "unexpected_error" });
+        }
+        //...
+        riderProfile = riderProfile.Items;
+        //...
+        //2. Update the new data
+        dynamoClient.update(updateData, function (err, result) {
           if (err) {
             res.send({ response: "error", flag: "unexpected_error" });
           }
-          //2. Update the new data
-          collectionPassengers_profiles.updateOne(
-            filter,
-            updateData,
-            function (err, result) {
-              if (err) {
-                res.send({ response: "error", flag: "unexpected_error" });
-              }
-              //...Update the general event log
-              new Promise((res) => {
-                let dataEvent = {
-                  event_name: "rider_surname_update",
-                  user_fingerprint: requestData.user_fingerprint,
-                  old_data: riderProfile[0].surname,
-                  new_data: requestData.dataToUpdate,
-                  date: new Date(chaineDateUTC),
-                };
-                collectionGlobalEvents.insertOne(
-                  dataEvent,
-                  function (err, reslt) {
-                    res(true);
-                  }
-                );
-              }).then(
-                () => {},
-                () => {}
-              );
-              //...
-              resolve({ response: "success", flag: "operation successful" });
-            }
+          //...Update the general event log
+          new Promise((res) => {
+            let dataEvent = {
+              TableName: "global_events",
+              Item: {
+                _id: {
+                  HashKey: `${new Date().getTime()}-${
+                    requestData.user_fingerprint
+                  }`,
+                },
+                event_name: "rider_surname_update",
+                user_fingerprint: requestData.user_fingerprint,
+                old_data: riderProfile[0].surname,
+                new_data: requestData.dataToUpdate,
+                date: new Date(chaineDateUTC),
+              },
+            };
+
+            dynamoClient.put(dataEvent, function (err, reslt) {
+              res(true);
+            });
+          }).then(
+            () => {},
+            () => {}
           );
+          //...
+          resolve({ response: "success", flag: "operation successful" });
         });
+      });
     } //Name too short
     else {
       resolve({ response: "error", flag: "The surname's too short." });
@@ -3696,54 +3723,68 @@ function updateRiders_generalProfileInfos(
     ) {
       //Acceptable
       let filter = {
-        user_fingerprint: requestData.user_fingerprint,
-      };
-      let updateData = {
-        $set: {
-          gender: requestData.dataToUpdate.toUpperCase(),
-          last_updated: new Date(chaineDateUTC),
+        TableName: "passengers_profiles",
+        KeyConditionExpression: "user_fingerprint =: user_fingerprint",
+        ExpressionAttributeValues: {
+          ":user_fingerprint": requestData.user_fingerprint,
         },
+      };
+      //...
+      let updateData = {
+        TableName: "passengers_profiles",
+        Key: {
+          user_fingerprint: requestData.user_fingerprint,
+        },
+        UpdateExpression: "set gender =: gender, last_updated =: last_updated",
+        ExpressionAttributeValues: {
+          ":gender": requestData.dataToUpdate.toUpperCase(),
+          ":last_updated": new Date(chaineDateUTC),
+        },
+        ReturnValues: "UPDATED_NEW",
       };
       //..
       //1. Get the old data
-      collectionPassengers_profiles
-        .find(filter)
-        .toArray(function (err, riderProfile) {
+      dynamoClient.query(filter, function (err, riderProfile) {
+        if (err) {
+          res.send({ response: "error", flag: "unexpected_error" });
+        }
+        //....
+        riderProfile = riderProfile.Items;
+        //...
+        //2. Update the new data
+        dynamoClient.update(updateData, function (err, result) {
           if (err) {
             res.send({ response: "error", flag: "unexpected_error" });
           }
-          //2. Update the new data
-          collectionPassengers_profiles.updateOne(
-            filter,
-            updateData,
-            function (err, result) {
-              if (err) {
-                res.send({ response: "error", flag: "unexpected_error" });
-              }
-              //...Update the general event log
-              new Promise((res) => {
-                let dataEvent = {
-                  event_name: "rider_gender_update",
-                  user_fingerprint: requestData.user_fingerprint,
-                  old_data: riderProfile[0].gender,
-                  new_data: requestData.dataToUpdate,
-                  date: new Date(chaineDateUTC),
-                };
-                collectionGlobalEvents.insertOne(
-                  dataEvent,
-                  function (err, reslt) {
-                    res(true);
-                  }
-                );
-              }).then(
-                () => {},
-                () => {}
-              );
-              //...
-              resolve({ response: "success", flag: "operation successful" });
-            }
+          //...Update the general event log
+          new Promise((res) => {
+            let dataEvent = {
+              TableName: "global_events",
+              Item: {
+                _id: {
+                  HashKey: `${new Date().getTime()}-${
+                    requestData.user_fingerprint
+                  }`,
+                },
+                event_name: "rider_gender_update",
+                user_fingerprint: requestData.user_fingerprint,
+                old_data: riderProfile[0].gender,
+                new_data: requestData.dataToUpdate,
+                date: new Date(chaineDateUTC),
+              },
+            };
+
+            dynamoClient.put(dataEvent, function (err, reslt) {
+              res(true);
+            });
+          }).then(
+            () => {},
+            () => {}
           );
+          //...
+          resolve({ response: "success", flag: "operation successful" });
         });
+      });
     } //Invalid gender
     else {
       resolve({ response: "error", flag: "Invalid gender" });
@@ -3756,54 +3797,68 @@ function updateRiders_generalProfileInfos(
     ) {
       //Acceptable
       let filter = {
-        user_fingerprint: requestData.user_fingerprint,
-      };
-      let updateData = {
-        $set: {
-          email: requestData.dataToUpdate.trim().toLowerCase(),
-          last_updated: new Date(chaineDateUTC),
+        TableName: "passengers_profiles",
+        KeyConditionExpression: "user_fingerprint =: user_fingerprint",
+        ExpressionAttributeValues: {
+          ":user_fingerprint": requestData.user_fingerprint,
         },
+      };
+      //...
+      let updateData = {
+        TableName: "passengers_profiles",
+        Key: {
+          user_fingerprint: requestData.user_fingerprint,
+        },
+        UpdateExpression: "set email =: email, last_updated =: last_updated",
+        ExpressionAttributeValues: {
+          ":email": requestData.dataToUpdate.trim().toLowerCase(),
+          ":last_updated": new Date(chaineDateUTC),
+        },
+        ReturnValues: "UPDATED_NEW",
       };
       //..
       //1. Get the old data
-      collectionPassengers_profiles
-        .find(filter)
-        .toArray(function (err, riderProfile) {
+      dynamoClient.query(filter, function (err, riderProfile) {
+        if (err) {
+          res.send({ response: "error", flag: "unexpected_error" });
+        }
+        //...
+        riderProfile = riderProfile.Items;
+        //...
+        //2. Update the new data
+        dynamoClient.update(updateData, function (err, result) {
           if (err) {
             res.send({ response: "error", flag: "unexpected_error" });
           }
-          //2. Update the new data
-          collectionPassengers_profiles.updateOne(
-            filter,
-            updateData,
-            function (err, result) {
-              if (err) {
-                res.send({ response: "error", flag: "unexpected_error" });
-              }
-              //...Update the general event log
-              new Promise((res) => {
-                let dataEvent = {
-                  event_name: "rider_email_update",
-                  user_fingerprint: requestData.user_fingerprint,
-                  old_data: riderProfile[0].email.trim().toLowerCase(),
-                  new_data: requestData.dataToUpdate,
-                  date: new Date(chaineDateUTC),
-                };
-                collectionGlobalEvents.insertOne(
-                  dataEvent,
-                  function (err, reslt) {
-                    res(true);
-                  }
-                );
-              }).then(
-                () => {},
-                () => {}
-              );
-              //...
-              resolve({ response: "success", flag: "operation successful" });
-            }
+          //...Update the general event log
+          new Promise((res) => {
+            let dataEvent = {
+              TableName: "global_events",
+              Item: {
+                _id: {
+                  HashKey: `${new Date().getTime()}-${
+                    requestData.user_fingerprint
+                  }`,
+                },
+                event_name: "rider_email_update",
+                user_fingerprint: requestData.user_fingerprint,
+                old_data: riderProfile[0].email.trim().toLowerCase(),
+                new_data: requestData.dataToUpdate,
+                date: new Date(chaineDateUTC),
+              },
+            };
+
+            dynamoClient.put(dataEvent, function (err, reslt) {
+              res(true);
+            });
+          }).then(
+            () => {},
+            () => {}
           );
+          //...
+          resolve({ response: "success", flag: "operation successful" });
         });
+      });
     } //Invalid email
     else {
       resolve({ response: "error", flag: "The email looks wrong." });
@@ -3873,62 +3928,77 @@ function updateRiders_generalProfileInfos(
               logger.info("NUMBER VERIFIEDD!");
               //Acceptable
               let filter = {
-                user_fingerprint: requestData.user_fingerprint,
+                TableName: "passengers_profiles",
+                KeyConditionExpression: "user_fingerprint =: user_fingerprint",
+                ExpressionAttributeValues: {
+                  ":user_fingerprint": requestData.user_fingerprint,
+                },
               };
+              //...
               let updateData = {
-                $set: {
-                  phone_number: /^\+/i.test(requestData.dataToUpdate.trim())
+                TableName: "passengers_profiles",
+                Key: {
+                  user_fingerprint: requestData.user_fingerprint,
+                },
+                UpdateExpression:
+                  "set phone_number =: phone_number, last_updated =: last_updated",
+                ExpressionAttributeValues: {
+                  ":phone_number": /^\+/i.test(requestData.dataToUpdate.trim())
                     ? requestData.dataToUpdate.trim()
                     : `+${requestData.dataToUpdate.trim()}`,
-                  last_updated: new Date(chaineDateUTC),
+                  ":last_updated": new Date(chaineDateUTC),
                 },
+                ReturnValues: "UPDATED_NEW",
               };
               //..
               //1. Get the old data
-              collectionPassengers_profiles
-                .find(filter)
-                .toArray(function (err, riderProfile) {
+              dynamoClient.query(filter, function (err, riderProfile) {
+                if (err) {
+                  res.send({ response: "error", flag: "unexpected_error" });
+                }
+                //...
+                riderProfile = riderProfile.Items;
+                //...
+                //2. Update the new data
+                dynamoClient.update(updateData, function (err, result) {
                   if (err) {
-                    res.send({ response: "error", flag: "unexpected_error" });
+                    res.send({
+                      response: "error",
+                      flag: "unexpected_error",
+                    });
                   }
-                  //2. Update the new data
-                  collectionPassengers_profiles.updateOne(
-                    filter,
-                    updateData,
-                    function (err, result) {
-                      if (err) {
-                        res.send({
-                          response: "error",
-                          flag: "unexpected_error",
-                        });
-                      }
-                      //...Update the general event log
-                      new Promise((res) => {
-                        let dataEvent = {
-                          event_name: "rider_phone_update",
-                          user_fingerprint: requestData.user_fingerprint,
-                          old_data: riderProfile[0].phone_number,
-                          new_data: requestData.dataToUpdate,
-                          date: new Date(chaineDateUTC),
-                        };
-                        collectionGlobalEvents.insertOne(
-                          dataEvent,
-                          function (err, reslt) {
-                            res(true);
-                          }
-                        );
-                      }).then(
-                        () => {},
-                        () => {}
-                      );
-                      //...
-                      resolve({
-                        response: "success",
-                        flag: "operation successful",
-                      });
-                    }
+                  //...Update the general event log
+                  new Promise((res) => {
+                    let dataEvent = {
+                      TableName: "global_events",
+                      Item: {
+                        _id: {
+                          HashKey: `${new Date().getTime()}-${
+                            requestData.user_fingerprint
+                          }`,
+                        },
+                        event_name: "rider_phone_update",
+                        user_fingerprint: requestData.user_fingerprint,
+                        old_data: riderProfile[0].phone_number,
+                        new_data: requestData.dataToUpdate,
+                        date: new Date(chaineDateUTC),
+                      },
+                    };
+
+                    dynamoClient.put(dataEvent, function (err, reslt) {
+                      res(true);
+                    });
+                  }).then(
+                    () => {},
+                    () => {}
                   );
+                  //...
+                  resolve({
+                    response: "success",
+                    flag: "operation successful",
+                  });
                 });
+              });
             } //Error
             else {
               resolve({
@@ -4021,66 +4091,86 @@ function updateRiders_generalProfileInfos(
                     //? Was successfullly upload to S3
                     //Done - update mongodb
                     let updatedData = {
-                      $set: {
-                        "media.profile_picture": tmpPicture_name,
+                      TableName: "passengers_profiles",
+                      Key: {
+                        user_fingerprint: requestData.user_fingerprint,
                       },
+                      UpdateExpression:
+                        "set media.profile_picture =: profilePic",
+                      ExpressionAttributeValues: {
+                        ":profilePic": tmpPicture_name,
+                      },
+                      ReturnValues: "UPDATED_NEW",
                     };
                     //...
-                    collectionPassengers_profiles.updateOne(
-                      { user_fingerprint: requestData.user_fingerprint },
-                      updatedData,
-                      function (err, reslt) {
-                        if (err) {
-                          resolve({
-                            response: "error",
-                            flag: "unexpected_conversion_error_",
-                          });
-                        }
-                        //...Update the general event log
-                        new Promise((res) => {
-                          collectionPassengers_profiles
-                            .find({
-                              user_fingerprint: requestData.user_fingerprint,
-                            })
-                            .toArray(function (error, riderData) {
-                              if (error) {
-                                res(false);
-                              }
-                              //...
-                              if (riderData.length > 0) {
-                                //Valid
-                                let dataEvent = {
+                    dynamoClient.update(updatedData, function (err, reslt) {
+                      if (err) {
+                        resolve({
+                          response: "error",
+                          flag: "unexpected_conversion_error_",
+                        });
+                      }
+                      //...Update the general event log
+                      new Promise((res) => {
+                        dynamoClient.query(
+                          {
+                            TableName: "passengers_profiles",
+                            KeyConditionExpression:
+                              "user_fingerprint =: user_fingerprint",
+                            ExpressionAttributeValues: {
+                              ":user_fingerprint": requestData.user_fingerprint,
+                            },
+                          },
+                          function (error, riderData) {
+                            if (error) {
+                              res(false);
+                            }
+                            //...
+                            riderData = riderData.Items;
+                            //...
+                            if (riderData.length > 0) {
+                              //Valid
+                              let dataEvent = {
+                                TableName: "global_events",
+                                Item: {
+                                  _id: {
+                                    HashKey: `${new Date().getTime()}-${
+                                      requestData.user_fingerprint
+                                    }`,
+                                  },
                                   event_name: "rider_profile_picture_update",
                                   user_fingerprint:
                                     requestData.user_fingerprint,
                                   old_data: riderData[0].media.profile_picture,
                                   new_data: tmpPicture_name,
                                   date: new Date(chaineDateUTC),
-                                };
-                                collectionGlobalEvents.insertOne(
-                                  dataEvent,
-                                  function (err, reslt) {
-                                    res(true);
-                                  }
-                                );
-                              } //No riders with the providedd fingerprint
-                              else {
-                                res(false);
-                              }
-                            });
-                        }).then(
-                          () => {},
-                          () => {}
+                                },
+                              };
+
+                              dynamoClient.put(
+                                dataEvent,
+                                function (err, reslt) {
+                                  res(true);
+                                }
+                              );
+                            } //No riders with the providedd fingerprint
+                            else {
+                              res(false);
+                            }
+                          }
                         );
-                        //...
-                        //DONE
-                        resolve({
-                          response: "success",
-                          flag: "operation successful",
-                          picture_name: `${process.env.AWS_S3_RIDERS_PROFILE_PICTURES_PATH}/${tmpPicture_name}`,
-                        });
-                      }
-                    );
+                      }).then(
+                        () => {},
+                        () => {}
+                      );
+                      //...
+                      //DONE
+                      resolve({
+                        response: "success",
+                        flag: "operation successful",
+                        picture_name: `${process.env.AWS_S3_RIDERS_PROFILE_PICTURES_PATH}/${tmpPicture_name}`,
+                      });
+                    });
                   } //! Was unable to upload to S3 - conversion error
                   else {
                     resolve({
