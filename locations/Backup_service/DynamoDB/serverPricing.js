@@ -2274,13 +2274,13 @@ redisCluster.on("connect", function () {
         res.send("Pricing services up");
       })
       .use(
-        bodyParser.json({
+        express.json({
           limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
           extended: true,
         })
       )
       .use(
-        bodyParser.urlencoded({
+        express.urlencoded({
           limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
           extended: true,
         })

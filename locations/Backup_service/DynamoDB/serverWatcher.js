@@ -2149,13 +2149,13 @@ redisCluster.on("connect", function () {
         logger.info("Account services up");
       })
       .use(
-        bodyParser.json({
+        express.json({
           limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
           extended: true,
         })
       )
       .use(
-        bodyParser.urlencoded({
+        express.urlencoded({
           limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
           extended: true,
         })

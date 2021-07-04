@@ -264,7 +264,7 @@ function checkUserStatus(
           resolve({ response: "error_checking_user" });
         }
         //..
-        result = result.Items; //? Assign data
+        result = result !== null ? result.Items : []; //? Assign data
         //?-------
         if (result.length > 0) {
           //User already registered
@@ -311,7 +311,7 @@ function checkUserStatus(
           resolve({ response: "error_checking_user" });
         }
         //..
-        result = result.Items; //? Assign data
+        result = result !== null ? result.Items : []; //? Assign data
         //?-------
         //..
         if (result.length > 0) {
@@ -369,7 +369,7 @@ function getBachRidesHistory(
           /rider/i.test(req.user_nature)
             ? {
                 KeyConditionExpression:
-                  "client_id =: client_id AND ride_state_vars.isRideCompleted_riderSide =: ride_params",
+                  "client_id = :client_id AND ride_state_vars.isRideCompleted_riderSide = :ride_params",
                 ExpressionAttributeValues: {
                   ":client_id": req.user_fingerprint,
                   ":ride_params": true,
@@ -377,7 +377,7 @@ function getBachRidesHistory(
               }
             : {
                 KeyConditionExpression:
-                  "taxi_id =: taxi_id AND ride_state_vars.isRideCompleted_riderSide =: ride_params",
+                  "taxi_id = :taxi_id AND ride_state_vars.isRideCompleted_riderSide = :ride_params",
                 ExpressionAttributeValues: {
                   ":taxi_id": req.user_fingerprint,
                   ":ride_params": true,
@@ -393,7 +393,7 @@ function getBachRidesHistory(
           /rider/i.test(req.user_nature)
             ? {
                 KeyConditionExpression:
-                  "client_id =: client_id AND request_type =: request_type",
+                  "client_id = :client_id AND request_type = :request_type",
                 ExpressionAttributeValues: {
                   ":client_id": req.user_fingerprint,
                   ":request_type": "scheduled",
@@ -401,7 +401,7 @@ function getBachRidesHistory(
               }
             : {
                 KeyConditionExpression:
-                  "taxi_id =: taxi_id AND request_type =: request_type",
+                  "taxi_id = :taxi_id AND request_type = :request_type",
                 ExpressionAttributeValues: {
                   ":taxi_id": req.user_fingerprint,
                   ":request_type": "scheduled",
@@ -417,7 +417,7 @@ function getBachRidesHistory(
           /rider/i.test(req.user_nature)
             ? {
                 KeyConditionExpression:
-                  "client_id =: client_id AND ride_flag =: ride_flag",
+                  "client_id = :client_id AND ride_flag = :ride_flag",
                 ExpressionAttributeValues: {
                   ":client_id": req.user_fingerprint,
                   ":ride_flag": "business",
@@ -425,7 +425,7 @@ function getBachRidesHistory(
               }
             : {
                 KeyConditionExpression:
-                  "taxi_id =: taxi_id AND ride_flag =: ride_flag",
+                  "taxi_id = :taxi_id AND ride_flag = :ride_flag",
                 ExpressionAttributeValues: {
                   ":taxi_id": req.user_fingerprint,
                   ":ride_flag": "business",
@@ -446,7 +446,7 @@ function getBachRidesHistory(
         /rider/i.test(req.user_nature)
           ? {
               KeyConditionExpression:
-                "client_id =: client_id AND request_fp =: request_fp",
+                "client_id = :client_id AND request_fp = :request_fp",
               ExpressionAttributeValues: {
                 ":client_id": req.user_fingerprint,
                 ":request_fp": req.request_fp,
@@ -454,7 +454,7 @@ function getBachRidesHistory(
             }
           : {
               KeyConditionExpression:
-                "taxi_id =: taxi_id AND request_fp =: request_fp",
+                "taxi_id = :taxi_id AND request_fp = :request_fp",
               ExpressionAttributeValues: {
                 ":taxi_id": req.user_fingerprint,
                 ":request_fp": req.request_fp,
@@ -475,7 +475,7 @@ function getBachRidesHistory(
               resolve({ response: "error_authentication_failed" });
             }
             //...
-            ridesData = ridesData.Items;
+            ridesData = ridesData !== null ? ridesData.Items : [];
             //...
             if (ridesData.length > 0) {
               //Found something - reformat
@@ -514,7 +514,7 @@ function getBachRidesHistory(
                 {
                   TableName: "rides_deliveries_requests",
                   KeyConditionExpression:
-                    "user_fingerprint =: user_fingerprint",
+                    "user_fingerprint = :user_fingerprint",
                   ExpressionAttributeValues: {
                     ":user_fingerprint": req.user_fingerprint.trim(),
                   },
@@ -524,7 +524,7 @@ function getBachRidesHistory(
                     resolve(false);
                   }
                   //...
-                  riderData = riderData.Items;
+                  riderData = riderData !== null ? riderData.Items : [];
                   //...
                   if (riderData !== undefined && riderData.length > 0) {
                     //Found something
@@ -532,7 +532,7 @@ function getBachRidesHistory(
                     let rideChecker = {
                       TableName: "rides_deliveries_requests",
                       KeyConditionExpression:
-                        "ride_state_vars.isRideCompleted_riderSide =: ride_params AND delivery_infos.receiverPhone_delivery =: delivery_params AND request_type IN (:scheduled, :business, :immediate)",
+                        "ride_state_vars.isRideCompleted_riderSide = :ride_params AND delivery_infos.receiverPhone_delivery = :delivery_params AND request_type IN (:scheduled, :business, :immediate)",
                       ExpressionAttributeValues: {
                         ":ride_params": true,
                         // request_type: /scheduled/i.test(req.ride_type)
@@ -556,7 +556,7 @@ function getBachRidesHistory(
                         resolve(false);
                       }
                       //...
-                      tripData = tripData.Items;
+                      tripData = tripData !== null ? tripData.Items : [];
                       //...
                       if (tripData !== undefined && tripData.length > 0) {
                         let ridesData = tripData;
@@ -718,7 +718,7 @@ function shrinkDataSchema_forBatchRidesHistory(
     new Promise((res) => {
       let findCar = {
         TableName: "drivers_profiles",
-        KeyConditionExpression: "cars_data.car_fingerprint =: car_details",
+        KeyConditionExpression: "cars_data.car_fingerprint = :car_details",
         ExpressionAttributeValues: {
           ":car_details": request.car_fingerprint,
         },
@@ -728,7 +728,7 @@ function shrinkDataSchema_forBatchRidesHistory(
           res(false);
         }
         //...
-        result = result.Items;
+        result = result !== null ? result.Items : [];
         //...
         logger.info(result);
         if (result.length > 0) {
@@ -751,7 +751,7 @@ function shrinkDataSchema_forBatchRidesHistory(
             {
               TableName: "drivers_profiles",
               KeyConditionExpression:
-                "driver_fingerprint =: driver_fingerprint",
+                "driver_fingerprint = :driver_fingerprint",
               ExpressionAttributeValues: {
                 ":driver_fingerprint": request.taxi_id,
               },
@@ -761,7 +761,7 @@ function shrinkDataSchema_forBatchRidesHistory(
                 res(false);
               }
               //...
-              driverProfile = driverProfile.Items;
+              driverProfile = driverProfile ? driverProfile.Items : [];
               ///.
               if (
                 driverProfile.cars_data !== undefined &&
@@ -978,7 +978,7 @@ function proceedTargeted_requestHistory_fetcher(
   new Promise((res) => {
     let findCar = {
       TableName: "drivers_profiles",
-      KeyConditionExpression: "cars_data.car_fingerprint =: car_details",
+      KeyConditionExpression: "cars_data.car_fingerprint = :car_details",
       ExpressionAttributeValues: {
         ":car_details": request.car_fingerprint,
       },
@@ -989,7 +989,7 @@ function proceedTargeted_requestHistory_fetcher(
         res(false);
       }
       //...
-      result = result.Items;
+      result = result !== null ? result.Items : [];
       //...
       if (result.length > 0) {
         //FOund something
@@ -1313,7 +1313,7 @@ function exec_computeDaily_amountMade(
   dynamoClient.query(
     {
       TableName: "drivers_profiles",
-      KeyConditionExpression: "driver_fingerprint =: driver_fingerprint",
+      KeyConditionExpression: "driver_fingerprint = :driver_fingerprint",
       ExpressionAttributeValues: {
         ":driver_fingerprint": driver_fingerprint,
       },
@@ -1329,7 +1329,7 @@ function exec_computeDaily_amountMade(
         });
       }
       //...
-      driverProfile = driverProfile.Items;
+      driverProfile = driverProfile !== null ? driverProfile.Items : [];
       //...
       if (driverProfile !== undefined && driverProfile.length > 0) {
         driverProfile = driverProfile[0];
@@ -1337,7 +1337,7 @@ function exec_computeDaily_amountMade(
         let filterRequest = {
           TableName: "rides_deliveries_requests",
           KeyConditionExpression:
-            "taxi_id =: taxi_id AND ride_state_vars.isRideCompleted_driverSide =: rideDriver_params AND ride_state_vars.isRideCompleted_riderSide =: rideRider_params",
+            "taxi_id = :taxi_id AND ride_state_vars.isRideCompleted_driverSide = :rideDriver_params AND ride_state_vars.isRideCompleted_riderSide = :rideRider_params",
           ExpressionAttributeValues: {
             ":taxi_id": driver_fingerprint,
             ":rideDriver_params": true,
@@ -1364,7 +1364,7 @@ function exec_computeDaily_amountMade(
             });
           }
           //...
-          requestsArray = requestsArray.Items;
+          requestsArray = requestsArray !== null ? requestsArray.Items : [];
           //...
           let amount = 0;
           if (requestsArray !== undefined && requestsArray.length > 0) {
@@ -1629,7 +1629,7 @@ function parseDetailed_walletGetData(
                   {
                     TableName: "passengers_profiles",
                     KeyConditionExpression:
-                      "user_fingerprint =: user_fingerprint",
+                      "user_fingerprint = :user_fingerprint",
                     ExpressionAttributeValues: {
                       ":user_fingerprint": transaction.recipient_fp,
                     },
@@ -1639,7 +1639,8 @@ function parseDetailed_walletGetData(
                       res(false);
                     }
                     //...
-                    recipientData = recipientData.Items;
+                    recipientData =
+                      recipientData !== null ? recipientData.Items : [];
                     //...
                     if (
                       recipientData.length > 0 &&
@@ -1664,7 +1665,7 @@ function parseDetailed_walletGetData(
                   {
                     TableName: "drivers_profiles",
                     KeyConditionExpression:
-                      "driver_fingerprint =: driver_fingerprint",
+                      "driver_fingerprint = :driver_fingerprint",
                     ExpressionAttributeValues: {
                       ":driver_fingerprint": transaction.recipient_fp,
                     },
@@ -1674,7 +1675,8 @@ function parseDetailed_walletGetData(
                       res(false);
                     }
                     //...
-                    recipientData = recipientData.Items;
+                    recipientData =
+                      recipientData !== null ? recipientData.Items : [];
                     //...
                     if (
                       recipientData.length > 0 &&
@@ -1930,8 +1932,10 @@ function truelyExec_ridersDrivers_walletSummary(
     dynamoClient.query(
       {
         TableName: "wallet_transactions_logs",
-        KeyConditionExpression:
-          "recipient_fp =: recipient_fp AND transaction_nature IN (:val1, :val2, :val3, :val4, :val5)",
+        IndexName: "globalSec-1",
+        KeyConditionExpression: "recipient_fp = :recipient_fp",
+        FilterExpression:
+          "transaction_nature IN (:val1, :val2, :val3, :val4, :val5)",
         ExpressionAttributeValues: {
           ":recipient_fp": requestObj.user_fingerprint,
           ":val1": "sentToFriend",
@@ -1947,7 +1951,10 @@ function truelyExec_ridersDrivers_walletSummary(
           resReceivedTransactions({ total: 0, transactions_data: null });
         }
         //...
-        resultTransactionsReceived = resultTransactionsReceived.Items;
+        resultTransactionsReceived =
+          resultTransactionsReceived !== null
+            ? resultTransactionsReceived.Items
+            : [];
         //...
         if (
           resultTransactionsReceived !== undefined &&
@@ -2004,8 +2011,10 @@ function truelyExec_ridersDrivers_walletSummary(
           dynamoClient.query(
             {
               TableName: "wallet_transactions_logs",
-              KeyConditionExpression:
-                "recipient_fp =: recipient_fp AND transaction_nature IN (:val1, :val2, :val3, :val4, :val5)",
+              IndexName: "globalSec-1",
+              KeyConditionExpression: "recipient_fp = :recipient_fp",
+              FilterExpression:
+                "transaction_nature IN (:val1, :val2, :val3, :val4, :val5)",
               ExpressionAttributeValues: {
                 ":recipient_fp": requestObj.user_fingerprint,
                 ":val1": "topup",
@@ -2021,7 +2030,8 @@ function truelyExec_ridersDrivers_walletSummary(
                 res({ total: 0, transactions_data: null });
               }
               //...
-              resultTransactions = resultTransactions.Items;
+              resultTransactions =
+                resultTransactions !== null ? resultTransactions.Items : [];
               //..
               if (
                 (resultTransactions !== undefined &&
@@ -2078,7 +2088,7 @@ function truelyExec_ridersDrivers_walletSummary(
                   ? {
                       TableName: "rides_deliveries_requests",
                       KeyConditionExpression:
-                        "client_id =: client_id AND isArrivedToDestination =: isArrivedToDestination",
+                        "client_id = :client_id AND isArrivedToDestination = :isArrivedToDestination",
                       ExpressionAttributeValues: {
                         ":client_id": requestObj.user_fingerprint,
                         ":isArrivedToDestination": true,
@@ -2087,7 +2097,7 @@ function truelyExec_ridersDrivers_walletSummary(
                   : {
                       TableName: "rides_deliveries_requests",
                       KeyConditionExpression:
-                        "taxi_id =: taxi_id AND isArrivedToDestination =: isArrivedToDestination AND date_requested >= :date_ref",
+                        "taxi_id = :taxi_id AND isArrivedToDestination = :isArrivedToDestination AND date_requested >= :date_ref",
                       ExpressionAttributeValues: {
                         ":taxi_id": requestObj.user_fingerprint,
                         ":isArrivedToDestination": true,
@@ -2103,7 +2113,10 @@ function truelyExec_ridersDrivers_walletSummary(
                       res({ total: 0, transactions_data: null });
                     }
                     //...
-                    resultPaidRequests = resultPaidRequests.Items;
+                    resultPaidRequests =
+                      resultPaidRequests !== null
+                        ? resultPaidRequests.Items
+                        : [];
                     //...
                     if (
                       resultPaidRequests !== undefined &&
@@ -2119,7 +2132,7 @@ function truelyExec_ridersDrivers_walletSummary(
                               {
                                 TableName: "drivers_profiles",
                                 KeyConditionExpression:
-                                  "driver_fingerprint =: driver_fingerprint",
+                                  "driver_fingerprint = :driver_fingerprint",
                                 ExpressionAttributeValues: {
                                   ":driver_fingerprint": paidRequests.taxi_id,
                                 },
@@ -2133,7 +2146,10 @@ function truelyExec_ridersDrivers_walletSummary(
                                   });
                                 }
                                 //...
-                                driverProfile = driverProfile.Items;
+                                driverProfile =
+                                  driverProfile !== null
+                                    ? driverProfile.Items
+                                    : [];
                                 //...
                                 //Gather driver data
                                 let driverData = {
@@ -2297,8 +2313,9 @@ function truelyExec_ridersDrivers_walletSummary(
                 let filterPaidRequests = /rider/i.test(user_type)
                   ? {
                       TableName: "rides_deliveries_requests",
+                      IndexName: "globalSec-1",
                       KeyConditionExpression:
-                        "client_id =: client_id AND isArrivedToDestination =: isArrivedToDestination",
+                        "client_id = :client_id AND isArrivedToDestination = :isArrivedToDestination",
                       ExpressionAttributeValues: {
                         ":client_id": requestObj.user_fingerprint,
                         ":isArrivedToDestination": true,
@@ -2306,8 +2323,9 @@ function truelyExec_ridersDrivers_walletSummary(
                     }
                   : {
                       TableName: "rides_deliveries_requests",
+                      IndexName: "globalSec-1",
                       KeyConditionExpression:
-                        "taxi_id =: taxi_id AND isArrivedToDestination =: isArrivedToDestination",
+                        "taxi_id = :taxi_id AND isArrivedToDestination = :isArrivedToDestination",
                       ExpressionAttributeValues: {
                         ":taxi_id": requestObj.user_fingerprint,
                         ":isArrivedToDestination": true,
@@ -2322,7 +2340,10 @@ function truelyExec_ridersDrivers_walletSummary(
                       res({ total: 0, transactions_data: null });
                     }
                     //...
-                    resultPaidRequests = resultPaidRequests.Items;
+                    resultPaidRequests =
+                      resultPaidRequests !== null
+                        ? resultPaidRequests.Items
+                        : [];
                     //...
                     if (
                       resultPaidRequests !== undefined &&
@@ -2338,7 +2359,7 @@ function truelyExec_ridersDrivers_walletSummary(
                               {
                                 TableName: "drivers_profiles",
                                 KeyConditionExpression:
-                                  "driver_fingerprint =: driver_fingerprint",
+                                  "driver_fingerprint = :driver_fingerprint",
                                 ExpressionAttributeValues: {
                                   ":driver_fingerprint": paidRequests.taxi_id,
                                 },
@@ -2352,7 +2373,10 @@ function truelyExec_ridersDrivers_walletSummary(
                                   });
                                 }
                                 //...
-                                driverProfile = driverProfile.Items;
+                                driverProfile =
+                                  driverProfile !== null
+                                    ? driverProfile.Items
+                                    : [];
                                 //...
                                 //Gather driver data
                                 let driverData = {
@@ -3198,7 +3222,7 @@ function execGet_driversDeepInsights_fromWalletData(
                         {
                           TableName: "wallet_transactions_logs",
                           KeyConditionExpression:
-                            "transaction_nature =: transaction_nature AND recipient_fp =: recipient_fp",
+                            "transaction_nature = :transaction_nature AND recipient_fp = :recipient_fp",
                           ExpressionAttributeValues: {
                             ":transaction_nature":
                               "startingPoint_forFreshPayouts",
@@ -3210,7 +3234,10 @@ function execGet_driversDeepInsights_fromWalletData(
                             resFindNexyPayoutDate(false);
                           }
                           //...
-                          resultLastPayout = resultLastPayout.Items;
+                          resultLastPayout =
+                            resultLastPayout !== null
+                              ? resultLastPayout.Items
+                              : [];
                           //...
                           if (
                             resultLastPayout !== undefined &&
@@ -3229,7 +3256,7 @@ function execGet_driversDeepInsights_fromWalletData(
                               {
                                 TableName: "wallet_transactions_logs",
                                 KeyConditionExpression:
-                                  "flag_annotation =: flag_annotation AND user_fingerprint =: user_fingerprint",
+                                  "flag_annotation = :flag_annotation AND user_fingerprint = :user_fingerprint",
                                 ExpressionAttributeValues: {
                                   ":flag_annotation":
                                     "startingPoint_forFreshPayouts",
@@ -3241,7 +3268,10 @@ function execGet_driversDeepInsights_fromWalletData(
                                   resFindNexyPayoutDate(false);
                                 }
                                 //...
-                                referenceData = referenceData.Items;
+                                referenceData =
+                                  referenceData !== null
+                                    ? referenceData.Items
+                                    : [];
                                 //...
                                 if (
                                   referenceData !== undefined &&
@@ -3388,7 +3418,7 @@ function execGet_driversDeepInsights_fromWalletData(
         {
           TableName: "wallet_transactions_logs",
           KeyConditionExpression:
-            "transaction_nature =: transaction_nature AND recipient_fp =: recipient_fp",
+            "transaction_nature = :transaction_nature AND recipient_fp = :recipient_fp",
           ExpressionAttributeValues: {
             ":transaction_nature": "weeklyPaidDriverAutomatic",
             ":recipient_fp": driver_fingerprint,
@@ -3399,7 +3429,8 @@ function execGet_driversDeepInsights_fromWalletData(
             resFindNexyPayoutDate(false);
           }
           //...
-          resultLastPayout = resultLastPayout.Items;
+          resultLastPayout =
+            resultLastPayout !== null ? resultLastPayout.Items : [];
           //...
           if (
             resultLastPayout !== undefined &&
@@ -3419,7 +3450,7 @@ function execGet_driversDeepInsights_fromWalletData(
               {
                 TableName: "wallet_transactions_logs",
                 KeyConditionExpression:
-                  "flag_annotation =: flag_annotation AND user_fingerprint =: user_fingerprint",
+                  "flag_annotation = :flag_annotation AND user_fingerprint = :user_fingerprint",
                 ExpressionAttributeValues: {
                   ":flag_annotation": "startingPoint_forFreshPayouts",
                   ":user_fingerprint": driver_fingerprint,
@@ -3430,7 +3461,8 @@ function execGet_driversDeepInsights_fromWalletData(
                   resFindNexyPayoutDate(false);
                 }
                 //...
-                referenceData = referenceData.Items;
+                referenceData =
+                  referenceData !== null ? referenceData.Items : [];
                 //...
                 if (
                   referenceData !== undefined &&
@@ -3574,7 +3606,7 @@ function updateRiders_generalProfileInfos(
       //Acceptable
       let filter = {
         TableName: "passengers_profiles",
-        KeyConditionExpression: "user_fingerprint =: user_fingerprint",
+        KeyConditionExpression: "user_fingerprint = :user_fingerprint",
         ExpressionAttributeValues: {
           ":user_fingerprint": requestData.user_fingerprint,
         },
@@ -3584,7 +3616,7 @@ function updateRiders_generalProfileInfos(
         Key: {
           user_fingerprint: requestData.user_fingerprint,
         },
-        UpdateExpression: "set name =: name, last_updated =: last_updated",
+        UpdateExpression: "set name = :name, last_updated = :last_updated",
         ExpressionAttributeValues: {
           ":name": ucFirst(requestData.dataToUpdate),
           ":last_updated": new Date(chaineDateUTC),
@@ -3598,7 +3630,7 @@ function updateRiders_generalProfileInfos(
           res.send({ response: "error", flag: "unexpected_error" });
         }
         //...
-        riderProfile = riderProfile.Items;
+        riderProfile = riderProfile !== null ? riderProfile.Items : [];
         //...
         //2. Update the new data
         dynamoClient.update(updateData, function (err, result) {
@@ -3614,7 +3646,7 @@ function updateRiders_generalProfileInfos(
                   HashKey: `${new Date().getTime()}-${
                     requestData.user_fingerprint
                   }`,
-                },
+                }.HashKey,
                 event_name: "rider_name_update",
                 user_fingerprint: requestData.user_fingerprint,
                 old_data: riderProfile[0].name,
@@ -3643,7 +3675,7 @@ function updateRiders_generalProfileInfos(
       //Acceptable
       let filter = {
         TableName: "passengers_profiles",
-        KeyConditionExpression: "user_fingerprint =: user_fingerprint",
+        KeyConditionExpression: "user_fingerprint = :user_fingerprint",
         ExpressionAttributeValues: {
           ":user_fingerprint": requestData.user_fingerprint,
         },
@@ -3655,7 +3687,7 @@ function updateRiders_generalProfileInfos(
           user_fingerprint: requestData.user_fingerprint,
         },
         UpdateExpression:
-          "set surname =: surname, last_updated =: last_updated",
+          "set surname = :surname, last_updated = :last_updated",
         ExpressionAttributeValues: {
           ":surname": ucFirst(requestData.dataToUpdate),
           ":last_updated": new Date(chaineDateUTC),
@@ -3669,7 +3701,7 @@ function updateRiders_generalProfileInfos(
           res.send({ response: "error", flag: "unexpected_error" });
         }
         //...
-        riderProfile = riderProfile.Items;
+        riderProfile = riderProfile !== null ? riderProfile.Items : [];
         //...
         //2. Update the new data
         dynamoClient.update(updateData, function (err, result) {
@@ -3685,7 +3717,7 @@ function updateRiders_generalProfileInfos(
                   HashKey: `${new Date().getTime()}-${
                     requestData.user_fingerprint
                   }`,
-                },
+                }.HashKey,
                 event_name: "rider_surname_update",
                 user_fingerprint: requestData.user_fingerprint,
                 old_data: riderProfile[0].surname,
@@ -3724,7 +3756,7 @@ function updateRiders_generalProfileInfos(
       //Acceptable
       let filter = {
         TableName: "passengers_profiles",
-        KeyConditionExpression: "user_fingerprint =: user_fingerprint",
+        KeyConditionExpression: "user_fingerprint = :user_fingerprint",
         ExpressionAttributeValues: {
           ":user_fingerprint": requestData.user_fingerprint,
         },
@@ -3735,7 +3767,7 @@ function updateRiders_generalProfileInfos(
         Key: {
           user_fingerprint: requestData.user_fingerprint,
         },
-        UpdateExpression: "set gender =: gender, last_updated =: last_updated",
+        UpdateExpression: "set gender = :gender, last_updated = :last_updated",
         ExpressionAttributeValues: {
           ":gender": requestData.dataToUpdate.toUpperCase(),
           ":last_updated": new Date(chaineDateUTC),
@@ -3749,7 +3781,7 @@ function updateRiders_generalProfileInfos(
           res.send({ response: "error", flag: "unexpected_error" });
         }
         //....
-        riderProfile = riderProfile.Items;
+        riderProfile = riderProfile !== null ? riderProfile.Items : [];
         //...
         //2. Update the new data
         dynamoClient.update(updateData, function (err, result) {
@@ -3765,7 +3797,7 @@ function updateRiders_generalProfileInfos(
                   HashKey: `${new Date().getTime()}-${
                     requestData.user_fingerprint
                   }`,
-                },
+                }.HashKey,
                 event_name: "rider_gender_update",
                 user_fingerprint: requestData.user_fingerprint,
                 old_data: riderProfile[0].gender,
@@ -3798,7 +3830,7 @@ function updateRiders_generalProfileInfos(
       //Acceptable
       let filter = {
         TableName: "passengers_profiles",
-        KeyConditionExpression: "user_fingerprint =: user_fingerprint",
+        KeyConditionExpression: "user_fingerprint = :user_fingerprint",
         ExpressionAttributeValues: {
           ":user_fingerprint": requestData.user_fingerprint,
         },
@@ -3809,7 +3841,7 @@ function updateRiders_generalProfileInfos(
         Key: {
           user_fingerprint: requestData.user_fingerprint,
         },
-        UpdateExpression: "set email =: email, last_updated =: last_updated",
+        UpdateExpression: "set email = :email, last_updated = :last_updated",
         ExpressionAttributeValues: {
           ":email": requestData.dataToUpdate.trim().toLowerCase(),
           ":last_updated": new Date(chaineDateUTC),
@@ -3823,7 +3855,7 @@ function updateRiders_generalProfileInfos(
           res.send({ response: "error", flag: "unexpected_error" });
         }
         //...
-        riderProfile = riderProfile.Items;
+        riderProfile = riderProfile !== null ? riderProfile.Items : [];
         //...
         //2. Update the new data
         dynamoClient.update(updateData, function (err, result) {
@@ -3839,7 +3871,7 @@ function updateRiders_generalProfileInfos(
                   HashKey: `${new Date().getTime()}-${
                     requestData.user_fingerprint
                   }`,
-                },
+                }.HashKey,
                 event_name: "rider_email_update",
                 user_fingerprint: requestData.user_fingerprint,
                 old_data: riderProfile[0].email.trim().toLowerCase(),
@@ -3929,7 +3961,7 @@ function updateRiders_generalProfileInfos(
               //Acceptable
               let filter = {
                 TableName: "passengers_profiles",
-                KeyConditionExpression: "user_fingerprint =: user_fingerprint",
+                KeyConditionExpression: "user_fingerprint = :user_fingerprint",
                 ExpressionAttributeValues: {
                   ":user_fingerprint": requestData.user_fingerprint,
                 },
@@ -3941,7 +3973,7 @@ function updateRiders_generalProfileInfos(
                   user_fingerprint: requestData.user_fingerprint,
                 },
                 UpdateExpression:
-                  "set phone_number =: phone_number, last_updated =: last_updated",
+                  "set phone_number = :phone_number, last_updated = :last_updated",
                 ExpressionAttributeValues: {
                   ":phone_number": /^\+/i.test(requestData.dataToUpdate.trim())
                     ? requestData.dataToUpdate.trim()
@@ -3957,7 +3989,7 @@ function updateRiders_generalProfileInfos(
                   res.send({ response: "error", flag: "unexpected_error" });
                 }
                 //...
-                riderProfile = riderProfile.Items;
+                riderProfile = riderProfile !== null ? riderProfile.Items : [];
                 //...
                 //2. Update the new data
                 dynamoClient.update(updateData, function (err, result) {
@@ -3976,7 +4008,7 @@ function updateRiders_generalProfileInfos(
                           HashKey: `${new Date().getTime()}-${
                             requestData.user_fingerprint
                           }`,
-                        },
+                        }.HashKey,
                         event_name: "rider_phone_update",
                         user_fingerprint: requestData.user_fingerprint,
                         old_data: riderProfile[0].phone_number,
@@ -4096,7 +4128,7 @@ function updateRiders_generalProfileInfos(
                         user_fingerprint: requestData.user_fingerprint,
                       },
                       UpdateExpression:
-                        "set media.profile_picture =: profilePic",
+                        "set media.profile_picture = :profilePic",
                       ExpressionAttributeValues: {
                         ":profilePic": tmpPicture_name,
                       },
@@ -4116,7 +4148,7 @@ function updateRiders_generalProfileInfos(
                           {
                             TableName: "passengers_profiles",
                             KeyConditionExpression:
-                              "user_fingerprint =: user_fingerprint",
+                              "user_fingerprint = :user_fingerprint",
                             ExpressionAttributeValues: {
                               ":user_fingerprint": requestData.user_fingerprint,
                             },
@@ -4126,7 +4158,8 @@ function updateRiders_generalProfileInfos(
                               res(false);
                             }
                             //...
-                            riderData = riderData.Items;
+                            riderData =
+                              riderData !== null ? riderData.Items : [];
                             //...
                             if (riderData.length > 0) {
                               //Valid
@@ -4137,7 +4170,7 @@ function updateRiders_generalProfileInfos(
                                     HashKey: `${new Date().getTime()}-${
                                       requestData.user_fingerprint
                                     }`,
-                                  },
+                                  }.HashKey,
                                   event_name: "rider_profile_picture_update",
                                   user_fingerprint:
                                     requestData.user_fingerprint,
@@ -4227,7 +4260,7 @@ function getDriver_onlineOffline_status(req, resolve) {
     dynamoClient.query(
       {
         TableName: "drivers_profiles",
-        KeyConditionExpression: "driver_fingerprint =: driver_fingerprint",
+        KeyConditionExpression: "driver_fingerprint = :driver_fingerprint",
         ExpressionAttributeValues: {
           ":driver_fingerprint": req.driver_fingerprint,
         },
@@ -4238,7 +4271,7 @@ function getDriver_onlineOffline_status(req, resolve) {
           res0({ response: "error_invalid_request" });
         }
         //...
-        driverData = driverData.Items;
+        driverData = driverData !== null ? driverData.Items : [];
         //...
         if (
           driverData !== undefined &&
@@ -4939,7 +4972,7 @@ redisCluster.on("connect", function () {
                 res0({ response: "error_checking_otp" });
               }
               //?---
-              result = result.Items;
+              result = result !== null ? result.Items : [];
               //...
               if (result.length > 0) {
                 //True OTP
@@ -4974,7 +5007,7 @@ redisCluster.on("connect", function () {
                   res0({ response: "error_checking_otp" });
                 }
                 //...
-                result = result.Items;
+                result = result !== null ? result.Items : [];
                 //...
                 if (result.length > 0) {
                   //True OTP
@@ -5007,7 +5040,7 @@ redisCluster.on("connect", function () {
                   res0({ response: "error_checking_otp" });
                 }
                 //...
-                result = result.Items;
+                result = result !== null ? result.Items : [];
                 //...
                 if (result.length > 0) {
                   //True OTP
@@ -5206,7 +5239,8 @@ redisCluster.on("connect", function () {
                   }
                   logger.info(riderProfile);
                   //...
-                  riderProfile = riderProfile.Items;
+                  riderProfile =
+                    riderProfile !== null ? riderProfile.Items : [];
                   //...
                   if (riderProfile.length > 0) {
                     //Found something
@@ -5438,7 +5472,7 @@ redisCluster.on("connect", function () {
               Key: {
                 driver_fingerprint: req.driver_fingerprint,
               },
-              UpdateExpression: "set operational_state.status =: new_data",
+              UpdateExpression: "set operational_state.status = :new_data",
               ExpressionAttributeValues: {
                 ":new_data": /online/i.test(req.state) ? "online" : "offline",
               },
@@ -5452,7 +5486,7 @@ redisCluster.on("connect", function () {
                 {
                   TableName: "drivers_profiles",
                   KeyConditionExpression:
-                    "driver_fingerprint =: driver_fingerprint",
+                    "driver_fingerprint = :driver_fingerprint",
                   ExpressionAttributeValues: {
                     ":driver_fingerprint": req.driver_fingerprint,
                   },
@@ -5462,7 +5496,7 @@ redisCluster.on("connect", function () {
                     res0({ response: "error_invalid_request" });
                   }
                   //...
-                  driverData = driverData.Items;
+                  driverData = driverData !== null ? driverData.Items : [];
                   //...
                   if (driverData.length > 0) {
                     //! GET THE SUSPENSION INFOS
@@ -5489,7 +5523,7 @@ redisCluster.on("connect", function () {
                     let checkActiveRequests = {
                       TableName: "rides_deliveries_requests",
                       KeyConditionExpression:
-                        "taxi_id =: taxi_id AND ride_state_vars.isAccepted =: rideAccepted_params AND ride_state_vars.isRideCompleted_driverSide =: rideDriver_params",
+                        "taxi_id = :taxi_id AND ride_state_vars.isAccepted = :rideAccepted_params AND ride_state_vars.isRideCompleted_driverSide = :rideDriver_params",
                       ExpressionAttributeValues: {
                         ":taxi_id": req.driver_fingerprint,
                         ":rideAccepted_params": true,
@@ -5509,7 +5543,10 @@ redisCluster.on("connect", function () {
                           res0({ response: "error_invalid_request" });
                         }
                         //...
-                        currentActiveRequests = currentActiveRequests.Items;
+                        currentActiveRequests =
+                          currentActiveRequests !== null
+                            ? currentActiveRequests.Items
+                            : [];
                         //...
                         if (/offline/i.test(req.state)) {
                           //Only if the driver wants to go out
@@ -6127,6 +6164,7 @@ redisCluster.on("connect", function () {
      * ? Responsible for updating ANY information related to the passengers profile.
      * ? Informations that can be updated: name, surname, picture, email, phone number, gender.
      */
+    //? MIGRATED
     app.post("/updateRiders_profileInfos", function (req, res) {
       resolveDate();
       req = req.body;

@@ -3,6 +3,14 @@ require("dotenv").config();
 var express = require("express");
 const http = require("http");
 const MongoClient = require("mongodb").MongoClient;
+const AWS = require("aws-sdk");
+
+AWS.config.update({
+  region: "local",
+  endpoint: "http://localhost:8000",
+});
+
+const dynamoClient = new AWS.DynamoDB.DocumentClient();
 
 const { logger } = require("./LogService");
 
@@ -298,10 +306,35 @@ function newLoaction_search_engine(
                                 respPrevRedisCache.map(JSON.parse)
                               );
                               //logObject(newSearchRecords);
+                              //? Generate batch write object
+                              let bacthWriteObj = {
+                                RequestItems: {
+                                  searched_locations_persist:
+                                    newSearchRecords.map(function (
+                                      locationSingle
+                                    ) {
+                                      let tmp = {
+                                        PutRequest: {
+                                          Item: {
+                                            ...{
+                                              _id: {
+                                                HashKey: `${new Date().getTime()}`,
+                                              },
+                                            },
+                                            ...locationSingle,
+                                          },
+                                        },
+                                      };
+                                      //...
+                                      return tmp;
+                                    }),
+                                },
+                              };
+
                               if (newSearchRecords.length > 0) {
                                 new Promise((resUpdate) => {
-                                  collectionMongoDb.insertMany(
-                                    newSearchRecords,
+                                  dynamoClient.batchWrite(
+                                    bacthWriteObj,
                                     function (err, res) {
                                       logger.info(res);
                                       resUpdate(
@@ -555,19 +588,20 @@ redisCluster.on("connect", function () {
 
     app
       .use(
-        bodyParser.json({
+        express.json({
           limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
           extended: true,
         })
       )
       .use(
-        bodyParser.urlencoded({
+        express.urlencoded({
           limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
           extended: true,
         })
       );
 
     //1. SEARCH API
+    //? MIGRATED
     app.get("/getSearchedLocations", function (request, res) {
       resolveDate();
       //..

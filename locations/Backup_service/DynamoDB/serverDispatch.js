@@ -3328,67 +3328,67 @@ function confirmDropoffRequest_driver(
             if (err) {
               resolve({ response: "unable_to_confirm_dropoff_request_error" });
             }
-            //! Update the  driver's cached list
-            new Promise((resCompute) => {
-              let driverFilter = {
-                "operational_state.last_location.city":
-                  result[0].pickup_location_infos.city,
-              };
+            // //! Update the  driver's cached list
+            // new Promise((resCompute) => {
+            //   let driverFilter = {
+            //     "operational_state.last_location.city":
+            //       result[0].pickup_location_infos.city,
+            //   };
 
-              collectionDrivers_profiles
-                .find(driverFilter)
-                .collation({ locale: "en", strength: 2 })
-                .toArray(function (err, driversData) {
-                  if (err) {
-                    resCompute(false);
-                  }
-                  //...
-                  if (driversData !== undefined && driversData.length > 0) {
-                    //Found some drivers
-                    let parentPromises = driversData.map((driverInfo) => {
-                      return new Promise((resInside) => {
-                        //! RABBITMQ MESSAGE
-                        channel.assertQueue(
-                          process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
-                          {
-                            durable: true,
-                          }
-                        );
-                        //Send message
-                        let message = {
-                          user_fingerprint: driverInfo.driver_fingerprint,
-                          requestType: /scheduled/i.test(result[0].request_type)
-                            ? "scheduled"
-                            : result[0].ride_mode,
-                          user_nature: "driver",
-                        };
+            //   collectionDrivers_profiles
+            //     .find(driverFilter)
+            //     .collation({ locale: "en", strength: 2 })
+            //     .toArray(function (err, driversData) {
+            //       if (err) {
+            //         resCompute(false);
+            //       }
+            //       //...
+            //       if (driversData !== undefined && driversData.length > 0) {
+            //         //Found some drivers
+            //         let parentPromises = driversData.map((driverInfo) => {
+            //           return new Promise((resInside) => {
+            //             //! RABBITMQ MESSAGE
+            //             channel.assertQueue(
+            //               process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
+            //               {
+            //                 durable: true,
+            //               }
+            //             );
+            //             //Send message
+            //             let message = {
+            //               user_fingerprint: driverInfo.driver_fingerprint,
+            //               requestType: /scheduled/i.test(result[0].request_type)
+            //                 ? "scheduled"
+            //                 : result[0].ride_mode,
+            //               user_nature: "driver",
+            //             };
 
-                        channel.sendToQueue(
-                          process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
-                          Buffer.from(JSON.stringify(message)),
-                          {
-                            persistent: true,
-                          }
-                        );
-                        resInside(true);
-                      });
-                    });
-                    //...
-                    Promise.all(parentPromises)
-                      .then(() => {
-                        resCompute(true);
-                      })
-                      .catch(() => {
-                        resCompute(true);
-                      });
-                  } //No drivers  found
-                  else {
-                    resCompute(false);
-                  }
-                });
-            })
-              .then()
-              .catch();
+            //             channel.sendToQueue(
+            //               process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
+            //               Buffer.from(JSON.stringify(message)),
+            //               {
+            //                 persistent: true,
+            //               }
+            //             );
+            //             resInside(true);
+            //           });
+            //         });
+            //         //...
+            //         Promise.all(parentPromises)
+            //           .then(() => {
+            //             resCompute(true);
+            //           })
+            //           .catch(() => {
+            //             resCompute(true);
+            //           });
+            //       } //No drivers  found
+            //       else {
+            //         resCompute(false);
+            //       }
+            //     });
+            // })
+            //   .then()
+            //   .catch();
             //? Update the accepted rides brief list in the driver's profile
             new Promise((resUpdateDriverProfile) => {
               //! Get the driver's details - to fetch the car's fingerprint

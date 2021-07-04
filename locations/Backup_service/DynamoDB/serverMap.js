@@ -6,6 +6,15 @@ const http = require("http");
 const MongoClient = require("mongodb").MongoClient;
 var amqp = require("amqplib/callback_api");
 
+const AWS = require("aws-sdk");
+
+AWS.config.update({
+  region: "local",
+  endpoint: "http://localhost:8000",
+});
+
+const dynamoClient = new AWS.DynamoDB.DocumentClient();
+
 const { logger } = require("./LogService");
 
 var app = express();
@@ -540,15 +549,30 @@ function updateRidersRealtimeLocationData(
   //! location of the car in the map.
   if (/rider/i.test(locationData.user_nature)) {
     new Promise((res0) => {
-      collectionRidesDeliveries_data
-        .find({
-          client_id: locationData.user_fingerprint,
-          "ride_state_vars.isRideCompleted_driverSide": false,
-        })
-        .toArray(function (err, tripData) {
+      dynamoClient.query(
+        {
+          TableName: "rides_deliveries_requests",
+          IndexName: "globalSec-1",
+          //ProjectionExpression: "#idName",
+          KeyConditionExpression: "client_id = :client_id",
+          FilterExpression:
+            "#ride_state_vars.#isRideCompleted_driverSide = :rideDriver_params",
+          ExpressionAttributeNames: {
+            "#ride_state_vars": "ride_state_vars",
+            "#isRideCompleted_driverSide": "isRideCompleted_driverSide",
+          },
+          ExpressionAttributeValues: {
+            ":client_id": locationData.user_fingerprint,
+            ":rideDriver_params": false,
+          },
+        },
+        function (err, tripData) {
           if (err) {
             res0(false);
           }
+          //..
+          logger.info(err);
+          tripData = tripData !== null ? tripData.Items : [];
           //...
           if (tripData !== undefined && tripData.length > 0) {
             //Found some rides
@@ -591,7 +615,8 @@ function updateRidersRealtimeLocationData(
             //logger.info("No rides pending");
             res0(false);
           }
-        });
+        }
+      );
     })
       .then()
       .catch();
@@ -633,13 +658,15 @@ function updateRiderLocationsLog(
   if (/rider/i.test(locationData.user_nature)) {
     //Riders handler
     //! Update the pushnotfication token
-    collectionPassengers_profiles.updateOne(
+    dynamoClient.update(
       {
-        user_fingerprint: locationData.user_fingerprint,
-      },
-      {
-        $set: {
-          pushnotif_token: locationData.pushnotif_token,
+        TableName: "passengers_profiles",
+        Key: {
+          user_fingerprint: locationData.user_fingerprint,
+        },
+        UpdateExpression: "set pushnotif_token = :pushnotif_token",
+        ExpressionAttributeValues: {
+          ":pushnotif_token": locationData.pushnotif_token,
         },
       },
       function (err, res) {
@@ -651,14 +678,20 @@ function updateRiderLocationsLog(
     //Check if new
     //New record
     let dataBundle = {
-      user_fingerprint: locationData.user_fingerprint,
-      coordinates: {
-        latitude: locationData.latitude,
-        longitude: locationData.longitude,
+      TableName: "historical_positioning_logs",
+      Item: {
+        _id: {
+          HashKey: `${new Date().getTime()}-${locationData.user_fingerprint}`,
+        }.HashKey,
+        user_fingerprint: locationData.user_fingerprint,
+        coordinates: {
+          latitude: locationData.latitude,
+          longitude: locationData.longitude,
+        },
+        date_logged: new Date(chaineDateUTC).toISOString(),
       },
-      date_logged: new Date(chaineDateUTC),
     };
-    collectionRidersLocation_log.insertOne(dataBundle, function (err, res) {
+    dynamoClient.put(dataBundle, function (err, res) {
       resolve(true);
     });
   } else if (/driver/i.test(locationData.user_nature)) {
@@ -1099,72 +1132,89 @@ function execTripChecker_Dispatcher(
   if (/^rider$/i.test(user_nature)) {
     //Check if the user has a pending request
     let rideChecker = {
-      client_id: user_fingerprint,
-      "ride_state_vars.isRideCompleted_riderSide": false,
+      TableName: "rides_deliveries_requests",
+      KeyConditionExpression: "client_id = :client_id",
+      FilterExpression:
+        "#ride_state_vars.#isRideCompleted_riderSide = :tripRider_params",
+      ExpressionAttributeNames: {
+        "#ride_state_vars": "ride_state_vars",
+        "#isRideCompleted_riderSide": "isRideCompleted_riderSide",
+      },
+      ExpressionAttributeValues: {
+        ":client_id": user_fingerprint,
+        ":tripRider_params": false,
+      },
     };
 
-    collectionRidesDeliveries_data
-      .find(rideChecker)
-      .toArray(function (err, userDataRepr) {
-        if (err) {
-          resolve(false);
-          throw err;
-        }
-        if (userDataRepr.length <= 0) {
-          //Get the rider's inos
+    dynamoClient.query(rideChecker, function (err, userDataRepr) {
+      if (err) {
+        resolve(false);
+        throw err;
+      }
+      //...
+      userDataRepr = userDataRepr !== null ? userDataRepr.Items : [];
+      //...
+      if (userDataRepr.length <= 0) {
+        //Get the rider's inos
+        //! SAVE THE FINAL FULL RESULT - for 15 min ------
+        redisCluster.setex(
+          RIDE_REDIS_KEY,
+          parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
+          JSON.stringify(false)
+        );
+        //! ----------------------------------------------
+        resolve(false);
+      } //Found a user record
+      else {
+        //...
+        if (
+          userDataRepr[0].ride_state_vars.isRideCompleted_riderSide === false
+        ) {
+          //REQUEST FP
+          let request_fp = userDataRepr[0].request_fp;
+          //Check if there are any requests cached
+          getMongoRecordTrip_cacheLater(
+            collectionRidesDeliveries_data,
+            collectionDrivers_profiles,
+            user_fingerprint,
+            user_nature,
+            request_fp,
+            RIDE_REDIS_KEY,
+            resolve
+          );
+        } //No rides recorded
+        else {
           //! SAVE THE FINAL FULL RESULT - for 15 min ------
           redisCluster.setex(
             RIDE_REDIS_KEY,
             parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
-            JSON.stringify(false)
+            JSON.stringify("no_rides")
           );
           //! ----------------------------------------------
-          resolve(false);
-        } //Found a user record
-        else {
-          //...
-          if (
-            userDataRepr[0].ride_state_vars.isRideCompleted_riderSide === false
-          ) {
-            //REQUEST FP
-            let request_fp = userDataRepr[0].request_fp;
-            //Check if there are any requests cached
-            getMongoRecordTrip_cacheLater(
-              collectionRidesDeliveries_data,
-              collectionDrivers_profiles,
-              user_fingerprint,
-              user_nature,
-              request_fp,
-              RIDE_REDIS_KEY,
-              resolve
-            );
-          } //No rides recorded
-          else {
-            //! SAVE THE FINAL FULL RESULT - for 15 min ------
-            redisCluster.setex(
-              RIDE_REDIS_KEY,
-              parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
-              JSON.stringify("no_rides")
-            );
-            //! ----------------------------------------------
-            resolve("no_rides");
-          }
+          resolve("no_rides");
         }
-      });
+      }
+    });
   } else if (/^driver$/i.test(user_nature)) {
     //Get the driver's details
-    collectionDrivers_profiles
-      .find({
-        driver_fingerprint: user_fingerprint,
-        isDriverSuspended: false, //! When a driver is suspended - lock all requests.
-        "operational_state.status": "online",
-      })
-      .collation({ locale: "en", strength: 2 })
-      .toArray(function (err, driverData) {
+    dynamoClient.query(
+      {
+        TableName: "drivers_profiles",
+        KeyConditionExpression:
+          "driver_fingerprint = :driver_fingerprint AND isDriverSuspended = :isDriverSuspended AND operational_state.status = :operationStat",
+        ExpressionAttributeValues: {
+          ":driver_fingerprint": user_fingerprint,
+          ":isDriverSuspended": false, //! When a driver is suspended - lock all requests.
+          ":operationStat": "online",
+        },
+      },
+      function (err, driverData) {
         if (err) {
           resolve(false);
         }
-        //
+        //...
+        driverData = driverData !== null ? driverData.Items : [];
+        //...
         if (driverData === undefined || driverData.length <= 0) {
           //! SAVE THE FINAL FULL RESULT - for 15 min ------
           redisCluster.setex(
@@ -1183,26 +1233,56 @@ function execTripChecker_Dispatcher(
             : "immediate"; //For scheduled requests display or not.
           //....
           //Check if the driver has an accepted and not completed request already
-          let checkRide0 = {
-            taxi_id: user_fingerprint,
-            "ride_state_vars.isAccepted": true,
-            "ride_state_vars.isRideCompleted_driverSide": false,
-            isArrivedToDestination: false,
-            ride_mode:
-              /scheduled/i.test(requestType) === false
-                ? requestType
-                : {
-                    $in: [
-                      ...driverData.operation_clearances,
-                      ...driverData.operation_clearances.map((mode) =>
-                        mode.toUpperCase()
-                      ),
-                    ],
-                  },
-            request_type: request_type_regex, //Shceduled or now rides/deliveries
-            /*allowed_drivers_see: user_fingerprint,
-          intentional_request_decline: { $not: user_fingerprint },*/
-          };
+          // let checkRide0 = {
+          //   taxi_id: user_fingerprint,
+          //   "ride_state_vars.isAccepted": true,
+          //   "ride_state_vars.isRideCompleted_driverSide": false,
+          //   isArrivedToDestination: false,
+          //   ride_mode:
+          //     /scheduled/i.test(requestType) === false
+          //       ? requestType
+          //       : {
+          //           $in: [
+          //             ...driverData.operation_clearances,
+          //             ...driverData.operation_clearances.map((mode) =>
+          //               mode.toUpperCase()
+          //             ),
+          //           ],
+          //         },
+          //   request_type: request_type_regex, //Shceduled or now rides/deliveries
+          //   /*allowed_drivers_see: user_fingerprint,
+          // intentional_request_decline: { $not: user_fingerprint },*/
+          // };
+
+          // let checkRide0 = {
+          //   TableName: 'rides_deliveries_requests',
+          //   KeyConditionExpression: `
+          //   taxi_id = :taxi_id AND
+          //   ride_state_vars.isAccepted = :isAccepted AND
+          //   ride_state_vars.isRideCompleted_driverSide = :driverParams AND
+          //   isArrivedToDestination = :isArrivedToDestination AND
+
+          //   `
+          //   {
+          //   taxi_id: user_fingerprint,
+          //   "ride_state_vars.isAccepted": true,
+          //   "ride_state_vars.isRideCompleted_driverSide": false,
+          //   isArrivedToDestination: false,
+          //   ride_mode:
+          //     /scheduled/i.test(requestType) === false
+          //       ? requestType
+          //       : {
+          //           $in: [
+          //             ...driverData.operation_clearances,
+          //             ...driverData.operation_clearances.map((mode) =>
+          //               mode.toUpperCase()
+          //             ),
+          //           ],
+          //         },
+          //   request_type: request_type_regex, //Shceduled or now rides/deliveries
+          //   /*allowed_drivers_see: user_fingerprint,
+          // intentional_request_decline: { $not: user_fingerprint },*/
+          // }};
 
           //-----
 
@@ -1343,7 +1423,8 @@ function execTripChecker_Dispatcher(
               }
             });
         }
-      });
+      }
+    );
   }
   //Malformed
   else {
@@ -2243,24 +2324,31 @@ function getMongoRecordTrip_cacheLater(
 ) {
   //Check if there are any requests in MongoDB
   let queryFilter = {
-    client_id: user_fingerprint,
-    request_fp: request_fp,
+    TableName: "rides_deliveries_requests",
+    KeyConditionExpression:
+      "client_id = :client_id AND request_fp = :request_fp",
+    ExpressionAttributeValues: {
+      ":client_id": user_fingerprint,
+      ":request_fp": request_fp,
+    },
   }; //? Indexed
-  collectionRidesDeliveries_data
-    .find(queryFilter)
-    .toArray(function (err, result) {
-      if (err) {
-        resolve(false);
-        throw err;
-      }
-      //Compute route via compute skeleton
-      computeRouteDetails_skeleton(
-        result,
-        collectionDrivers_profiles,
-        RIDE_REDIS_KEY,
-        resolve
-      );
-    });
+
+  dynamoClient.query(queryFilter, function (err, result) {
+    if (err) {
+      resolve(false);
+      throw err;
+    }
+    //...
+    result = result !== null ? result.Items : [];
+    //...
+    //Compute route via compute skeleton
+    computeRouteDetails_skeleton(
+      result,
+      collectionDrivers_profiles,
+      RIDE_REDIS_KEY,
+      resolve
+    );
+  });
 }
 /**
  * @func computeRouteDetails_skeleton
@@ -2283,13 +2371,22 @@ function computeRouteDetails_skeleton(
     if (rideHistory.ride_state_vars.isAccepted) {
       //Get all the driver's informations
       //? Indexed
-      collectionDrivers_profiles
-        .find({ driver_fingerprint: rideHistory.taxi_id })
-        .toArray(function (err, driverProfile) {
+      dynamoClient.query(
+        {
+          TableName: "drivers_profiles",
+          KeyConditionExpression: "driver_fingerprint = :driver_fingerprint",
+          ExpressionAttributeValues: {
+            ":driver_fingerprint": rideHistory.taxi_id,
+          },
+        },
+        function (err, driverProfile) {
           if (err) {
             //logger.info(err);
             resolve(false); //An error happened
           }
+          //...
+          driverProfile = driverProfile !== null ? driverProfile.Items : [];
+          //...
 
           if (driverProfile.length > 0) {
             //Found the driver's profile
@@ -2780,7 +2877,8 @@ function computeRouteDetails_skeleton(
             );
             //! ----------------------------------------------
           }
-        });
+        }
+      );
     } //Request pending
     else {
       ////logger.info("request pending...");
@@ -3168,9 +3266,18 @@ function computeAndCacheRouteDestination(
       //! Add the requester fingerprint
       additionalInfos.requester_fp = rideHistory.client_id;
       //! Get the requester details
-      collectionPassengers_profiles
-        .find({ user_fingerprint: rideHistory.client_id })
-        .toArray(function (err, requesterData) {
+      dynamoClient.query(
+        {
+          TableName: "passengers_profiles",
+          KeyConditionExpression: "user_fingerprint  = :user_fingerprint",
+          ExpressionAttributeValues: {
+            ":user_fingerprint": rideHistory.client_id,
+          },
+        },
+        function (err, requesterData) {
+          //....
+          requesterData = requesterData !== null ? requesterData.Items : [];
+          //...
           if (requesterData !== undefined && requesterData.length > 0) {
             //? Add the requester's name and phone
             additionalInfos["requester_infos"] = {};
@@ -3334,7 +3441,8 @@ function computeAndCacheRouteDestination(
           else {
             resolve(false);
           }
-        });
+        }
+      );
     },
     (error) => {
       //logger.warn(error);
@@ -4092,6 +4200,18 @@ function getFreshProximity_driversList(
             ],
           },
   }; //?Indexed
+
+  // let driverFilter = {
+  //   TableName: 'drivers_profiles',
+  //   KeyConditionExpression: `
+  //   operational_state.status ${req.includeOfflineDrivers !== undefined &&
+  //     req.includeOfflineDrivers !== null
+  //       ? 'IN (:status1, :status2)' : '= :status0' } AND
+  //       operational_state.last_location.city = :city AND
+  //       operational_state.last_location.country = :country AND
+
+  //   `
+  // }
   //...
   collectionDrivers_profiles
     .find(driverFilter)
@@ -4809,6 +4929,7 @@ redisCluster.on("connect", function () {
            * Responsible for updating in the databse and other caches new passenger's/rider's locations received.
            * Update CACHE -> MONGODB (-> TRIP CHECKER DISPATCHER)
            */
+          //? MIGRATED:  riders
           app.post("/updatePassengerLocation", function (req, res) {
             new Promise((resMAIN) => {
               //DEBUG
@@ -4855,13 +4976,19 @@ redisCluster.on("connect", function () {
                     //Got something - can update
                     if (/^rider$/i.test(req.user_nature)) {
                       //Rider
-                      collectionPassengers_profiles.updateOne(
-                        { user_fingerprint: req.user_fingerprint },
+                      dynamoClient.update(
                         {
-                          $set: {
-                            pushnotif_token: JSON.parse(req.pushnotif_token),
-                            last_updated: new Date(chaineDateUTC),
+                          TableName: "passengers_profiles",
+                          Key: {
+                            user_fingerprint: req.user_fingerprint,
                           },
+                          UpdateExpression:
+                            "set pushnotif_token = :pushnotif_token, last_updated = :last_updated",
+                          ExpressionAttributeValues: {
+                            ":pushnotif_token": JSON.parse(req.pushnotif_token),
+                            ":last_updated": new Date(chaineDateUTC),
+                          },
+                          ReturnValues: "UPDATED_NEW",
                         },
                         function (err, reslt) {
                           //logger.info("HERE");
@@ -4880,15 +5007,24 @@ redisCluster.on("connect", function () {
                         //!Check if a reference point exists - if not set one to NOW
                         //? For days before wednesday, set to wednesdat and for those after wednesday, set to next week that same day.
                         //! Annotation string: startingPoint_forFreshPayouts
-                        collectionWalletTransactions_logs
-                          .find({
-                            flag_annotation: "startingPoint_forFreshPayouts",
-                            user_fingerprint: req.user_fingerprint,
-                          })
-                          .toArray(function (err, referenceData) {
+                        dynamoClient.query(
+                          {
+                            TableName: "wallet_transactions_logs",
+                            KeyConditionExpression:
+                              "flag_annotation = :flag_annotation AND user_fingerprint = :user_fingerprint",
+                            ExpressionAttributeValues: {
+                              ":flag_annotation":
+                                "startingPoint_forFreshPayouts",
+                              ":user_fingerprint": req.user_fingerprint,
+                            },
+                          },
+                          function (err, referenceData) {
                             if (err) {
                               resPaymentCycle(false);
                             }
+                            //...
+                            referenceData =
+                              referenceData !== null ? referenceData.Items : [];
                             //...
                             if (
                               referenceData !== undefined &&
@@ -4915,12 +5051,20 @@ redisCluster.on("connect", function () {
                                       1000
                                 ).toISOString();
                                 //...
-                                collectionWalletTransactions_logs.insertOne(
+                                dynamoClient.put(
                                   {
-                                    flag_annotation:
-                                      "startingPoint_forFreshPayouts",
-                                    user_fingerprint: req.user_fingerprint,
-                                    date_captured: new Date(tmpNextDate),
+                                    TableName: "wallet_transactions_logs",
+                                    Item: {
+                                      _id: {
+                                        HashKey: `${new Date().getTime()}-${
+                                          req.user_fingerprint
+                                        }`,
+                                      }.HashKey,
+                                      flag_annotation:
+                                        "startingPoint_forFreshPayouts",
+                                      user_fingerprint: req.user_fingerprint,
+                                      date_captured: new Date(tmpNextDate),
+                                    },
                                   },
                                   function (err, reslt) {
                                     resPaymentCycle(true);
@@ -4939,12 +5083,20 @@ redisCluster.on("connect", function () {
                                         1000
                                     )
                                 ).toISOString();
-                                collectionWalletTransactions_logs.insertOne(
+                                dynamoClient.put(
                                   {
-                                    flag_annotation:
-                                      "startingPoint_forFreshPayouts",
-                                    user_fingerprint: req.user_fingerprint,
-                                    date_captured: new Date(tmpNextDate),
+                                    TableName: "wallet_transactions_logs",
+                                    Item: {
+                                      _id: {
+                                        HashKey: `${new Date().getTime()}-${
+                                          req.user_fingerprint
+                                        }`,
+                                      }.HashKey,
+                                      flag_annotation:
+                                        "startingPoint_forFreshPayouts",
+                                      user_fingerprint: req.user_fingerprint,
+                                      date_captured: new Date(tmpNextDate),
+                                    },
                                   },
                                   function (err, reslt) {
                                     resPaymentCycle(true);
@@ -4952,20 +5104,26 @@ redisCluster.on("connect", function () {
                                 );
                               }
                             }
-                          });
+                          }
+                        );
                       }).then(
                         () => {},
                         () => {}
                       );
                       //...
-                      collectionDrivers_profiles.updateOne(
-                        { driver_fingerprint: req.user_fingerprint },
+                      dynamoClient.update(
                         {
-                          $set: {
-                            "operational_state.push_notification_token":
-                              JSON.parse(req.pushnotif_token),
-                            date_updated: new Date(chaineDateUTC),
+                          TableName: "drivers_profiles",
+                          Key: {
+                            driver_fingerprint: req.user_fingerprint,
                           },
+                          UpdateExpression:
+                            "set operational_state.push_notification_token  = :updated_data, date_updated = :date_updated",
+                          ExpressionAttributeValues: {
+                            ":updated_data": JSON.parse(req.pushnotif_token),
+                            ":date_updated": new Date(chaineDateUTC),
+                          },
+                          ReturnValues: "UPDATED_NEW",
                         },
                         function (err, reslt) {
                           if (err) {
@@ -4989,45 +5147,45 @@ redisCluster.on("connect", function () {
                 );
 
                 //Check for any existing ride
-                let pro2 = new Promise((res) => {
-                  ////logger.info("fetching data");
-                  tripChecker_Dispatcher(
-                    req.avoidCached_data !== undefined &&
-                      req.avoidCached_data !== null
-                      ? true
-                      : false,
-                    collectionRidesDeliveries_data,
-                    collectionDrivers_profiles,
-                    collectionPassengers_profiles,
-                    req.user_fingerprint,
-                    req.user_nature !== undefined && req.user_nature !== null
-                      ? req.user_nature
-                      : "rider",
-                    req.requestType !== undefined && req.requestType !== null
-                      ? req.requestType
-                      : "rides",
-                    res
-                  );
-                }).then(
-                  (result) => {
-                    //Update the rider
-                    if (result !== false) {
-                      if (result != "no_rides") {
-                        resMAIN(result);
-                      } //No rides
-                      else {
-                        resMAIN({ request_status: "no_rides" });
-                      }
-                    } //No rides
-                    else {
-                      resMAIN({ request_status: "no_rides" });
-                    }
-                  },
-                  (error) => {
-                    //logger.info(error);
-                    resMAIN({ request_status: "no_rides" });
-                  }
-                );
+                // new Promise((res) => {
+                //   ////logger.info("fetching data");
+                //   tripChecker_Dispatcher(
+                //     req.avoidCached_data !== undefined &&
+                //       req.avoidCached_data !== null
+                //       ? true
+                //       : false,
+                //     collectionRidesDeliveries_data,
+                //     collectionDrivers_profiles,
+                //     collectionPassengers_profiles,
+                //     req.user_fingerprint,
+                //     req.user_nature !== undefined && req.user_nature !== null
+                //       ? req.user_nature
+                //       : "rider",
+                //     req.requestType !== undefined && req.requestType !== null
+                //       ? req.requestType
+                //       : "rides",
+                //     res
+                //   );
+                // }).then(
+                //   (result) => {
+                //     //Update the rider
+                //     if (result !== false) {
+                //       if (result != "no_rides") {
+                //         resMAIN(result);
+                //       } //No rides
+                //       else {
+                //         resMAIN({ request_status: "no_rides" });
+                //       }
+                //     } //No rides
+                //     else {
+                //       resMAIN({ request_status: "no_rides" });
+                //     }
+                //   },
+                //   (error) => {
+                //     //logger.info(error);
+                //     resMAIN({ request_status: "no_rides" });
+                //   }
+                // );
 
                 //Update cache for this user's location
                 let pro3 = new Promise((resolve1) => {
@@ -5119,6 +5277,7 @@ redisCluster.on("connect", function () {
            * REDIS propertiy
            * user_fingerprint -> currentLocationInfos: {...}
            */
+          //? MIGRATED
           app.get("/getUserLocationInfos", function (req, res) {
             new Promise((resMAIN) => {
               let params = urlParser.parse(req.url, true);
@@ -5172,6 +5331,7 @@ redisCluster.on("connect", function () {
            * This one will only focus on Pvate locations AND taxi ranks.
            * False means : not a taxirank -> private location AND another object means taxirank
            */
+          //? MIGRATED
           app.get("/identifyPickupLocation", function (req, res) {
             new Promise((resMAIN) => {
               let params = urlParser.parse(req.url, true);
@@ -5218,6 +5378,7 @@ redisCluster.on("connect", function () {
            * ROUTE TO DESTINATION previewer
            * Responsible for showing to the user the preview of the first destination after selecting on the app the destination.
            */
+          //? MIGRATED
           app.get("/getRouteToDestinationSnapshot", function (req, res) {
             new Promise((resMAIN) => {
               let params = urlParser.parse(req.url, true);
@@ -5286,6 +5447,7 @@ redisCluster.on("connect", function () {
            * Redis key: user_fingerprint-driver-fingerprint
            * valueIndex: 'relativeEta'
            */
+          //! SKIPPED
           app.get("/getVitalsETAOrRouteInfos2points", function (req, res) {
             new Promise((resMAIN) => {
               let params = urlParser.parse(req.url, true);
@@ -5515,6 +5677,7 @@ redisCluster.on("connect", function () {
            * @param dest_longitude: longitude of the destination point.
            * Redis key format: realtime-tracking-operation-user_fingerprint-request_fp
            */
+          //? MIGRATED
           app.get("/getRealtimeTrackingRoute_forTHIS", function (req, res) {
             new Promise((resMAIN) => {
               let params = urlParser.parse(req.url, true);
@@ -5734,6 +5897,7 @@ redisCluster.on("connect", function () {
            * @param trip_simplified_id: the simplified request fp of the ride.
            * ! Can only share rides for now.
            */
+          //! SKIPPED
           app.get("/getSharedTrip_information", function (req, res) {
             resolveDate();
             let params = urlParser.parse(req.url, true);
@@ -5871,39 +6035,6 @@ redisCluster.on("connect", function () {
               res.send({ response: "error_invalid_data", flag: false });
             }
           });
-
-          /**
-           * SIMULATION
-           * Responsible for managing different map or any services simulation scenarios from the simulation tool.
-           * Scenarios:
-           * 1. MAP
-           * -Pickup simulation
-           * -Drop off sumlation
-           */
-          //Origin coords - driver
-          //const blon = 17.099327;
-          //const blat = -22.579195;
-          //const blon = 17.060507;
-          //const blat = -22.514987;
-          //Destination coords
-          //const destinationLat = -22.577673;
-          //const destinationLon = 17.086427;
-
-          //1. Pickup simulation
-          /*socket.on("startPickupSim", function (req) {
-      logToSimulator(socket, "Pickup simulation successfully started.");
-      let bundle = {
-        driver: { latitude: blat, longitude: blon },
-        passenger: {
-          latitude: this.state.latitude,
-          longitude: this.state.longitude,
-        },
-        destination: {
-          latitude: destinationLat,
-          longitude: destinationLon,
-        },
-      };
-    });*/
         });
       });
     }
