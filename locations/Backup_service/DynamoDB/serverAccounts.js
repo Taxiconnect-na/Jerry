@@ -230,11 +230,16 @@ function checkUserStatus(
   //Save the dispatch map for this user
   new Promise((res) => {
     let dispatchMap = {
-      phone_number: userData.phone_number,
-      otp: parseInt(otp),
-      date_sent: new Date(chaineDateUTC),
+      TableName: "OTP_dispatch_map",
+      Item: {
+        _id: { HashKey: `${new Date().getTime()}-${userData.phone_number}` }
+          .HashKey,
+        phone_number: userData.phone_number,
+        otp: parseInt(otp),
+        date_sent: new Date(chaineDateUTC).toISOString(),
+      },
     };
-    collection_OTP_dispatch_map.insertOne(dispatchMap, function (error, reslt) {
+    dynamoClient.put(dispatchMap, function (error, reslt) {
       res(true);
     });
   }).then(
@@ -243,13 +248,16 @@ function checkUserStatus(
   );
   //...Check the user's status
   let checkUser = {
+    IndexName: "globalSec-1",
     KeyConditionExpression: "phone_number = :phone_number",
     ExpressionAttributeValues: {
-      ":phone_number": userData.phone_number.trim(),
+      ":phone_number":
+        /\+/i.test(userData.phone_number.trim()) === false
+          ? `+${userData.phone_number.trim()}`
+          : userData.phone_number.trim(),
     },
   }; //?Indexed
-
-  logger.info(checkUser);
+  logger.warn(checkUser);
 
   //1. Passengers
   if (
@@ -4768,7 +4776,7 @@ redisCluster.on("connect", function () {
     app.get("/sendOTPAndCheckUserStatus", function (req, res) {
       resolveDate();
       let params = urlParser.parse(req.url, true);
-      logger.info(params);
+      // logger.info(params);
       req = params.query;
 
       if (
@@ -4791,18 +4799,18 @@ redisCluster.on("connect", function () {
         //! --------------
         //otp = 55576;
         otp = String(otp).length < 5 ? parseInt(otp) * 10 : otp;
-        new Promise((res0) => {
-          let message =
-            `<#> ` + otp + ` is your TaxiConnect Verification Code.`;
-          SendSMSTo(onlyDigitsPhone, message);
-          res0(true);
-          //SMS
-        }).then(
-          () => {},
-          (error) => {
-            logger.info(error);
-          }
-        );
+        // new Promise((res0) => {
+        //   let message =
+        //     `<#> ` + otp + ` is your TaxiConnect Verification Code.`;
+        //   SendSMSTo(onlyDigitsPhone, message);
+        //   res0(true);
+        //   //SMS
+        // }).then(
+        //   () => {},
+        //   (error) => {
+        //     logger.info(error);
+        //   }
+        // );
 
         //1. Check the user's status
         new Promise((res1) => {
@@ -4959,8 +4967,9 @@ redisCluster.on("connect", function () {
             //Checking for unregistered users
             let checkOTP = {
               TableName: "OTP_dispatch_map",
-              KeyConditionExpression:
-                "phone_number =:phone_number AND otp=:otp",
+              IndexName: "globalSec-1",
+              KeyConditionExpression: "phone_number =:phone_number",
+              FilterExpression: "otp=:otp",
               ExpressionAttributeValues: {
                 ":phone_number": req.phone_number,
                 ":otp": parseInt(req.otp),
@@ -4968,6 +4977,8 @@ redisCluster.on("connect", function () {
             };
             //Check if it exists for this number
             dynamoClient.query(checkOTP, function (error, result) {
+              logger.warn(error);
+              logger.warn(result);
               if (error) {
                 res0({ response: "error_checking_otp" });
               }
@@ -4994,8 +5005,15 @@ redisCluster.on("connect", function () {
               logger.info("Passenger");
               let checkOTP = {
                 TableName: "passengers_profiles",
-                KeyConditionExpression:
-                  "account_verifications.phone_verification_secrets.otp =:verification AND phone_number=:phone_number",
+                IndexName: "globalSec-1",
+                KeyConditionExpression: "phone_number=:phone_number",
+                FilterExpression:
+                  "#account_verifications.#phone_verification_secrets.#otp =:verification",
+                ExpressionAtrributeNames: {
+                  "#account_verifications": "account_verifications",
+                  "#phone_verification_secrets": "phone_verification_secrets",
+                  "#otp": "otp",
+                },
                 ExpressionAttributeValues: {
                   ":verification": parseInt(req.otp),
                   ":phone_number": req.phone_number,
@@ -5003,9 +5021,17 @@ redisCluster.on("connect", function () {
               }; //?Indexed
               //Check if it exists for this number
               dynamoClient.query(checkOTP, function (error, result) {
-                if (error) {
+                if (
+                  /Invalid FilterExpression: An expression attribute name used in the document path is not defined/i.test(
+                    error
+                  )
+                ) {
+                  //Missing attribute
+                  res0({ response: true });
+                } else {
                   res0({ response: "error_checking_otp" });
                 }
+                logger.info(error);
                 //...
                 result = result !== null ? result.Items : [];
                 //...
@@ -5184,88 +5210,110 @@ redisCluster.on("connect", function () {
         //..
         try {
           new Promise((res0) => {
-            // let findProfile = {
-            //   user_fingerprint: req.user_fingerprint,
-            // };
-            let updateProfile = {
-              TableName: "passengers_profiles",
-              Key: {
-                user_fingerprint: req.user_fingerprint,
+            dynamoClient.query(
+              {
+                TableName: "passengers_profiles",
+                IndexName: "globalSec-userFp",
+                KeyConditionExpression: "user_fingerprint = :user_fingerprint",
+                ExpressionAttributeValues: {
+                  ":user_fingerprint": req.user_fingerprint,
+                },
               },
-              UpdateExpression:
-                "set name=:name, email=:email, gender=:gender, account_state=:account_state, last_updated=:last_updated",
-              ExpressionAttributeValues: {
-                ":name": req.name,
-                ":email": req.email,
-                ":gender": req.gender,
-                ":account_state": "full", //! ADDD ACCOUNT STATE - full
-                ":last_updated": new Date(chaineDateUTC),
-              },
-              ReturnValues: "UPDATED_NEW",
-              // $set: {
-              //   name: req.name,
-              //   email: req.email,
-              //   gender: req.gender,
-              //   account_state: "full", //! ADDD ACCOUNT STATE - full
-              //   last_updated: new Date(chaineDateUTC),
-              // },
-            };
-            //Update
-            dynamoClient.update(updateProfile, function (error, result) {
-              if (error) {
-                logger.info(error);
-                res0({
-                  response:
-                    "error_adding_additional_profile_details_new_account",
+              function (err, riderProfile) {
+                if (err) {
+                  logger.info(err);
+                  res0({
+                    response:
+                      "error_adding_additional_profile_details_new_account",
+                  });
+                }
+                //...
+                riderProfile = riderProfile.Items[0];
+                //...
+                let updateProfile = {
+                  TableName: "passengers_profiles",
+                  Key: {
+                    _id: riderProfile._id,
+                  },
+                  UpdateExpression:
+                    "set #userName=:name, email=:email, gender=:gender, account_state=:account_state, last_updated=:last_updated",
+                  ExpressionAtrributeNames: {
+                    "#userName": "name",
+                  },
+                  ExpressionAttributeValues: {
+                    ":name": req.name,
+                    ":email": req.email,
+                    ":gender": req.gender,
+                    ":account_state": "full", //! ADDD ACCOUNT STATE - full
+                    ":last_updated": new Date(chaineDateUTC),
+                  },
+                  ReturnValues: "UPDATED_NEW",
+                  // $set: {
+                  //   name: req.name,
+                  //   email: req.email,
+                  //   gender: req.gender,
+                  //   account_state: "full", //! ADDD ACCOUNT STATE - full
+                  //   last_updated: new Date(chaineDateUTC),
+                  // },
+                };
+                //Update
+                dynamoClient.update(updateProfile, function (error, result) {
+                  if (error) {
+                    logger.info(error);
+                    res0({
+                      response:
+                        "error_adding_additional_profile_details_new_account",
+                    });
+                  }
+                  //Get the profile details
+                  dynamoClient.query(
+                    {
+                      TableName: "passengers_profiles",
+                      KeyConditionExpression:
+                        "user_fingerprint = :user_fingerprint",
+                      ExpressionAttributeValues: {
+                        ":user_fingerprint": req.user_fingerprint,
+                      },
+                    },
+                    function (err, riderProfile) {
+                      if (err) {
+                        logger.info(err);
+                        res0({
+                          response:
+                            "error_adding_additional_profile_details_new_account",
+                        });
+                      }
+                      logger.info(riderProfile);
+                      //...
+                      riderProfile =
+                        riderProfile !== null ? riderProfile.Items : [];
+                      //...
+                      if (riderProfile.length > 0) {
+                        //Found something
+                        res0({
+                          response: "updated",
+                          user_fp: riderProfile[0].user_fingerprint,
+                          name: riderProfile[0].name,
+                          surname: riderProfile[0].surname,
+                          gender: riderProfile[0].gender,
+                          phone_number: riderProfile[0].phone_number,
+                          email: riderProfile[0].email,
+                          account_state: "full", //!VERY IMPORTANT - MARK ACCOUNT CREATION STATE AS FULL - to avoid redirection to complete details screen.
+                          profile_picture: `${process.env.AWS_S3_RIDERS_PROFILE_PICTURES_PATH}/${riderProfile[0].media.profile_picture}`,
+                          pushnotif_token: riderProfile[0].pushnotif_token,
+                        });
+                      } //Error finding profile
+                      else {
+                        res0({
+                          response:
+                            "error_adding_additional_profile_details_new_account",
+                        });
+                      }
+                    }
+                  );
                 });
               }
-              //Get the profile details
-              dynamoClient.query(
-                {
-                  TableName: "passengers_profiles",
-                  KeyConditionExpression:
-                    "user_fingerprint = :user_fingerprint",
-                  ExpressionAttributeValues: {
-                    ":user_fingerprint": req.user_fingerprint,
-                  },
-                },
-                function (err, riderProfile) {
-                  if (err) {
-                    logger.info(err);
-                    res0({
-                      response:
-                        "error_adding_additional_profile_details_new_account",
-                    });
-                  }
-                  logger.info(riderProfile);
-                  //...
-                  riderProfile =
-                    riderProfile !== null ? riderProfile.Items : [];
-                  //...
-                  if (riderProfile.length > 0) {
-                    //Found something
-                    res0({
-                      response: "updated",
-                      user_fp: riderProfile[0].user_fingerprint,
-                      name: riderProfile[0].name,
-                      surname: riderProfile[0].surname,
-                      gender: riderProfile[0].gender,
-                      phone_number: riderProfile[0].phone_number,
-                      email: riderProfile[0].email,
-                      account_state: "full", //!VERY IMPORTANT - MARK ACCOUNT CREATION STATE AS FULL - to avoid redirection to complete details screen.
-                      profile_picture: `${process.env.AWS_S3_RIDERS_PROFILE_PICTURES_PATH}/${riderProfile[0].media.profile_picture}`,
-                      pushnotif_token: riderProfile[0].pushnotif_token,
-                    });
-                  } //Error finding profile
-                  else {
-                    res0({
-                      response:
-                        "error_adding_additional_profile_details_new_account",
-                    });
-                  }
-                }
-              );
-            });
+            );
           }).then(
             (result) => {
               res.send(result);
