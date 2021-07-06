@@ -63,45 +63,69 @@ const clientMongo = new MongoClient(process.env.URL_MONGODB, {
   useNewUrlParser: true,
 });
 
+var AWS_SMS = require("aws-sdk");
 function SendSMSTo(phone_number, message) {
-  let username = "taxiconnect";
-  let password = "Taxiconnect*1";
+  // Load the AWS SDK for Node.js
+  // Set region
+  AWS_SMS.config.update({ region: "us-east-1" });
 
-  let postData = JSON.stringify({
-    to: phone_number,
-    body: message,
-  });
-
-  let options = {
-    hostname: "api.bulksms.com",
-    port: 443,
-    path: "/v1/messages",
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Content-Length": postData.length,
-      Authorization:
-        "Basic " + Buffer.from(username + ":" + password).toString("base64"),
-    },
+  // Create publish parameters
+  var params = {
+    Message: message /* required */,
+    PhoneNumber: phone_number,
   };
 
-  let req = https.request(options, (resp) => {
-    logger.info("statusCode:", resp.statusCode);
-    let data = "";
-    resp.on("data", (chunk) => {
-      data += chunk;
-    });
-    resp.on("end", () => {
-      logger.info("Response:", data);
-    });
-  });
+  // Create promise and SNS service object
+  var publishTextPromise = new AWS_SMS.SNS({ apiVersion: "2010-03-31" })
+    .publish(params)
+    .promise();
 
-  req.on("error", (e) => {
-    logger.warn(e);
-  });
+  // Handle promise's fulfilled/rejected states
+  publishTextPromise
+    .then(function (data) {
+      console.log("MessageID is " + data.MessageId);
+    })
+    .catch(function (err) {
+      console.error(err, err.stack);
+    });
+  // let username = "taxiconnect";
+  // let password = "Taxiconnect*1";
 
-  req.write(postData);
-  req.end();
+  // let postData = JSON.stringify({
+  //   to: phone_number,
+  //   body: message,
+  // });
+
+  // let options = {
+  //   hostname: "api.bulksms.com",
+  //   port: 443,
+  //   path: "/v1/messages",
+  //   method: "POST",
+  //   headers: {
+  //     "Content-Type": "application/json",
+  //     "Content-Length": postData.length,
+  //     Authorization:
+  //       "Basic " + Buffer.from(username + ":" + password).toString("base64"),
+  //   },
+  // };
+
+  // let req = https.request(options, (resp) => {
+  //   logger.info("statusCode:", resp.statusCode);
+  //   let data = "";
+  //   resp.on("data", (chunk) => {
+  //     data += chunk;
+  //   });
+  //   resp.on("end", () => {
+  //     logger.info("Response:", data);
+  //   });
+  // });
+
+  // req.on("error", (e) => {
+  //   logger.warn(e);
+  // });
+
+  // req.write(postData);
+  // req.end();
 }
 
 /*const numeral = require("numeral");
