@@ -5,8 +5,8 @@ AWS.config.update({ region: "us-east-1" });
 
 // Create publish parameters
 var params = {
-  Message: "Test message from AWS of TaxiConnect - Shiwagala" /* required */,
-  PhoneNumber: "264814400089",
+  Message: "Test message - Dominique" /* required */,
+  PhoneNumber: "264856997167",
 };
 
 // Create promise and SNS service object

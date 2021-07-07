@@ -4456,8 +4456,7 @@ redisCluster.on("connect", function () {
         //otp = 55576;
         otp = String(otp).length < 5 ? parseInt(otp) * 10 : otp;
         new Promise((res0) => {
-          let message =
-            `<#> ` + otp + ` is your TaxiConnect Verification Code.`;
+          let message = otp + ` is your TaxiConnect Verification Code.`;
           SendSMSTo(onlyDigitsPhone, message);
           res0(true);
           //SMS
