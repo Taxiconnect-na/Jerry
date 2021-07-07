@@ -323,6 +323,9 @@ function checkUserStatus(
     collectionDrivers_profiles
       .find(checkUser)
       .toArray(function (error, result) {
+        logger.warn(checkUser);
+        logger.warn(error);
+        logger.warn(result);
         if (error) {
           resolve({ response: "error_checking_user" });
         }
@@ -1370,7 +1373,6 @@ function getRiders_wallet_summary(
   redisGet(redisKey).then(
     (resp) => {
       if (resp !== null && avoidCached_data == false) {
-        logger.info("found cached data");
         //Has a previous record - reply with it and rehydrate the data
         try {
           //! USE MESSAGE QUEUES TO UPDATE THE WALLET
@@ -4432,7 +4434,7 @@ redisCluster.on("connect", function () {
     app.get("/sendOTPAndCheckUserStatus", function (req, res) {
       resolveDate();
       let params = urlParser.parse(req.url, true);
-      logger.info(params);
+      //logger.info(params);
       req = params.query;
 
       if (
@@ -4453,7 +4455,7 @@ redisCluster.on("connect", function () {
               alphabets: false,
             });
         //! --------------
-        //otp = 55576;
+        //let otp = 55576;
         otp = String(otp).length < 5 ? parseInt(otp) * 10 : otp;
         new Promise((res0) => {
           let message = otp + ` is your TaxiConnect Verification Code.`;
@@ -4498,7 +4500,7 @@ redisCluster.on("connect", function () {
             //!---------
 
             //Save otp in profile if the user was already registered
-            logger.info(result);
+            logger.warn(req.user_fp);
             if (
               result.response !== undefined &&
               result.user_fp !== undefined &&
@@ -4534,6 +4536,7 @@ redisCluster.on("connect", function () {
                   req.user_nature !== null &&
                   /driver/i.test(req.user_nature)
                 ) {
+                  logger.info("DRIVER HERE DETECCTEDD");
                   //2. Drivers
                   collectionDrivers_profiles.updateOne(
                     { driver_fingerprint: result.user_fp },
@@ -5288,7 +5291,6 @@ redisCluster.on("connect", function () {
                         logger.info(error);
                       });
                     //Quickly return result
-                    logger.info(resp);
                     resMAIN(JSON.parse(resp));
                   } catch (error) {
                     new Promise((resGetStatus) => {
@@ -5404,7 +5406,6 @@ redisCluster.on("connect", function () {
       resolveDate();
       let params = urlParser.parse(req.url, true);
       req = params.query;
-      logger.info(req);
 
       if (
         req.user_fingerprint !== undefined &&
