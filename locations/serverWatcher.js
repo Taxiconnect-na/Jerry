@@ -541,31 +541,31 @@ function updateNext_paymentDateDrivers(
                                               },
                                             ];
                                             //...
-                                            collectionDrivers_profiles.updateOne(
-                                              {
-                                                driver_fingerprint:
-                                                  driverData.driver_fingerprint,
-                                              },
-                                              {
-                                                $set: {
-                                                  "operational_state.status":
-                                                    "online", //! PUT OFFLINE - ONLINE TO KEEP RECEIVING REQUESTS.
-                                                  //isDriverSuspended: false, //!DO NOT SUSPEND FOR NOW
-                                                  // suspension_infos:
-                                                  //   suspensionInfos_array,
-                                                },
-                                              },
-                                              function (err, rest) {
-                                                //? DONE
-                                                logger.info(
-                                                  `DRIVER SUSPENDED --> Tag: ${driverData.driver_fingerprint.substr(
-                                                    0,
-                                                    15
-                                                  )}`
-                                                );
-                                                resPaymentCycle(true);
-                                              }
-                                            );
+                                            // collectionDrivers_profiles.updateOne(
+                                            //   {
+                                            //     driver_fingerprint:
+                                            //       driverData.driver_fingerprint,
+                                            //   },
+                                            //   {
+                                            //     $set: {
+                                            //       "operational_state.status":
+                                            //         "online", //! PUT OFFLINE - ONLINE TO KEEP RECEIVING REQUESTS.
+                                            //       //isDriverSuspended: false, //!DO NOT SUSPEND FOR NOW
+                                            //       // suspension_infos:
+                                            //       //   suspensionInfos_array,
+                                            //     },
+                                            //   },
+                                            //   function (err, rest) {
+                                            //     //? DONE
+                                            //     logger.info(
+                                            //       `DRIVER SUSPENDED --> Tag: ${driverData.driver_fingerprint.substr(
+                                            //         0,
+                                            //         15
+                                            //       )}`
+                                            //     );
+                                            //     resPaymentCycle(true);
+                                            //   }
+                                            // );
                                             resPaymentCycle(true);
                                           } //No driver data found
                                           else {

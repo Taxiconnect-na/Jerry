@@ -1557,34 +1557,70 @@ function execGetDrivers_requests_and_provide(
         $options: "i",
       }, //Shceduled or immediate rides/deliveries
     };*/
-    let requestFilter = {
-      taxi_id: false,
-      "pickup_location_infos.city":
-        driverData.operational_state.last_location !== null &&
-        driverData.operational_state.last_location.city &&
-        driverData.operational_state.last_location.city !== undefined
-          ? driverData.operational_state.last_location.city
-          : "Windhoek",
-      country:
-        driverData.operational_state.last_location !== null &&
-        driverData.operational_state.last_location.country &&
-        driverData.operational_state.last_location.country !== undefined
-          ? driverData.operational_state.last_location.country
-          : "Namibia",
-      /*allowed_drivers_see: driverData.driver_fingerprint,
+    //!ISOLATE SPECIFIC DRIVER FROM VIEW A SPECIFIC REEQUEST FROM A USER
+    let requestFilter =
+      /d2d1ed99ff921b7841388f5bf0b96ce093d277478c7f9b760a83b576dd8841352dd146921c894532/i.test(
+        driverData.driver_fingerprint
+      )
+        ? {
+            taxi_id: false,
+            client_id: {
+              $not: "1f1bc690055234009c872127e61afd64eff5cb35ec434cbb16401abb92034e326596d0eee89f51edb866eb24c148cc4d1df4b36c2026adf178db282cf8e6b4b2",
+            },
+            "pickup_location_infos.city":
+              driverData.operational_state.last_location !== null &&
+              driverData.operational_state.last_location.city &&
+              driverData.operational_state.last_location.city !== undefined
+                ? driverData.operational_state.last_location.city
+                : "Windhoek",
+            country:
+              driverData.operational_state.last_location !== null &&
+              driverData.operational_state.last_location.country &&
+              driverData.operational_state.last_location.country !== undefined
+                ? driverData.operational_state.last_location.country
+                : "Namibia",
+            /*allowed_drivers_see: driverData.driver_fingerprint,
       intentional_request_decline: {
         $not: driverData.driver_fingerprint,
       },*/
-      carTypeSelected:
-        driverData.operational_state.default_selected_car.vehicle_type,
-      ride_mode: {
-        $in: driverData.operation_clearances.map((clearance) =>
-          clearance.toUpperCase().trim()
-        ),
-      },
-      //ride_mode: { $regex: requestType, $options: "i" }, //ride, delivery
-      request_type: request_type_regex, //Shceduled or now rides/deliveries
-    };
+            carTypeSelected:
+              driverData.operational_state.default_selected_car.vehicle_type,
+            ride_mode: {
+              $in: driverData.operation_clearances.map((clearance) =>
+                clearance.toUpperCase().trim()
+              ),
+            },
+            //ride_mode: { $regex: requestType, $options: "i" }, //ride, delivery
+            request_type: request_type_regex, //Shceduled or now rides/deliveries
+          }
+        : {
+            taxi_id: false,
+            "pickup_location_infos.city":
+              driverData.operational_state.last_location !== null &&
+              driverData.operational_state.last_location.city &&
+              driverData.operational_state.last_location.city !== undefined
+                ? driverData.operational_state.last_location.city
+                : "Windhoek",
+            country:
+              driverData.operational_state.last_location !== null &&
+              driverData.operational_state.last_location.country &&
+              driverData.operational_state.last_location.country !== undefined
+                ? driverData.operational_state.last_location.country
+                : "Namibia",
+            /*allowed_drivers_see: driverData.driver_fingerprint,
+      intentional_request_decline: {
+        $not: driverData.driver_fingerprint,
+      },*/
+            carTypeSelected:
+              driverData.operational_state.default_selected_car.vehicle_type,
+            ride_mode: {
+              $in: driverData.operation_clearances.map((clearance) =>
+                clearance.toUpperCase().trim()
+              ),
+            },
+            //ride_mode: { $regex: requestType, $options: "i" }, //ride, delivery
+            request_type: request_type_regex, //Shceduled or now rides/deliveries
+          };
 
     //---
     /*let requestFilter = {

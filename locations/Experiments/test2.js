@@ -6,7 +6,7 @@ AWS.config.update({ region: "us-east-1" });
 // Create publish parameters
 var params = {
   Message: "It looks pretty cool, I know" /* required */,
-  PhoneNumber: "264856411371",
+  PhoneNumber: "264856997167",
 };
 
 // Create promise and SNS service object
