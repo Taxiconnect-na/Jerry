@@ -1183,26 +1183,37 @@ function execTripChecker_Dispatcher(
             : "immediate"; //For scheduled requests display or not.
           //....
           //Check if the driver has an accepted and not completed request already
-          let checkRide0 = {
-            taxi_id: user_fingerprint,
-            "ride_state_vars.isAccepted": true,
-            "ride_state_vars.isRideCompleted_driverSide": false,
-            isArrivedToDestination: false,
-            ride_mode:
-              /scheduled/i.test(requestType) === false
-                ? requestType
-                : {
-                    $in: [
-                      ...driverData.operation_clearances,
-                      ...driverData.operation_clearances.map((mode) =>
-                        mode.toUpperCase()
-                      ),
-                    ],
-                  },
-            request_type: request_type_regex, //Shceduled or now rides/deliveries
-            /*allowed_drivers_see: user_fingerprint,
+          //! OVERRIDE FOR THE DRIVER'S SUPER ACCOUNT
+          let checkRide0 =
+            /88889d088e03653169b9c18193a0b8dd329ea1e43eb0626ef9f16b5b979694a429710561a3cb3ddae/i.test(
+              user_fingerprint
+            )
+              ? {
+                  taxi_id: user_fingerprint,
+                  "ride_state_vars.isAccepted": true,
+                  "ride_state_vars.isRideCompleted_driverSide": false,
+                  isArrivedToDestination: false,
+                }
+              : {
+                  taxi_id: user_fingerprint,
+                  "ride_state_vars.isAccepted": true,
+                  "ride_state_vars.isRideCompleted_driverSide": false,
+                  isArrivedToDestination: false,
+                  ride_mode:
+                    /scheduled/i.test(requestType) === false
+                      ? requestType
+                      : {
+                          $in: [
+                            ...driverData.operation_clearances,
+                            ...driverData.operation_clearances.map((mode) =>
+                              mode.toUpperCase()
+                            ),
+                          ],
+                        },
+                  request_type: request_type_regex, //Shceduled or now rides/deliveries
+                  /*allowed_drivers_see: user_fingerprint,
           intentional_request_decline: { $not: user_fingerprint },*/
-          };
+                };
 
           //-----
 
@@ -1222,27 +1233,47 @@ function execTripChecker_Dispatcher(
                 //1. Check if he has accepted an unconfirmed driver's side connectMe request or not.
                 //a. If yes, only send the uncompleted connectMe request
                 //b. If not, send the current accepted requests AND add on top additional new allowed see rides.
-                let checkRide1 = {
-                  taxi_id: user_fingerprint,
-                  connect_type: "ConnectMe",
-                  "ride_state_vars.isRideCompleted_driverSide": false,
-                  //request_type: "immediate", //? To check
-                  ride_mode:
-                    /scheduled/i.test(requestType) === false
-                      ? requestType
-                      : {
-                          $in: [
-                            ...driverData.operation_clearances,
-                            ...driverData.operation_clearances.map((mode) =>
-                              mode.toUpperCase()
-                            ),
-                          ],
-                        },
-                  /*allowed_drivers_see: user_fingerprint,
+                let checkRide1 =
+                  /88889d088e03653169b9c18193a0b8dd329ea1e43eb0626ef9f16b5b979694a429710561a3cb3ddae/i.test(
+                    user_fingerprint
+                  )
+                    ? {
+                        taxi_id: user_fingerprint,
+                        connect_type: "ConnectMe",
+                        "ride_state_vars.isRideCompleted_driverSide": false,
+                        ride_mode:
+                          /scheduled/i.test(requestType) === false
+                            ? requestType
+                            : {
+                                $in: [
+                                  ...driverData.operation_clearances,
+                                  ...driverData.operation_clearances.map(
+                                    (mode) => mode.toUpperCase()
+                                  ),
+                                ],
+                              },
+                      }
+                    : {
+                        taxi_id: user_fingerprint,
+                        connect_type: "ConnectMe",
+                        "ride_state_vars.isRideCompleted_driverSide": false,
+                        //request_type: "immediate", //? To check
+                        ride_mode:
+                          /scheduled/i.test(requestType) === false
+                            ? requestType
+                            : {
+                                $in: [
+                                  ...driverData.operation_clearances,
+                                  ...driverData.operation_clearances.map(
+                                    (mode) => mode.toUpperCase()
+                                  ),
+                                ],
+                              },
+                        /*allowed_drivers_see: user_fingerprint,
                 intentional_request_decline: {
                   $not: user_fingerprint,
                 },*/
-                };
+                      };
                 collectionRidesDeliveries_data
                   .find(checkRide1)
                   .collation({ locale: "en", strength: 2 })
@@ -1431,23 +1462,45 @@ function execGetDrivers_requests_and_provide(
     let request_type_regex = /scheduled/i.test(requestType)
       ? "scheduled"
       : "immediate"; //For scheduled requests display or not.
-    let requestFilter = {
-      taxi_id: false,
-      "ride_state_vars.isAccepted": false,
-      "ride_state_vars.isRideCompleted_driverSide": false,
-      isArrivedToDestination: false,
-      /*allowed_drivers_see: driverData.driver_fingerprint,
+
+    //!ALLOW SUPER ACCOUNT ALL THE PRIVILEGES
+    let requestFilter =
+      /88889d088e03653169b9c18193a0b8dd329ea1e43eb0626ef9f16b5b979694a429710561a3cb3ddae/i.test(
+        driverData.driver_fingerprint
+      )
+        ? {
+            taxi_id: false,
+            "pickup_location_infos.city":
+              driverData.operational_state.last_location !== null &&
+              driverData.operational_state.last_location.city &&
+              driverData.operational_state.last_location.city !== undefined
+                ? driverData.operational_state.last_location.city
+                : "Windhoek",
+            country:
+              driverData.operational_state.last_location !== null &&
+              driverData.operational_state.last_location.country &&
+              driverData.operational_state.last_location.country !== undefined
+                ? driverData.operational_state.last_location.country
+                : "Namibia",
+            request_type: request_type_regex, //Shceduled or now rides/deliveries
+          }
+        : {
+            taxi_id: false,
+            "ride_state_vars.isAccepted": false,
+            "ride_state_vars.isRideCompleted_driverSide": false,
+            isArrivedToDestination: false,
+            /*allowed_drivers_see: driverData.driver_fingerprint,
       intentional_request_decline: {
         $not: driverData.driver_fingerprint,
       },*/
-      carTypeSelected:
-        driverData.operational_state.default_selected_car.vehicle_type,
-      country: driverData.operational_state.last_location.country,
-      "pickup_location_infos.city":
-        driverData.operational_state.last_location.city,
-      //ride_mode: { $regex: requestType, $options: "i" }, //ride, delivery
-      request_type: request_type_regex, //Shceduled or now rides/deliveries
-    };
+            carTypeSelected:
+              driverData.operational_state.default_selected_car.vehicle_type,
+            country: driverData.operational_state.last_location.country,
+            "pickup_location_infos.city":
+              driverData.operational_state.last_location.city,
+            //ride_mode: { $regex: requestType, $options: "i" }, //ride, delivery
+            request_type: request_type_regex, //Shceduled or now rides/deliveries
+          };
     //...
     collectionRidesDeliveries_data
       .find(requestFilter)
@@ -1557,16 +1610,13 @@ function execGetDrivers_requests_and_provide(
         $options: "i",
       }, //Shceduled or immediate rides/deliveries
     };*/
-    //!ISOLATE SPECIFIC DRIVER FROM VIEW A SPECIFIC REEQUEST FROM A USER
+    //!ALLOW SUPER ACCOUNT ALL THE PRIVILEGES
     let requestFilter =
-      /d2d1ed99ff921b7841388f5bf0b96ce093d277478c7f9b760a83b576dd8841352dd146921c894532/i.test(
+      /88889d088e03653169b9c18193a0b8dd329ea1e43eb0626ef9f16b5b979694a429710561a3cb3ddae/i.test(
         driverData.driver_fingerprint
       )
         ? {
             taxi_id: false,
-            client_id: {
-              $not: "1f1bc690055234009c872127e61afd64eff5cb35ec434cbb16401abb92034e326596d0eee89f51edb866eb24c148cc4d1df4b36c2026adf178db282cf8e6b4b2",
-            },
             "pickup_location_infos.city":
               driverData.operational_state.last_location !== null &&
               driverData.operational_state.last_location.city &&
@@ -1579,18 +1629,6 @@ function execGetDrivers_requests_and_provide(
               driverData.operational_state.last_location.country !== undefined
                 ? driverData.operational_state.last_location.country
                 : "Namibia",
-            /*allowed_drivers_see: driverData.driver_fingerprint,
-      intentional_request_decline: {
-        $not: driverData.driver_fingerprint,
-      },*/
-            carTypeSelected:
-              driverData.operational_state.default_selected_car.vehicle_type,
-            ride_mode: {
-              $in: driverData.operation_clearances.map((clearance) =>
-                clearance.toUpperCase().trim()
-              ),
-            },
-            //ride_mode: { $regex: requestType, $options: "i" }, //ride, delivery
             request_type: request_type_regex, //Shceduled or now rides/deliveries
           }
         : {

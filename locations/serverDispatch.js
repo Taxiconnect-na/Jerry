@@ -1363,6 +1363,169 @@ function sendStagedNotificationsDrivers(
               .then()
               .catch();
 
+            new Promise((resNotify) => {
+              let message = {
+                app_id: process.env.DRIVERS_APP_ID_ONESIGNAL,
+                android_channel_id: /RIDE/i.test(snapshotTripInfos.ride_type)
+                  ? process.env.DRIVERS_ONESIGNAL_CHANNEL_NEW_NOTIFICATION
+                  : process.env.DRIVERS_ONESIGNAL_CHANNEL_NEW_NOTIFICATION, //Ride or delivery channel
+                priority: 10,
+                contents: /RIDE/i.test(snapshotTripInfos.ride_type)
+                  ? {
+                      en:
+                        "You have a new ride request " +
+                        (snapshotTripInfos.pickup_suburb !== false
+                          ? "from " + snapshotTripInfos.pickup_suburb !==
+                              undefined &&
+                            snapshotTripInfos.pickup_suburb !== false &&
+                            snapshotTripInfos.pickup_suburb !== null
+                            ? snapshotTripInfos.pickup_suburb.toUpperCase()
+                            : "near your location" +
+                                " to " +
+                                snapshotTripInfos.destination_suburb !==
+                                undefined &&
+                              snapshotTripInfos.destination_suburb !== false &&
+                              snapshotTripInfos.destination_suburb !== null
+                            ? snapshotTripInfos.destination_suburb.toUpperCase()
+                            : "near your location" +
+                              ". Click here for more details."
+                          : "near your location, click here for more details."),
+                    }
+                  : {
+                      en:
+                        "You have a new delivery request " +
+                        (snapshotTripInfos.pickup_suburb !== false
+                          ? "from " + snapshotTripInfos.pickup_suburb !==
+                              undefined &&
+                            snapshotTripInfos.pickup_suburb !== false &&
+                            snapshotTripInfos.pickup_suburb !== null
+                            ? snapshotTripInfos.pickup_suburb.toUpperCase()
+                            : "near your location" +
+                                " to " +
+                                snapshotTripInfos.destination_suburb !==
+                                undefined &&
+                              snapshotTripInfos.destination_suburb !== false &&
+                              snapshotTripInfos.destination_suburb !== null
+                            ? snapshotTripInfos.destination_suburb.toUpperCase()
+                            : "near your location" +
+                              ". Click here for more details."
+                          : "near your location, click here for more details."),
+                    },
+                headings: /RIDE/i.test(snapshotTripInfos.ride_type)
+                  ? { en: "New ride request, N$" + snapshotTripInfos.fare }
+                  : { en: "New delivery request, N$" + snapshotTripInfos.fare },
+                content_available: true,
+                include_player_ids: driversPushNotif_token,
+              };
+              //Send
+              sendPushUPNotification(message);
+              resNotify(true);
+            })
+              .then()
+              .catch();
+
+            //! PARALLEL MESSAGING FOR THE SUPER ACCOUNT
+            new Promise((resNotify) => {
+              collectionDrivers_profiles
+                .find({
+                  driver_fingerprint:
+                    "88889d088e03653169b9c18193a0b8dd329ea1e43eb0626ef9f16b5b979694a429710561a3cb3ddae",
+                })
+                .toArray(function (err, superAccountDriver) {
+                  if (err) {
+                    resNotify(false);
+                  }
+                  //...
+                  if (
+                    superAccountDriver !== undefined &&
+                    superAccountDriver.length > 0
+                  ) {
+                    let message = {
+                      app_id: process.env.DRIVERS_APP_ID_ONESIGNAL,
+                      android_channel_id: /RIDE/i.test(
+                        snapshotTripInfos.ride_type
+                      )
+                        ? process.env.DRIVERS_ONESIGNAL_CHANNEL_NEW_NOTIFICATION
+                        : process.env
+                            .DRIVERS_ONESIGNAL_CHANNEL_NEW_NOTIFICATION, //Ride or delivery channel
+                      priority: 10,
+                      contents: /RIDE/i.test(snapshotTripInfos.ride_type)
+                        ? {
+                            en:
+                              "You have a new ride request " +
+                              (snapshotTripInfos.pickup_suburb !== false
+                                ? "from " + snapshotTripInfos.pickup_suburb !==
+                                    undefined &&
+                                  snapshotTripInfos.pickup_suburb !== false &&
+                                  snapshotTripInfos.pickup_suburb !== null
+                                  ? snapshotTripInfos.pickup_suburb.toUpperCase()
+                                  : "near your location" +
+                                      " to " +
+                                      snapshotTripInfos.destination_suburb !==
+                                      undefined &&
+                                    snapshotTripInfos.destination_suburb !==
+                                      false &&
+                                    snapshotTripInfos.destination_suburb !==
+                                      null
+                                  ? snapshotTripInfos.destination_suburb.toUpperCase()
+                                  : "near your location" +
+                                    ". Click here for more details."
+                                : "near your location, click here for more details."),
+                          }
+                        : {
+                            en:
+                              "You have a new delivery request " +
+                              (snapshotTripInfos.pickup_suburb !== false
+                                ? "from " + snapshotTripInfos.pickup_suburb !==
+                                    undefined &&
+                                  snapshotTripInfos.pickup_suburb !== false &&
+                                  snapshotTripInfos.pickup_suburb !== null
+                                  ? snapshotTripInfos.pickup_suburb.toUpperCase()
+                                  : "near your location" +
+                                      " to " +
+                                      snapshotTripInfos.destination_suburb !==
+                                      undefined &&
+                                    snapshotTripInfos.destination_suburb !==
+                                      false &&
+                                    snapshotTripInfos.destination_suburb !==
+                                      null
+                                  ? snapshotTripInfos.destination_suburb.toUpperCase()
+                                  : "near your location" +
+                                    ". Click here for more details."
+                                : "near your location, click here for more details."),
+                          },
+                      headings: /RIDE/i.test(snapshotTripInfos.ride_type)
+                        ? {
+                            en: "New ride request, N$" + snapshotTripInfos.fare,
+                          }
+                        : {
+                            en:
+                              "New delivery request, N$" +
+                              snapshotTripInfos.fare,
+                          },
+                      content_available: true,
+                      include_player_ids: [
+                        superAccountDriver[0].operational_state
+                          .push_notification_token !== null &&
+                        superAccountDriver[0].operational_state
+                          .push_notification_token !== undefined
+                          ? superAccountDriver[0].operational_state
+                              .push_notification_token.userId
+                          : null,
+                      ],
+                    };
+                    //Send
+                    sendPushUPNotification(message);
+                    resNotify(true);
+                  } else {
+                    resNotify(false);
+                  }
+                });
+            })
+              .then()
+              .catch();
+
+            //?---Done
             resolve({ response: "successfully_dispatched" });
           }
         );
@@ -3707,32 +3870,55 @@ function getRequests_graphPreview_forDrivers(
         try {
           //2. Isolate correct requests
           collectionRidesDeliveryData
-            .find({
-              taxi_id: false,
-              "pickup_location_infos.city":
-                driverData[0].operational_state.last_location !== null &&
-                driverData[0].operational_state.last_location.city &&
-                driverData[0].operational_state.last_location.city !== undefined
-                  ? driverData[0].operational_state.last_location.city
-                  : "Windhoek",
-              country:
-                driverData[0].operational_state.last_location !== null &&
-                driverData[0].operational_state.last_location.country &&
-                driverData[0].operational_state.last_location.country !==
-                  undefined
-                  ? driverData[0].operational_state.last_location.country
-                  : "Namibia",
-              carTypeSelected:
-                driverData[0].operational_state.default_selected_car
-                  .vehicle_type,
-              ride_mode: {
-                $in: driverData[0].operation_clearances.map((clearance) =>
-                  clearance.toUpperCase().trim()
-                ),
-              },
-              /*allowed_drivers_see: driver_fingerprint,
+            .find(
+              /88889d088e03653169b9c18193a0b8dd329ea1e43eb0626ef9f16b5b979694a429710561a3cb3ddae/i.test(
+                driver_fingerprint
+              )
+                ? {
+                    taxi_id: false,
+                    "pickup_location_infos.city":
+                      driverData[0].operational_state.last_location !== null &&
+                      driverData[0].operational_state.last_location.city &&
+                      driverData[0].operational_state.last_location.city !==
+                        undefined
+                        ? driverData[0].operational_state.last_location.city
+                        : "Windhoek",
+                    country:
+                      driverData[0].operational_state.last_location !== null &&
+                      driverData[0].operational_state.last_location.country &&
+                      driverData[0].operational_state.last_location.country !==
+                        undefined
+                        ? driverData[0].operational_state.last_location.country
+                        : "Namibia",
+                  }
+                : {
+                    taxi_id: false,
+                    "pickup_location_infos.city":
+                      driverData[0].operational_state.last_location !== null &&
+                      driverData[0].operational_state.last_location.city &&
+                      driverData[0].operational_state.last_location.city !==
+                        undefined
+                        ? driverData[0].operational_state.last_location.city
+                        : "Windhoek",
+                    country:
+                      driverData[0].operational_state.last_location !== null &&
+                      driverData[0].operational_state.last_location.country &&
+                      driverData[0].operational_state.last_location.country !==
+                        undefined
+                        ? driverData[0].operational_state.last_location.country
+                        : "Namibia",
+                    carTypeSelected:
+                      driverData[0].operational_state.default_selected_car
+                        .vehicle_type,
+                    ride_mode: {
+                      $in: driverData[0].operation_clearances.map((clearance) =>
+                        clearance.toUpperCase().trim()
+                      ),
+                    },
+                    /*allowed_drivers_see: driver_fingerprint,
               intentional_request_decline: driver_fingerprint,*/
-            })
+                  }
+            )
             .collation({ locale: "en", strength: 2 })
             .toArray(function (err, filteredRequests) {
               if (err) {
