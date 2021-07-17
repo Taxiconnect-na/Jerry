@@ -1791,6 +1791,7 @@ function computeInDepthPricesMap(
           base_fare,
           car_type,
           app_label,
+          description,
           media,
           availability,
         } = genericRidesInfos[index];
@@ -1803,6 +1804,7 @@ function computeInDepthPricesMap(
           base_fare: base_fare,
           car_type: car_type,
           app_label: app_label,
+          description: description,
           media: media,
           availability: availability,
         };
