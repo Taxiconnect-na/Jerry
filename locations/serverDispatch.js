@@ -1092,7 +1092,7 @@ function intitiateStagedDispatch(
     snapshotTripInfos.country +
     "&list_limit=all";
   requestAPI(url, function (error, response, body) {
-    //logger.info(body);
+    logger.info(body);
     try {
       body = JSON.parse(body);
       if (body.response !== undefined) {
@@ -1687,7 +1687,7 @@ function sendStagedNotificationsDrivers(
         });
     } //Staged send
     else {
-      //logger.info("Staged send");
+      logger.info("Staged send");
       //...Register the drivers fp so that they can see tne requests
       let driversFp = closestDriversList.map((data) => data.driver_fingerprint); //Drivers fingerprints
       let driversPushNotif_token = closestDriversList.map(
@@ -1696,9 +1696,9 @@ function sendStagedNotificationsDrivers(
 
       new Promise((res) => {
         //Answer
-        /*logger.info(
+        logger.info(
           "[1] Closest drivers ---ticket: " + snapshotTripInfos.request_fp
-        );*/
+        );
         new Promise((res5) => {
           registerAllowedDriversForRidesAndNotify(
             snapshotTripInfos.request_fp,
@@ -1747,15 +1747,15 @@ function sendStagedNotificationsDrivers(
               resolve({ response: "successfully_dispatched" });
               //Proceed with the staged dispatch
               //1. Wait for 1 min 00'' - in ms
-              /*logger.info(
+              logger.info(
                 "Waiting for 35sec. ---ticket: " + snapshotTripInfos.request_fp
-              );*/
+              );
               setTimeout(() => {
                 new Promise((res2) => {
-                  /*logger.info(
+                  logger.info(
                     "[2] Less closest after 30sec. ---ticket: " +
                       snapshotTripInfos.request_fp
-                  );*/
+                  );
                   new Promise((res6) => {
                     registerAllowedDriversForRidesAndNotify(
                       snapshotTripInfos.request_fp,
@@ -1777,18 +1777,18 @@ function sendStagedNotificationsDrivers(
                         res2(true); //Conclude promise 2
                       } //End the staged dispatch - done
                       else {
-                        /*logger.info(
+                        logger.info(
                           "DONE STAGED DISPATCH  ---ticket: " +
                             snapshotTripInfos.request_fp
-                        );*/
+                        );
                         resolve({ response: "successfully_dispatched" });
                       }
                     },
                     (error) => {
-                      /*logger.info(
+                      logger.info(
                         "DONE STAGED DISPATCH  ---ticket: " +
                           snapshotTripInfos.request_fp
-                      );*/
+                      );
                       //Error - but notify dispatch as successfull
                       resolve({ response: "successfully_dispatched" });
                     }
@@ -1797,16 +1797,16 @@ function sendStagedNotificationsDrivers(
                   .then()
                   .finally(() => {
                     //2. Wait for 30 sec
-                    /*logger.info(
+                    logger.info(
                       "Waiting for 30sec ---ticket: " +
                         snapshotTripInfos.request_fp
-                    );*/
+                    );
                     setTimeout(() => {
                       new Promise((res3) => {
-                        /*logger.info(
+                        logger.info(
                           "[3] Less*2 closest after 30sec. ---ticket: " +
                             snapshotTripInfos.request_fp
-                        );*/
+                        );
                         new Promise((res7) => {
                           registerAllowedDriversForRidesAndNotify(
                             snapshotTripInfos.request_fp,
@@ -1831,18 +1831,18 @@ function sendStagedNotificationsDrivers(
                               res3(true); //Conclude promise 3
                             } //End the staged dispatch - done
                             else {
-                              /*logger.info(
+                              logger.info(
                                 "DONE STAGED DISPATCH  ---ticket: " +
                                   snapshotTripInfos.request_fp
-                              );*/
+                              );
                               resolve({ response: "successfully_dispatched" });
                             }
                           },
                           (error) => {
-                            /*logger.info(
+                            logger.info(
                               "DONE STAGED DISPATCH  ---ticket: " +
                                 snapshotTripInfos.request_fp
-                            );*/
+                            );
                             //Error - but notify dispatch as successfull
                             resolve({ response: "successfully_dispatched" });
                           }
@@ -1851,16 +1851,16 @@ function sendStagedNotificationsDrivers(
                         .then()
                         .finally(() => {
                           //3. Wait for 1 min
-                          /*logger.info(
+                          logger.info(
                             "Waiting for 30sec ---ticket: " +
                               snapshotTripInfos.request_fp
-                          );*/
+                          );
                           setTimeout(() => {
                             new Promise((res4) => {
-                              /*logger.info(
+                              logger.info(
                                 "[4] Less*3 closest after 30sec. ---ticket: " +
                                   snapshotTripInfos.request_fp
-                              );*/
+                              );
                               new Promise((res8) => {
                                 registerAllowedDriversForRidesAndNotify(
                                   snapshotTripInfos.request_fp,
@@ -1885,20 +1885,20 @@ function sendStagedNotificationsDrivers(
                                     res4(true); //Conclude promise 4
                                   } //End the staged dispatch - done
                                   else {
-                                    /*logger.info(
+                                    logger.info(
                                       "DONE STAGED DISPATCH  ---ticket: " +
                                         snapshotTripInfos.request_fp
-                                    );*/
+                                    );
                                     resolve({
                                       response: "successfully_dispatched",
                                     });
                                   }
                                 },
                                 (error) => {
-                                  /*logger.info(
+                                  logger.info(
                                     "DONE STAGED DISPATCH  ---ticket: " +
                                       snapshotTripInfos.request_fp
-                                  );*/
+                                  );
                                   //Error - but notify dispatch as successfull
                                   resolve({
                                     response: "successfully_dispatched",
@@ -1908,10 +1908,10 @@ function sendStagedNotificationsDrivers(
                             })
                               .then()
                               .finally(() => {
-                                /*logger.info(
+                                logger.info(
                                   "DONE STAGED DISPATCH  ---ticket: " +
                                     snapshotTripInfos.request_fp
-                                );*/
+                                );
                                 //Done FULL STAGED DISPATCH!
                                 resolve({
                                   response: "successfully_dispatched",
@@ -4036,7 +4036,7 @@ redisCluster.on("connect", function () {
 
         clientMongo.connect(function (err) {
           //if (err) throw err;
-          //logger.info("[+] Dispatch services active.");
+          logger.info("[+] Dispatch services active.");
           const dbMongo = clientMongo.db(process.env.DB_NAME_MONGODDB);
           const collectionPassengers_profiles = dbMongo.collection(
             "passengers_profiles"
@@ -4414,84 +4414,84 @@ redisCluster.on("connect", function () {
            * @param requestRawData: ride or delivery data coming from the rider's device for booking (MUST contain the city and country)
            */
           app.post("/dispatchRidesOrDeliveryRequests", function (req, res) {
-            req = req.body;
+            //!req = req.body;
             //TEST DATA
-            /*let testData = {
-            actualRider: "someonelese",
-            actualRiderPhone_number: "0817563369",
-            carTypeSelected: "normalTaxiEconomy",
-            connectType: "ConnectUs",
-            country: "Namibia",
-            destinationData: {
-              passenger1Destination: {
-                _id: "5f7e16126661813ab09e417f",
-                averageGeo: -10.989369499999999,
-                city: "Windhoek",
-                coordinates: [-22.548558, 17.0504368],
-                country: "Namibia",
-                location_id: 242368923,
-                location_name: "Grove Khomasdal Funky Town - Pequena Angola",
-                query: "Grovr",
-                state: "Khomas",
-                street: false,
+            let testData = {
+              actualRider: "someonelese",
+              actualRiderPhone_number: "0817563369",
+              carTypeSelected: "normalTaxiEconomy",
+              connectType: "ConnectUs",
+              country: "Namibia",
+              destinationData: {
+                passenger1Destination: {
+                  _id: "5f7e16126661813ab09e417f",
+                  averageGeo: -10.989369499999999,
+                  city: "Windhoek",
+                  coordinates: [-22.548558, 17.0504368],
+                  country: "Namibia",
+                  location_id: 242368923,
+                  location_name: "Grove Khomasdal Funky Town - Pequena Angola",
+                  query: "Grovr",
+                  state: "Khomas",
+                  street: false,
+                },
+                passenger2Destination: {
+                  _id: "5fc8dde588e09715d0df05ca",
+                  averageGeo: -5.491276299999999,
+                  city: "Windhoek",
+                  coordinates: [-22.5818168, 17.0878857],
+                  country: "Namibia",
+                  location_id: 1768699533,
+                  location_name: "Showground Parking Area",
+                  query: "Showg",
+                  state: "Khomas",
+                  street: "Jan Jonker Weg",
+                },
+                passenger3Destination: {
+                  _id: "5f7de487c6811253c83529b3",
+                  averageGeo: -10.975441900000003,
+                  city: "Windhoek",
+                  coordinates: [-22.56578, 17.0751551],
+                  country: "Namibia",
+                  location_id: 244132971,
+                  location_name: "NUST Main St",
+                  query: "Nust",
+                  state: "Khomas",
+                  street: false,
+                },
+                passenger4Destination: {
+                  _id: "5f7de491c6811253c83529f6",
+                  averageGeo: -11.1064516,
+                  city: "Windhoek",
+                  coordinates: [-22.6121691, 17.0233537],
+                  country: "Namibia",
+                  location_id: 6520901,
+                  location_name: "University of Namibia (UNAM)",
+                  query: "Unam",
+                  state: "Khomas",
+                  street: "Mandume Ndemufayo Avenue",
+                },
               },
-              passenger2Destination: {
-                _id: "5fc8dde588e09715d0df05ca",
-                averageGeo: -5.491276299999999,
+              fareAmount: 80,
+              isAllGoingToSameDestination: false,
+              naturePickup: "PrivateLocation",
+              passengersNo: 4,
+              pickupData: {
                 city: "Windhoek",
-                coordinates: [-22.5818168, 17.0878857],
-                country: "Namibia",
-                location_id: 1768699533,
-                location_name: "Showground Parking Area",
-                query: "Showg",
-                state: "Khomas",
-                street: "Jan Jonker Weg",
+                coordinates: [-22.5705005, 17.0809437],
+                location_name: "Embassy of Brazil in Windhoek",
+                street_name: "Simeon Shixungileni Steet",
               },
-              passenger3Destination: {
-                _id: "5f7de487c6811253c83529b3",
-                averageGeo: -10.975441900000003,
-                city: "Windhoek",
-                coordinates: [-22.56578, 17.0751551],
-                country: "Namibia",
-                location_id: 244132971,
-                location_name: "NUST Main St",
-                query: "Nust",
-                state: "Khomas",
-                street: false,
-              },
-              passenger4Destination: {
-                _id: "5f7de491c6811253c83529f6",
-                averageGeo: -11.1064516,
-                city: "Windhoek",
-                coordinates: [-22.6121691, 17.0233537],
-                country: "Namibia",
-                location_id: 6520901,
-                location_name: "University of Namibia (UNAM)",
-                query: "Unam",
-                state: "Khomas",
-                street: "Mandume Ndemufayo Avenue",
-              },
-            },
-            fareAmount: 80,
-            isAllGoingToSameDestination: false,
-            naturePickup: "PrivateLocation",
-            passengersNo: 4,
-            pickupData: {
-              city: "Windhoek",
-              coordinates: [-22.5705005, 17.0809437],
-              location_name: "Embassy of Brazil in Windhoek",
-              street_name: "Simeon Shixungileni Steet",
-            },
-            pickupNote: "Hello world",
-            receiverName_delivery: false,
-            receiverPhone_delivery: false,
-            rideType: "RIDE",
-            timeScheduled: "immediate",
-            paymentMethod: "CASH",
-            user_fingerprint:
-              "5b29bb1b9ac69d884f13fd4be2badcd22b72b98a69189bfab806dcf7c5f5541b6cbe8087cf60c791",
-          };
-          req = testData;*/
+              pickupNote: "Hello world",
+              receiverName_delivery: false,
+              receiverPhone_delivery: false,
+              rideType: "RIDE",
+              timeScheduled: "immediate",
+              paymentMethod: "CASH",
+              user_fingerprint:
+                "5b29bb1b9ac69d884f13fd4be2badcd22b72b98a69189bfab806dcf7c5f5541b6cbe8087cf60c791",
+            };
+            req = testData;
             //...
             if (
               req.user_fingerprint !== undefined &&

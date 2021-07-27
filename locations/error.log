@@ -182,3 +182,171 @@
 [31m  street_name: 'Wecke Street',[39m
 [31m  passenger_number_id: 1[39m
 [31m}[39m
+ 21-07-27 11:07:63  error : [31mCannot create property 'Symbol(level)' on string 'Successfully updated the driver geospatial data!'[39m
+ 21-07-27 11:07:09  error : [31mCannot create property 'Symbol(level)' on string 'Successfully updated the driver geospatial data!'[39m
+ 21-07-27 11:07:35  error : [31mCannot create property 'Symbol(level)' on string 'Successfully updated the driver geospatial data!'[39m
+ 21-07-27 12:07:81  error : [31m{[39m
+[31m  latitude: -22.570695,[39m
+[31m  longitude: 17.081047,[39m
+[31m  user_fingerprint: '23c9d088e03653169b9c18193a0b8dd329ea1e43eb0626ef9f16b5b979694a429710561a3cb3ddae',[39m
+[31m  user_nature: 'driver',[39m
+[31m  requestType: 'ride',[39m
+[31m  pushnotif_token: {[39m
+[31m    isPushDisabled: false,[39m
+[31m    hasNotificationPermission: true,[39m
+[31m    isSubscribed: false,[39m
+[31m    userId: '4de24b5e-24e9-4712-95ed-99862f48f811',[39m
+[31m    isEmailSubscribed: false,[39m
+[31m    notificationPermissionStatus: 2[39m
+[31m  }[39m
+[31m}[39m
+ 21-07-27 12:07:81  error : [31m{[39m
+[31m  latitude: -22.570695,[39m
+[31m  longitude: 17.081047,[39m
+[31m  user_fingerprint: '23c9d088e03653169b9c18193a0b8dd329ea1e43eb0626ef9f16b5b979694a429710561a3cb3ddae',[39m
+[31m  user_nature: 'driver',[39m
+[31m  requestType: 'scheduled',[39m
+[31m  pushnotif_token: {[39m
+[31m    isPushDisabled: false,[39m
+[31m    hasNotificationPermission: true,[39m
+[31m    isSubscribed: false,[39m
+[31m    userId: '4de24b5e-24e9-4712-95ed-99862f48f811',[39m
+[31m    isEmailSubscribed: false,[39m
+[31m    notificationPermissionStatus: 2[39m
+[31m  }[39m
+[31m}[39m
+ 21-07-27 12:07:93  error : [31m{[39m
+[31m  latitude: -22.570695,[39m
+[31m  longitude: 17.081047,[39m
+[31m  user_fingerprint: '23c9d088e03653169b9c18193a0b8dd329ea1e43eb0626ef9f16b5b979694a429710561a3cb3ddae',[39m
+[31m  user_nature: 'driver',[39m
+[31m  requestType: 'scheduled',[39m
+[31m  pushnotif_token: {[39m
+[31m    isPushDisabled: false,[39m
+[31m    hasNotificationPermission: true,[39m
+[31m    isSubscribed: false,[39m
+[31m    userId: '4de24b5e-24e9-4712-95ed-99862f48f811',[39m
+[31m    isEmailSubscribed: false,[39m
+[31m    notificationPermissionStatus: 2[39m
+[31m  }[39m
+[31m}[39m
+ 21-07-27 12:07:78  error : [31m{[39m
+[31m  latitude: -22.570695,[39m
+[31m  longitude: 17.081047,[39m
+[31m  user_fingerprint: '23c9d088e03653169b9c18193a0b8dd329ea1e43eb0626ef9f16b5b979694a429710561a3cb3ddae',[39m
+[31m  user_nature: 'driver',[39m
+[31m  requestType: 'scheduled',[39m
+[31m  pushnotif_token: {[39m
+[31m    isPushDisabled: false,[39m
+[31m    hasNotificationPermission: true,[39m
+[31m    isSubscribed: false,[39m
+[31m    userId: '4de24b5e-24e9-4712-95ed-99862f48f811',[39m
+[31m    isEmailSubscribed: false,[39m
+[31m    notificationPermissionStatus: 2[39m
+[31m  }[39m
+[31m}[39m
+ 21-07-27 12:07:100  error : [31m{[39m
+[31m  latitude: -22.570695,[39m
+[31m  longitude: 17.081047,[39m
+[31m  user_fingerprint: '72b9ae1728ad6ae43dde21801bdf34413552fb3ecad0954ea1f9f928498f9a126aa5a97866029302',[39m
+[31m  user_nature: 'driver',[39m
+[31m  requestType: 'scheduled',[39m
+[31m  pushnotif_token: {[39m
+[31m    isPushDisabled: false,[39m
+[31m    hasNotificationPermission: true,[39m
+[31m    isSubscribed: false,[39m
+[31m    userId: '4de24b5e-24e9-4712-95ed-99862f48f811',[39m
+[31m    isEmailSubscribed: false,[39m
+[31m    notificationPermissionStatus: 2[39m
+[31m  }[39m
+[31m}[39m
+ 21-07-27 12:07:13  error : [31m{[39m
+[31m  latitude: -22.570695,[39m
+[31m  longitude: 17.081047,[39m
+[31m  user_fingerprint: '72b9ae1728ad6ae43dde21801bdf34413552fb3ecad0954ea1f9f928498f9a126aa5a97866029302',[39m
+[31m  user_nature: 'driver',[39m
+[31m  requestType: 'scheduled',[39m
+[31m  pushnotif_token: {[39m
+[31m    isPushDisabled: false,[39m
+[31m    hasNotificationPermission: true,[39m
+[31m    isSubscribed: false,[39m
+[31m    userId: '4de24b5e-24e9-4712-95ed-99862f48f811',[39m
+[31m    isEmailSubscribed: false,[39m
+[31m    notificationPermissionStatus: 2[39m
+[31m  }[39m
+[31m}[39m
+ 21-07-27 12:07:38  error : [31m{[39m
+[31m  latitude: -22.570695,[39m
+[31m  longitude: 17.081047,[39m
+[31m  user_fingerprint: '72b9ae1728ad6ae43dde21801bdf34413552fb3ecad0954ea1f9f928498f9a126aa5a97866029302',[39m
+[31m  user_nature: 'driver',[39m
+[31m  requestType: 'scheduled',[39m
+[31m  pushnotif_token: {[39m
+[31m    isPushDisabled: false,[39m
+[31m    hasNotificationPermission: true,[39m
+[31m    isSubscribed: false,[39m
+[31m    userId: '4de24b5e-24e9-4712-95ed-99862f48f811',[39m
+[31m    isEmailSubscribed: false,[39m
+[31m    notificationPermissionStatus: 2[39m
+[31m  }[39m
+[31m}[39m
+ 21-07-27 12:07:20  error : [31m{[39m
+[31m  latitude: -22.570695,[39m
+[31m  longitude: 17.081047,[39m
+[31m  user_fingerprint: '72b9ae1728ad6ae43dde21801bdf34413552fb3ecad0954ea1f9f928498f9a126aa5a97866029302',[39m
+[31m  user_nature: 'driver',[39m
+[31m  requestType: 'scheduled',[39m
+[31m  pushnotif_token: {[39m
+[31m    isPushDisabled: false,[39m
+[31m    hasNotificationPermission: true,[39m
+[31m    isSubscribed: false,[39m
+[31m    userId: '4de24b5e-24e9-4712-95ed-99862f48f811',[39m
+[31m    isEmailSubscribed: false,[39m
+[31m    notificationPermissionStatus: 2[39m
+[31m  }[39m
+[31m}[39m
+ 21-07-27 12:07:33  error : [31m{[39m
+[31m  latitude: -22.570695,[39m
+[31m  longitude: 17.081047,[39m
+[31m  user_fingerprint: '72b9ae1728ad6ae43dde21801bdf34413552fb3ecad0954ea1f9f928498f9a126aa5a97866029302',[39m
+[31m  user_nature: 'driver',[39m
+[31m  requestType: 'scheduled',[39m
+[31m  pushnotif_token: {[39m
+[31m    isPushDisabled: false,[39m
+[31m    hasNotificationPermission: true,[39m
+[31m    isSubscribed: false,[39m
+[31m    userId: '4de24b5e-24e9-4712-95ed-99862f48f811',[39m
+[31m    isEmailSubscribed: false,[39m
+[31m    notificationPermissionStatus: 2[39m
+[31m  }[39m
+[31m}[39m
+ 21-07-27 12:07:43  error : [31m{[39m
+[31m  latitude: -22.570695,[39m
+[31m  longitude: 17.081047,[39m
+[31m  user_fingerprint: '72b9ae1728ad6ae43dde21801bdf34413552fb3ecad0954ea1f9f928498f9a126aa5a97866029302',[39m
+[31m  user_nature: 'driver',[39m
+[31m  requestType: 'scheduled',[39m
+[31m  pushnotif_token: {[39m
+[31m    isPushDisabled: false,[39m
+[31m    hasNotificationPermission: true,[39m
+[31m    isSubscribed: false,[39m
+[31m    userId: '4de24b5e-24e9-4712-95ed-99862f48f811',[39m
+[31m    isEmailSubscribed: false,[39m
+[31m    notificationPermissionStatus: 2[39m
+[31m  }[39m
+[31m}[39m
+ 21-07-27 12:07:30  error : [31m{[39m
+[31m  latitude: -22.570695,[39m
+[31m  longitude: 17.081047,[39m
+[31m  user_fingerprint: '72b9ae1728ad6ae43dde21801bdf34413552fb3ecad0954ea1f9f928498f9a126aa5a97866029302',[39m
+[31m  user_nature: 'driver',[39m
+[31m  requestType: 'scheduled',[39m
+[31m  pushnotif_token: {[39m
+[31m    isPushDisabled: false,[39m
+[31m    hasNotificationPermission: true,[39m
+[31m    isSubscribed: false,[39m
+[31m    userId: '4de24b5e-24e9-4712-95ed-99862f48f811',[39m
+[31m    isEmailSubscribed: false,[39m
+[31m    notificationPermissionStatus: 2[39m
+[31m  }[39m
+[31m}[39m

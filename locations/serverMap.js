@@ -1211,8 +1211,8 @@ function execTripChecker_Dispatcher(
                           ],
                         },
                   request_type: request_type_regex, //Shceduled or now rides/deliveries
-                  /*allowed_drivers_see: user_fingerprint,
-          intentional_request_decline: { $not: user_fingerprint },*/
+                  allowed_drivers_see: user_fingerprint,
+                  //intentional_request_decline: { $not: user_fingerprint },
                 };
 
           //-----
@@ -1269,8 +1269,8 @@ function execTripChecker_Dispatcher(
                                   ),
                                 ],
                               },
-                        /*allowed_drivers_see: user_fingerprint,
-                intentional_request_decline: {
+                        allowed_drivers_see: user_fingerprint,
+                        /*intentional_request_decline: {
                   $not: user_fingerprint,
                 },*/
                       };
@@ -1489,10 +1489,10 @@ function execGetDrivers_requests_and_provide(
             "ride_state_vars.isAccepted": false,
             "ride_state_vars.isRideCompleted_driverSide": false,
             isArrivedToDestination: false,
-            /*allowed_drivers_see: driverData.driver_fingerprint,
-      intentional_request_decline: {
-        $not: driverData.driver_fingerprint,
-      },*/
+            allowed_drivers_see: driverData.driver_fingerprint,
+            /*intentional_request_decline: {
+              $not: driverData.driver_fingerprint,
+            },*/
             carTypeSelected:
               driverData.operational_state.default_selected_car.vehicle_type,
             country: driverData.operational_state.last_location.country,
@@ -1570,6 +1570,7 @@ function execGetDrivers_requests_and_provide(
         }
       });
   } else if (/FULL_ALLLOWEDTOSEE_REQUESTS/i.test(scenarioString)) {
+    logger.warn("FULL_ALLLOWEDTOSEE_REQUESTS");
     //Scenario 3
     //default_selected_car.[max_passengers, vehicle_type]
     let request_type_regex = /scheduled/i.test(requestType)
@@ -1645,8 +1646,8 @@ function execGetDrivers_requests_and_provide(
               driverData.operational_state.last_location.country !== undefined
                 ? driverData.operational_state.last_location.country
                 : "Namibia",
-            /*allowed_drivers_see: driverData.driver_fingerprint,
-      intentional_request_decline: {
+            allowed_drivers_see: driverData.driver_fingerprint,
+            /*intentional_request_decline: {
         $not: driverData.driver_fingerprint,
       },*/
             carTypeSelected:
@@ -1659,7 +1660,8 @@ function execGetDrivers_requests_and_provide(
             //ride_mode: { $regex: requestType, $options: "i" }, //ride, delivery
             request_type: request_type_regex, //Shceduled or now rides/deliveries
           };
-
+    logger.warn(requestType);
+    logger.info(requestFilter);
     //---
     /*let requestFilter = {
       taxi_id: false,
@@ -3418,6 +3420,79 @@ function computeAndCacheRouteDestination(
 }
 
 /**
+ * @func storedUpDriversGeospatialData
+ * Responsible to store up the driver's geospatial data based on the city and
+ * vehicle type.
+ * @param req: generic request data
+ * @param resolve
+ */
+function storedUpDriversGeospatialData(req, resolve) {
+  let redisKeyDriverProfileData = `${req.user_fingerprint}-driverBasicProfileData`;
+  redisGet(redisKeyDriverProfileData)
+    .then(
+      (resp) => {
+        if (resp !== null) {
+          //Stored up some data
+          try {
+            resp = JSON.stringify(resp);
+            //...
+            //drivers-city-vehicleType
+            let redisKeyGeospatialStore = `drivers-${resp.operational_state.last_location.city}-${resp.operational_state.default_selected_car.vehicle_type}`;
+            redisCluster.geoadd(
+              redisKeyGeospatialStore,
+              `${req.longitude}`,
+              `${req.latitude}`,
+              req.user_fingerprint
+            );
+            resolve(true);
+          } catch (error) {
+            resolve(false);
+          }
+        } //No data - set
+        else {
+          //Get the driver's data
+          collectionDrivers_profiles
+            .find({ driver_fingerprint: req.user_fingerprint })
+            .toArray(function (err, driverData) {
+              if (err) {
+                resolve(false);
+              }
+              //...
+              if (driverData !== undefined && driverData.length > 0) {
+                //Found some data
+                driverData = driverData[0];
+                //Cache the driver's basic profile info
+                redisCluster.set(
+                  redisKeyDriverProfileData,
+                  JSON.stringify(driverData)
+                );
+                //...
+                //drivers-city-vehicleType
+                let redisKeyGeospatialStore = `drivers-${driverData.operational_state.last_location.city}-${driverData.operational_state.default_selected_car.vehicle_type}`;
+                redisCluster.geoadd(
+                  redisKeyGeospatialStore,
+                  `${req.longitude}`,
+                  `${req.latitude}`,
+                  req.user_fingerprint
+                );
+                resolve(true);
+              } //Non data found
+              else {
+                resolve(false);
+              }
+            });
+        }
+      },
+      (error) => {
+        resolve(false);
+      }
+    )
+    .catch((error) => {
+      resolve(false);
+    });
+}
+
+/**
  * @func updateRiderLocationInfosCache()
  * Responsible for updating the cache infos about the rider's trip location.
  * RIDERS/DRIVERS
@@ -3439,12 +3514,17 @@ function updateRiderLocationInfosCache(req, resolve) {
     );
   } else if (/driver/i.test(req.user_nature)) {
     //Driver
-    redisCluster.geoadd(
-      "drivers",
-      `${req.longitude}`,
-      `${req.latitude}`,
-      req.user_fingerprint
-    );
+    //Enrich the driver's data to be stored in the right set in redis geospatial
+    //drivers-city-vehicleType
+    new Promise((reqUpdate) => {
+      storedUpDriversGeospatialData(req, reqUpdate);
+    })
+      .then((result) => {
+        logger.warn("Successfully updated the driver geospatial data!");
+      })
+      .catch((error) => {
+        logger.warn(error);
+      });
   }
   //!------------------------------------
   //Check if a previous entry alreay exist
@@ -5082,6 +5162,7 @@ redisCluster.on("connect", function () {
                 );
 
                 //Check for any existing ride
+                logger.error(req);
                 let pro2 = new Promise((res) => {
                   ////logger.info("fetching data");
                   tripChecker_Dispatcher(
