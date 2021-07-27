@@ -3428,6 +3428,25 @@ function computeAndCacheRouteDestination(
 function updateRiderLocationInfosCache(req, resolve) {
   resolveDate();
   req.date_logged = new Date(chaineDateUTC); //Attach date
+  //! Update geospatial data cached -----
+  if (/rider/i.test(req.user_nature)) {
+    //Rider
+    redisCluster.geoadd(
+      "riders",
+      `${req.longitude}`,
+      `${req.latitude}`,
+      req.user_fingerprint
+    );
+  } else if (/driver/i.test(req.user_nature)) {
+    //Driver
+    redisCluster.geoadd(
+      "drivers",
+      `${req.longitude}`,
+      `${req.latitude}`,
+      req.user_fingerprint
+    );
+  }
+  //!------------------------------------
   //Check if a previous entry alreay exist
   redisGet(req.user_fingerprint).then(
     (resp) => {

@@ -2228,11 +2228,13 @@ function parsePricingInputData(resolve, inputData) {
               resolve(reslt);
             },
             (error) => {
+              console.log(error);
               resolve(false);
             }
           );
         },
         (error) => {
+          console.log(error);
           resolve(false);
         }
       );
@@ -2242,6 +2244,7 @@ function parsePricingInputData(resolve, inputData) {
     }
   } //Invalid data
   else {
+    console.log("Invalid data");
     resolve(false);
   }
 }

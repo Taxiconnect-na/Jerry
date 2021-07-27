@@ -128,3 +128,57 @@
 [31m  country: 'Namibia',[39m
 [31m  street_name: 'Listra Street'[39m
 [31m}[39m
+ 21-07-25 14:07:16  error : [31m{[39m
+[31m  passenger_number_id: 1,[39m
+[31m  suburb: 'Windhoek Central / CBD',[39m
+[31m  state: 'Khomas Region',[39m
+[31m  location_name: undefined,[39m
+[31m  city: 'Windhoek',[39m
+[31m  country: 'Namibia',[39m
+[31m  street_name: undefined[39m
+[31m}[39m
+ 21-07-25 17:07:85  error : [31m{[39m
+[31m  passenger_number_id: 1,[39m
+[31m  suburb: 'Windhoek Central / CBD',[39m
+[31m  state: 'Khomas Region',[39m
+[31m  location_name: 'Hotel Pension Steiner',[39m
+[31m  city: 'Windhoek',[39m
+[31m  country: 'Namibia',[39m
+[31m  street_name: 'Wecke Street'[39m
+[31m}[39m
+ 21-07-25 19:07:90  error : [31m{[39m
+[31m  suburb: 'Windhoek Central / CBD',[39m
+[31m  state: 'Khomas Region',[39m
+[31m  location_name: 'Hotel Pension Steiner',[39m
+[31m  city: 'Windhoek',[39m
+[31m  country: 'Namibia',[39m
+[31m  street_name: 'Wecke Street',[39m
+[31m  passenger_number_id: 1[39m
+[31m}[39m
+ 21-07-25 19:07:81  error : [31m{[39m
+[31m  suburb: 'Windhoek Central / CBD',[39m
+[31m  state: 'Khomas Region',[39m
+[31m  location_name: 'Hotel Pension Steiner',[39m
+[31m  city: 'Windhoek',[39m
+[31m  country: 'Namibia',[39m
+[31m  street_name: 'Wecke Street',[39m
+[31m  passenger_number_id: 1[39m
+[31m}[39m
+ 21-07-25 19:07:49  error : [31m{[39m
+[31m  suburb: 'Windhoek Central / CBD',[39m
+[31m  state: 'Khomas Region',[39m
+[31m  location_name: 'Hotel Pension Steiner',[39m
+[31m  city: 'Windhoek',[39m
+[31m  country: 'Namibia',[39m
+[31m  street_name: 'Wecke Street',[39m
+[31m  passenger_number_id: 1[39m
+[31m}[39m
+ 21-07-25 19:07:86  error : [31m{[39m
+[31m  suburb: 'Windhoek Central / CBD',[39m
+[31m  state: 'Khomas Region',[39m
+[31m  location_name: 'Hotel Pension Steiner',[39m
+[31m  city: 'Windhoek',[39m
+[31m  country: 'Namibia',[39m
+[31m  street_name: 'Wecke Street',[39m
+[31m  passenger_number_id: 1[39m
+[31m}[39m
