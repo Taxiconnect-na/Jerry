@@ -4414,9 +4414,9 @@ redisCluster.on("connect", function () {
            * @param requestRawData: ride or delivery data coming from the rider's device for booking (MUST contain the city and country)
            */
           app.post("/dispatchRidesOrDeliveryRequests", function (req, res) {
-            //!req = req.body;
+            req = req.body;
             //TEST DATA
-            let testData = {
+            /*let testData = {
               actualRider: "someonelese",
               actualRiderPhone_number: "0817563369",
               carTypeSelected: "normalTaxiEconomy",
@@ -4491,7 +4491,7 @@ redisCluster.on("connect", function () {
               user_fingerprint:
                 "5b29bb1b9ac69d884f13fd4be2badcd22b72b98a69189bfab806dcf7c5f5541b6cbe8087cf60c791",
             };
-            req = testData;
+            req = testData;*/
             //...
             if (
               req.user_fingerprint !== undefined &&
