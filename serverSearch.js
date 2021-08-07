@@ -2,7 +2,9 @@ require("dotenv").config();
 //require("newrelic");
 var express = require("express");
 const http = require("http");
+const fs = require("fs");
 const MongoClient = require("mongodb").MongoClient;
+const certFile = fs.readFileSync("./rds-combined-ca-bundle.pem");
 
 const { logger } = require("./LogService");
 
@@ -41,6 +43,7 @@ const urlParser = require("url");
 const moment = require("moment");
 
 const clientMongo = new MongoClient(process.env.URL_MONGODB, {
+  tlsCAFile: certFile, //The DocDB cert
   useUnifiedTopology: true,
   useNewUrlParser: true,
 });

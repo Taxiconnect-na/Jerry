@@ -3,7 +3,9 @@ require("dotenv").config();
 //var dash = require("appmetrics-dash");
 var express = require("express");
 const http = require("http");
+const fs = require("fs");
 const MongoClient = require("mongodb").MongoClient;
+const certFile = fs.readFileSync("./rds-combined-ca-bundle.pem");
 
 var app = express();
 var server = http.createServer(app);
@@ -39,12 +41,8 @@ var chaineDateUTC = null;
 var dateObject = null;
 const moment = require("moment");
 
-//CRUCIAL VARIABLES
-var _INTERVAL_PERSISTER_LATE_REQUESTS = null; //Will hold the interval for checking whether or not a requests has takne too long and should be cancelled.
-var _INTERVAL_PERSISTER_LATE_REQUESTS_HEAVY = null; //Wiill  hold the interval for running heavy processes on a 30 sec or more basis.
-//...
-
 const clientMongo = new MongoClient(process.env.URL_MONGODB, {
+  tlsCAFile: certFile, //The DocDB cert
   useUnifiedTopology: true,
   useNewUrlParser: true,
 });

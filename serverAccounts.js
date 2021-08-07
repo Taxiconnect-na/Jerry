@@ -3,12 +3,12 @@ require("dotenv").config();
 //require("newrelic");
 var express = require("express");
 const http = require("http");
-const https = require("https");
 const fs = require("fs");
 var path = require("path");
-var morgan = require("morgan");
 const helmet = require("helmet");
 const MongoClient = require("mongodb").MongoClient;
+const certFile = fs.readFileSync("./rds-combined-ca-bundle.pem");
+
 const { parse, stringify } = require("flatted");
 const AWS = require("aws-sdk");
 const s3 = new AWS.S3({
@@ -59,6 +59,7 @@ const moment = require("moment");
 var otpGenerator = require("otp-generator");
 
 const clientMongo = new MongoClient(process.env.URL_MONGODB, {
+  tlsCAFile: certFile, //The DocDB cert
   useUnifiedTopology: true,
   useNewUrlParser: true,
 });
