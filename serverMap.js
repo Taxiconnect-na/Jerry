@@ -45,11 +45,11 @@ var dateObject = null;
 const moment = require("moment");
 const { stringify, parse } = require("flatted");
 
-const clientMongo = new MongoClient(process.env.URL_MONGODB, {
-  tlsCAFile: certFile, //The DocDB cert
-  useUnifiedTopology: true,
-  useNewUrlParser: true,
-});
+// const clientMongo = new MongoClient(process.env.URL_MONGODB, {
+//   tlsCAFile: certFile, //The DocDB cert
+//   useUnifiedTopology: true,
+//   useNewUrlParser: true,
+// });
 
 function resolveDate() {
   //Resolve date
@@ -522,7 +522,6 @@ function getRouteInfos(coordsInfos, resolve) {
 /**
  * @func updateRidersRealtimeLocationData()
  * @param collectionRidesDeliveries_data: list of trips.
- * @param channel: rabbitmq communication channel.
  * @params mongoCollection, collectionRidersLocation_log, collectionDrivers_profiles, locationData
  * Update the rider's location informations in monogDB everytime a change occurs in the rider's app
  * related to the positioning.
@@ -534,71 +533,9 @@ function updateRidersRealtimeLocationData(
   collectionDrivers_profiles,
   collectionPassengers_profiles,
   locationData,
-  channel,
   resolve
 ) {
   resolveDate();
-  //! Check if a driver has a ongoing trip and update the rider's realtime
-  //! location of the car in the map.
-  if (/rider/i.test(locationData.user_nature)) {
-    new Promise((res0) => {
-      collectionRidesDeliveries_data
-        .find({
-          client_id: locationData.user_fingerprint,
-          "ride_state_vars.isRideCompleted_driverSide": false,
-        })
-        .toArray(function (err, tripData) {
-          if (err) {
-            res0(false);
-          }
-          //...
-          if (tripData !== undefined && tripData.length > 0) {
-            //Found some rides
-            let parentPromises = tripData.map((tripInfos) => {
-              return new Promise((resCompute) => {
-                //! RABBITMQ MESSAGE
-                channel.assertQueue(
-                  process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
-                  {
-                    durable: true,
-                  }
-                );
-                //Send message
-                let message = {
-                  user_fingerprint: tripInfos.client_id,
-                  requestType: "rides",
-                  user_nature: "rider",
-                };
-                channel.sendToQueue(
-                  process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
-                  Buffer.from(JSON.stringify(message)),
-                  {
-                    persistent: true,
-                  }
-                );
-                //...
-                resCompute(message);
-              });
-            });
-            //DONE
-            Promise.all(parentPromises)
-              .then(() => {
-                res0(true);
-              })
-              .catch((error) => {
-                //logger.warn(error);
-                res0(false);
-              });
-          } else {
-            //logger.info("No rides pending");
-            res0(false);
-          }
-        });
-    })
-      .then()
-      .catch();
-  }
-  //! ------------------------------------------------------------------
   //Update location log for riders
   new Promise((res) => {
     updateRiderLocationsLog(
@@ -4857,127 +4794,63 @@ var collectionWalletTransactions_logs = null;
 
 redisCluster.on("connect", function () {
   //logger.info("[*] Redis connected");
-  clientMongo.connect(function (err) {
-    //if (err) throw err;
-    //logger.info("[+] MAP services active.");
-    const dbMongo = clientMongo.db(process.env.DB_NAME_MONGODDB);
-    collectionRidesDeliveries_data = dbMongo.collection(
-      "rides_deliveries_requests"
-    ); //Hold all the requests made (rides and deliveries)
-    collectionRelativeDistances = dbMongo.collection(
-      "relative_distances_riders_drivers"
-    ); //Hold the relative distances between rider and the drivers (online, same city, same country) at any given time
-    collectionRidersLocation_log = dbMongo.collection(
-      "historical_positioning_logs"
-    ); //Hold all the location updated from the rider
-    collectionDrivers_profiles = dbMongo.collection("drivers_profiles"); //Hold all the drivers profiles
-    collectionPassengers_profiles = dbMongo.collection("passengers_profiles"); //Hold all the passengers profiles.
-    collectionGlobalEvents = dbMongo.collection("global_events"); //Hold all the random events that happened somewhere.
-    collectionWalletTransactions_logs = dbMongo.collection(
-      "wallet_transactions_logs"
-    ); //Hold the latest information about the riders topups
-    //-------------
-    const bodyParser = require("body-parser");
-    app
-      .get("/", function (req, res) {
-        res.send("Map services up");
-      })
-      .use(
-        bodyParser.json({
-          limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
-          extended: true,
+  MongoClient.connect(
+    process.env.URL_MONGODB,
+    {
+      tlsCAFile: certFile, //The DocDB cert
+      useUnifiedTopology: true,
+      useNewUrlParser: true,
+    },
+    function (err, clientMongo) {
+      if (err) throw err;
+
+      //if (err) throw err;
+      logger.info("[+] MAP services active.");
+      const dbMongo = clientMongo.db(process.env.DB_NAME_MONGODDB);
+      collectionRidesDeliveries_data = dbMongo.collection(
+        "rides_deliveries_requests"
+      ); //Hold all the requests made (rides and deliveries)
+      collectionRelativeDistances = dbMongo.collection(
+        "relative_distances_riders_drivers"
+      ); //Hold the relative distances between rider and the drivers (online, same city, same country) at any given time
+      collectionRidersLocation_log = dbMongo.collection(
+        "historical_positioning_logs"
+      ); //Hold all the location updated from the rider
+      collectionDrivers_profiles = dbMongo.collection("drivers_profiles"); //Hold all the drivers profiles
+      collectionPassengers_profiles = dbMongo.collection("passengers_profiles"); //Hold all the passengers profiles.
+      collectionGlobalEvents = dbMongo.collection("global_events"); //Hold all the random events that happened somewhere.
+      collectionWalletTransactions_logs = dbMongo.collection(
+        "wallet_transactions_logs"
+      ); //Hold the latest information about the riders topups
+      //-------------
+      const bodyParser = require("body-parser");
+      app
+        .get("/", function (req, res) {
+          res.send("Map services up");
         })
-      )
-      .use(
-        bodyParser.urlencoded({
-          limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
-          extended: true,
-        })
-      )
-      .use(helmet());
+        .use(
+          bodyParser.json({
+            limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
+            extended: true,
+          })
+        )
+        .use(
+          bodyParser.urlencoded({
+            limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
+            extended: true,
+          })
+        )
+        .use(helmet());
 
-    //! MESSAGES -
-    //? 1. For rides/deliveries to be refresh in the cache and any other server right after the booking.
-    //? Waiting for the message in the format {user_fingerprint:..., request_fp:...}
-    channel.assertQueue(process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME, {
-      durable: true,
-    });
-    //logger.info("[->RabbitMq] Waiting for messages");
-    channel.consume(
-      process.env.TRIPS_UPDATE_AFTER_BOOKING_QUEUE_NAME,
-      function (message) {
-        try {
-          let orgMessage = message;
-          message = JSON.parse(message.content);
-          //logger.info(`Message received -> ${JSON.stringify(message)}`);
-          let url =
-            process.env.LOCAL_URL +
-            ":" +
-            process.env.MAP_SERVICE_PORT +
-            "/updatePassengerLocation";
-          //...
-          let req = {
-            user_nature: message.user_nature, //! Very important
-            requestType: message.requestType, //! Very important
-            user_fingerprint: message.user_fingerprint,
-            makeFreshRequest: true,
-            avoidCached_data: true,
-          };
-          //...
-          requestAPI.post({ url, form: req }, function (error, response, body) {
-            channel.ack(orgMessage);
-          });
-        } catch (error) {
-          //logger.warn(error);
-        }
-      },
-      {
-        noAck: false,
-      }
-    );
-
-    //? 2. For updating the daily amount for the drivers
-    //? Waiting for the message in the format {driver_fingerprint}
-    channel.assertQueue(process.env.TRIPS_DAILY_AMOUNT_DRIVERS_QUEUE, {
-      durable: true,
-    });
-    channel.consume(
-      process.env.TRIPS_DAILY_AMOUNT_DRIVERS_QUEUE,
-      function (message) {
-        try {
-          let orgMessage = message;
-          message = JSON.parse(message.content);
-          //logger.info(`Message received -> ${JSON.stringify(message)}`);
-          let url =
-            process.env.LOCAL_URL +
-            ":" +
-            process.env.ACCOUNTS_SERVICE_PORT +
-            "/computeDaily_amountMadeSoFar?driver_fingerprint=" +
-            message.driver_fingerprint +
-            "&avoidCached_data=true";
-          //...
-          requestAPI.get(url, function (error, response, body) {
-            channel.ack(orgMessage);
-          });
-        } catch (error) {
-          //logger.warn(error);
-        }
-      },
-      {
-        noAck: false,
-      }
-    );
-    //! ----------
-
-    /**
-     * PASSENGER/DRIVER LOCATION UPDATE MANAGER
-     * Responsible for updating in the databse and other caches new passenger's/rider's locations received.
-     * Update CACHE -> MONGODB (-> TRIP CHECKER DISPATCHER)
-     */
-    app.post("/updatePassengerLocation", function (req, res) {
-      new Promise((resMAIN) => {
-        //DEBUG
-        /*let testData = {
+      /**
+       * PASSENGER/DRIVER LOCATION UPDATE MANAGER
+       * Responsible for updating in the databse and other caches new passenger's/rider's locations received.
+       * Update CACHE -> MONGODB (-> TRIP CHECKER DISPATCHER)
+       */
+      app.post("/updatePassengerLocation", function (req, res) {
+        new Promise((resMAIN) => {
+          //DEBUG
+          /*let testData = {
       latitude: -22.5704981,
       longitude: 17.0809425,
       user_fingerprint:
@@ -4995,549 +4868,580 @@ redisCluster.on("connect", function () {
       },
     };
     req = testData;*/
-        //DEBUG
-        //let params = urlParser.parse(req.url, true);
-        req = req.body;
+          //DEBUG
+          //let params = urlParser.parse(req.url, true);
+          req = req.body;
 
-        if (
-          req !== undefined &&
-          req.latitude !== undefined &&
-          req.latitude !== null &&
-          req.longitude !== undefined &&
-          req.longitude !== null &&
-          req.user_fingerprint !== null &&
-          req.user_fingerprint !== undefined &&
-          req.makeFreshRequest === undefined
-        ) {
-          resolveDate();
-          //? Update the rider's push notification var only if got a new value
-          let pro1 = new Promise((resUpdateNotifToken) => {
-            if (
-              req.pushnotif_token.userId !== undefined &&
-              req.pushnotif_token.userId !== null &&
-              req.pushnotif_token.userId.length > 3
-            ) {
-              //Got something - can update
-              if (/^rider$/i.test(req.user_nature)) {
-                //Rider
-                collectionPassengers_profiles.updateOne(
-                  { user_fingerprint: req.user_fingerprint },
-                  {
-                    $set: {
-                      pushnotif_token: JSON.parse(req.pushnotif_token),
-                      last_updated: new Date(chaineDateUTC),
+          if (
+            req !== undefined &&
+            req.latitude !== undefined &&
+            req.latitude !== null &&
+            req.longitude !== undefined &&
+            req.longitude !== null &&
+            req.user_fingerprint !== null &&
+            req.user_fingerprint !== undefined &&
+            req.makeFreshRequest === undefined
+          ) {
+            resolveDate();
+            //? Update the rider's push notification var only if got a new value
+            let pro1 = new Promise((resUpdateNotifToken) => {
+              if (
+                req.pushnotif_token.userId !== undefined &&
+                req.pushnotif_token.userId !== null &&
+                req.pushnotif_token.userId.length > 3
+              ) {
+                //Got something - can update
+                if (/^rider$/i.test(req.user_nature)) {
+                  //Rider
+                  collectionPassengers_profiles.updateOne(
+                    { user_fingerprint: req.user_fingerprint },
+                    {
+                      $set: {
+                        pushnotif_token: JSON.parse(req.pushnotif_token),
+                        last_updated: new Date(chaineDateUTC),
+                      },
                     },
-                  },
-                  function (err, reslt) {
-                    //logger.info("HERE");
-                    if (err) {
-                      //logger.info(err);
-                      resUpdateNotifToken(false);
-                    }
-                    //...
-                    resUpdateNotifToken(true);
-                  }
-                );
-              } else if (/^driver$/i.test(req.user_nature)) {
-                //Driver
-                //! Update the payment cycle starting point if not set yet
-                new Promise((resPaymentCycle) => {
-                  //!Check if a reference point exists - if not set one to NOW
-                  //? For days before wednesday, set to wednesdat and for those after wednesday, set to next week that same day.
-                  //! Annotation string: startingPoint_forFreshPayouts
-                  collectionWalletTransactions_logs
-                    .find({
-                      flag_annotation: "startingPoint_forFreshPayouts",
-                      user_fingerprint: req.user_fingerprint,
-                    })
-                    .toArray(function (err, referenceData) {
+                    function (err, reslt) {
+                      //logger.info("HERE");
                       if (err) {
-                        resPaymentCycle(false);
+                        //logger.info(err);
+                        resUpdateNotifToken(false);
                       }
                       //...
-                      if (
-                        referenceData !== undefined &&
-                        referenceData.length > 0 &&
-                        referenceData[0].date_captured !== undefined
-                      ) {
-                        resPaymentCycle(true);
-                      } //No annotation yet - create one
-                      else {
-                        let tmpDate = new Date(chaineDateUTC)
-                          .toDateString()
-                          .split(" ")[0];
-                        if (/(mon|tue)/i.test(tmpDate)) {
-                          //For mondays and tuesdays - add 3 days + the PAYMENT CYCLE
-                          let tmpNextDate = new Date(
-                            new Date(chaineDateUTC).getTime() +
-                              (3 +
-                                parseFloat(
-                                  process.env.TAXICONNECT_PAYMENT_FREQUENCY
-                                )) *
-                                24 *
-                                3600 *
-                                1000
-                          ).toISOString();
-                          //...
-                          collectionWalletTransactions_logs.insertOne(
-                            {
-                              flag_annotation: "startingPoint_forFreshPayouts",
-                              user_fingerprint: req.user_fingerprint,
-                              date_captured: new Date(tmpNextDate),
-                            },
-                            function (err, reslt) {
-                              resPaymentCycle(true);
-                            }
-                          );
-                        } //After wednesday - OK
+                      resUpdateNotifToken(true);
+                    }
+                  );
+                } else if (/^driver$/i.test(req.user_nature)) {
+                  //Driver
+                  //! Update the payment cycle starting point if not set yet
+                  new Promise((resPaymentCycle) => {
+                    //!Check if a reference point exists - if not set one to NOW
+                    //? For days before wednesday, set to wednesdat and for those after wednesday, set to next week that same day.
+                    //! Annotation string: startingPoint_forFreshPayouts
+                    collectionWalletTransactions_logs
+                      .find({
+                        flag_annotation: "startingPoint_forFreshPayouts",
+                        user_fingerprint: req.user_fingerprint,
+                      })
+                      .toArray(function (err, referenceData) {
+                        if (err) {
+                          resPaymentCycle(false);
+                        }
+                        //...
+                        if (
+                          referenceData !== undefined &&
+                          referenceData.length > 0 &&
+                          referenceData[0].date_captured !== undefined
+                        ) {
+                          resPaymentCycle(true);
+                        } //No annotation yet - create one
                         else {
-                          //ADD THE PAYMENT CYCLE
-                          let tmpNextDate = new Date(
-                            new Date(chaineDateUTC).getTime() +
-                              parseFloat(
-                                process.env.TAXICONNECT_PAYMENT_FREQUENCY *
+                          let tmpDate = new Date(chaineDateUTC)
+                            .toDateString()
+                            .split(" ")[0];
+                          if (/(mon|tue)/i.test(tmpDate)) {
+                            //For mondays and tuesdays - add 3 days + the PAYMENT CYCLE
+                            let tmpNextDate = new Date(
+                              new Date(chaineDateUTC).getTime() +
+                                (3 +
+                                  parseFloat(
+                                    process.env.TAXICONNECT_PAYMENT_FREQUENCY
+                                  )) *
                                   24 *
                                   3600 *
                                   1000
-                              )
-                          ).toISOString();
-                          collectionWalletTransactions_logs.insertOne(
-                            {
-                              flag_annotation: "startingPoint_forFreshPayouts",
-                              user_fingerprint: req.user_fingerprint,
-                              date_captured: new Date(tmpNextDate),
-                            },
-                            function (err, reslt) {
-                              resPaymentCycle(true);
-                            }
-                          );
+                            ).toISOString();
+                            //...
+                            collectionWalletTransactions_logs.insertOne(
+                              {
+                                flag_annotation:
+                                  "startingPoint_forFreshPayouts",
+                                user_fingerprint: req.user_fingerprint,
+                                date_captured: new Date(tmpNextDate),
+                              },
+                              function (err, reslt) {
+                                resPaymentCycle(true);
+                              }
+                            );
+                          } //After wednesday - OK
+                          else {
+                            //ADD THE PAYMENT CYCLE
+                            let tmpNextDate = new Date(
+                              new Date(chaineDateUTC).getTime() +
+                                parseFloat(
+                                  process.env.TAXICONNECT_PAYMENT_FREQUENCY *
+                                    24 *
+                                    3600 *
+                                    1000
+                                )
+                            ).toISOString();
+                            collectionWalletTransactions_logs.insertOne(
+                              {
+                                flag_annotation:
+                                  "startingPoint_forFreshPayouts",
+                                user_fingerprint: req.user_fingerprint,
+                                date_captured: new Date(tmpNextDate),
+                              },
+                              function (err, reslt) {
+                                resPaymentCycle(true);
+                              }
+                            );
+                          }
                         }
-                      }
-                    });
-                }).then(
-                  () => {},
-                  () => {}
-                );
-                //...
-                collectionDrivers_profiles.updateOne(
-                  { driver_fingerprint: req.user_fingerprint },
-                  {
-                    $set: {
-                      "operational_state.push_notification_token": JSON.parse(
-                        req.pushnotif_token
-                      ),
-                      date_updated: new Date(chaineDateUTC),
+                      });
+                  }).then(
+                    () => {},
+                    () => {}
+                  );
+                  //...
+                  collectionDrivers_profiles.updateOne(
+                    { driver_fingerprint: req.user_fingerprint },
+                    {
+                      $set: {
+                        "operational_state.push_notification_token": JSON.parse(
+                          req.pushnotif_token
+                        ),
+                        date_updated: new Date(chaineDateUTC),
+                      },
                     },
-                  },
-                  function (err, reslt) {
-                    if (err) {
-                      resUpdateNotifToken(false);
+                    function (err, reslt) {
+                      if (err) {
+                        resUpdateNotifToken(false);
+                      }
+                      //...
+                      resUpdateNotifToken(true);
                     }
-                    //...
-                    resUpdateNotifToken(true);
-                  }
-                );
-              } //Invalid user nature - skip
+                  );
+                } //Invalid user nature - skip
+                else {
+                  resUpdateNotifToken(false);
+                }
+              } //Got invalid data - skip
               else {
                 resUpdateNotifToken(false);
               }
-            } //Got invalid data - skip
-            else {
-              resUpdateNotifToken(false);
-            }
-          }).then(
-            () => {},
-            () => {}
-          );
-
-          //Check for any existing ride
-          logger.error(req);
-          let pro2 = new Promise((res) => {
-            ////logger.info("fetching data");
-            tripChecker_Dispatcher(
-              req.avoidCached_data !== undefined &&
-                req.avoidCached_data !== null
-                ? true
-                : false,
-              collectionRidesDeliveries_data,
-              collectionDrivers_profiles,
-              collectionPassengers_profiles,
-              req.user_fingerprint,
-              req.user_nature !== undefined && req.user_nature !== null
-                ? req.user_nature
-                : "rider",
-              req.requestType !== undefined && req.requestType !== null
-                ? req.requestType
-                : "rides",
-              res
+            }).then(
+              () => {},
+              () => {}
             );
-          }).then(
-            (result) => {
-              //Update the rider
-              if (result !== false) {
-                if (result != "no_rides") {
-                  resMAIN(result);
+
+            //Check for any existing ride
+            logger.error(req);
+            let pro2 = new Promise((res) => {
+              ////logger.info("fetching data");
+              tripChecker_Dispatcher(
+                req.avoidCached_data !== undefined &&
+                  req.avoidCached_data !== null
+                  ? true
+                  : false,
+                collectionRidesDeliveries_data,
+                collectionDrivers_profiles,
+                collectionPassengers_profiles,
+                req.user_fingerprint,
+                req.user_nature !== undefined && req.user_nature !== null
+                  ? req.user_nature
+                  : "rider",
+                req.requestType !== undefined && req.requestType !== null
+                  ? req.requestType
+                  : "rides",
+                res
+              );
+            }).then(
+              (result) => {
+                //Update the rider
+                if (result !== false) {
+                  if (result != "no_rides") {
+                    resMAIN(result);
+                  } //No rides
+                  else {
+                    resMAIN({ request_status: "no_rides" });
+                  }
                 } //No rides
                 else {
                   resMAIN({ request_status: "no_rides" });
                 }
-              } //No rides
-              else {
+              },
+              (error) => {
+                //logger.info(error);
                 resMAIN({ request_status: "no_rides" });
               }
-            },
-            (error) => {
-              //logger.info(error);
-              resMAIN({ request_status: "no_rides" });
-            }
-          );
-
-          //Update cache for this user's location
-          let pro3 = new Promise((resolve1) => {
-            updateRiderLocationInfosCache(req, resolve1);
-          }).then(
-            () => {
-              ////logger.info("updated cache");
-            },
-            () => {}
-          );
-
-          //Update rider's location - promise always
-          let pro4 = new Promise((resolve2) => {
-            updateRidersRealtimeLocationData(
-              collectionRidesDeliveries_data,
-              collectionRidersLocation_log,
-              collectionDrivers_profiles,
-              collectionPassengers_profiles,
-              req,
-              channel,
-              resolve2
             );
-          }).then(
-            () => {
-              ////logger.info("Location updated [rider]");
-            },
-            () => {}
-          );
-        } else if (
-          req.makeFreshRequest !== undefined &&
-          req.makeFreshRequest !== null
-        ) {
-          //Make a fresh request
-          //Check for any existing ride
-          new Promise((res) => {
-            ////logger.info("fetching data");
-            tripChecker_Dispatcher(
-              true,
-              collectionRidesDeliveries_data,
-              collectionDrivers_profiles,
-              collectionPassengers_profiles,
-              req.user_fingerprint,
-              req.user_nature !== undefined && req.user_nature !== null
-                ? req.user_nature
-                : "rider",
-              req.requestType !== undefined && req.requestType !== null
-                ? req.requestType
-                : "rides",
-              res
+
+            //Update cache for this user's location
+            let pro3 = new Promise((resolve1) => {
+              updateRiderLocationInfosCache(req, resolve1);
+            }).then(
+              () => {
+                ////logger.info("updated cache");
+              },
+              () => {}
             );
-          }).then(
-            (result) => {
-              //Update the rider
-              if (result !== false) {
-                if (result != "no_rides") {
-                  resMAIN(result);
+
+            //Update rider's location - promise always
+            let pro4 = new Promise((resolve2) => {
+              updateRidersRealtimeLocationData(
+                collectionRidesDeliveries_data,
+                collectionRidersLocation_log,
+                collectionDrivers_profiles,
+                collectionPassengers_profiles,
+                req,
+                resolve2
+              );
+            }).then(
+              () => {
+                ////logger.info("Location updated [rider]");
+              },
+              () => {}
+            );
+          } else if (
+            req.makeFreshRequest !== undefined &&
+            req.makeFreshRequest !== null
+          ) {
+            //Make a fresh request
+            //Check for any existing ride
+            new Promise((res) => {
+              ////logger.info("fetching data");
+              tripChecker_Dispatcher(
+                true,
+                collectionRidesDeliveries_data,
+                collectionDrivers_profiles,
+                collectionPassengers_profiles,
+                req.user_fingerprint,
+                req.user_nature !== undefined && req.user_nature !== null
+                  ? req.user_nature
+                  : "rider",
+                req.requestType !== undefined && req.requestType !== null
+                  ? req.requestType
+                  : "rides",
+                res
+              );
+            }).then(
+              (result) => {
+                //Update the rider
+                if (result !== false) {
+                  if (result != "no_rides") {
+                    resMAIN(result);
+                  } //No rides
+                  else {
+                    resMAIN({ request_status: "no_rides" });
+                  }
                 } //No rides
                 else {
                   resMAIN({ request_status: "no_rides" });
                 }
-              } //No rides
-              else {
+              },
+              (error) => {
+                //logger.info(error);
                 resMAIN({ request_status: "no_rides" });
               }
-            },
-            (error) => {
-              //logger.info(error);
-              resMAIN({ request_status: "no_rides" });
-            }
-          );
-        }
-        //Invalid data
-        else {
-          resMAIN({ request_status: "no_rides" });
-        }
-      })
-        .then((result) => {
-          res.send(result);
+            );
+          }
+          //Invalid data
+          else {
+            resMAIN({ request_status: "no_rides" });
+          }
         })
-        .catch((error) => {
-          //logger.info(error);
-          res.send({ request_status: "no_rides" });
-        });
-    });
-
-    /**
-     * REVERSE GEOCODER
-     * To get the exact approx. location of the user or driver.
-     * REDIS propertiy
-     * user_fingerprint -> currentLocationInfos: {...}
-     */
-    app.get("/getUserLocationInfos", function (req, res) {
-      new Promise((resMAIN) => {
-        let params = urlParser.parse(req.url, true);
-        //logger.info(params.query);
-        let request = params.query;
-
-        if (
-          request.latitude != undefined &&
-          request.latitude != null &&
-          request.longitude != undefined &&
-          request.longitude != null &&
-          request.user_fingerprint !== null &&
-          request.user_fingerprint !== undefined
-        ) {
-          //Hand responses
-          new Promise((resolve) => {
-            reverseGeocodeUserLocation(resolve, request);
-          }).then(
-            (result) => {
-              //! Replace Samora Machel Constituency by Wanaheda
-              if (
-                result.suburb !== undefined &&
-                result.suburb !== null &&
-                /Samora Machel Constituency/i.test(result.suburb)
-              ) {
-                result.suburb = "Wanaheda";
-                resMAIN(result);
-              } else {
-                resMAIN(result);
-              }
-            },
-            (error) => {
-              resMAIN(false);
-            }
-          );
-        }
-      })
-        .then((result) => {
-          res.send(result);
-        })
-        .catch((error) => {
-          //logger.info(error);
-          res.send(false);
-        });
-    });
-
-    /**
-     * PLACES IDENTIFIER
-     * Route name: identifyPickupLocation
-     * ? Responsible for finding out the nature of places (ge. Private locations, taxi ranks or other specific plcaes of interest)
-     * This one will only focus on Pvate locations AND taxi ranks.
-     * False means : not a taxirank -> private location AND another object means taxirank
-     */
-    app.get("/identifyPickupLocation", function (req, res) {
-      new Promise((resMAIN) => {
-        let params = urlParser.parse(req.url, true);
-        req = params.query;
-        //...
-        if (
-          req.latitude !== undefined &&
-          req.latitude !== null &&
-          req.longitude !== undefined &&
-          req.longitude !== null &&
-          req.user_fingerprint !== undefined &&
-          req.user_fingerprint !== null
-        ) {
-          new Promise((res) => {
-            findoutPickupLocationNature(res, req);
+          .then((result) => {
+            res.send(result);
           })
-            .then(
+          .catch((error) => {
+            //logger.info(error);
+            res.send({ request_status: "no_rides" });
+          });
+      });
+
+      /**
+       * REVERSE GEOCODER
+       * To get the exact approx. location of the user or driver.
+       * REDIS propertiy
+       * user_fingerprint -> currentLocationInfos: {...}
+       */
+      app.get("/getUserLocationInfos", function (req, res) {
+        new Promise((resMAIN) => {
+          let params = urlParser.parse(req.url, true);
+          //logger.info(params.query);
+          let request = params.query;
+
+          if (
+            request.latitude != undefined &&
+            request.latitude != null &&
+            request.longitude != undefined &&
+            request.longitude != null &&
+            request.user_fingerprint !== null &&
+            request.user_fingerprint !== undefined
+          ) {
+            //Hand responses
+            new Promise((resolve) => {
+              reverseGeocodeUserLocation(resolve, request);
+            }).then(
+              (result) => {
+                //! Replace Samora Machel Constituency by Wanaheda
+                if (
+                  result.suburb !== undefined &&
+                  result.suburb !== null &&
+                  /Samora Machel Constituency/i.test(result.suburb)
+                ) {
+                  result.suburb = "Wanaheda";
+                  resMAIN(result);
+                } else {
+                  resMAIN(result);
+                }
+              },
+              (error) => {
+                resMAIN(false);
+              }
+            );
+          }
+        })
+          .then((result) => {
+            res.send(result);
+          })
+          .catch((error) => {
+            //logger.info(error);
+            res.send(false);
+          });
+      });
+
+      /**
+       * PLACES IDENTIFIER
+       * Route name: identifyPickupLocation
+       * ? Responsible for finding out the nature of places (ge. Private locations, taxi ranks or other specific plcaes of interest)
+       * This one will only focus on Pvate locations AND taxi ranks.
+       * False means : not a taxirank -> private location AND another object means taxirank
+       */
+      app.get("/identifyPickupLocation", function (req, res) {
+        new Promise((resMAIN) => {
+          let params = urlParser.parse(req.url, true);
+          req = params.query;
+          //...
+          if (
+            req.latitude !== undefined &&
+            req.latitude !== null &&
+            req.longitude !== undefined &&
+            req.longitude !== null &&
+            req.user_fingerprint !== undefined &&
+            req.user_fingerprint !== null
+          ) {
+            new Promise((res) => {
+              findoutPickupLocationNature(res, req);
+            })
+              .then(
+                (result) => {
+                  resMAIN(result);
+                },
+                (error) => {
+                  //Default to private location on error
+                  resMAIN({ locationType: "PrivateLocation" });
+                }
+              )
+              .catch((error) => {
+                resMAIN({ locationType: "PrivateLocation" });
+              });
+          } //Default to private location - invalid params
+          else {
+            resMAIN({ locationType: "PrivateLocation" });
+          }
+        })
+          .then((result) => {
+            res.send(result);
+          })
+          .catch((error) => {
+            //logger.info(error);
+            res.send({ locationType: "PrivateLocation" });
+          });
+      });
+
+      /**
+       * ROUTE TO DESTINATION previewer
+       * Responsible for showing to the user the preview of the first destination after selecting on the app the destination.
+       */
+      app.get("/getRouteToDestinationSnapshot", function (req, res) {
+        new Promise((resMAIN) => {
+          let params = urlParser.parse(req.url, true);
+          req = params.query;
+          //logger.info("here");
+          //...
+          if (
+            req.user_fingerprint !== undefined &&
+            req.org_latitude !== undefined &&
+            req.org_longitude !== undefined
+          ) {
+            new Promise((res) => {
+              let tmp = {
+                origin: {
+                  latitude: req.org_latitude,
+                  longitude: req.org_longitude,
+                },
+                destination: {
+                  latitude: req.dest_latitude,
+                  longitude: req.dest_longitude,
+                },
+                user_fingerprint: req.user_fingerprint,
+                request_fp:
+                  req.request_fp !== undefined && req.request_fp !== null
+                    ? req.request_fp
+                    : false,
+              };
+              findDestinationPathPreview(res, tmp);
+            }).then(
               (result) => {
                 resMAIN(result);
               },
               (error) => {
-                //Default to private location on error
-                resMAIN({ locationType: "PrivateLocation" });
+                //logger.info(error);
+                resMAIN(false);
               }
-            )
-            .catch((error) => {
-              resMAIN({ locationType: "PrivateLocation" });
-            });
-        } //Default to private location - invalid params
-        else {
-          resMAIN({ locationType: "PrivateLocation" });
-        }
-      })
-        .then((result) => {
-          res.send(result);
-        })
-        .catch((error) => {
-          //logger.info(error);
-          res.send({ locationType: "PrivateLocation" });
-        });
-    });
-
-    /**
-     * ROUTE TO DESTINATION previewer
-     * Responsible for showing to the user the preview of the first destination after selecting on the app the destination.
-     */
-    app.get("/getRouteToDestinationSnapshot", function (req, res) {
-      new Promise((resMAIN) => {
-        let params = urlParser.parse(req.url, true);
-        req = params.query;
-        //logger.info("here");
-        //...
-        if (
-          req.user_fingerprint !== undefined &&
-          req.org_latitude !== undefined &&
-          req.org_longitude !== undefined
-        ) {
-          new Promise((res) => {
-            let tmp = {
-              origin: {
-                latitude: req.org_latitude,
-                longitude: req.org_longitude,
-              },
-              destination: {
-                latitude: req.dest_latitude,
-                longitude: req.dest_longitude,
-              },
-              user_fingerprint: req.user_fingerprint,
-              request_fp:
-                req.request_fp !== undefined && req.request_fp !== null
-                  ? req.request_fp
-                  : false,
-            };
-            findDestinationPathPreview(res, tmp);
-          }).then(
-            (result) => {
-              resMAIN(result);
-            },
-            (error) => {
-              //logger.info(error);
-              resMAIN(false);
-            }
-          );
-        } //error
-        else {
-          resMAIN(false);
-        }
-      })
-        .then((result) => {
-          res.send(result);
-        })
-        .catch((error) => {
-          //logger.info(error);
-          res.send(false);
-        });
-    });
-
-    /**
-     * GET VITALS ETAs OR ROUTE INFOS
-     * Responsible for returning the ordered list (any specified number) of all the closest online drivers IF ANY (finds Etas or route infos between 2 points natively).
-     * The details of the response must inlude the drives fingerprints, the eta and the distances.
-     * Drivers filter criteria: should be online, should be able to pick up, same city, same country.
-     * @param user_fingerprint: the rider's fingerprint
-     * @param org_latitude: rider's latitude
-     * @param org_longitude: rider's longitude
-     * @param city: rider's city
-     * @param country: rider's country
-     * @param list_limit: the number of the closest drivers to fetch, OR "all" for the full list (very important after requesting a ride or delivery) - default: 7
-     * @param ride_type: RIDE or DELIVERY (depending on which scenario it is) - should match the operation clearances for the drivers
-     * @param make_new: whether or not to return the cached result first (false) or the compute fresh results (true)
-     * VERY IMPORTANT FOR BACH RIDER - DRIVERS MATCHING.
-     * Redis key: user_fingerprint-driver-fingerprint
-     * valueIndex: 'relativeEta'
-     */
-    app.get("/getVitalsETAOrRouteInfos2points", function (req, res) {
-      new Promise((resMAIN) => {
-        let params = urlParser.parse(req.url, true);
-        req = params.query;
-        //...
-        if (
-          req.user_fingerprint !== undefined &&
-          req.org_latitude !== undefined &&
-          req.org_longitude !== undefined &&
-          req.city !== undefined &&
-          req.country !== undefined &&
-          req.ride_type !== undefined
-        ) {
-          //? Form the redis key
-          let redisKey = `${req.user_fingerprint}-driversListCachedData`;
-          //Check the list limit
-          if (req.list_limit === undefined) {
-            req.list_limit = 7;
+            );
+          } //error
+          else {
+            resMAIN(false);
           }
-          //! CHECK FOR CACHED RESULT FIRST IF INSTRUCTED SO
+        })
+          .then((result) => {
+            res.send(result);
+          })
+          .catch((error) => {
+            //logger.info(error);
+            res.send(false);
+          });
+      });
+
+      /**
+       * GET VITALS ETAs OR ROUTE INFOS
+       * Responsible for returning the ordered list (any specified number) of all the closest online drivers IF ANY (finds Etas or route infos between 2 points natively).
+       * The details of the response must inlude the drives fingerprints, the eta and the distances.
+       * Drivers filter criteria: should be online, should be able to pick up, same city, same country.
+       * @param user_fingerprint: the rider's fingerprint
+       * @param org_latitude: rider's latitude
+       * @param org_longitude: rider's longitude
+       * @param city: rider's city
+       * @param country: rider's country
+       * @param list_limit: the number of the closest drivers to fetch, OR "all" for the full list (very important after requesting a ride or delivery) - default: 7
+       * @param ride_type: RIDE or DELIVERY (depending on which scenario it is) - should match the operation clearances for the drivers
+       * @param make_new: whether or not to return the cached result first (false) or the compute fresh results (true)
+       * VERY IMPORTANT FOR BACH RIDER - DRIVERS MATCHING.
+       * Redis key: user_fingerprint-driver-fingerprint
+       * valueIndex: 'relativeEta'
+       */
+      app.get("/getVitalsETAOrRouteInfos2points", function (req, res) {
+        new Promise((resMAIN) => {
+          let params = urlParser.parse(req.url, true);
+          req = params.query;
+          //...
           if (
-            req.make_new !== undefined ||
-            req.make_new === "true" ||
-            req.make_new
+            req.user_fingerprint !== undefined &&
+            req.org_latitude !== undefined &&
+            req.org_longitude !== undefined &&
+            req.city !== undefined &&
+            req.country !== undefined &&
+            req.ride_type !== undefined
           ) {
-            //logger.info("MAKE NEW");
-            //Get the list of drivers match the availability criteria
-            new Promise((resGetFreshList) => {
-              getFreshProximity_driversList(
-                req,
-                redisKey,
-                collectionDrivers_profiles,
-                collectionRidesDeliveries_data,
-                collectionPassengers_profiles,
-                resGetFreshList
-              );
-            })
-              .then(
-                (result) => {
-                  //? DONE
-                  resMAIN(result);
-                },
-                (error) => {
+            //? Form the redis key
+            let redisKey = `${req.user_fingerprint}-driversListCachedData`;
+            //Check the list limit
+            if (req.list_limit === undefined) {
+              req.list_limit = 7;
+            }
+            //! CHECK FOR CACHED RESULT FIRST IF INSTRUCTED SO
+            if (
+              req.make_new !== undefined ||
+              req.make_new === "true" ||
+              req.make_new
+            ) {
+              //logger.info("MAKE NEW");
+              //Get the list of drivers match the availability criteria
+              new Promise((resGetFreshList) => {
+                getFreshProximity_driversList(
+                  req,
+                  redisKey,
+                  collectionDrivers_profiles,
+                  collectionRidesDeliveries_data,
+                  collectionPassengers_profiles,
+                  resGetFreshList
+                );
+              })
+                .then(
+                  (result) => {
+                    //? DONE
+                    resMAIN(result);
+                  },
+                  (error) => {
+                    //logger.info(error);
+                    resMAIN({ response: "no_close_drivers_found" });
+                  }
+                )
+                .catch((error) => {
                   //logger.info(error);
                   resMAIN({ response: "no_close_drivers_found" });
-                }
-              )
-              .catch((error) => {
-                //logger.info(error);
-                resMAIN({ response: "no_close_drivers_found" });
-              });
-          } //Get the cached first
-          else {
-            //logger.info("Get cached first");
-            redisGet(redisKey)
-              .then(
-                (resp) => {
-                  if (resp !== null) {
-                    //logger.info("FOUND CACHED DRIVER LIST");
-                    //Has some cached data
-                    try {
-                      //Rehydrate the data
-                      new Promise((resGetFreshList) => {
-                        getFreshProximity_driversList(
-                          req,
-                          redisKey,
-                          collectionDrivers_profiles,
-                          collectionRidesDeliveries_data,
-                          collectionPassengers_profiles,
-                          resGetFreshList
-                        );
-                      })
-                        .then(
-                          (result) => {
-                            //? DONE
-                          },
-                          (error) => {
+                });
+            } //Get the cached first
+            else {
+              //logger.info("Get cached first");
+              redisGet(redisKey)
+                .then(
+                  (resp) => {
+                    if (resp !== null) {
+                      //logger.info("FOUND CACHED DRIVER LIST");
+                      //Has some cached data
+                      try {
+                        //Rehydrate the data
+                        new Promise((resGetFreshList) => {
+                          getFreshProximity_driversList(
+                            req,
+                            redisKey,
+                            collectionDrivers_profiles,
+                            collectionRidesDeliveries_data,
+                            collectionPassengers_profiles,
+                            resGetFreshList
+                          );
+                        })
+                          .then(
+                            (result) => {
+                              //? DONE
+                            },
+                            (error) => {
+                              //logger.info(error);
+                            }
+                          )
+                          .catch((error) => {
                             //logger.info(error);
-                          }
-                        )
-                        .catch((error) => {
-                          //logger.info(error);
-                        });
-                      //...
-                      resp = parse(resp);
-                      //? Quickly respond
-                      resMAIN(resp);
-                    } catch (error) {
-                      //logger.info(error);
+                          });
+                        //...
+                        resp = parse(resp);
+                        //? Quickly respond
+                        resMAIN(resp);
+                      } catch (error) {
+                        //logger.info(error);
+                        //Get the list of drivers match the availability criteria
+                        new Promise((resGetFreshList) => {
+                          getFreshProximity_driversList(
+                            req,
+                            redisKey,
+                            collectionDrivers_profiles,
+                            collectionRidesDeliveries_data,
+                            collectionPassengers_profiles,
+                            resGetFreshList
+                          );
+                        })
+                          .then(
+                            (result) => {
+                              //? DONE
+                              resMAIN(result);
+                            },
+                            (error) => {
+                              //logger.info(error);
+                              resMAIN({
+                                response: "no_close_drivers_found",
+                              });
+                            }
+                          )
+                          .catch((error) => {
+                            //logger.info(error);
+                            resMAIN({ response: "no_close_drivers_found" });
+                          });
+                      }
+                    } //No cached data - get fresh one
+                    else {
                       //Get the list of drivers match the availability criteria
                       new Promise((resGetFreshList) => {
                         getFreshProximity_driversList(
@@ -5556,9 +5460,7 @@ redisCluster.on("connect", function () {
                           },
                           (error) => {
                             //logger.info(error);
-                            resMAIN({
-                              response: "no_close_drivers_found",
-                            });
+                            resMAIN({ response: "no_close_drivers_found" });
                           }
                         )
                         .catch((error) => {
@@ -5566,8 +5468,9 @@ redisCluster.on("connect", function () {
                           resMAIN({ response: "no_close_drivers_found" });
                         });
                     }
-                  } //No cached data - get fresh one
-                  else {
+                  },
+                  (error) => {
+                    //logger.info(error);
                     //Get the list of drivers match the availability criteria
                     new Promise((resGetFreshList) => {
                       getFreshProximity_driversList(
@@ -5594,8 +5497,8 @@ redisCluster.on("connect", function () {
                         resMAIN({ response: "no_close_drivers_found" });
                       });
                   }
-                },
-                (error) => {
+                )
+                .catch((error) => {
                   //logger.info(error);
                   //Get the list of drivers match the availability criteria
                   new Promise((resGetFreshList) => {
@@ -5622,133 +5525,146 @@ redisCluster.on("connect", function () {
                       //logger.info(error);
                       resMAIN({ response: "no_close_drivers_found" });
                     });
-                }
-              )
-              .catch((error) => {
-                //logger.info(error);
-                //Get the list of drivers match the availability criteria
-                new Promise((resGetFreshList) => {
-                  getFreshProximity_driversList(
-                    req,
-                    redisKey,
-                    collectionDrivers_profiles,
-                    collectionRidesDeliveries_data,
-                    collectionPassengers_profiles,
-                    resGetFreshList
-                  );
-                })
-                  .then(
-                    (result) => {
-                      //? DONE
-                      resMAIN(result);
-                    },
-                    (error) => {
-                      //logger.info(error);
-                      resMAIN({ response: "no_close_drivers_found" });
-                    }
-                  )
-                  .catch((error) => {
-                    //logger.info(error);
-                    resMAIN({ response: "no_close_drivers_found" });
-                  });
-              });
+                });
+            }
+          } else {
+            resMAIN({ response: "no_close_drivers_found" });
           }
-        } else {
-          resMAIN({ response: "no_close_drivers_found" });
-        }
-      })
-        .then((result) => {
-          res.send(result);
         })
-        .catch((error) => {
-          //logger.info(error);
-          res.send({ response: "no_close_drivers_found" });
-        });
-    });
+          .then((result) => {
+            res.send(result);
+          })
+          .catch((error) => {
+            //logger.info(error);
+            res.send({ response: "no_close_drivers_found" });
+          });
+      });
 
-    /**
-     * PROVIDE REALTIME ROUTE TRACKING DATA
-     * Responsible for computing, caching and delivering real-time tracking information from  point A to a point B.
-     * Include the direction intructions.
-     * @param user_fingerprint: the user's fingerprint.
-     * @param request_fp: the request fingerprint or unique identifiyer of the operation that requires the active tracking.
-     * @param org_latitude: latitude of the origin point
-     * @param org_longitude: longitude of the origin point
-     * @param dest_latitude: latitude of the destination point.
-     * @param dest_longitude: longitude of the destination point.
-     * Redis key format: realtime-tracking-operation-user_fingerprint-request_fp
-     */
-    app.get("/getRealtimeTrackingRoute_forTHIS", function (req, res) {
-      new Promise((resMAIN) => {
-        let params = urlParser.parse(req.url, true);
-        req = params.query;
+      /**
+       * PROVIDE REALTIME ROUTE TRACKING DATA
+       * Responsible for computing, caching and delivering real-time tracking information from  point A to a point B.
+       * Include the direction intructions.
+       * @param user_fingerprint: the user's fingerprint.
+       * @param request_fp: the request fingerprint or unique identifiyer of the operation that requires the active tracking.
+       * @param org_latitude: latitude of the origin point
+       * @param org_longitude: longitude of the origin point
+       * @param dest_latitude: latitude of the destination point.
+       * @param dest_longitude: longitude of the destination point.
+       * Redis key format: realtime-tracking-operation-user_fingerprint-request_fp
+       */
+      app.get("/getRealtimeTrackingRoute_forTHIS", function (req, res) {
+        new Promise((resMAIN) => {
+          let params = urlParser.parse(req.url, true);
+          req = params.query;
 
-        if (
-          req.user_fingerprint !== undefined &&
-          req.user_fingerprint !== null &&
-          req.request_fp !== undefined &&
-          req.request_fp !== null &&
-          req.org_latitude !== undefined &&
-          req.org_latitude !== null &&
-          req.org_longitude !== undefined &&
-          req.org_longitude !== null &&
-          req.dest_latitude !== undefined &&
-          req.dest_latitude !== null
-        ) {
-          //Valid format
-          //Create the redis key
-          let redisKey =
-            "realtime-tracking-operation-" +
-            req.user_fingerprint +
-            "-" +
-            req.request_fp;
-          //Get the cached data first if any
-          redisGet(redisKey).then(
-            (resp) => {
-              if (resp !== null) {
-                //Has a previous recordd
-                try {
-                  //Update the old cache
-                  new Promise((res0) => {
-                    getRouteInfosDestination(
-                      {
-                        passenger: {
-                          latitude: req.org_latitude,
-                          longitude: req.org_longitude,
+          if (
+            req.user_fingerprint !== undefined &&
+            req.user_fingerprint !== null &&
+            req.request_fp !== undefined &&
+            req.request_fp !== null &&
+            req.org_latitude !== undefined &&
+            req.org_latitude !== null &&
+            req.org_longitude !== undefined &&
+            req.org_longitude !== null &&
+            req.dest_latitude !== undefined &&
+            req.dest_latitude !== null
+          ) {
+            //Valid format
+            //Create the redis key
+            let redisKey =
+              "realtime-tracking-operation-" +
+              req.user_fingerprint +
+              "-" +
+              req.request_fp;
+            //Get the cached data first if any
+            redisGet(redisKey).then(
+              (resp) => {
+                if (resp !== null) {
+                  //Has a previous recordd
+                  try {
+                    //Update the old cache
+                    new Promise((res0) => {
+                      getRouteInfosDestination(
+                        {
+                          passenger: {
+                            latitude: req.org_latitude,
+                            longitude: req.org_longitude,
+                          },
+                          destination: {
+                            latitude: req.dest_latitude,
+                            longitude: req.dest_longitude,
+                          },
+                          setIntructions: true,
                         },
-                        destination: {
-                          latitude: req.dest_latitude,
-                          longitude: req.dest_longitude,
-                        },
-                        setIntructions: true,
+                        res0,
+                        false,
+                        false
+                      );
+                    }).then(
+                      (result) => {
+                        //Update cache if the result is not fallsee
+                        if (result !== false) {
+                          redisCluster.setex(
+                            redisKey,
+                            process.env.REDIS_EXPIRATION_5MIN,
+                            JSON.stringify(result)
+                          );
+                        }
                       },
-                      res0,
-                      false,
-                      false
-                    );
-                  }).then(
-                    (result) => {
-                      //Update cache if the result is not fallsee
-                      if (result !== false) {
-                        redisCluster.setex(
-                          redisKey,
-                          process.env.REDIS_EXPIRATION_5MIN,
-                          JSON.stringify(result)
-                        );
+                      (error) => {
+                        //logger.info(error);
                       }
-                    },
-                    (error) => {
-                      //logger.info(error);
-                    }
-                  );
-                  //.....
-                  resp = JSON.parse(resp);
-                  //logger.info("Found realtime REDIS record!");
-                  //Quickly return data
-                  resMAIN(resp);
-                } catch (error) {
-                  //logger.info(error);
-                  //Error - make a fresh search
+                    );
+                    //.....
+                    resp = JSON.parse(resp);
+                    //logger.info("Found realtime REDIS record!");
+                    //Quickly return data
+                    resMAIN(resp);
+                  } catch (error) {
+                    //logger.info(error);
+                    //Error - make a fresh search
+                    new Promise((res0) => {
+                      getRouteInfosDestination(
+                        {
+                          passenger: {
+                            latitude: req.org_latitude,
+                            longitude: req.org_longitude,
+                          },
+                          destination: {
+                            latitude: req.dest_latitude,
+                            longitude: req.dest_longitude,
+                          },
+                          setIntructions: true,
+                        },
+                        res0,
+                        false,
+                        false
+                      );
+                    }).then(
+                      (result) => {
+                        //Update cache if the result is not fallsee
+                        if (result !== false) {
+                          redisCluster.setex(
+                            redisKey,
+                            process.env.REDIS_EXPIRATION_5MIN,
+                            JSON.stringify(result)
+                          );
+                          //...
+                          resMAIN(result);
+                        } //Error
+                        else {
+                          resMAIN(false);
+                        }
+                      },
+                      (error) => {
+                        //logger.info(error);
+                        //...
+                        resMAIN(false);
+                      }
+                    );
+                  }
+                } //No previous record - make a fresh search
+                else {
                   new Promise((res0) => {
                     getRouteInfosDestination(
                       {
@@ -5789,8 +5705,10 @@ redisCluster.on("connect", function () {
                     }
                   );
                 }
-              } //No previous record - make a fresh search
-              else {
+              },
+              (error) => {
+                //logger.info(error);
+                //Error - make a fresh search
                 new Promise((res0) => {
                   getRouteInfosDestination(
                     {
@@ -5831,225 +5749,181 @@ redisCluster.on("connect", function () {
                   }
                 );
               }
-            },
-            (error) => {
-              //logger.info(error);
-              //Error - make a fresh search
-              new Promise((res0) => {
-                getRouteInfosDestination(
-                  {
-                    passenger: {
-                      latitude: req.org_latitude,
-                      longitude: req.org_longitude,
-                    },
-                    destination: {
-                      latitude: req.dest_latitude,
-                      longitude: req.dest_longitude,
-                    },
-                    setIntructions: true,
-                  },
-                  res0,
-                  false,
-                  false
-                );
-              }).then(
-                (result) => {
-                  //Update cache if the result is not fallsee
-                  if (result !== false) {
-                    redisCluster.setex(
-                      redisKey,
-                      process.env.REDIS_EXPIRATION_5MIN,
-                      JSON.stringify(result)
-                    );
-                    //...
-                    resMAIN(result);
-                  } //Error
-                  else {
-                    resMAIN(false);
-                  }
-                },
-                (error) => {
-                  //logger.info(error);
-                  //...
-                  resMAIN(false);
-                }
-              );
-            }
-          );
-        } //Invalid data
-        else {
-          resMAIN(false);
-        }
-      })
-        .then((result) => {
-          res.send(result);
+            );
+          } //Invalid data
+          else {
+            resMAIN(false);
+          }
         })
-        .catch((error) => {
-          //logger.info(error);
-          res.send(false);
-        });
-    });
+          .then((result) => {
+            res.send(result);
+          })
+          .catch((error) => {
+            //logger.info(error);
+            res.send(false);
+          });
+      });
 
-    /**
-     * GET THE NECESSARY INFOS FOR ONLY THE SHARED TRIPS.
-     * Responsible for retrieving data about any shared trips from one user to one or many others.
-     * @param sharedTo_user_fingerprint: the fingerprint of the user to which the request was shared to.
-     * @param trip_simplified_id: the simplified request fp of the ride.
-     * ! Can only share rides for now.
-     */
-    app.get("/getSharedTrip_information", function (req, res) {
-      resolveDate();
-      let params = urlParser.parse(req.url, true);
-      req = params.query;
+      /**
+       * GET THE NECESSARY INFOS FOR ONLY THE SHARED TRIPS.
+       * Responsible for retrieving data about any shared trips from one user to one or many others.
+       * @param sharedTo_user_fingerprint: the fingerprint of the user to which the request was shared to.
+       * @param trip_simplified_id: the simplified request fp of the ride.
+       * ! Can only share rides for now.
+       */
+      app.get("/getSharedTrip_information", function (req, res) {
+        resolveDate();
+        let params = urlParser.parse(req.url, true);
+        req = params.query;
 
-      if (
-        req.sharedTo_user_fingerprint !== undefined &&
-        req.sharedTo_user_fingerprint !== null &&
-        req.trip_simplified_id !== undefined &&
-        req.trip_simplified_id !== null
-      ) {
-        let timeTaken = new Date();
-        timeTaken = timeTaken.getTime();
-        //Get the user fingerprint of the owner of this ride as long as it is still active
-        collectionRidesDeliveries_data
-          .find({ trip_simplified_id: req.trip_simplified_id })
-          .toArray(function (err, parentTripDetails) {
-            if (err) {
-              res.send({ request_status: "no_rides" });
-            }
-            //...
-            if (parentTripDetails.length > 0) {
-              //There's a trip in progress
-              //Save the event of an external user getting the trip infos and all the corresponding data
-              let eventBundle = {
-                sharedTo_user_fingerprint: req.sharedTo_user_fingerprint,
-                trip_simplified_id: req.trip_simplified_id,
-                owner_rider_fingerprint: parentTripDetails[0].client_id,
-                request_fp: parentTripDetails[0].request_fp,
-                response_got: null, //The response of the request.
-                date_captured: new Date(chaineDateUTC),
-              };
-              //Check for any existing ride
-              new Promise((res) => {
-                ////logger.info("fetching data");
-                tripChecker_Dispatcher(
-                  collectionRidesDeliveries_data,
-                  collectionDrivers_profiles,
-                  collectionPassengers_profiles,
-                  parentTripDetails[0].client_id,
-                  "rider",
-                  "rides",
-                  res
-                );
-              }).then(
-                (result) => {
-                  let doneTime = new Date();
-                  timeTaken = doneTime.getTime() - timeTaken;
-                  ////logger.info("[" + chaineDateUTC + "] Compute and dispatch time (trip) ------>  " + timeTaken + " ms");
-                  //Save the shared result event
-                  new Promise((resSharedEvent) => {
-                    //Complete the event bundle with the response of the request
-                    eventBundle.response_got = result;
-                    collectionGlobalEvents.insertOne(
-                      eventBundle,
-                      function (err, reslt) {
-                        resSharedEvent(true);
-                      }
-                    );
-                  }).then(
-                    () => {
-                      //logger.info("Save the shared ride event");
-                    },
-                    () => {}
+        if (
+          req.sharedTo_user_fingerprint !== undefined &&
+          req.sharedTo_user_fingerprint !== null &&
+          req.trip_simplified_id !== undefined &&
+          req.trip_simplified_id !== null
+        ) {
+          let timeTaken = new Date();
+          timeTaken = timeTaken.getTime();
+          //Get the user fingerprint of the owner of this ride as long as it is still active
+          collectionRidesDeliveries_data
+            .find({ trip_simplified_id: req.trip_simplified_id })
+            .toArray(function (err, parentTripDetails) {
+              if (err) {
+                res.send({ request_status: "no_rides" });
+              }
+              //...
+              if (parentTripDetails.length > 0) {
+                //There's a trip in progress
+                //Save the event of an external user getting the trip infos and all the corresponding data
+                let eventBundle = {
+                  sharedTo_user_fingerprint: req.sharedTo_user_fingerprint,
+                  trip_simplified_id: req.trip_simplified_id,
+                  owner_rider_fingerprint: parentTripDetails[0].client_id,
+                  request_fp: parentTripDetails[0].request_fp,
+                  response_got: null, //The response of the request.
+                  date_captured: new Date(chaineDateUTC),
+                };
+                //Check for any existing ride
+                new Promise((res) => {
+                  ////logger.info("fetching data");
+                  tripChecker_Dispatcher(
+                    collectionRidesDeliveries_data,
+                    collectionDrivers_profiles,
+                    collectionPassengers_profiles,
+                    parentTripDetails[0].client_id,
+                    "rider",
+                    "rides",
+                    res
                   );
-                  //Update the rider
-                  if (result !== false) {
-                    if (result != "no_rides") {
-                      //!Get the sender's details and attach it the to response
-                      collectionPassengers_profiles
-                        .find({
-                          user_fingerprint: parentTripDetails[0].client_id,
-                        })
-                        .toArray(function (err, riderTripOwner) {
-                          if (err) {
-                            //logger.info(err);
-                            res.send({ request_status: "no_rides" });
-                          }
-                          //...
-                          if (
-                            riderTripOwner.length > 0 &&
-                            riderTripOwner[0].user_fingerprint !== undefined
-                          ) {
-                            //Found the owner of the ride
-                            let ownerInfoBundle = {
-                              name: riderTripOwner[0].name,
-                              profile_picture: `${process.env.AWS_S3_RIDERS_PROFILE_PICTURES_PATH}/${riderTripOwner[0].media.profile_picture}`,
-                            };
-                            //? attach to the global trip details AND the success status
-                            result["riderOwnerInfoBundle"] = ownerInfoBundle;
-                            result["responsePass"] = "success";
-                            //! Remove the driver's phone number and the car plate number
-                            if (
-                              result.driverDetails !== undefined &&
-                              result.driverDetails.phone_number !== undefined
-                            ) {
-                              result.driverDetails.phone_number = null;
-                              result.driverDetails.plate_number = null;
-                              res.send(result);
-                            } //No relevant details
-                            else {
-                              res.send(result);
+                }).then(
+                  (result) => {
+                    let doneTime = new Date();
+                    timeTaken = doneTime.getTime() - timeTaken;
+                    ////logger.info("[" + chaineDateUTC + "] Compute and dispatch time (trip) ------>  " + timeTaken + " ms");
+                    //Save the shared result event
+                    new Promise((resSharedEvent) => {
+                      //Complete the event bundle with the response of the request
+                      eventBundle.response_got = result;
+                      collectionGlobalEvents.insertOne(
+                        eventBundle,
+                        function (err, reslt) {
+                          resSharedEvent(true);
+                        }
+                      );
+                    }).then(
+                      () => {
+                        //logger.info("Save the shared ride event");
+                      },
+                      () => {}
+                    );
+                    //Update the rider
+                    if (result !== false) {
+                      if (result != "no_rides") {
+                        //!Get the sender's details and attach it the to response
+                        collectionPassengers_profiles
+                          .find({
+                            user_fingerprint: parentTripDetails[0].client_id,
+                          })
+                          .toArray(function (err, riderTripOwner) {
+                            if (err) {
+                              //logger.info(err);
+                              res.send({ request_status: "no_rides" });
                             }
-                          } //Stange - no ride owner linked to this ride
-                          else {
-                            res.send({ request_status: "no_rides" });
-                          }
-                        });
+                            //...
+                            if (
+                              riderTripOwner.length > 0 &&
+                              riderTripOwner[0].user_fingerprint !== undefined
+                            ) {
+                              //Found the owner of the ride
+                              let ownerInfoBundle = {
+                                name: riderTripOwner[0].name,
+                                profile_picture: `${process.env.AWS_S3_RIDERS_PROFILE_PICTURES_PATH}/${riderTripOwner[0].media.profile_picture}`,
+                              };
+                              //? attach to the global trip details AND the success status
+                              result["riderOwnerInfoBundle"] = ownerInfoBundle;
+                              result["responsePass"] = "success";
+                              //! Remove the driver's phone number and the car plate number
+                              if (
+                                result.driverDetails !== undefined &&
+                                result.driverDetails.phone_number !== undefined
+                              ) {
+                                result.driverDetails.phone_number = null;
+                                result.driverDetails.plate_number = null;
+                                res.send(result);
+                              } //No relevant details
+                              else {
+                                res.send(result);
+                              }
+                            } //Stange - no ride owner linked to this ride
+                            else {
+                              res.send({ request_status: "no_rides" });
+                            }
+                          });
+                      } //No rides
+                      else {
+                        res.send({ request_status: "no_rides" });
+                      }
                     } //No rides
                     else {
                       res.send({ request_status: "no_rides" });
                     }
-                  } //No rides
-                  else {
+                  },
+                  (error) => {
+                    //logger.info(error);
                     res.send({ request_status: "no_rides" });
+                    ////logger.info(error);
                   }
-                },
-                (error) => {
-                  //logger.info(error);
-                  res.send({ request_status: "no_rides" });
-                  ////logger.info(error);
-                }
-              );
-            } //No rides in progress
-            else {
-              res.send({ request_status: "no_rides" });
-            }
-          });
-      } //Invalid data
-      else {
-        res.send({ response: "error_invalid_data", flag: false });
-      }
-    });
+                );
+              } //No rides in progress
+              else {
+                res.send({ request_status: "no_rides" });
+              }
+            });
+        } //Invalid data
+        else {
+          res.send({ response: "error_invalid_data", flag: false });
+        }
+      });
 
-    /**
-     * SIMULATION
-     * Responsible for managing different map or any services simulation scenarios from the simulation tool.
-     * Scenarios:
-     * 1. MAP
-     * -Pickup simulation
-     * -Drop off sumlation
-     */
-    //Origin coords - driver
-    //const blon = 17.099327;
-    //const blat = -22.579195;
-    //const blon = 17.060507;
-    //const blat = -22.514987;
-    //Destination coords
-    //const destinationLat = -22.577673;
-    //const destinationLon = 17.086427;
+      /**
+       * SIMULATION
+       * Responsible for managing different map or any services simulation scenarios from the simulation tool.
+       * Scenarios:
+       * 1. MAP
+       * -Pickup simulation
+       * -Drop off sumlation
+       */
+      //Origin coords - driver
+      //const blon = 17.099327;
+      //const blat = -22.579195;
+      //const blon = 17.060507;
+      //const blat = -22.514987;
+      //Destination coords
+      //const destinationLat = -22.577673;
+      //const destinationLon = 17.086427;
 
-    //1. Pickup simulation
-    /*socket.on("startPickupSim", function (req) {
+      //1. Pickup simulation
+      /*socket.on("startPickupSim", function (req) {
 logToSimulator(socket, "Pickup simulation successfully started.");
 let bundle = {
   driver: { latitude: blat, longitude: blon },
@@ -6063,7 +5937,8 @@ let bundle = {
   },
 };
 });*/
-  });
+    }
+  );
 });
 server.listen(process.env.MAP_SERVICE_PORT);
 //dash.monitor({ server: server });
