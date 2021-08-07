@@ -1,0 +1,23 @@
+version: "3"
+
+services:
+  redis-server:
+    image: redis:latest
+    restart: always
+    ports:
+      - "6379-6385:6379"
+
+  server_beta_v2:
+    depends_on:
+      - redis-server
+    build: .
+    ports:
+      - "9097:9097"
+      - "9090:9090"
+      - "9091:9091"
+      - "9797:9797"
+      - "9094:9094"
+      - "9696:9696"
+      - "9494:9494"
+      - "9093:9093"
+    restart: always

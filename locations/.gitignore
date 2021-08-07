@@ -1,6 +1,0 @@
-.git
-node_modules
-locations/node_modules
-package-lock.json
-combined.log
-newrelic_agent.log

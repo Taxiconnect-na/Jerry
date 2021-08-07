@@ -6,3 +6,6 @@ combined.log
 newrelic_agent.log
 locations/combined.log
 locations/newrelic_agent.log
+.git
+node_modules
+package-lock.json
