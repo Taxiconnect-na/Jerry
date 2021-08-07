@@ -20,12 +20,6 @@ var dateObject = null;
 var dateObjectImute = null;
 const moment = require("moment");
 
-const clientMongo = new MongoClient(process.env.URL_MONGODB, {
-  tlsCAFile: certFile, //The DocDB cert
-  useUnifiedTopology: true,
-  useNewUrlParser: true,
-});
-
 function resolveDate() {
   //Resolve date
   var date = new Date();
@@ -1024,48 +1018,55 @@ function checkNonSelf_sendingFunds_user(
  * MAIN
  */
 
-clientMongo.connect(function (err) {
-  //if (err) throw err;
-  logger.info("[*] Payments services up");
-  const dbMongo = clientMongo.db(process.env.DB_NAME_MONGODDB);
-  const collectionPassengers_profiles = dbMongo.collection(
-    "passengers_profiles"
-  ); //Hold the information about the riders
-  const collectionDrivers_profiles = dbMongo.collection("drivers_profiles"); //Hold all the drivers profiles
-  const collectionWalletTransactions_logs = dbMongo.collection(
-    "wallet_transactions_logs"
-  ); //Hold the latest information about the riders topups
-  const collectionRidesDeliveryData = dbMongo.collection(
-    "rides_deliveries_requests"
-  ); //Hold all the requests made (rides and deliveries)
-  const collectionGlobalEvents = dbMongo.collection("global_events"); //Hold all the random events that happened somewhere.
-  //-------------
-  const bodyParser = require("body-parser");
-  app
-    .get("/", function (req, res) {
-      logger.info("Payments services up");
-    })
-    .use(
-      bodyParser.json({
-        limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
-        extended: true,
+MongoClient.connect(
+  process.env.URL_MONGODB,
+  {
+    tlsCAFile: certFile, //The DocDB cert
+    useUnifiedTopology: true,
+    useNewUrlParser: true,
+  },
+  function (err, clientMongo) {
+    if (err) throw err;
+    logger.info("[*] Payments services up");
+    const dbMongo = clientMongo.db(process.env.DB_NAME_MONGODDB);
+    const collectionPassengers_profiles = dbMongo.collection(
+      "passengers_profiles"
+    ); //Hold the information about the riders
+    const collectionDrivers_profiles = dbMongo.collection("drivers_profiles"); //Hold all the drivers profiles
+    const collectionWalletTransactions_logs = dbMongo.collection(
+      "wallet_transactions_logs"
+    ); //Hold the latest information about the riders topups
+    const collectionRidesDeliveryData = dbMongo.collection(
+      "rides_deliveries_requests"
+    ); //Hold all the requests made (rides and deliveries)
+    const collectionGlobalEvents = dbMongo.collection("global_events"); //Hold all the random events that happened somewhere.
+    //-------------
+    const bodyParser = require("body-parser");
+    app
+      .get("/", function (req, res) {
+        logger.info("Payments services up");
       })
-    )
-    .use(
-      bodyParser.urlencoded({
-        limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
-        extended: true,
-      })
-    );
+      .use(
+        bodyParser.json({
+          limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
+          extended: true,
+        })
+      )
+      .use(
+        bodyParser.urlencoded({
+          limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
+          extended: true,
+        })
+      );
 
-  /**
-   * WALLET TOP-UP
-   * Responsible for topping up wallets and securing the all process
-   */
-  app.get("/topUPThisWalletTaxiconnect", function (req, res) {
-    resolveDate();
-    //...
-    /*let dataBundle = {
+    /**
+     * WALLET TOP-UP
+     * Responsible for topping up wallets and securing the all process
+     */
+    app.get("/topUPThisWalletTaxiconnect", function (req, res) {
+      resolveDate();
+      //...
+      /*let dataBundle = {
       user_fp:
         "7c57cb6c9471fd33fd265d5441f253eced2a6307c0207dea57c987035b496e6e8dfa7105b86915da",
       amount: 45,
@@ -1075,72 +1076,72 @@ clientMongo.connect(function (err) {
       name: "Dominique", //? Optional
       type: "VISA",
     };*/
-    let params = urlParser.parse(req.url, true);
-    req = params.query;
-    //? Make sure that the city and country are provided or - defaults them to Windhoek Namibia
-    req.city =
-      req.city !== undefined && req.city !== null && req.city !== false
-        ? req.city
-        : "Windhoek";
-    req.country =
-      req.country !== undefined &&
-      req.country !== null &&
-      req.country !== false &&
-      req.country.length <= 2
-        ? req.country
-        : "NA"; //! Required 2 digits for countries - DPO ref
-    //?....
-    dataBundle = req;
+      let params = urlParser.parse(req.url, true);
+      req = params.query;
+      //? Make sure that the city and country are provided or - defaults them to Windhoek Namibia
+      req.city =
+        req.city !== undefined && req.city !== null && req.city !== false
+          ? req.city
+          : "Windhoek";
+      req.country =
+        req.country !== undefined &&
+        req.country !== null &&
+        req.country !== false &&
+        req.country.length <= 2
+          ? req.country
+          : "NA"; //! Required 2 digits for countries - DPO ref
+      //?....
+      dataBundle = req;
 
-    //! CHECK INPUTS
-    if (
-      dataBundle.user_fp !== undefined &&
-      dataBundle.user_fp !== null &&
-      dataBundle.amount !== undefined &&
-      dataBundle.amount !== null &&
-      dataBundle.number !== undefined &&
-      dataBundle.number !== null &&
-      dataBundle.expiry !== undefined &&
-      dataBundle.expiry !== null &&
-      dataBundle.cvv !== undefined &&
-      dataBundle.cvv !== null &&
-      dataBundle.type !== undefined &&
-      dataBundle.type !== null &&
-      dataBundle.name !== undefined &&
-      dataBundle.name !== null &&
-      dataBundle.city !== undefined &&
-      dataBundle.city !== null &&
-      dataBundle.country !== undefined &&
-      dataBundle.country !== null
-    ) {
-      //?PASSED
-      //Get user's details
-      collectionPassengers_profiles
-        .find({ user_fingerprint: dataBundle.user_fp })
-        .toArray(function (error, usersDetails) {
-          if (error) {
-            logger.info(error);
-            res.send({ response: false, message: "transaction_error" });
-          }
-          //...
-          if (
-            usersDetails.length > 0 &&
-            usersDetails[0].user_fingerprint !== undefined &&
-            usersDetails[0].user_fingerprint !== null
-          ) {
-            //?Found some valid details
+      //! CHECK INPUTS
+      if (
+        dataBundle.user_fp !== undefined &&
+        dataBundle.user_fp !== null &&
+        dataBundle.amount !== undefined &&
+        dataBundle.amount !== null &&
+        dataBundle.number !== undefined &&
+        dataBundle.number !== null &&
+        dataBundle.expiry !== undefined &&
+        dataBundle.expiry !== null &&
+        dataBundle.cvv !== undefined &&
+        dataBundle.cvv !== null &&
+        dataBundle.type !== undefined &&
+        dataBundle.type !== null &&
+        dataBundle.name !== undefined &&
+        dataBundle.name !== null &&
+        dataBundle.city !== undefined &&
+        dataBundle.city !== null &&
+        dataBundle.country !== undefined &&
+        dataBundle.country !== null
+      ) {
+        //?PASSED
+        //Get user's details
+        collectionPassengers_profiles
+          .find({ user_fingerprint: dataBundle.user_fp })
+          .toArray(function (error, usersDetails) {
+            if (error) {
+              logger.info(error);
+              res.send({ response: false, message: "transaction_error" });
+            }
             //...
-            //! LIMIT THE TRANSACTION AMOUNT TO N$1000 (N$50-N$1000)
             if (
-              parseFloat(dataBundle.amount) >= 50 &&
-              parseFloat(dataBundle.amount) <= 1000
+              usersDetails.length > 0 &&
+              usersDetails[0].user_fingerprint !== undefined &&
+              usersDetails[0].user_fingerprint !== null
             ) {
-              //? Remove _ from the name
-              dataBundle.name = dataBundle.name.replace(/_/g, " ");
-              //CREATE TOKEN
-              new Promise((resolve) => {
-                //? XML TOKEN responsible for creating a transaction token before any payment.
-                let xmlCreateToken = `
+              //?Found some valid details
+              //...
+              //! LIMIT THE TRANSACTION AMOUNT TO N$1000 (N$50-N$1000)
+              if (
+                parseFloat(dataBundle.amount) >= 50 &&
+                parseFloat(dataBundle.amount) <= 1000
+              ) {
+                //? Remove _ from the name
+                dataBundle.name = dataBundle.name.replace(/_/g, " ");
+                //CREATE TOKEN
+                new Promise((resolve) => {
+                  //? XML TOKEN responsible for creating a transaction token before any payment.
+                  let xmlCreateToken = `
                 <?xml version="1.0" encoding="utf-8"?>
                 <API3G>
                 <CompanyToken>${process.env.TOKEN_PAYMENT_CP}</CompanyToken>
@@ -1185,351 +1186,352 @@ clientMongo.connect(function (err) {
                 </API3G>
                 `;
 
-                createPaymentTransaction(
-                  xmlCreateToken,
-                  dataBundle.user_fp,
-                  collectionWalletTransactions_logs,
+                  createPaymentTransaction(
+                    xmlCreateToken,
+                    dataBundle.user_fp,
+                    collectionWalletTransactions_logs,
+                    resolve
+                  );
+                }).then(
+                  (reslt) => {
+                    //Deduct XML response
+                    new Promise((resolve) => {
+                      deductXML_responses(reslt, "createToken", resolve);
+                    }).then(
+                      (result_createTokenDeducted) => {
+                        if (result_createTokenDeducted !== false) {
+                          //? Continue the top-up process
+                          new Promise((resFollower) => {
+                            processExecute_paymentCardWallet_topup(
+                              dataBundle,
+                              result_createTokenDeducted,
+                              collectionWalletTransactions_logs,
+                              collectionPassengers_profiles,
+                              collectionGlobalEvents,
+                              resFollower
+                            );
+                          }).then(
+                            (result_final) => {
+                              res.send(result_final); //!Remove dpoFinal object and remove object bracket form!
+                            },
+                            (error) => {
+                              logger.info(error);
+                              res.send({
+                                response: false,
+                                message: "transaction_error",
+                              });
+                            }
+                          );
+                        } //Error
+                        else {
+                          res.send({
+                            response: false,
+                            message: "transaction_error",
+                          });
+                        }
+                      },
+                      (error) => {
+                        logger.info(error);
+                        res.send({ response: false, message: "token_error" });
+                      }
+                    );
+                  },
+                  (error) => {
+                    logger.info(error);
+                    res.send({ response: false, message: "token_error" });
+                  }
+                );
+              } //! AMOUNT TOO LARGE - DECLINE
+              else {
+                res.send({
+                  response: false,
+                  message: "transaction_error_exceeded_limit",
+                });
+              }
+            } //?Strange - did not find a rider account linked to this request
+            else {
+              logger.info("Not found users");
+              //Save error event log
+              new Promise((resFailedTransaction) => {
+                let faildTransObj = {
+                  event_name: "unlinked_rider_account_topup_failed_trial",
+                  user_fingerprint: dataBundle.user_fp,
+                  inputData: dataBundle,
+                  date_captured: new Date(chaineDateUTC),
+                };
+                //...
+                collectionGlobalEvents.insertOne(
+                  faildTransObj,
+                  function (err, reslt) {
+                    resFailedTransaction(true);
+                  }
+                );
+              }).then(
+                () => {},
+                () => {}
+              );
+              //...
+              res.send({ response: false, message: "transaction_error" });
+            }
+          });
+      } //Invalid input data
+      else {
+        res.send({
+          response: false,
+          message: "transaction_error_missing_details",
+        });
+      }
+    });
+
+    /**
+     * CHECK RECEIVER'S DETAIL
+     * Responsible for checking the receiver's details while making a wallet transaction.
+     * ? Friends/Family: Phone number (Check if it's an active TaxiConnect number).
+     * ? Drivers: Check the payment number (or Taxi number) - 5 digits number.
+     * ? User nature: friend or driver ONLY.
+     */
+    app.get("/checkReceiverDetails_walletTransaction", function (req, res) {
+      resolveDate();
+      let params = urlParser.parse(req.url, true);
+      req = params.query;
+      logger.info(req);
+
+      if (
+        req.user_fingerprint !== undefined &&
+        req.user_fingerprint !== null &&
+        req.user_nature !== undefined &&
+        req.user_nature !== null &&
+        req.payNumberOrPhoneNumber !== undefined &&
+        req.payNumberOrPhoneNumber !== null
+      ) {
+        //Valid infos
+        //! CHECK IF THE USER IS NOT SENDING TO HIMSELF
+        new Promise((resCheckValidSender) => {
+          checkNonSelf_sendingFunds_user(
+            collectionPassengers_profiles,
+            req.payNumberOrPhoneNumber,
+            req.user_nature,
+            req.user_fingerprint,
+            resCheckValidSender
+          );
+        }).then(
+          (resultCheckSender) => {
+            if (
+              resultCheckSender.response !== undefined &&
+              resultCheckSender.response &&
+              /^valid_sender$/i.test(resultCheckSender.flag)
+            ) {
+              //Valid sender
+              new Promise((resolve) => {
+                checkReceipient_walletTransaction(
+                  req,
+                  collectionPassengers_profiles,
+                  collectionDrivers_profiles,
+                  collectionGlobalEvents,
                   resolve
                 );
               }).then(
-                (reslt) => {
-                  //Deduct XML response
-                  new Promise((resolve) => {
-                    deductXML_responses(reslt, "createToken", resolve);
-                  }).then(
-                    (result_createTokenDeducted) => {
-                      if (result_createTokenDeducted !== false) {
-                        //? Continue the top-up process
-                        new Promise((resFollower) => {
-                          processExecute_paymentCardWallet_topup(
-                            dataBundle,
-                            result_createTokenDeducted,
-                            collectionWalletTransactions_logs,
-                            collectionPassengers_profiles,
-                            collectionGlobalEvents,
-                            resFollower
-                          );
-                        }).then(
-                          (result_final) => {
-                            res.send(result_final); //!Remove dpoFinal object and remove object bracket form!
-                          },
-                          (error) => {
-                            logger.info(error);
-                            res.send({
-                              response: false,
-                              message: "transaction_error",
-                            });
-                          }
-                        );
-                      } //Error
-                      else {
-                        res.send({
-                          response: false,
-                          message: "transaction_error",
-                        });
-                      }
-                    },
-                    (error) => {
-                      logger.info(error);
-                      res.send({ response: false, message: "token_error" });
-                    }
-                  );
+                (result) => {
+                  res.send(result);
                 },
                 (error) => {
                   logger.info(error);
-                  res.send({ response: false, message: "token_error" });
+                  res.send({ response: "error", flag: "transaction_error" });
                 }
               );
-            } //! AMOUNT TOO LARGE - DECLINE
+            } //! The user wants to send to himself
             else {
               res.send({
-                response: false,
-                message: "transaction_error_exceeded_limit",
+                response: "error",
+                flag: "transaction_error_want_toSend_toHiHermslef",
               });
             }
-          } //?Strange - did not find a rider account linked to this request
-          else {
-            logger.info("Not found users");
-            //Save error event log
-            new Promise((resFailedTransaction) => {
-              let faildTransObj = {
-                event_name: "unlinked_rider_account_topup_failed_trial",
-                user_fingerprint: dataBundle.user_fp,
-                inputData: dataBundle,
-                date_captured: new Date(chaineDateUTC),
-              };
-              //...
-              collectionGlobalEvents.insertOne(
-                faildTransObj,
-                function (err, reslt) {
-                  resFailedTransaction(true);
-                }
-              );
-            }).then(
-              () => {},
-              () => {}
-            );
-            //...
-            res.send({ response: false, message: "transaction_error" });
+          },
+          (error) => {
+            logger.info(error);
+            res.send({ response: "error", flag: "transaction_error" });
           }
+        );
+      } //Invalid infos
+      else {
+        res.send({
+          response: "error",
+          flag: "transaction_error_invalid_information",
         });
-    } //Invalid input data
-    else {
-      res.send({
-        response: false,
-        message: "transaction_error_missing_details",
-      });
-    }
-  });
+      }
+    });
 
-  /**
-   * CHECK RECEIVER'S DETAIL
-   * Responsible for checking the receiver's details while making a wallet transaction.
-   * ? Friends/Family: Phone number (Check if it's an active TaxiConnect number).
-   * ? Drivers: Check the payment number (or Taxi number) - 5 digits number.
-   * ? User nature: friend or driver ONLY.
-   */
-  app.get("/checkReceiverDetails_walletTransaction", function (req, res) {
-    resolveDate();
-    let params = urlParser.parse(req.url, true);
-    req = params.query;
-    logger.info(req);
+    /**
+     * SEND FUNDS FROM WALLET
+     * Responsible for sending funds from the rider's wallet to friends/family or drivers.
+     * ? Amount (No more than N$1000), user nature, user_fingerprint (sender), payNumberOrPhoneNumber (phone number, payment number/taxi number).
+     */
+    app.get("/sendMoney_fromWalletRider_transaction", function (req, res) {
+      resolveDate();
+      let params = urlParser.parse(req.url, true);
+      req = params.query;
+      logger.info(req);
+      //...
+      if (
+        req.user_fingerprint !== undefined &&
+        req.user_fingerprint !== null &&
+        req.amount !== undefined &&
+        req.amount !== null &&
+        req.user_nature !== undefined &&
+        req.user_nature !== null &&
+        req.payNumberOrPhoneNumber !== undefined &&
+        req.payNumberOrPhoneNumber !== null
+      ) {
+        //! Valid infos
+        new Promise((resolve) => {
+          checkReceipient_walletTransaction(
+            req,
+            collectionPassengers_profiles,
+            collectionDrivers_profiles,
+            collectionGlobalEvents,
+            resolve,
+            true
+          );
+        }).then(
+          (result) => {
+            if (
+              /verified/i.test(result.response) &&
+              result.recipient_fp !== null &&
+              result.recipient_fp !== undefined
+            ) {
+              //Active user
+              //ADD THE RECIPIENT FINGERPRINT
+              req["recipient_fp"] = result.recipient_fp;
+              //! CHECK THAT THE USER IS NOT SENDING TO HIMSELF
+              new Promise((resCheckValidSender) => {
+                checkNonSelf_sendingFunds_user(
+                  collectionPassengers_profiles,
+                  req.payNumberOrPhoneNumber,
+                  req.user_nature,
+                  req.user_fingerprint,
+                  resCheckValidSender
+                );
+              }).then(
+                (resultCheckSender) => {
+                  if (
+                    resultCheckSender.response !== undefined &&
+                    resultCheckSender.response &&
+                    /^valid_sender$/i.test(resultCheckSender.flag)
+                  ) {
+                    //Valid sender
+                    //! CHECK THE WALLET BALANCE FOR THE SENDER, it should be >= to the amount to send
+                    new Promise((resCheckBalance) => {
+                      let url =
+                        process.env.LOCAL_URL +
+                        ":" +
+                        process.env.ACCOUNTS_SERVICE_PORT +
+                        "/getRiders_walletInfos?user_fingerprint=" +
+                        req.user_fingerprint +
+                        "&mode=total";
 
-    if (
-      req.user_fingerprint !== undefined &&
-      req.user_fingerprint !== null &&
-      req.user_nature !== undefined &&
-      req.user_nature !== null &&
-      req.payNumberOrPhoneNumber !== undefined &&
-      req.payNumberOrPhoneNumber !== null
-    ) {
-      //Valid infos
-      //! CHECK IF THE USER IS NOT SENDING TO HIMSELF
-      new Promise((resCheckValidSender) => {
-        checkNonSelf_sendingFunds_user(
-          collectionPassengers_profiles,
-          req.payNumberOrPhoneNumber,
-          req.user_nature,
-          req.user_fingerprint,
-          resCheckValidSender
-        );
-      }).then(
-        (resultCheckSender) => {
-          if (
-            resultCheckSender.response !== undefined &&
-            resultCheckSender.response &&
-            /^valid_sender$/i.test(resultCheckSender.flag)
-          ) {
-            //Valid sender
-            new Promise((resolve) => {
-              checkReceipient_walletTransaction(
-                req,
-                collectionPassengers_profiles,
-                collectionDrivers_profiles,
-                collectionGlobalEvents,
-                resolve
-              );
-            }).then(
-              (result) => {
-                res.send(result);
-              },
-              (error) => {
-                logger.info(error);
-                res.send({ response: "error", flag: "transaction_error" });
-              }
-            );
-          } //! The user wants to send to himself
-          else {
-            res.send({
-              response: "error",
-              flag: "transaction_error_want_toSend_toHiHermslef",
-            });
-          }
-        },
-        (error) => {
-          logger.info(error);
-          res.send({ response: "error", flag: "transaction_error" });
-        }
-      );
-    } //Invalid infos
-    else {
-      res.send({
-        response: "error",
-        flag: "transaction_error_invalid_information",
-      });
-    }
-  });
-
-  /**
-   * SEND FUNDS FROM WALLET
-   * Responsible for sending funds from the rider's wallet to friends/family or drivers.
-   * ? Amount (No more than N$1000), user nature, user_fingerprint (sender), payNumberOrPhoneNumber (phone number, payment number/taxi number).
-   */
-  app.get("/sendMoney_fromWalletRider_transaction", function (req, res) {
-    resolveDate();
-    let params = urlParser.parse(req.url, true);
-    req = params.query;
-    logger.info(req);
-    //...
-    if (
-      req.user_fingerprint !== undefined &&
-      req.user_fingerprint !== null &&
-      req.amount !== undefined &&
-      req.amount !== null &&
-      req.user_nature !== undefined &&
-      req.user_nature !== null &&
-      req.payNumberOrPhoneNumber !== undefined &&
-      req.payNumberOrPhoneNumber !== null
-    ) {
-      //! Valid infos
-      new Promise((resolve) => {
-        checkReceipient_walletTransaction(
-          req,
-          collectionPassengers_profiles,
-          collectionDrivers_profiles,
-          collectionGlobalEvents,
-          resolve,
-          true
-        );
-      }).then(
-        (result) => {
-          if (
-            /verified/i.test(result.response) &&
-            result.recipient_fp !== null &&
-            result.recipient_fp !== undefined
-          ) {
-            //Active user
-            //ADD THE RECIPIENT FINGERPRINT
-            req["recipient_fp"] = result.recipient_fp;
-            //! CHECK THAT THE USER IS NOT SENDING TO HIMSELF
-            new Promise((resCheckValidSender) => {
-              checkNonSelf_sendingFunds_user(
-                collectionPassengers_profiles,
-                req.payNumberOrPhoneNumber,
-                req.user_nature,
-                req.user_fingerprint,
-                resCheckValidSender
-              );
-            }).then(
-              (resultCheckSender) => {
-                if (
-                  resultCheckSender.response !== undefined &&
-                  resultCheckSender.response &&
-                  /^valid_sender$/i.test(resultCheckSender.flag)
-                ) {
-                  //Valid sender
-                  //! CHECK THE WALLET BALANCE FOR THE SENDER, it should be >= to the amount to send
-                  new Promise((resCheckBalance) => {
-                    let url =
-                      process.env.LOCAL_URL +
-                      ":" +
-                      process.env.ACCOUNTS_SERVICE_PORT +
-                      "/getRiders_walletInfos?user_fingerprint=" +
-                      req.user_fingerprint +
-                      "&mode=total";
-
-                    requestAPI(url, function (error, response, body) {
-                      if (error === null) {
-                        try {
-                          body = JSON.parse(body);
-                          resCheckBalance(body);
-                        } catch (error) {
+                      requestAPI(url, function (error, response, body) {
+                        if (error === null) {
+                          try {
+                            body = JSON.parse(body);
+                            resCheckBalance(body);
+                          } catch (error) {
+                            resCheckBalance({
+                              total: 0,
+                              response: "error",
+                              tag: "invalid_parameters",
+                            });
+                          }
+                        } else {
                           resCheckBalance({
                             total: 0,
                             response: "error",
                             tag: "invalid_parameters",
                           });
                         }
-                      } else {
-                        resCheckBalance({
-                          total: 0,
-                          response: "error",
-                          tag: "invalid_parameters",
-                        });
-                      }
-                    });
-                  }).then(
-                    (senderBalance_infos) => {
-                      if (
-                        !/error/i.test(senderBalance_infos.response) &&
-                        senderBalance_infos.total !== undefined &&
-                        senderBalance_infos.total !== null
-                      ) {
-                        //Good to Go
+                      });
+                    }).then(
+                      (senderBalance_infos) => {
                         if (
-                          parseFloat(senderBalance_infos.total) >=
-                          parseFloat(req.amount)
+                          !/error/i.test(senderBalance_infos.response) &&
+                          senderBalance_infos.total !== undefined &&
+                          senderBalance_infos.total !== null
                         ) {
-                          //? Has enough funds
-                          new Promise((resolve) => {
-                            execSendMoney_fromRiderWallet_transaction(
-                              req,
-                              collectionWalletTransactions_logs,
-                              resolve
+                          //Good to Go
+                          if (
+                            parseFloat(senderBalance_infos.total) >=
+                            parseFloat(req.amount)
+                          ) {
+                            //? Has enough funds
+                            new Promise((resolve) => {
+                              execSendMoney_fromRiderWallet_transaction(
+                                req,
+                                collectionWalletTransactions_logs,
+                                resolve
+                              );
+                            }).then(
+                              (result) => {
+                                res.send(result);
+                              },
+                              (error) => {
+                                logger.info(error);
+                                res.send({
+                                  response: "error",
+                                  flag: "transaction_error",
+                                });
+                              }
                             );
-                          }).then(
-                            (result) => {
-                              res.send(result);
-                            },
-                            (error) => {
-                              logger.info(error);
-                              res.send({
-                                response: "error",
-                                flag: "transaction_error",
-                              });
-                            }
-                          );
-                        } //! The sender has not enough funds in his/her wallet to proceed
+                          } //! The sender has not enough funds in his/her wallet to proceed
+                          else {
+                            res.send({
+                              response: "error",
+                              flag: "transaction_error_unsifficient_funds",
+                            });
+                          }
+                        } //Error getting the sender's total wallet amount
                         else {
                           res.send({
                             response: "error",
-                            flag: "transaction_error_unsifficient_funds",
+                            flag: "transaction_error",
                           });
                         }
-                      } //Error getting the sender's total wallet amount
-                      else {
+                      },
+                      (error) => {
+                        //Error getting balance information
+                        logger.info(error);
                         res.send({
                           response: "error",
                           flag: "transaction_error",
                         });
                       }
-                    },
-                    (error) => {
-                      //Error getting balance information
-                      logger.info(error);
-                      res.send({
-                        response: "error",
-                        flag: "transaction_error",
-                      });
-                    }
-                  );
-                } //! The user wants to send to himself
-                else {
-                  res.send({
-                    response: "error",
-                    flag: "transaction_error_want_toSend_toHiHermslef",
-                  });
+                    );
+                  } //! The user wants to send to himself
+                  else {
+                    res.send({
+                      response: "error",
+                      flag: "transaction_error_want_toSend_toHiHermslef",
+                    });
+                  }
+                },
+                (error) => {
+                  logger.info(error);
+                  res.send({ response: "error", flag: "transaction_error" });
                 }
-              },
-              (error) => {
-                logger.info(error);
-                res.send({ response: "error", flag: "transaction_error" });
-              }
-            );
-          } //No recipient found
-          else {
+              );
+            } //No recipient found
+            else {
+              res.send({ response: "error", flag: "transaction_error" });
+            }
+          },
+          (error) => {
+            logger.info(error);
             res.send({ response: "error", flag: "transaction_error" });
           }
-        },
-        (error) => {
-          logger.info(error);
-          res.send({ response: "error", flag: "transaction_error" });
-        }
-      );
-    } else {
-      res.send({ response: "error", flag: "transaction_error" });
-    }
-  });
-});
+        );
+      } else {
+        res.send({ response: "error", flag: "transaction_error" });
+      }
+    });
+  }
+);
 
 server.listen(process.env.PAYMENT_SERVICE_PORT);

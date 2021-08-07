@@ -45,12 +45,6 @@ var dateObject = null;
 const moment = require("moment");
 const { stringify, parse } = require("flatted");
 
-// const clientMongo = new MongoClient(process.env.URL_MONGODB, {
-//   tlsCAFile: certFile, //The DocDB cert
-//   useUnifiedTopology: true,
-//   useNewUrlParser: true,
-// });
-
 function resolveDate() {
   //Resolve date
   var date = new Date();

@@ -6,7 +6,7 @@ module.exports = {
       instances: "max",
       autorestart: true,
       watch: false,
-      max_memory_restart: "300M",
+      max_memory_restart: "500M",
       env: {
         NODE_ENV: "production",
       },
@@ -17,7 +17,7 @@ module.exports = {
       instances: "max",
       autorestart: true,
       watch: false,
-      max_memory_restart: "300M",
+      max_memory_restart: "500M",
       env: {
         NODE_ENV: "production",
       },
@@ -28,7 +28,7 @@ module.exports = {
       instances: "max",
       autorestart: true,
       watch: false,
-      max_memory_restart: "300M",
+      max_memory_restart: "500M",
       env: {
         NODE_ENV: "production",
       },
@@ -39,7 +39,7 @@ module.exports = {
       instances: "max",
       autorestart: true,
       watch: false,
-      max_memory_restart: "300M",
+      max_memory_restart: "500M",
       env: {
         NODE_ENV: "production",
       },
@@ -50,7 +50,7 @@ module.exports = {
       instances: "max",
       autorestart: true,
       watch: false,
-      max_memory_restart: "300M",
+      max_memory_restart: "500M",
       env: {
         NODE_ENV: "production",
       },
@@ -61,7 +61,7 @@ module.exports = {
       instances: "max",
       autorestart: true,
       watch: false,
-      max_memory_restart: "300M",
+      max_memory_restart: "500M",
       env: {
         NODE_ENV: "production",
       },
@@ -72,7 +72,7 @@ module.exports = {
       instances: "max",
       autorestart: true,
       watch: false,
-      max_memory_restart: "300M",
+      max_memory_restart: "500M",
       env: {
         NODE_ENV: "production",
       },
@@ -83,7 +83,7 @@ module.exports = {
       instances: "max",
       autorestart: true,
       watch: false,
-      max_memory_restart: "300M",
+      max_memory_restart: "500M",
       env: {
         NODE_ENV: "production",
       },
