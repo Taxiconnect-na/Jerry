@@ -158,7 +158,7 @@ function removeOldRequests_madeWithoutBeingAttended(
   //..
   collectionRidesDeliveryData
     .find(requestFilter)
-    .collation({ locale: "en", strength: 2 })
+    //!.collation({ locale: "en", strength: 2 })
     .toArray(function (err, holdRequests) {
       if (err) {
         resolve({ response: "error", flag: "unable_to_clean_x_hold_requests" });
@@ -371,7 +371,7 @@ function updateNext_paymentDateDrivers(
               flag_annotation: "startingPoint_forFreshPayouts",
               user_fingerprint: driverData.driver_fingerprint,
             })
-            .collation({ locale: "en", strength: 2 })
+            //!.collation({ locale: "en", strength: 2 })
             .toArray(function (err, referenceData) {
               if (err) {
                 resPaymentCycle(false);
@@ -1141,7 +1141,7 @@ function scheduledRequestsWatcher_junky(
 
   collectionRidesDeliveryData
     .find(requestFilter0)
-    .collation({ locale: "en", strength: 2 })
+    //!.collation({ locale: "en", strength: 2 })
     .toArray(function (err, dataScheduledRequests) {
       if (err) {
         logger.info(err);
@@ -1583,7 +1583,7 @@ function requestsDriverSubscriber_watcher(
                 //...
                 collectionDrivers_profiles
                   .find(driverFilter)
-                  .collation({ locale: "en", strength: 2 })
+                  //!.collation({ locale: "en", strength: 2 })
                   .toArray(function (err, driversFullData) {
                     if (err) {
                       logger.info(err);

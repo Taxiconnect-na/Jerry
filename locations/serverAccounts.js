@@ -453,7 +453,7 @@ function getBachRidesHistory(
         //Get the mongodb data
         collectionRidesDeliveryData
           .find(result)
-          .collation({ locale: "en", strength: 2 })
+          //!.collation({ locale: "en", strength: 2 })
           .toArray(function (error, ridesData) {
             if (error) {
               resolve({ response: "error_authentication_failed" });
@@ -517,7 +517,7 @@ function getBachRidesHistory(
                     //...
                     collectionRidesDeliveryData
                       .find(rideChecker)
-                      .collation({ locale: "en", strength: 2 })
+                      //!.collation({ locale: "en", strength: 2 })
                       .toArray(function (err, tripData) {
                         if (err) {
                           resolve(false);
@@ -1275,7 +1275,7 @@ function exec_computeDaily_amountMade(
 
         collectionRidesDeliveryData
           .find(filterRequest)
-          .collation({ locale: "en", strength: 2 })
+          //!.collation({ locale: "en", strength: 2 })
           .toArray(function (err, requestsArray) {
             if (err) {
               resolve({
@@ -1834,7 +1834,7 @@ function truelyExec_ridersDrivers_walletSummary(
     //...
     collectionWalletTransactions_logs
       .find(filterReceived)
-      .collation({ locale: "en", strength: 2 })
+      //!.collation({ locale: "en", strength: 2 })
       .toArray(function (err, resultTransactionsReceived) {
         if (err) {
           logger.info(err);
@@ -1894,7 +1894,7 @@ function truelyExec_ridersDrivers_walletSummary(
           //...
           collectionWalletTransactions_logs
             .find(filterTopups)
-            .collation({ locale: "en", strength: 2 })
+            //!.collation({ locale: "en", strength: 2 })
             .toArray(function (err, resultTransactions) {
               if (err) {
                 logger.info(err);
@@ -1967,7 +1967,7 @@ function truelyExec_ridersDrivers_walletSummary(
                 //...Only consider the completed requests
                 collectionRidesDeliveryData
                   .find(filterPaidRequests)
-                  .collation({ locale: "en", strength: 2 })
+                  //!.collation({ locale: "en", strength: 2 })
                   .toArray(function (err, resultPaidRequests) {
                     if (err) {
                       logger.info(err);
@@ -2166,7 +2166,7 @@ function truelyExec_ridersDrivers_walletSummary(
                 //...Only consider the completed requests
                 collectionRidesDeliveryData
                   .find(filterPaidRequests)
-                  .collation({ locale: "en", strength: 2 })
+                  //!.collation({ locale: "en", strength: 2 })
                   .toArray(function (err, resultPaidRequests) {
                     if (err) {
                       logger.info(err);
@@ -3038,7 +3038,7 @@ function execGet_driversDeepInsights_fromWalletData(
                           transaction_nature: "startingPoint_forFreshPayouts",
                           recipient_fp: driver_fingerprint,
                         })
-                        .collation({ locale: "en", strength: 2 })
+                        //!.collation({ locale: "en", strength: 2 })
                         .toArray(function (err, resultLastPayout) {
                           if (err) {
                             resFindNexyPayoutDate(false);
@@ -3063,7 +3063,7 @@ function execGet_driversDeepInsights_fromWalletData(
                                   "startingPoint_forFreshPayouts",
                                 user_fingerprint: driver_fingerprint,
                               })
-                              .collation({ locale: "en", strength: 2 })
+                              //!.collation({ locale: "en", strength: 2 })
                               .toArray(function (err, referenceData) {
                                 if (err) {
                                   resFindNexyPayoutDate(false);
@@ -3207,7 +3207,7 @@ function execGet_driversDeepInsights_fromWalletData(
           transaction_nature: "weeklyPaidDriverAutomatic",
           recipient_fp: driver_fingerprint,
         })
-        .collation({ locale: "en", strength: 2 })
+        //!.collation({ locale: "en", strength: 2 })
         .toArray(function (err, resultLastPayout) {
           if (err) {
             resFindNexyPayoutDate(false);
@@ -3232,7 +3232,7 @@ function execGet_driversDeepInsights_fromWalletData(
                 flag_annotation: "startingPoint_forFreshPayouts",
                 user_fingerprint: driver_fingerprint,
               })
-              .collation({ locale: "en", strength: 2 })
+              //!.collation({ locale: "en", strength: 2 })
               .toArray(function (err, referenceData) {
                 if (err) {
                   resFindNexyPayoutDate(false);
@@ -4129,7 +4129,7 @@ function TrulyGetAdsManagerRunningInfos(req, redisKey, resolve) {
       "ad_specs.is_expired": false,
       city: req.city,
     })
-    .collation({ locale: "en", strength: 2 })
+    //!.collation({ locale: "en", strength: 2 })
     .toArray(function (err, companiesData) {
       if (err) {
         logger.info(err);
@@ -4207,7 +4207,7 @@ function getReferredDrivers_list(
     //...
     collectionReferralsInfos
       .find(finderNarrower)
-      .collation({ locale: "en", strength: 2 })
+      //!.collation({ locale: "en", strength: 2 })
       .toArray(function (err, result) {
         if (err) {
           resCompute({ response: "error_unexpected" });
@@ -6012,7 +6012,7 @@ redisCluster.on("connect", function () {
                   };
                   collectionDrivers_profiles
                     .find(finderQuery)
-                    .collation({ locale: "en", strength: 2 })
+                    //!.collation({ locale: "en", strength: 2 })
                     .toArray(function (err, reslt) {
                       if (err) {
                         resCompute({ response: "error_unexpected" });
@@ -6031,7 +6031,7 @@ redisCluster.on("connect", function () {
                         //...
                         collectionReferralsInfos
                           .find(finderNarrower)
-                          .collation({ locale: "en", strength: 2 })
+                          //!.collation({ locale: "en", strength: 2 })
                           .toArray(function (err, result) {
                             if (err) {
                               resCompute({ response: "error_unexpected" });
@@ -6088,7 +6088,7 @@ redisCluster.on("connect", function () {
             //...
             collectionReferralsInfos
               .find(finderNarrower)
-              .collation({ locale: "en", strength: 2 })
+              //!.collation({ locale: "en", strength: 2 })
               .toArray(function (err, result) {
                 if (err) {
                   resCompute({ response: "error_unexpected" });

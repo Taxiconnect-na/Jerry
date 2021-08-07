@@ -1332,7 +1332,7 @@ function estimateFullVehiclesCatPrices(
 
     collectionVehiclesInfos
       .find(filterQuery)
-      .collation({ locale: "en", strength: 2 })
+      //!.collation({ locale: "en", strength: 2 })
       .toArray(function (err, result) {
         logger.warn(result);
         if (result !== undefined && result.length > 0) {
@@ -1343,13 +1343,12 @@ function estimateFullVehiclesCatPrices(
             filterQuery = {
               country: completedInputData.country,
               city: completedInputData.pickup_location_infos.city,
-              pickup_suburb: completedInputData.pickup_location_infos.suburb
-                .toUpperCase()
-                .trim(),
+              pickup_suburb:
+                completedInputData.pickup_location_infos.suburb.trim(),
             };
             collectionPricesLocationsMap
               .find(filterQuery)
-              .collation({ locale: "en", strength: 2 })
+              //!.collation({ locale: "en", strength: 2 })
               .toArray(function (err, result) {
                 logger.warn(result);
                 if (result.length > 0) {
