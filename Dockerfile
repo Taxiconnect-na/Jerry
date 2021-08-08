@@ -4,7 +4,7 @@ ADD . /app/
 WORKDIR /app
 RUN rm .env
 #Production
-RUN mv .env_live_test .env
+RUN mv .env_live .env
 #Development
 #RUN mv .env_dev .env
 
