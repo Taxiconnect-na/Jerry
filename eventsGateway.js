@@ -93,11 +93,12 @@ io.on("connection", (socket) => {
       req.user_fingerprint !== null &&
       req.user_fingerprint !== undefined
     ) {
-      let url =
-        `http://${process.env.INSTANCE_PRIVATE_IP}` +
-        ":" +
-        process.env.MAP_SERVICE_PORT +
-        "/updatePassengerLocation";
+      let url = /production/i.test(process.env.EVIRONMENT)
+        ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+        : process.env.LOCAL_URL +
+          ":" +
+          process.env.MAP_SERVICE_PORT +
+          "/updatePassengerLocation";
       //Supplement or not the request string based on if the user is a driver or rider
       if (req.user_nature !== undefined && req.user_nature !== null) {
         req.user_nature =
@@ -143,16 +144,17 @@ io.on("connection", (socket) => {
       req.user_fingerprint !== null &&
       req.user_fingerprint !== undefined
     ) {
-      let url =
-        `http://${process.env.INSTANCE_PRIVATE_IP}` +
-        ":" +
-        process.env.MAP_SERVICE_PORT +
-        "/getUserLocationInfos?latitude=" +
-        req.latitude +
-        "&longitude=" +
-        req.longitude +
-        "&user_fingerprint=" +
-        req.user_fingerprint;
+      let url = /production/i.test(process.env.EVIRONMENT)
+        ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+        : process.env.LOCAL_URL +
+          ":" +
+          process.env.MAP_SERVICE_PORT +
+          "/getUserLocationInfos?latitude=" +
+          req.latitude +
+          "&longitude=" +
+          req.longitude +
+          "&user_fingerprint=" +
+          req.user_fingerprint;
       requestAPI(url, function (error, response, body) {
         logger.info(body, error);
         if (error === null) {
@@ -189,16 +191,17 @@ io.on("connection", (socket) => {
       req.user_fingerprint !== null &&
       req.user_fingerprint !== undefined
     ) {
-      let url =
-        `http://${process.env.INSTANCE_PRIVATE_IP}` +
-        ":" +
-        process.env.MAP_SERVICE_PORT +
-        "/identifyPickupLocation?latitude=" +
-        req.latitude +
-        "&longitude=" +
-        req.longitude +
-        "&user_fingerprint=" +
-        req.user_fingerprint;
+      let url = /production/i.test(process.env.EVIRONMENT)
+        ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+        : process.env.LOCAL_URL +
+          ":" +
+          process.env.MAP_SERVICE_PORT +
+          "/identifyPickupLocation?latitude=" +
+          req.latitude +
+          "&longitude=" +
+          req.longitude +
+          "&user_fingerprint=" +
+          req.user_fingerprint;
       requestAPI(url, function (error, response, body) {
         ////logger.info(body);
         if (error === null) {
@@ -248,20 +251,21 @@ io.on("connection", (socket) => {
       req.user_fingerprint !== null &&
       req.user_fingerprint !== undefined
     ) {
-      let url =
-        `http://${process.env.INSTANCE_PRIVATE_IP}` +
-        ":" +
-        process.env.MAP_SERVICE_PORT +
-        "/getRouteToDestinationSnapshot?org_latitude=" +
-        req.org_latitude +
-        "&org_longitude=" +
-        req.org_longitude +
-        "&dest_latitude=" +
-        req.dest_latitude +
-        "&dest_longitude=" +
-        req.dest_longitude +
-        "&user_fingerprint=" +
-        req.user_fingerprint;
+      let url = /production/i.test(process.env.EVIRONMENT)
+        ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+        : process.env.LOCAL_URL +
+          ":" +
+          process.env.MAP_SERVICE_PORT +
+          "/getRouteToDestinationSnapshot?org_latitude=" +
+          req.org_latitude +
+          "&org_longitude=" +
+          req.org_longitude +
+          "&dest_latitude=" +
+          req.dest_latitude +
+          "&dest_longitude=" +
+          req.dest_longitude +
+          "&user_fingerprint=" +
+          req.user_fingerprint;
       //Add request fingerprint if any
       if (req.request_fp !== undefined && req.request_fp !== null) {
         url += "&request_fp=" + req.request_fp;
@@ -312,24 +316,25 @@ io.on("connection", (socket) => {
       req.ride_type !== null &&
       req.ride_type !== undefined
     ) {
-      let url =
-        `http://${process.env.INSTANCE_PRIVATE_IP}` +
-        ":" +
-        process.env.MAP_SERVICE_PORT +
-        "/getVitalsETAOrRouteInfos2points?user_fingerprint=" +
-        req.user_fingerprint +
-        "&org_latitude=" +
-        req.org_latitude +
-        "&org_longitude=" +
-        req.org_longitude +
-        "&ride_type=" +
-        req.ride_type +
-        "&city=" +
-        req.city +
-        "&country=" +
-        req.country +
-        "&list_limit=" +
-        list_limit;
+      let url = /production/i.test(process.env.EVIRONMENT)
+        ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+        : process.env.LOCAL_URL +
+          ":" +
+          process.env.MAP_SERVICE_PORT +
+          "/getVitalsETAOrRouteInfos2points?user_fingerprint=" +
+          req.user_fingerprint +
+          "&org_latitude=" +
+          req.org_latitude +
+          "&org_longitude=" +
+          req.org_longitude +
+          "&ride_type=" +
+          req.ride_type +
+          "&city=" +
+          req.city +
+          "&country=" +
+          req.country +
+          "&list_limit=" +
+          list_limit;
       requestAPI(url, function (error, response, body) {
         ////logger.info(body);
         if (error === null) {
@@ -362,14 +367,15 @@ io.on("connection", (socket) => {
       req.trip_simplified_id !== undefined &&
       req.trip_simplified_id !== null
     ) {
-      let url =
-        `http://${process.env.INSTANCE_PRIVATE_IP}` +
-        ":" +
-        process.env.MAP_SERVICE_PORT +
-        "/getSharedTrip_information?sharedTo_user_fingerprint=" +
-        req.sharedTo_user_fingerprint +
-        "&trip_simplified_id=" +
-        req.trip_simplified_id;
+      let url = /production/i.test(process.env.EVIRONMENT)
+        ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+        : process.env.LOCAL_URL +
+          ":" +
+          process.env.MAP_SERVICE_PORT +
+          "/getSharedTrip_information?sharedTo_user_fingerprint=" +
+          req.sharedTo_user_fingerprint +
+          "&trip_simplified_id=" +
+          req.trip_simplified_id;
       requestAPI(url, function (error, response, body) {
         ////logger.info(body);
         if (error === null) {
@@ -419,22 +425,23 @@ io.on("connection", (socket) => {
       req.dest_latitude !== undefined &&
       req.dest_latitude !== null
     ) {
-      let url =
-        `http://${process.env.INSTANCE_PRIVATE_IP}` +
-        ":" +
-        process.env.MAP_SERVICE_PORT +
-        "/getRealtimeTrackingRoute_forTHIS?user_fingerprint=" +
-        req.user_fingerprint +
-        "&org_latitude=" +
-        req.org_latitude +
-        "&org_longitude=" +
-        req.org_longitude +
-        "&dest_latitude=" +
-        req.dest_latitude +
-        "&dest_longitude=" +
-        req.dest_longitude +
-        "&request_fp=" +
-        req.request_fp;
+      let url = /production/i.test(process.env.EVIRONMENT)
+        ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+        : process.env.LOCAL_URL +
+          ":" +
+          process.env.MAP_SERVICE_PORT +
+          "/getRealtimeTrackingRoute_forTHIS?user_fingerprint=" +
+          req.user_fingerprint +
+          "&org_latitude=" +
+          req.org_latitude +
+          "&org_longitude=" +
+          req.org_longitude +
+          "&dest_latitude=" +
+          req.dest_latitude +
+          "&dest_longitude=" +
+          req.dest_longitude +
+          "&request_fp=" +
+          req.request_fp;
       requestAPI(url, function (error, response, body) {
         ////logger.info(body);
         if (error === null) {
@@ -470,18 +477,19 @@ io.on("connection", (socket) => {
       req.city !== undefined &&
       req.city !== null
     ) {
-      let url =
-        `http://${process.env.INSTANCE_PRIVATE_IP}` +
-        ":" +
-        process.env.SEARCH_SERVICE_PORT +
-        "/getSearchedLocations?user_fp=" +
-        req.user_fp +
-        "&query=" +
-        req.query +
-        "&city=" +
-        req.city +
-        "&country=" +
-        req.country;
+      let url = /production/i.test(process.env.EVIRONMENT)
+        ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+        : process.env.LOCAL_URL +
+          ":" +
+          process.env.SEARCH_SERVICE_PORT +
+          "/getSearchedLocations?user_fp=" +
+          req.user_fp +
+          "&query=" +
+          req.query +
+          "&city=" +
+          req.city +
+          "&country=" +
+          req.country;
 
       requestAPI(url, function (error, response, body) {
         ////logger.info(body);
@@ -521,11 +529,12 @@ io.on("connection", (socket) => {
       req.destinationData.passenger1Destination !== undefined &&
       req.destinationData.passenger1Destination !== null
     ) {
-      let url =
-        `http://${process.env.INSTANCE_PRIVATE_IP}` +
-        ":" +
-        process.env.PRICING_SERVICE_PORT +
-        "/getOverallPricingAndAvailabilityDetails";
+      let url = /production/i.test(process.env.EVIRONMENT)
+        ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+        : process.env.LOCAL_URL +
+          ":" +
+          process.env.PRICING_SERVICE_PORT +
+          "/getOverallPricingAndAvailabilityDetails";
 
       requestAPI.post({ url, form: req }, function (error, response, body) {
         //logger.info(body);
@@ -560,11 +569,12 @@ io.on("connection", (socket) => {
   socket.on("requestRideOrDeliveryForThis", function (req) {
     //logger.info(req);
     if (req.user_fingerprint !== undefined && req.user_fingerprint !== null) {
-      let url =
-        `http://${process.env.INSTANCE_PRIVATE_IP}` +
-        ":" +
-        process.env.DISPATCH_SERVICE_PORT +
-        "/dispatchRidesOrDeliveryRequests";
+      let url = /production/i.test(process.env.EVIRONMENT)
+        ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+        : process.env.LOCAL_URL +
+          ":" +
+          process.env.DISPATCH_SERVICE_PORT +
+          "/dispatchRidesOrDeliveryRequests";
 
       requestAPI.post({ url, form: req }, function (error, response, body) {
         //logger.info(body);
@@ -602,12 +612,13 @@ io.on("connection", (socket) => {
       req.driver_fingerprint !== undefined &&
       req.driver_fingerprint !== null
     ) {
-      let url =
-        `http://${process.env.INSTANCE_PRIVATE_IP}` +
-        ":" +
-        process.env.DISPATCH_SERVICE_PORT +
-        "/getRequests_graphNumbers?driver_fingerprint=" +
-        req.driver_fingerprint;
+      let url = /production/i.test(process.env.EVIRONMENT)
+        ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+        : process.env.LOCAL_URL +
+          ":" +
+          process.env.DISPATCH_SERVICE_PORT +
+          "/getRequests_graphNumbers?driver_fingerprint=" +
+          req.driver_fingerprint;
 
       requestAPI(url, function (error, response, body) {
         //logger.info(body);
@@ -653,11 +664,12 @@ io.on("connection", (socket) => {
       req.request_fp !== undefined &&
       req.request_fp !== null
     ) {
-      let url =
-        `http://${process.env.INSTANCE_PRIVATE_IP}` +
-        ":" +
-        process.env.DISPATCH_SERVICE_PORT +
-        "/decline_request";
+      let url = /production/i.test(process.env.EVIRONMENT)
+        ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+        : process.env.LOCAL_URL +
+          ":" +
+          process.env.DISPATCH_SERVICE_PORT +
+          "/decline_request";
 
       requestAPI.post({ url, form: req }, function (error, response, body) {
         //logger.info(body);
@@ -697,11 +709,12 @@ io.on("connection", (socket) => {
       req.request_fp !== undefined &&
       req.request_fp !== null
     ) {
-      let url =
-        `http://${process.env.INSTANCE_PRIVATE_IP}` +
-        ":" +
-        process.env.DISPATCH_SERVICE_PORT +
-        "/accept_request";
+      let url = /production/i.test(process.env.EVIRONMENT)
+        ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+        : process.env.LOCAL_URL +
+          ":" +
+          process.env.DISPATCH_SERVICE_PORT +
+          "/accept_request";
 
       requestAPI.post({ url, form: req }, function (error, response, body) {
         //logger.info(body);
@@ -741,11 +754,12 @@ io.on("connection", (socket) => {
       req.request_fp !== undefined &&
       req.request_fp !== null
     ) {
-      let url =
-        `http://${process.env.INSTANCE_PRIVATE_IP}` +
-        ":" +
-        process.env.DISPATCH_SERVICE_PORT +
-        "/cancel_request_driver";
+      let url = /production/i.test(process.env.EVIRONMENT)
+        ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+        : process.env.LOCAL_URL +
+          ":" +
+          process.env.DISPATCH_SERVICE_PORT +
+          "/cancel_request_driver";
 
       requestAPI.post({ url, form: req }, function (error, response, body) {
         //logger.info(body);
@@ -785,11 +799,12 @@ io.on("connection", (socket) => {
       req.request_fp !== undefined &&
       req.request_fp !== null
     ) {
-      let url =
-        `http://${process.env.INSTANCE_PRIVATE_IP}` +
-        ":" +
-        process.env.DISPATCH_SERVICE_PORT +
-        "/confirm_pickup_request_driver";
+      let url = /production/i.test(process.env.EVIRONMENT)
+        ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+        : process.env.LOCAL_URL +
+          ":" +
+          process.env.DISPATCH_SERVICE_PORT +
+          "/confirm_pickup_request_driver";
 
       requestAPI.post({ url, form: req }, function (error, response, body) {
         //logger.info(body);
@@ -829,11 +844,12 @@ io.on("connection", (socket) => {
       req.request_fp !== undefined &&
       req.request_fp !== null
     ) {
-      let url =
-        `http://${process.env.INSTANCE_PRIVATE_IP}` +
-        ":" +
-        process.env.DISPATCH_SERVICE_PORT +
-        "/confirm_dropoff_request_driver";
+      let url = /production/i.test(process.env.EVIRONMENT)
+        ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+        : process.env.LOCAL_URL +
+          ":" +
+          process.env.DISPATCH_SERVICE_PORT +
+          "/confirm_dropoff_request_driver";
 
       requestAPI.post({ url, form: req }, function (error, response, body) {
         //logger.info(body);
@@ -868,11 +884,12 @@ io.on("connection", (socket) => {
   socket.on("confirmRiderDropoff_requests_io", function (req) {
     //logger.info(req);
     if (req.user_fingerprint !== undefined && req.user_fingerprint !== null) {
-      let url =
-        `http://${process.env.INSTANCE_PRIVATE_IP}` +
-        ":" +
-        process.env.DISPATCH_SERVICE_PORT +
-        "/confirmRiderDropoff_requests";
+      let url = /production/i.test(process.env.EVIRONMENT)
+        ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+        : process.env.LOCAL_URL +
+          ":" +
+          process.env.DISPATCH_SERVICE_PORT +
+          "/confirmRiderDropoff_requests";
 
       requestAPI.post({ url, form: req }, function (error, response, body) {
         //logger.info(body);
@@ -907,11 +924,12 @@ io.on("connection", (socket) => {
   socket.on("cancelRiders_request_io", function (req) {
     //logger.info(req);
     if (req.user_fingerprint !== undefined && req.user_fingerprint !== null) {
-      let url =
-        `http://${process.env.INSTANCE_PRIVATE_IP}` +
-        ":" +
-        process.env.DISPATCH_SERVICE_PORT +
-        "/cancelRiders_request";
+      let url = /production/i.test(process.env.EVIRONMENT)
+        ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+        : process.env.LOCAL_URL +
+          ":" +
+          process.env.DISPATCH_SERVICE_PORT +
+          "/cancelRiders_request";
 
       requestAPI.post({ url, form: req }, function (error, response, body) {
         //logger.info(body);
@@ -946,12 +964,13 @@ io.on("connection", (socket) => {
   socket.on("sendOtpAndCheckerUserStatusTc", function (req) {
     //logger.info(req);
     if (req.phone_number !== undefined && req.phone_number !== null) {
-      let url =
-        `http://${process.env.INSTANCE_PRIVATE_IP}` +
-        ":" +
-        process.env.ACCOUNTS_SERVICE_PORT +
-        "/sendOTPAndCheckUserStatus?phone_number=" +
-        req.phone_number;
+      let url = /production/i.test(process.env.EVIRONMENT)
+        ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+        : process.env.LOCAL_URL +
+          ":" +
+          process.env.ACCOUNTS_SERVICE_PORT +
+          "/sendOTPAndCheckUserStatus?phone_number=" +
+          req.phone_number;
 
       if (req.smsHashLinker !== undefined && req.smsHashLinker !== null) {
         //Attach an hash linker for auto verification
@@ -1002,14 +1021,15 @@ io.on("connection", (socket) => {
       req.mode !== undefined &&
       req.mode !== null
     ) {
-      let url =
-        `http://${process.env.INSTANCE_PRIVATE_IP}` +
-        ":" +
-        process.env.ACCOUNTS_SERVICE_PORT +
-        "/getRiders_walletInfos?user_fingerprint=" +
-        req.user_fingerprint +
-        "&mode=" +
-        req.mode;
+      let url = /production/i.test(process.env.EVIRONMENT)
+        ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+        : process.env.LOCAL_URL +
+          ":" +
+          process.env.ACCOUNTS_SERVICE_PORT +
+          "/getRiders_walletInfos?user_fingerprint=" +
+          req.user_fingerprint +
+          "&mode=" +
+          req.mode;
 
       requestAPI(url, function (error, response, body) {
         if (error === null) {
@@ -1049,12 +1069,13 @@ io.on("connection", (socket) => {
   socket.on("getDrivers_walletInfosDeep_io", function (req) {
     //logger.info(req);
     if (req.user_fingerprint !== undefined && req.user_fingerprint !== null) {
-      let url =
-        `http://${process.env.INSTANCE_PRIVATE_IP}` +
-        ":" +
-        process.env.ACCOUNTS_SERVICE_PORT +
-        "/getDrivers_walletInfosDeep?user_fingerprint=" +
-        req.user_fingerprint;
+      let url = /production/i.test(process.env.EVIRONMENT)
+        ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+        : process.env.LOCAL_URL +
+          ":" +
+          process.env.ACCOUNTS_SERVICE_PORT +
+          "/getDrivers_walletInfosDeep?user_fingerprint=" +
+          req.user_fingerprint;
 
       requestAPI(url, function (error, response, body) {
         if (error === null) {
@@ -1097,12 +1118,13 @@ io.on("connection", (socket) => {
       req.driver_fingerprint !== undefined &&
       req.driver_fingerprint !== null
     ) {
-      let url =
-        `http://${process.env.INSTANCE_PRIVATE_IP}` +
-        ":" +
-        process.env.ACCOUNTS_SERVICE_PORT +
-        "/computeDaily_amountMadeSoFar?driver_fingerprint=" +
-        req.driver_fingerprint;
+      let url = /production/i.test(process.env.EVIRONMENT)
+        ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+        : process.env.LOCAL_URL +
+          ":" +
+          process.env.ACCOUNTS_SERVICE_PORT +
+          "/computeDaily_amountMadeSoFar?driver_fingerprint=" +
+          req.driver_fingerprint;
 
       requestAPI(url, function (error, response, body) {
         //logger.info(body);
@@ -1151,14 +1173,15 @@ io.on("connection", (socket) => {
       req.action !== undefined &&
       req.action !== null
     ) {
-      let url =
-        `http://${process.env.INSTANCE_PRIVATE_IP}` +
-        ":" +
-        process.env.ACCOUNTS_SERVICE_PORT +
-        "/goOnline_offlineDrivers?driver_fingerprint=" +
-        req.driver_fingerprint +
-        "&action=" +
-        req.action;
+      let url = /production/i.test(process.env.EVIRONMENT)
+        ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+        : process.env.LOCAL_URL +
+          ":" +
+          process.env.ACCOUNTS_SERVICE_PORT +
+          "/goOnline_offlineDrivers?driver_fingerprint=" +
+          req.driver_fingerprint +
+          "&action=" +
+          req.action;
 
       //Add the state if found
       if (req.state !== undefined && req.state !== null) {
@@ -1204,14 +1227,15 @@ io.on("connection", (socket) => {
       req.otp !== undefined &&
       req.otp !== null
     ) {
-      let url =
-        `http://${process.env.INSTANCE_PRIVATE_IP}` +
-        ":" +
-        process.env.ACCOUNTS_SERVICE_PORT +
-        "/checkSMSOTPTruly?phone_number=" +
-        req.phone_number +
-        "&otp=" +
-        req.otp;
+      let url = /production/i.test(process.env.EVIRONMENT)
+        ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+        : process.env.LOCAL_URL +
+          ":" +
+          process.env.ACCOUNTS_SERVICE_PORT +
+          "/checkSMSOTPTruly?phone_number=" +
+          req.phone_number +
+          "&otp=" +
+          req.otp;
 
       //Add the user nature : passengers (undefined) or drivers
       if (req.user_nature !== undefined && req.user_nature !== null) {
@@ -1266,7 +1290,8 @@ io.on("connection", (socket) => {
       req.campaign_identifier !== null
     ) {
       let url =
-        `http://${process.env.INSTANCE_PRIVATE_IP}` +
+        /production/i.test(process.env.EVIRONMENT)
+      ? `http://${process.env.INSTANCE_PRIVATE_IP}` : process.env.LOCAL_URL +
         ":" +
         process.env.ACCOUNTS_SERVICE_PORT +
         "/gatherAdsManagerAnalytics";
@@ -1311,16 +1336,17 @@ io.on("connection", (socket) => {
       req.city !== undefined &&
       req.city !== null
     ) {
-      let url =
-        `http://${process.env.INSTANCE_PRIVATE_IP}` +
-        ":" +
-        process.env.ACCOUNTS_SERVICE_PORT +
-        "/getAdsManagerRunningInfos?user_fingerprint=" +
-        req.user_fingerprint +
-        "&user_nature=" +
-        req.user_nature +
-        "&city=" +
-        req.city;
+      let url = /production/i.test(process.env.EVIRONMENT)
+        ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+        : process.env.LOCAL_URL +
+          ":" +
+          process.env.ACCOUNTS_SERVICE_PORT +
+          "/getAdsManagerRunningInfos?user_fingerprint=" +
+          req.user_fingerprint +
+          "&user_nature=" +
+          req.user_nature +
+          "&city=" +
+          req.city;
 
       requestAPI(url, function (error, response, body) {
         //logger.info(body);
@@ -1363,11 +1389,12 @@ io.on("connection", (socket) => {
       req.dataToUpdate !== undefined &&
       req.dataToUpdate !== null
     ) {
-      let url =
-        `http://${process.env.INSTANCE_PRIVATE_IP}` +
-        ":" +
-        process.env.ACCOUNTS_SERVICE_PORT +
-        "/updateRiders_profileInfos";
+      let url = /production/i.test(process.env.EVIRONMENT)
+        ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+        : process.env.LOCAL_URL +
+          ":" +
+          process.env.ACCOUNTS_SERVICE_PORT +
+          "/updateRiders_profileInfos";
 
       requestAPI.post({ url, form: req }, function (error, response, body) {
         //logger.info(body);
@@ -1406,16 +1433,17 @@ io.on("connection", (socket) => {
   socket.on("createInitialRider_account", function (req) {
     //logger.info(req);
     if (req.phone_number !== undefined && req.phone_number !== null) {
-      let url =
-        `http://${process.env.INSTANCE_PRIVATE_IP}` +
-        ":" +
-        process.env.ACCOUNTS_SERVICE_PORT +
-        "/createMinimalRiderAccount?phone_number=" +
-        req.phone_number +
-        "&pushnotif_token=" +
-        (req.pushnotif_token !== undefined && req.pushnotif_token !== null
-          ? encodeURIComponent(req.pushnotif_token)
-          : false);
+      let url = /production/i.test(process.env.EVIRONMENT)
+        ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+        : process.env.LOCAL_URL +
+          ":" +
+          process.env.ACCOUNTS_SERVICE_PORT +
+          "/createMinimalRiderAccount?phone_number=" +
+          req.phone_number +
+          "&pushnotif_token=" +
+          (req.pushnotif_token !== undefined && req.pushnotif_token !== null
+            ? encodeURIComponent(req.pushnotif_token)
+            : false);
       //logger.info(url);
       requestAPI(url, function (error, response, body) {
         //logger.info(error, body);
@@ -1459,18 +1487,19 @@ io.on("connection", (socket) => {
       req.email !== undefined &&
       req.email !== null
     ) {
-      let url =
-        `http://${process.env.INSTANCE_PRIVATE_IP}` +
-        ":" +
-        process.env.ACCOUNTS_SERVICE_PORT +
-        "/updateAdditionalProfileData_newAccount?name=" +
-        req.name +
-        "&gender=" +
-        req.gender +
-        "&email=" +
-        req.email +
-        "&user_fingerprint=" +
-        req.user_fingerprint;
+      let url = /production/i.test(process.env.EVIRONMENT)
+        ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+        : process.env.LOCAL_URL +
+          ":" +
+          process.env.ACCOUNTS_SERVICE_PORT +
+          "/updateAdditionalProfileData_newAccount?name=" +
+          req.name +
+          "&gender=" +
+          req.gender +
+          "&email=" +
+          req.email +
+          "&user_fingerprint=" +
+          req.user_fingerprint;
       requestAPI(url, function (error, response, body) {
         //logger.info(error, body);
         if (error === null) {
@@ -1505,12 +1534,13 @@ io.on("connection", (socket) => {
   socket.on("getRides_historyRiders_batchOrNot", function (req) {
     //logger.info(req);
     if (req.user_fingerprint !== undefined && req.user_fingerprint !== null) {
-      let url =
-        `http://${process.env.INSTANCE_PRIVATE_IP}` +
-        ":" +
-        process.env.ACCOUNTS_SERVICE_PORT +
-        "/getRides_historyRiders?user_fingerprint=" +
-        req.user_fingerprint;
+      let url = /production/i.test(process.env.EVIRONMENT)
+        ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+        : process.env.LOCAL_URL +
+          ":" +
+          process.env.ACCOUNTS_SERVICE_PORT +
+          "/getRides_historyRiders?user_fingerprint=" +
+          req.user_fingerprint;
       //Add a ride_type if any
       if (req.ride_type !== undefined && req.ride_type !== null) {
         url += "&ride_type=" + req.ride_type;
@@ -1570,16 +1600,17 @@ io.on("connection", (socket) => {
       req.payNumberOrPhoneNumber !== undefined &&
       req.payNumberOrPhoneNumber !== null
     ) {
-      let url =
-        `http://${process.env.INSTANCE_PRIVATE_IP}` +
-        ":" +
-        process.env.PAYMENT_SERVICE_PORT +
-        "/checkReceiverDetails_walletTransaction?user_fingerprint=" +
-        req.user_fingerprint +
-        "&user_nature=" +
-        req.user_nature +
-        "&payNumberOrPhoneNumber=" +
-        req.payNumberOrPhoneNumber;
+      let url = /production/i.test(process.env.EVIRONMENT)
+        ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+        : process.env.LOCAL_URL +
+          ":" +
+          process.env.PAYMENT_SERVICE_PORT +
+          "/checkReceiverDetails_walletTransaction?user_fingerprint=" +
+          req.user_fingerprint +
+          "&user_nature=" +
+          req.user_nature +
+          "&payNumberOrPhoneNumber=" +
+          req.payNumberOrPhoneNumber;
 
       requestAPI(url, function (error, response, body) {
         if (error === null) {
@@ -1628,18 +1659,19 @@ io.on("connection", (socket) => {
       req.amount !== undefined &&
       req.amount !== null
     ) {
-      let url =
-        `http://${process.env.INSTANCE_PRIVATE_IP}` +
-        ":" +
-        process.env.PAYMENT_SERVICE_PORT +
-        "/sendMoney_fromWalletRider_transaction?user_fingerprint=" +
-        req.user_fingerprint +
-        "&user_nature=" +
-        req.user_nature +
-        "&payNumberOrPhoneNumber=" +
-        req.payNumberOrPhoneNumber +
-        "&amount=" +
-        req.amount;
+      let url = /production/i.test(process.env.EVIRONMENT)
+        ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+        : process.env.LOCAL_URL +
+          ":" +
+          process.env.PAYMENT_SERVICE_PORT +
+          "/sendMoney_fromWalletRider_transaction?user_fingerprint=" +
+          req.user_fingerprint +
+          "&user_nature=" +
+          req.user_nature +
+          "&payNumberOrPhoneNumber=" +
+          req.payNumberOrPhoneNumber +
+          "&amount=" +
+          req.amount;
 
       requestAPI(url, function (error, response, body) {
         if (error === null) {
@@ -1708,28 +1740,29 @@ io.on("connection", (socket) => {
       req.country !== undefined &&
       req.country !== null
     ) {
-      let url =
-        `http://${process.env.INSTANCE_PRIVATE_IP}` +
-        ":" +
-        process.env.PAYMENT_SERVICE_PORT +
-        "/topUPThisWalletTaxiconnect?user_fp=" +
-        req.user_fp +
-        "&amount=" +
-        req.amount +
-        "&expiry=" +
-        req.expiry +
-        "&cvv=" +
-        req.cvv +
-        "&type=" +
-        req.type +
-        "&number=" +
-        req.number +
-        "&name=" +
-        req.name +
-        "&city=" +
-        req.city +
-        "&country=" +
-        req.country;
+      let url = /production/i.test(process.env.EVIRONMENT)
+        ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+        : process.env.LOCAL_URL +
+          ":" +
+          process.env.PAYMENT_SERVICE_PORT +
+          "/topUPThisWalletTaxiconnect?user_fp=" +
+          req.user_fp +
+          "&amount=" +
+          req.amount +
+          "&expiry=" +
+          req.expiry +
+          "&cvv=" +
+          req.cvv +
+          "&type=" +
+          req.type +
+          "&number=" +
+          req.number +
+          "&name=" +
+          req.name +
+          "&city=" +
+          req.city +
+          "&country=" +
+          req.country;
 
       requestAPI(url, function (error, response, body) {
         if (error === null) {
@@ -1765,16 +1798,17 @@ io.on("connection", (socket) => {
    */
   socket.on("referralOperations_perform_io", function (req) {
     if (req.user_fingerprint !== undefined && req.user_fingerprint !== null) {
-      let url =
-        `http://${process.env.INSTANCE_PRIVATE_IP}` +
-        ":" +
-        process.env.ACCOUNTS_SERVICE_PORT +
-        "/performDriversReferralOperations?user_fingerprint=" +
-        req.user_fingerprint +
-        "&user_nature=" +
-        req.user_nature +
-        "&action=" +
-        req.action;
+      let url = /production/i.test(process.env.EVIRONMENT)
+        ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+        : process.env.LOCAL_URL +
+          ":" +
+          process.env.ACCOUNTS_SERVICE_PORT +
+          "/performDriversReferralOperations?user_fingerprint=" +
+          req.user_fingerprint +
+          "&user_nature=" +
+          req.user_nature +
+          "&action=" +
+          req.action;
       //Add any additional submissional infos
       if (req.driver_name !== undefined && req.driver_name !== null) {
         url +=

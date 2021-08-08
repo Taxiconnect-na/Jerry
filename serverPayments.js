@@ -1020,11 +1020,16 @@ function checkNonSelf_sendingFunds_user(
 
 MongoClient.connect(
   process.env.URL_MONGODB,
-  {
-    tlsCAFile: certFile, //The DocDB cert
-    useUnifiedTopology: true,
-    useNewUrlParser: true,
-  },
+  /production/i.test(process.env.EVIRONMENT)
+    ? {
+        tlsCAFile: certFile, //The DocDB cert
+        useUnifiedTopology: true,
+        useNewUrlParser: true,
+      }
+    : {
+        useUnifiedTopology: true,
+        useNewUrlParser: true,
+      },
   function (err, clientMongo) {
     if (err) throw err;
     logger.info("[*] Payments services up");
@@ -1420,13 +1425,14 @@ MongoClient.connect(
                     //Valid sender
                     //! CHECK THE WALLET BALANCE FOR THE SENDER, it should be >= to the amount to send
                     new Promise((resCheckBalance) => {
-                      let url =
-                        `http://${process.env.INSTANCE_PRIVATE_IP}` +
-                        ":" +
-                        process.env.ACCOUNTS_SERVICE_PORT +
-                        "/getRiders_walletInfos?user_fingerprint=" +
-                        req.user_fingerprint +
-                        "&mode=total";
+                      let url = /production/i.test(process.env.EVIRONMENT)
+                        ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+                        : process.env.LOCAL_URL +
+                          ":" +
+                          process.env.ACCOUNTS_SERVICE_PORT +
+                          "/getRiders_walletInfos?user_fingerprint=" +
+                          req.user_fingerprint +
+                          "&mode=total";
 
                       requestAPI(url, function (error, response, body) {
                         if (error === null) {

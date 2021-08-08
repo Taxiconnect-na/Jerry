@@ -655,16 +655,17 @@ function manageAutoCompleteDestinationLocations(
         //Autocomplete the location types : taxi rank, airports or private locations
         let promiseParent2 = destinationLocations.map((destination) => {
           return new Promise((res) => {
-            let url =
-              `http://${process.env.INSTANCE_PRIVATE_IP}` +
-              ":" +
-              process.env.MAP_SERVICE_PORT +
-              "/identifyPickupLocation?latitude=" +
-              destination.coordinates.latitude +
-              "&longitude=" +
-              destination.coordinates.longitude +
-              "&user_fingerprint=" +
-              user_fingerprint;
+            let url = /production/i.test(process.env.EVIRONMENT)
+              ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+              : process.env.LOCAL_URL +
+                ":" +
+                process.env.MAP_SERVICE_PORT +
+                "/identifyPickupLocation?latitude=" +
+                destination.coordinates.latitude +
+                "&longitude=" +
+                destination.coordinates.longitude +
+                "&user_fingerprint=" +
+                user_fingerprint;
             requestAPI(url, function (error, response, body) {
               logger.info(body);
               if (error === null) {
@@ -1331,8 +1332,9 @@ function estimateFullVehiclesCatPrices(
       .find(filterQuery)
       //!.collation({ locale: "en", strength: 2 })
       .toArray(function (err, result) {
+        logger.warn(err);
         logger.warn(result);
-        if (result !== undefined && result.length > 0) {
+        if (result !== null && result !== undefined && result.length > 0) {
           //Found something
           let genericRidesInfos = result;
           //Get all the city's price map (cirteria: city, country and pickup)
