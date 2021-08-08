@@ -13,3 +13,6 @@ services:
       - "9494:9494"
       - "9093:9093"
     restart: always
+    environment:
+      - INSTANCE_PRIVATE_IP=${INSTANCE_PRIVATE_IP}
+      - INSTANCE_PUBLIC_IP=${INSTANCE_PUBLIC_IP}
