@@ -1041,19 +1041,18 @@ MongoClient.connect(
     ); //Hold all the requests made (rides and deliveries)
     const collectionGlobalEvents = dbMongo.collection("global_events"); //Hold all the random events that happened somewhere.
     //-------------
-    const bodyParser = require("body-parser");
     app
       .get("/", function (req, res) {
         logger.info("Payments services up");
       })
       .use(
-        bodyParser.json({
+        express.json({
           limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
           extended: true,
         })
       )
       .use(
-        bodyParser.urlencoded({
+        express.urlencoded({
           limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
           extended: true,
         })

@@ -18,7 +18,6 @@ const io = require("socket.io")(server, {
   },
 });
 const requestAPI = require("request");
-const bodyParser = require("body-parser");
 //....
 
 var chaineDateUTC = null;
@@ -56,13 +55,13 @@ app
   .use(express.static(path.join(__dirname, "assets")));
 app
   .use(
-    bodyParser.json({
+    express.json({
       limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
       extended: true,
     })
   )
   .use(
-    bodyParser.urlencoded({
+    express.urlencoded({
       limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
       extended: true,
     })

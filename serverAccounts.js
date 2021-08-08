@@ -4382,11 +4382,16 @@ redisCluster.on("connect", function () {
 
   MongoClient.connect(
     process.env.URL_MONGODB,
-    {
-      tlsCAFile: certFile, //The DocDB cert
-      useUnifiedTopology: true,
-      useNewUrlParser: true,
-    },
+    /production/i.test(process.env.EVIRONMENT)
+      ? {
+          tlsCAFile: certFile, //The DocDB cert
+          useUnifiedTopology: true,
+          useNewUrlParser: true,
+        }
+      : {
+          useUnifiedTopology: true,
+          useNewUrlParser: true,
+        },
     function (err, clientMongo) {
       if (err) throw err;
       logger.info("[+] Account services active.");
@@ -4408,19 +4413,18 @@ redisCluster.on("connect", function () {
         "referrals_information_global"
       ); //Hold all the referrals infos
       //-------------
-      const bodyParser = require("body-parser");
       app
         .get("/", function (req, res) {
           logger.info("Account services up");
         })
         .use(
-          bodyParser.json({
+          express.json({
             limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
             extended: true,
           })
         )
         .use(
-          bodyParser.urlencoded({
+          express.urlencoded({
             limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
             extended: true,
           })

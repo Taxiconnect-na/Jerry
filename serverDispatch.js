@@ -3379,13 +3379,13 @@ function getRequests_graphPreview_forDrivers(
                       driverData[0].operational_state.default_selected_car
                         .vehicle_type,
                     ride_mode: {
-                      $in: driverData[0].operation_clearances.map(
-                        (clearance) =>
-                          `${clearance[0].toUpperCase().trim()}${clearance
-                            .substr(1)
-                            .toLowerCase()
-                            .trim()}`
-                      ),
+                      $in: driverData.operation_clearances.map((clearance) => [
+                        `${clearance[0].toUpperCase().trim()}${clearance
+                          .substr(1)
+                          .toLowerCase()
+                          .trim()}`,
+                        clearance.toUpperCase().trim(),
+                      ])[0],
                     },
                     /*allowed_drivers_see: driver_fingerprint,
               intentional_request_decline: driver_fingerprint,*/
@@ -3490,11 +3490,16 @@ redisCluster.on("connect", function () {
   //logger.info("[*] Redis connected");
   MongoClient.connect(
     process.env.URL_MONGODB,
-    {
-      tlsCAFile: certFile, //The DocDB cert
-      useUnifiedTopology: true,
-      useNewUrlParser: true,
-    },
+    /production/i.test(process.env.EVIRONMENT)
+      ? {
+          tlsCAFile: certFile, //The DocDB cert
+          useUnifiedTopology: true,
+          useNewUrlParser: true,
+        }
+      : {
+          useUnifiedTopology: true,
+          useNewUrlParser: true,
+        },
     function (err, clientMongo) {
       if (err) throw err;
       logger.info("[+] Dispatch services active.");
@@ -3520,19 +3525,18 @@ redisCluster.on("connect", function () {
         "wallet_transactions_logs"
       ); //Hold the latest information about the riders topups
       //-------------
-      const bodyParser = require("body-parser");
       app
         .get("/", function (req, res) {
           res.send("Dispatch services up");
         })
         .use(
-          bodyParser.json({
+          express.json({
             limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
             extended: true,
           })
         )
         .use(
-          bodyParser.urlencoded({
+          express.urlencoded({
             limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
             extended: true,
           })

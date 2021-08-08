@@ -530,11 +530,16 @@ redisCluster.on("connect", function () {
   logger.info("[*] Redis connected");
   MongoClient.connect(
     process.env.URL_MONGODB,
-    {
-      tlsCAFile: certFile, //The DocDB cert
-      useUnifiedTopology: true,
-      useNewUrlParser: true,
-    },
+    /production/i.test(process.env.EVIRONMENT)
+      ? {
+          tlsCAFile: certFile, //The DocDB cert
+          useUnifiedTopology: true,
+          useNewUrlParser: true,
+        }
+      : {
+          useUnifiedTopology: true,
+          useNewUrlParser: true,
+        },
     function (err, clientMongo) {
       if (err) throw err;
       logger.info("Connected to Mongodb");
@@ -544,17 +549,15 @@ redisCluster.on("connect", function () {
       );
       //-------------
       //Cached restore OR initialized
-      const bodyParser = require("body-parser");
-
       app
         .use(
-          bodyParser.json({
+          express.json({
             limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
             extended: true,
           })
         )
         .use(
-          bodyParser.urlencoded({
+          express.urlencoded({
             limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
             extended: true,
           })

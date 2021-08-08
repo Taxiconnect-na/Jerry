@@ -12,3 +12,6 @@ package-lock.json
 test.js
 .DS_store
 rds-combined-ca-bundle.pem
+accountService_access.log
+error.log
+yarn.lock
