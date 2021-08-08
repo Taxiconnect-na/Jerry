@@ -543,19 +543,6 @@ redisCluster.on("connect", function () {
         "searched_locations_persist"
       );
       //-------------
-      //Restore searched location cached if any from Mongodb
-      var restoreCache = new Promise((reslv) => {
-        restoreSearchedLocations_cache(reslv, collectionMongoDb);
-      }).then(
-        (result) => {},
-        (err) => {
-          //Initialize mongodb collection
-          //Persist usual user searches
-          logger.info(err);
-          dbMongo.collection("searched_locations_persist");
-        }
-      );
-      //...
       //Cached restore OR initialized
       const bodyParser = require("body-parser");
 

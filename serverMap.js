@@ -3652,6 +3652,8 @@ function reverseGeocoderExec(resolve, req, updateCache = false, redisKey) {
   logger.info(url);
   requestAPI(url, function (error, response, body) {
     //body = JSON.parse(body);
+    console.log(error);
+    console.log(body);
     try {
       ////logger.info(body);
       body = JSON.parse(body);
@@ -3693,6 +3695,7 @@ function reverseGeocoderExec(resolve, req, updateCache = false, redisKey) {
         resolve(false);
       }
     } catch (error) {
+      console.log(error);
       resolve(false);
     }
   });

@@ -8,6 +8,9 @@ RUN mv .env_live_test .env
 #Development
 #RUN mv .env_dev .env
 
+RUN wget https://s3.amazonaws.com/rds-downloads/rds-combined-ca-bundle.pem
+RUN chmod 400 rds-combined-ca-bundle.pem
+
 RUN npm install yarn -g --force
 RUN yarn global add pm2
 RUN pm2 install pm2-logrotate
