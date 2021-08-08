@@ -19,6 +19,9 @@ RUN export INSTANCE_PUBLIC_IP=$(curl "http://169.254.169.254/latest/meta-data/pu
 RUN echo $INSTANCE_PUBLIC_IP
 #---
 
+#Create a tmp dir "Riders_profile_pictures" to allow the riders to change profiles
+RUN mkdir Riders_profile_pictures
+
 RUN npm install yarn -g --force
 RUN yarn global add pm2
 RUN pm2 install pm2-logrotate
