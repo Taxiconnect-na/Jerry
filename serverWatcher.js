@@ -223,12 +223,15 @@ function removeOldRequests_madeWithoutBeingAttended(
                   ) {
                     //Geeather than the maximum age
                     //! Auto cancel - and flag it as done by Junkstem
-                    let url = /production/i.test(process.env.EVIRONMENT)
-                      ? `http://${process.env.INSTANCE_PRIVATE_IP}`
-                      : process.env.LOCAL_URL +
-                        ":" +
-                        process.env.DISPATCH_SERVICE_PORT +
-                        "/cancelRiders_request";
+                    let url =
+                      `${
+                        /production/i.test(process.env.EVIRONMENT)
+                          ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+                          : process.env.LOCAL_URL
+                      }` +
+                      ":" +
+                      process.env.DISPATCH_SERVICE_PORT +
+                      "/cancelRiders_request";
 
                     requestAPI.post(
                       {
@@ -392,13 +395,16 @@ function updateNext_paymentDateDrivers(
                     )}`
                   );
                   //? Check the current comission state
-                  let url = /production/i.test(process.env.EVIRONMENT)
-                    ? `http://${process.env.INSTANCE_PRIVATE_IP}`
-                    : process.env.LOCAL_URL +
-                      ":" +
-                      process.env.ACCOUNTS_SERVICE_PORT +
-                      "/getDrivers_walletInfosDeep?user_fingerprint=" +
-                      driverData.driver_fingerprint;
+                  let url =
+                    `${
+                      /production/i.test(process.env.EVIRONMENT)
+                        ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+                        : process.env.LOCAL_URL
+                    }` +
+                    ":" +
+                    process.env.ACCOUNTS_SERVICE_PORT +
+                    "/getDrivers_walletInfosDeep?user_fingerprint=" +
+                    driverData.driver_fingerprint;
 
                   requestAPI(url, function (error, response, body) {
                     if (error === null) {
@@ -1306,14 +1312,15 @@ function scheduledRequestsWatcher_junky(
                                   fullRequestOriginals.length > 0
                                 ) {
                                   //Found the request mother
-                                  let url = /production/i.test(
-                                    process.env.EVIRONMENT
-                                  )
-                                    ? `http://${process.env.INSTANCE_PRIVATE_IP}`
-                                    : process.env.LOCAL_URL +
-                                      ":" +
-                                      process.env.DISPATCH_SERVICE_PORT +
-                                      "/redispatcherAlreadyParsedRequests";
+                                  let url =
+                                    `${
+                                      /production/i.test(process.env.EVIRONMENT)
+                                        ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+                                        : process.env.LOCAL_URL
+                                    }` +
+                                    ":" +
+                                    process.env.DISPATCH_SERVICE_PORT +
+                                    "/redispatcherAlreadyParsedRequests";
 
                                   requestAPI.post(
                                     { url, form: fullRequestOriginals[0] },
@@ -1388,12 +1395,15 @@ function scheduledRequestsWatcher_junky(
                         //! AUTO-CANCEL
                         //Geeather than the maximum age
                         //! Auto cancel - and flag it as done by Junkstem
-                        let url = /production/i.test(process.env.EVIRONMENT)
-                          ? `http://${process.env.INSTANCE_PRIVATE_IP}`
-                          : process.env.LOCAL_URL +
-                            ":" +
-                            process.env.DISPATCH_SERVICE_PORT +
-                            "/cancelRiders_request";
+                        let url =
+                          `${
+                            /production/i.test(process.env.EVIRONMENT)
+                              ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+                              : process.env.LOCAL_URL
+                          }` +
+                          ":" +
+                          process.env.DISPATCH_SERVICE_PORT +
+                          "/cancelRiders_request";
 
                         requestAPI.post(
                           {
@@ -1808,14 +1818,17 @@ function updateDrivers_walletCachedData(collectionDrivers_profiles, resolve) {
       //2. Compute wallet data
       let parentPromises = driverData.map((driverInfo, index) => {
         return new Promise((resCompute) => {
-          let url = /production/i.test(process.env.EVIRONMENT)
-            ? `http://${process.env.INSTANCE_PRIVATE_IP}`
-            : process.env.LOCAL_URL +
-              ":" +
-              process.env.ACCOUNTS_SERVICE_PORT +
-              "/getDrivers_walletInfosDeep?user_fingerprint=" +
-              driverInfo.driver_fingerprint +
-              "&avoidCached_data=true";
+          let url =
+            `${
+              /production/i.test(process.env.EVIRONMENT)
+                ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+                : process.env.LOCAL_URL
+            }` +
+            ":" +
+            process.env.ACCOUNTS_SERVICE_PORT +
+            "/getDrivers_walletInfosDeep?user_fingerprint=" +
+            driverInfo.driver_fingerprint +
+            "&avoidCached_data=true";
 
           requestAPI(url, function (error, response, body) {
             if (error === null) {

@@ -1425,14 +1425,17 @@ MongoClient.connect(
                     //Valid sender
                     //! CHECK THE WALLET BALANCE FOR THE SENDER, it should be >= to the amount to send
                     new Promise((resCheckBalance) => {
-                      let url = /production/i.test(process.env.EVIRONMENT)
-                        ? `http://${process.env.INSTANCE_PRIVATE_IP}`
-                        : process.env.LOCAL_URL +
-                          ":" +
-                          process.env.ACCOUNTS_SERVICE_PORT +
-                          "/getRiders_walletInfos?user_fingerprint=" +
-                          req.user_fingerprint +
-                          "&mode=total";
+                      let url =
+                        `${
+                          /production/i.test(process.env.EVIRONMENT)
+                            ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+                            : process.env.LOCAL_URL
+                        }` +
+                        ":" +
+                        process.env.ACCOUNTS_SERVICE_PORT +
+                        "/getRiders_walletInfos?user_fingerprint=" +
+                        req.user_fingerprint +
+                        "&mode=total";
 
                       requestAPI(url, function (error, response, body) {
                         if (error === null) {

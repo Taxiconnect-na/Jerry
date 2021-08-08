@@ -1049,21 +1049,24 @@ function proceedTargeted_requestHistory_fetcher(
         let originPoint = request.pickup_location_infos.coordinates;
         let destinationPoint = request.destinationData[0].coordinates;
         new Promise((res4) => {
-          let url = /production/i.test(process.env.EVIRONMENT)
-            ? `http://${process.env.INSTANCE_PRIVATE_IP}`
-            : process.env.LOCAL_URL +
-              ":" +
-              process.env.MAP_SERVICE_PORT +
-              "/getRouteToDestinationSnapshot?org_latitude=" +
-              originPoint.latitude +
-              "&org_longitude=" +
-              originPoint.longitude +
-              "&dest_latitude=" +
-              destinationPoint.latitude +
-              "&dest_longitude=" +
-              destinationPoint.longitude +
-              "&user_fingerprint=" +
-              request.client_id;
+          let url =
+            `${
+              /production/i.test(process.env.EVIRONMENT)
+                ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+                : process.env.LOCAL_URL
+            }` +
+            ":" +
+            process.env.MAP_SERVICE_PORT +
+            "/getRouteToDestinationSnapshot?org_latitude=" +
+            originPoint.latitude +
+            "&org_longitude=" +
+            originPoint.longitude +
+            "&dest_latitude=" +
+            destinationPoint.latitude +
+            "&dest_longitude=" +
+            destinationPoint.longitude +
+            "&user_fingerprint=" +
+            request.client_id;
           requestAPI(url, function (error, response, body) {
             if (error === null) {
               try {
@@ -3608,17 +3611,20 @@ function updateRiders_generalProfileInfos(
       //Modify the surname
       if (requestData.dataToUpdate.length > 7) {
         //Check the phone number by sending an OTP
-        let url = /production/i.test(process.env.EVIRONMENT)
-          ? `http://${process.env.INSTANCE_PRIVATE_IP}`
-          : process.env.LOCAL_URL +
-            ":" +
-            process.env.ACCOUNTS_SERVICE_PORT +
-            "/sendOTPAndCheckUserStatus?phone_number=" +
-            requestData.dataToUpdate +
-            "&user_fingerprint=" +
-            requestData.user_fingerprint +
-            "&smsHashLinker=" +
-            requestData.smsHashLinker;
+        let url =
+          `${
+            /production/i.test(process.env.EVIRONMENT)
+              ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+              : process.env.LOCAL_URL
+          }` +
+          ":" +
+          process.env.ACCOUNTS_SERVICE_PORT +
+          "/sendOTPAndCheckUserStatus?phone_number=" +
+          requestData.dataToUpdate +
+          "&user_fingerprint=" +
+          requestData.user_fingerprint +
+          "&smsHashLinker=" +
+          requestData.smsHashLinker;
 
         requestAPI(url, function (error, response, body) {
           if (error === null) {
@@ -3643,17 +3649,20 @@ function updateRiders_generalProfileInfos(
         resolve({ response: "error", flag: "The phone number looks wrong." });
       }
     } else if (requestData.direction === "confirmChange") {
-      let url = /production/i.test(process.env.EVIRONMENT)
-        ? `http://${process.env.INSTANCE_PRIVATE_IP}`
-        : process.env.LOCAL_URL +
-          ":" +
-          process.env.ACCOUNTS_SERVICE_PORT +
-          "/checkSMSOTPTruly?phone_number=" +
-          requestData.dataToUpdate +
-          "&otp=" +
-          requestData.otp +
-          "&userType=registered&user_fingerprint=" +
-          requestData.user_fingerprint;
+      let url =
+        `${
+          /production/i.test(process.env.EVIRONMENT)
+            ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+            : process.env.LOCAL_URL
+        }` +
+        ":" +
+        process.env.ACCOUNTS_SERVICE_PORT +
+        "/checkSMSOTPTruly?phone_number=" +
+        requestData.dataToUpdate +
+        "&otp=" +
+        requestData.otp +
+        "&userType=registered&user_fingerprint=" +
+        requestData.user_fingerprint;
 
       requestAPI(url, function (error, response, body) {
         logger.info(body);
@@ -5565,14 +5574,17 @@ redisCluster.on("connect", function () {
             let regModeLimiter = new RegExp(req.mode, "i"); //Limit data to total balance (total) or total balance+details (detailed)
 
             new Promise((resCompute) => {
-              let url = /production/i.test(process.env.EVIRONMENT)
-                ? `http://${process.env.INSTANCE_PRIVATE_IP}`
-                : process.env.LOCAL_URL +
-                  ":" +
-                  process.env.ACCOUNTS_SERVICE_PORT +
-                  "/getRiders_walletInfos?user_fingerprint=" +
-                  req.user_fingerprint +
-                  "&mode=detailed&userType=driver";
+              let url =
+                `${
+                  /production/i.test(process.env.EVIRONMENT)
+                    ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+                    : process.env.LOCAL_URL
+                }` +
+                ":" +
+                process.env.ACCOUNTS_SERVICE_PORT +
+                "/getRiders_walletInfos?user_fingerprint=" +
+                req.user_fingerprint +
+                "&mode=detailed&userType=driver";
 
               //Add caching strategy if any
               if (req.avoidCached_data !== undefined) {

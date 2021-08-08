@@ -655,17 +655,20 @@ function manageAutoCompleteDestinationLocations(
         //Autocomplete the location types : taxi rank, airports or private locations
         let promiseParent2 = destinationLocations.map((destination) => {
           return new Promise((res) => {
-            let url = /production/i.test(process.env.EVIRONMENT)
-              ? `http://${process.env.INSTANCE_PRIVATE_IP}`
-              : process.env.LOCAL_URL +
-                ":" +
-                process.env.MAP_SERVICE_PORT +
-                "/identifyPickupLocation?latitude=" +
-                destination.coordinates.latitude +
-                "&longitude=" +
-                destination.coordinates.longitude +
-                "&user_fingerprint=" +
-                user_fingerprint;
+            let url =
+              `${
+                /production/i.test(process.env.EVIRONMENT)
+                  ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+                  : process.env.LOCAL_URL
+              }` +
+              ":" +
+              process.env.MAP_SERVICE_PORT +
+              "/identifyPickupLocation?latitude=" +
+              destination.coordinates.latitude +
+              "&longitude=" +
+              destination.coordinates.longitude +
+              "&user_fingerprint=" +
+              user_fingerprint;
             requestAPI(url, function (error, response, body) {
               logger.info(body);
               if (error === null) {

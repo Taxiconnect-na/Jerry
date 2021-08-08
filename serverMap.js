@@ -785,17 +785,20 @@ function completeLastLoccation_infosSubsAndRest(
     geographic_extent: null,
   };
   //1. Get the general location infos
-  let url = /production/i.test(process.env.EVIRONMENT)
-    ? `http://${process.env.INSTANCE_PRIVATE_IP}`
-    : process.env.LOCAL_URL +
-      ":" +
-      process.env.MAP_SERVICE_PORT +
-      "/getUserLocationInfos?latitude=" +
-      locationData.latitude +
-      "&longitude=" +
-      locationData.longitude +
-      "&user_fingerprint=" +
-      locationData.user_fingerprint;
+  let url =
+    `${
+      /production/i.test(process.env.EVIRONMENT)
+        ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+        : process.env.LOCAL_URL
+    }` +
+    ":" +
+    process.env.MAP_SERVICE_PORT +
+    "/getUserLocationInfos?latitude=" +
+    locationData.latitude +
+    "&longitude=" +
+    locationData.longitude +
+    "&user_fingerprint=" +
+    locationData.user_fingerprint;
   requestAPI(url, function (error, response, body) {
     if (error === null) {
       try {
@@ -808,25 +811,28 @@ function completeLastLoccation_infosSubsAndRest(
         objFinal.geographic_extent =
           body.extent !== undefined ? body.extent : false;
         //1. Get the suburb
-        let url = /production/i.test(process.env.EVIRONMENT)
-          ? `http://${process.env.INSTANCE_PRIVATE_IP}`
-          : process.env.LOCAL_URL +
-            ":" +
-            process.env.PRICING_SERVICE_PORT +
-            "/getCorrespondingSuburbInfos?location_name=" +
-            objFinal.location_name +
-            "&street_name=" +
-            objFinal.street +
-            "&city=" +
-            objFinal.city +
-            "&country=" +
-            objFinal.country +
-            "&latitude=" +
-            locationData.latitude +
-            "&longitude=" +
-            locationData.longitude +
-            "&user_fingerprint=" +
-            locationData.user_fingerprint;
+        let url =
+          `${
+            /production/i.test(process.env.EVIRONMENT)
+              ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+              : process.env.LOCAL_URL
+          }` +
+          ":" +
+          process.env.PRICING_SERVICE_PORT +
+          "/getCorrespondingSuburbInfos?location_name=" +
+          objFinal.location_name +
+          "&street_name=" +
+          objFinal.street +
+          "&city=" +
+          objFinal.city +
+          "&country=" +
+          objFinal.country +
+          "&latitude=" +
+          locationData.latitude +
+          "&longitude=" +
+          locationData.longitude +
+          "&user_fingerprint=" +
+          locationData.user_fingerprint;
         requestAPI(url, function (error, response, body) {
           if (error === null) {
             try {
@@ -3220,21 +3226,24 @@ function computeAndCacheRouteDestination(
             //Found the requester data
             //Get the estimated time TO the destination (from the current's user position)
             new Promise((res4) => {
-              let url = /production/i.test(process.env.EVIRONMENT)
-                ? `http://${process.env.INSTANCE_PRIVATE_IP}`
-                : process.env.LOCAL_URL +
-                  ":" +
-                  process.env.MAP_SERVICE_PORT +
-                  "/getRouteToDestinationSnapshot?org_latitude=" +
-                  rideHistory.pickup_location_infos.coordinates.latitude +
-                  "&org_longitude=" +
-                  rideHistory.pickup_location_infos.coordinates.longitude +
-                  "&dest_latitude=" +
-                  rideHistory.destinationData[0].coordinates.longitude +
-                  "&dest_longitude=" +
-                  rideHistory.destinationData[0].coordinates.latitude +
-                  "&user_fingerprint=" +
-                  rideHistory.client_id;
+              let url =
+                `${
+                  /production/i.test(process.env.EVIRONMENT)
+                    ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+                    : process.env.LOCAL_URL
+                }` +
+                ":" +
+                process.env.MAP_SERVICE_PORT +
+                "/getRouteToDestinationSnapshot?org_latitude=" +
+                rideHistory.pickup_location_infos.coordinates.latitude +
+                "&org_longitude=" +
+                rideHistory.pickup_location_infos.coordinates.longitude +
+                "&dest_latitude=" +
+                rideHistory.destinationData[0].coordinates.longitude +
+                "&dest_longitude=" +
+                rideHistory.destinationData[0].coordinates.latitude +
+                "&user_fingerprint=" +
+                rideHistory.client_id;
               requestAPI(url, function (error, response, body) {
                 if (error === null) {
                   try {

@@ -485,28 +485,29 @@ function parseRequestData(inputData, resolve) {
                     //!!!
                     //Auto complete the suburb
                     new Promise((res3) => {
-                      let url = /production/i.test(process.env.EVIRONMENT)
-                        ? `http://${process.env.INSTANCE_PRIVATE_IP}`
-                        : process.env.LOCAL_URL +
-                          ":" +
-                          process.env.PRICING_SERVICE_PORT +
-                          "/getCorrespondingSuburbInfos?location_name=" +
-                          inputData.pickupData.location_name +
-                          "&street_name=" +
-                          inputData.pickupData.street_name +
-                          "&city=" +
-                          inputData.pickupData.city +
-                          "&country=" +
-                          inputData.country +
-                          "&latitude=" +
-                          parsedData.pickup_location_infos.coordinates
-                            .latitude +
-                          "&longitude=" +
-                          parsedData.pickup_location_infos.coordinates
-                            .longitude +
-                          "&user_fingerprint=" +
-                          inputData.user_fingerprint +
-                          "&make_new=true";
+                      let url =
+                        `${
+                          /production/i.test(process.env.EVIRONMENT)
+                            ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+                            : process.env.LOCAL_URL
+                        }` +
+                        ":" +
+                        process.env.PRICING_SERVICE_PORT +
+                        "/getCorrespondingSuburbInfos?location_name=" +
+                        inputData.pickupData.location_name +
+                        "&street_name=" +
+                        inputData.pickupData.street_name +
+                        "&city=" +
+                        inputData.pickupData.city +
+                        "&country=" +
+                        inputData.country +
+                        "&latitude=" +
+                        parsedData.pickup_location_infos.coordinates.latitude +
+                        "&longitude=" +
+                        parsedData.pickup_location_infos.coordinates.longitude +
+                        "&user_fingerprint=" +
+                        inputData.user_fingerprint +
+                        "&make_new=true";
                       requestAPI(url, function (error, response, body) {
                         if (error === null) {
                           try {
@@ -917,12 +918,15 @@ function parseRequestData(inputData, resolve) {
                         }).then(
                           (reslt) => {
                             //DONE
-                            let url = /production/i.test(process.env.EVIRONMENT)
-                              ? `http://${process.env.INSTANCE_PRIVATE_IP}`
-                              : process.env.LOCAL_URL +
-                                ":" +
-                                process.env.PRICING_SERVICE_PORT +
-                                "/manageAutoCompleteSuburbsAndLocationTypes";
+                            let url =
+                              `${
+                                /production/i.test(process.env.EVIRONMENT)
+                                  ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+                                  : process.env.LOCAL_URL
+                              }` +
+                              ":" +
+                              process.env.PRICING_SERVICE_PORT +
+                              "/manageAutoCompleteSuburbsAndLocationTypes";
 
                             requestAPI.post(
                               {
@@ -1069,26 +1073,29 @@ function intitiateStagedDispatch(
       resolve(false);
     }
   );*/
-  let url = /production/i.test(process.env.EVIRONMENT)
-    ? `http://${process.env.INSTANCE_PRIVATE_IP}`
-    : process.env.LOCAL_URL +
-      ":" +
-      process.env.MAP_SERVICE_PORT +
-      "/getVitalsETAOrRouteInfos2points?user_fingerprint=" +
-      snapshotTripInfos.user_fingerprint +
-      "&org_latitude=" +
-      snapshotTripInfos.org_latitude +
-      "&org_longitude=" +
-      snapshotTripInfos.org_longitude +
-      "&ride_type=" +
-      snapshotTripInfos.ride_type +
-      "&vehicle_type=" +
-      snapshotTripInfos.vehicle_type +
-      "&city=" +
-      snapshotTripInfos.city +
-      "&country=" +
-      snapshotTripInfos.country +
-      "&list_limit=all";
+  let url =
+    `${
+      /production/i.test(process.env.EVIRONMENT)
+        ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+        : process.env.LOCAL_URL
+    }` +
+    ":" +
+    process.env.MAP_SERVICE_PORT +
+    "/getVitalsETAOrRouteInfos2points?user_fingerprint=" +
+    snapshotTripInfos.user_fingerprint +
+    "&org_latitude=" +
+    snapshotTripInfos.org_latitude +
+    "&org_longitude=" +
+    snapshotTripInfos.org_longitude +
+    "&ride_type=" +
+    snapshotTripInfos.ride_type +
+    "&vehicle_type=" +
+    snapshotTripInfos.vehicle_type +
+    "&city=" +
+    snapshotTripInfos.city +
+    "&country=" +
+    snapshotTripInfos.country +
+    "&list_limit=all";
   requestAPI(url, function (error, response, body) {
     logger.info(body);
     try {
