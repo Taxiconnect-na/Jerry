@@ -486,7 +486,7 @@ function parseRequestData(inputData, resolve) {
                     //Auto complete the suburb
                     new Promise((res3) => {
                       let url =
-                        process.env.LOCAL_URL +
+                        `http://${process.env.INSTANCE_PRIVATE_IP}` +
                         ":" +
                         process.env.PRICING_SERVICE_PORT +
                         "/getCorrespondingSuburbInfos?location_name=" +
@@ -915,7 +915,7 @@ function parseRequestData(inputData, resolve) {
                           (reslt) => {
                             //DONE
                             let url =
-                              process.env.LOCAL_URL +
+                              `http://${process.env.INSTANCE_PRIVATE_IP}` +
                               ":" +
                               process.env.PRICING_SERVICE_PORT +
                               "/manageAutoCompleteSuburbsAndLocationTypes";
@@ -1066,7 +1066,7 @@ function intitiateStagedDispatch(
     }
   );*/
   let url =
-    process.env.LOCAL_URL +
+    `http://${process.env.INSTANCE_PRIVATE_IP}` +
     ":" +
     process.env.MAP_SERVICE_PORT +
     "/getVitalsETAOrRouteInfos2points?user_fingerprint=" +
@@ -3990,7 +3990,11 @@ redisCluster.on("connect", function () {
                       if (/wallet/i.test(result.payment_method)) {
                         //? WALLET PAYMENT METHOD
                         let url = `
-                  ${process.env.LOCAL_URL}:${process.env.ACCOUNTS_SERVICE_PORT}/getRiders_walletInfos?user_fingerprint=${req.user_fingerprint}&mode=total&avoidCached_data=true
+                  ${`http://${process.env.INSTANCE_PRIVATE_IP}`}:${
+                          process.env.ACCOUNTS_SERVICE_PORT
+                        }/getRiders_walletInfos?user_fingerprint=${
+                          req.user_fingerprint
+                        }&mode=total&avoidCached_data=true
                   `;
                         requestAPI(url, function (error, response, body) {
                           if (error === null) {

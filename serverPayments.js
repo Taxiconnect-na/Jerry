@@ -1421,7 +1421,7 @@ MongoClient.connect(
                     //! CHECK THE WALLET BALANCE FOR THE SENDER, it should be >= to the amount to send
                     new Promise((resCheckBalance) => {
                       let url =
-                        process.env.LOCAL_URL +
+                        `http://${process.env.INSTANCE_PRIVATE_IP}` +
                         ":" +
                         process.env.ACCOUNTS_SERVICE_PORT +
                         "/getRiders_walletInfos?user_fingerprint=" +

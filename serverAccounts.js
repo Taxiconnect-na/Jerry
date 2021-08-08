@@ -78,7 +78,7 @@ function SendSMSTo(phone_number, message) {
   // Handle promise's fulfilled/rejected states
   publishTextPromise
     .then(function (data) {
-      console.log("MessageID is " + data.MessageId);
+      logger.info("MessageID is " + data.MessageId);
     })
     .catch(function (err) {
       console.error(err, err.stack);
@@ -1050,7 +1050,7 @@ function proceedTargeted_requestHistory_fetcher(
         let destinationPoint = request.destinationData[0].coordinates;
         new Promise((res4) => {
           let url =
-            process.env.LOCAL_URL +
+            `http://${process.env.INSTANCE_PRIVATE_IP}` +
             ":" +
             process.env.MAP_SERVICE_PORT +
             "/getRouteToDestinationSnapshot?org_latitude=" +
@@ -3608,7 +3608,7 @@ function updateRiders_generalProfileInfos(
       if (requestData.dataToUpdate.length > 7) {
         //Check the phone number by sending an OTP
         let url =
-          process.env.LOCAL_URL +
+          `http://${process.env.INSTANCE_PRIVATE_IP}` +
           ":" +
           process.env.ACCOUNTS_SERVICE_PORT +
           "/sendOTPAndCheckUserStatus?phone_number=" +
@@ -3642,7 +3642,7 @@ function updateRiders_generalProfileInfos(
       }
     } else if (requestData.direction === "confirmChange") {
       let url =
-        process.env.LOCAL_URL +
+        `http://${process.env.INSTANCE_PRIVATE_IP}` +
         ":" +
         process.env.ACCOUNTS_SERVICE_PORT +
         "/checkSMSOTPTruly?phone_number=" +
@@ -5563,7 +5563,7 @@ redisCluster.on("connect", function () {
 
             new Promise((resCompute) => {
               let url =
-                process.env.LOCAL_URL +
+                `http://${process.env.INSTANCE_PRIVATE_IP}` +
                 ":" +
                 process.env.ACCOUNTS_SERVICE_PORT +
                 "/getRiders_walletInfos?user_fingerprint=" +

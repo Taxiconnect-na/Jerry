@@ -656,7 +656,7 @@ function manageAutoCompleteDestinationLocations(
         let promiseParent2 = destinationLocations.map((destination) => {
           return new Promise((res) => {
             let url =
-              process.env.LOCAL_URL +
+              `http://${process.env.INSTANCE_PRIVATE_IP}` +
               ":" +
               process.env.MAP_SERVICE_PORT +
               "/identifyPickupLocation?latitude=" +
@@ -2224,13 +2224,13 @@ function parsePricingInputData(resolve, inputData) {
               resolve(reslt);
             },
             (error) => {
-              console.log(error);
+              logger.warn(error);
               resolve(false);
             }
           );
         },
         (error) => {
-          console.log(error);
+          logger.warn(error);
           resolve(false);
         }
       );
@@ -2240,7 +2240,7 @@ function parsePricingInputData(resolve, inputData) {
     }
   } //Invalid data
   else {
-    console.log("Invalid data");
+    logger.warn("Invalid data");
     resolve(false);
   }
 }

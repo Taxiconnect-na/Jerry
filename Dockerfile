@@ -11,6 +11,14 @@ RUN mv .env_live .env
 RUN wget https://s3.amazonaws.com/rds-downloads/rds-combined-ca-bundle.pem
 RUN chmod 400 rds-combined-ca-bundle.pem
 
+#Get the instance private IP and save it
+RUN export INSTANCE_PRIVATE_IP=$(curl "http://169.254.169.254/latest/meta-data/local-ipv4")
+RUN echo $INSTANCE_PRIVATE_IP
+#Get the instance public IP and save it
+RUN export INSTANCE_PUBLIC_IP=$(curl "http://169.254.169.254/latest/meta-data/public-ipv4")
+RUN echo $INSTANCE_PUBLIC_IP
+#---
+
 RUN npm install yarn -g --force
 RUN yarn global add pm2
 RUN pm2 install pm2-logrotate

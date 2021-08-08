@@ -786,7 +786,7 @@ function completeLastLoccation_infosSubsAndRest(
   };
   //1. Get the general location infos
   let url =
-    process.env.LOCAL_URL +
+    `http://${process.env.INSTANCE_PRIVATE_IP}` +
     ":" +
     process.env.MAP_SERVICE_PORT +
     "/getUserLocationInfos?latitude=" +
@@ -808,7 +808,7 @@ function completeLastLoccation_infosSubsAndRest(
           body.extent !== undefined ? body.extent : false;
         //1. Get the suburb
         let url =
-          process.env.LOCAL_URL +
+          `http://${process.env.INSTANCE_PRIVATE_IP}` +
           ":" +
           process.env.PRICING_SERVICE_PORT +
           "/getCorrespondingSuburbInfos?location_name=" +
@@ -3219,7 +3219,7 @@ function computeAndCacheRouteDestination(
             //Get the estimated time TO the destination (from the current's user position)
             new Promise((res4) => {
               let url =
-                process.env.LOCAL_URL +
+                `http://${process.env.INSTANCE_PRIVATE_IP}` +
                 ":" +
                 process.env.MAP_SERVICE_PORT +
                 "/getRouteToDestinationSnapshot?org_latitude=" +
@@ -3652,8 +3652,8 @@ function reverseGeocoderExec(resolve, req, updateCache = false, redisKey) {
   logger.info(url);
   requestAPI(url, function (error, response, body) {
     //body = JSON.parse(body);
-    console.log(error);
-    console.log(body);
+    logger.warn(error);
+    logger.info(body);
     try {
       ////logger.info(body);
       body = JSON.parse(body);
@@ -3695,7 +3695,7 @@ function reverseGeocoderExec(resolve, req, updateCache = false, redisKey) {
         resolve(false);
       }
     } catch (error) {
-      console.log(error);
+      logger.warn(error);
       resolve(false);
     }
   });

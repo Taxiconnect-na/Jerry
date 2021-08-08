@@ -224,7 +224,7 @@ function removeOldRequests_madeWithoutBeingAttended(
                     //Geeather than the maximum age
                     //! Auto cancel - and flag it as done by Junkstem
                     let url =
-                      process.env.LOCAL_URL +
+                      `http://${process.env.INSTANCE_PRIVATE_IP}` +
                       ":" +
                       process.env.DISPATCH_SERVICE_PORT +
                       "/cancelRiders_request";
@@ -392,7 +392,7 @@ function updateNext_paymentDateDrivers(
                   );
                   //? Check the current comission state
                   let url =
-                    process.env.LOCAL_URL +
+                    `http://${process.env.INSTANCE_PRIVATE_IP}` +
                     ":" +
                     process.env.ACCOUNTS_SERVICE_PORT +
                     "/getDrivers_walletInfosDeep?user_fingerprint=" +
@@ -1305,7 +1305,7 @@ function scheduledRequestsWatcher_junky(
                                 ) {
                                   //Found the request mother
                                   let url =
-                                    process.env.LOCAL_URL +
+                                    `http://${process.env.INSTANCE_PRIVATE_IP}` +
                                     ":" +
                                     process.env.DISPATCH_SERVICE_PORT +
                                     "/redispatcherAlreadyParsedRequests";
@@ -1384,7 +1384,7 @@ function scheduledRequestsWatcher_junky(
                         //Geeather than the maximum age
                         //! Auto cancel - and flag it as done by Junkstem
                         let url =
-                          process.env.LOCAL_URL +
+                          `http://${process.env.INSTANCE_PRIVATE_IP}` +
                           ":" +
                           process.env.DISPATCH_SERVICE_PORT +
                           "/cancelRiders_request";
@@ -1803,7 +1803,7 @@ function updateDrivers_walletCachedData(collectionDrivers_profiles, resolve) {
       let parentPromises = driverData.map((driverInfo, index) => {
         return new Promise((resCompute) => {
           let url =
-            process.env.LOCAL_URL +
+            `http://${process.env.INSTANCE_PRIVATE_IP}` +
             ":" +
             process.env.ACCOUNTS_SERVICE_PORT +
             "/getDrivers_walletInfosDeep?user_fingerprint=" +
