@@ -11,14 +11,6 @@ RUN mv .env_live .env
 RUN wget https://s3.amazonaws.com/rds-downloads/rds-combined-ca-bundle.pem
 RUN chmod 400 rds-combined-ca-bundle.pem
 
-#Get the instance private IP and save it
-RUN export INSTANCE_PRIVATE_IP=$(curl "http://169.254.169.254/latest/meta-data/local-ipv4")
-RUN echo $INSTANCE_PRIVATE_IP
-#Get the instance public IP and save it
-RUN export INSTANCE_PUBLIC_IP=$(curl "http://169.254.169.254/latest/meta-data/public-ipv4")
-RUN echo $INSTANCE_PUBLIC_IP
-#---
-
 #Create a tmp dir "Riders_profile_pictures" to allow the riders to change profiles
 RUN mkdir Riders_profile_pictures
 
