@@ -1038,59 +1038,79 @@ function execTripChecker_Dispatcher(
   resolve
 ) {
   if (/^rider$/i.test(user_nature)) {
-    //Check if the user has a pending request
-    let rideChecker = {
-      client_id: user_fingerprint,
-      "ride_state_vars.isRideCompleted_riderSide": false,
-    };
-
-    collectionRidesDeliveries_data
-      .find(rideChecker)
-      .toArray(function (err, userDataRepr) {
-        if (err) {
-          resolve(false);
-          throw err;
-        }
-        if (userDataRepr.length <= 0) {
-          //Get the rider's inos
-          //! SAVE THE FINAL FULL RESULT - for 15 min ------
-          redisCluster.setex(
-            RIDE_REDIS_KEY,
-            parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
-            JSON.stringify(false)
-          );
-          //! ----------------------------------------------
-          resolve(false);
-        } //Found a user record
-        else {
-          //...
-          if (
-            userDataRepr[0].ride_state_vars.isRideCompleted_riderSide === false
-          ) {
-            //REQUEST FP
-            let request_fp = userDataRepr[0].request_fp;
-            //Check if there are any requests cached
-            getMongoRecordTrip_cacheLater(
-              collectionRidesDeliveries_data,
-              collectionDrivers_profiles,
-              user_fingerprint,
-              user_nature,
-              request_fp,
-              RIDE_REDIS_KEY,
-              resolve
-            );
-          } //No rides recorded
-          else {
-            //! SAVE THE FINAL FULL RESULT - for 15 min ------
-            redisCluster.setex(
-              RIDE_REDIS_KEY,
-              parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
-              JSON.stringify("no_rides")
-            );
-            //! ----------------------------------------------
-            resolve("no_rides");
+    redisGet(RIDE_REDIS_KEY)
+      .then((resp) => {
+        if (resp !== null) {
+          //Has some record
+          try {
+            resp = JSON.parse(resp);
+            resolve(resp);
+          } catch (error) {
+            logger.warn(error);
+            resolve(false);
           }
+        } //No record - Go fresh
+        else {
+          //Check if the user has a pending request
+          let rideChecker = {
+            client_id: user_fingerprint,
+            "ride_state_vars.isRideCompleted_riderSide": false,
+          };
+
+          collectionRidesDeliveries_data
+            .find(rideChecker)
+            .toArray(function (err, userDataRepr) {
+              if (err) {
+                resolve(false);
+                throw err;
+              }
+              if (userDataRepr.length <= 0) {
+                //Get the rider's inos
+                //! SAVE THE FINAL FULL RESULT - for 15 min ------
+                redisCluster.setex(
+                  RIDE_REDIS_KEY,
+                  parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
+                  JSON.stringify(false)
+                );
+                //! ----------------------------------------------
+                resolve(false);
+              } //Found a user record
+              else {
+                //...
+                if (
+                  userDataRepr[0].ride_state_vars.isRideCompleted_riderSide ===
+                  false
+                ) {
+                  //REQUEST FP
+                  let request_fp = userDataRepr[0].request_fp;
+                  //Check if there are any requests cached
+                  getMongoRecordTrip_cacheLater(
+                    collectionRidesDeliveries_data,
+                    collectionDrivers_profiles,
+                    user_fingerprint,
+                    user_nature,
+                    request_fp,
+                    RIDE_REDIS_KEY,
+                    resolve
+                  );
+                } //No rides recorded
+                else {
+                  //! SAVE THE FINAL FULL RESULT - for 15 min ------
+                  redisCluster.setex(
+                    RIDE_REDIS_KEY,
+                    parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
+                    JSON.stringify("no_rides")
+                  );
+                  //! ----------------------------------------------
+                  resolve("no_rides");
+                }
+              }
+            });
         }
+      })
+      .catch((error) => {
+        logger.warn(error);
+        resolve(false);
       });
   } else if (/^driver$/i.test(user_nature)) {
     //Get the driver's details

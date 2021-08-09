@@ -4316,43 +4316,56 @@ redisCluster.on("connect", function () {
        * Responsible for cancelling the rider's requests and all it's the related process
        */
       app.post("/cancelRiders_request", function (req, res) {
-        req = req.body;
-        //logger.info(req);
-
-        //Do basic checking
-        if (
-          req.user_fingerprint !== undefined &&
-          req.user_fingerprint !== null &&
-          req.request_fp !== undefined &&
-          req.request_fp !== null
-        ) {
-          //? Add a flag if provided: the flag can be used to know who cancelled the request, if not provided, - it's the rider
-          let additionalData = {
-            flag: req.flag !== undefined && req.flag !== null ? req.flag : null,
-          };
-          //...
-          new Promise((res0) => {
-            cancelRider_request(
-              req,
-              collectionRidesDeliveryData,
-              collection_cancelledRidesDeliveryData,
-              collectionDrivers_profiles,
-              res0,
-              additionalData
+        new Promise((resCompute) => {
+          req = req.body;
+          //logger.info(req);
+          //Do basic checking
+          if (
+            req.user_fingerprint !== undefined &&
+            req.user_fingerprint !== null &&
+            req.request_fp !== undefined &&
+            req.request_fp !== null
+          ) {
+            let RIDE_REDIS_KEY = `${req.user_fingerprint}-rideDeliveryMade-holder`;
+            //? Add a flag if provided: the flag can be used to know who cancelled the request, if not provided, - it's the rider
+            let additionalData = {
+              flag:
+                req.flag !== undefined && req.flag !== null ? req.flag : null,
+            };
+            //...
+            new Promise((res0) => {
+              cancelRider_request(
+                req,
+                collectionRidesDeliveryData,
+                collection_cancelledRidesDeliveryData,
+                collectionDrivers_profiles,
+                res0,
+                additionalData
+              );
+            }).then(
+              (result) => {
+                //? Remove the redis key for the ride
+                redisCluster.del(RIDE_REDIS_KEY);
+                //...
+                resCompute(result);
+              },
+              (error) => {
+                logger.info(error);
+                resCompute({ response: "error_cancelling" });
+              }
             );
-          }).then(
-            (result) => {
-              res.send(result);
-            },
-            (error) => {
-              //logger.info(error);
-              res.send({ response: "error_cancelling" });
-            }
-          );
-        } //Invalid parameters
-        else {
-          res.send({ response: "error_cancelling" });
-        }
+          } //Invalid parameters
+          else {
+            resCompute({ response: "error_cancelling" });
+          }
+        })
+          .then((result) => {
+            res.send(result);
+          })
+          .catch((error) => {
+            logger.warn(error);
+            res.send({ response: "error_cancelling" });
+          });
       });
 
       /**
