@@ -8,7 +8,7 @@ RUN mv .env_live .env
 #Development
 #RUN mv .env_dev .env
 
-#Download the certificate for DocumentDb Connection!
+#Download the certificate for DocumentDb Connection
 RUN wget https://s3.amazonaws.com/rds-downloads/rds-combined-ca-bundle.pem
 RUN chmod 400 rds-combined-ca-bundle.pem
 
