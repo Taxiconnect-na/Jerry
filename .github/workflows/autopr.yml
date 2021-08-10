@@ -1,0 +1,29 @@
+# This is a basic workflow to help you get started with Actions
+
+name: Managed Pull request action
+
+# Controls when the workflow will run
+on:
+  # Triggers the workflow on push or pull request events but only for the master branch
+  push:
+    branches: [ dev ]
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  pull-request:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: pull-request
+      uses: repo-sync/pull-request@v2
+      with:
+        source_branch: ""                                 # If blank, default: triggered branch
+        destination_branch: "master"                      # If blank, default: master
+        pr_title: "Pulling ${{ github.ref }} into master" # Title of pull request
+        pr_body: ":crown: *An automated Pull request*"              # Full markdown support, requires pr_title to be set
+        pr_template: ".github/PULL_REQUEST_TEMPLATE.md"   # Path to pull request template, requires pr_title to be set, excludes pr_body
+        pr_label: "auto-pr"                               # Comma-separated list (no spaces)
+        pr_milestone: "Milestone 1"                       # Milestone name
+        pr_draft: false                                    # Creates pull request as draft
+        pr_allow_empty: false                              # Creates pull request even if there are no changes
+        github_token: ${{ secrets.GTHB_ACCESS_TOKEN }}
