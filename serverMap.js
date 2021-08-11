@@ -1156,7 +1156,7 @@ function execTripChecker_Dispatcher(
                           ],
                         },
                   request_type: request_type_regex, //Shceduled or now rides/deliveries
-                  allowed_drivers_see: user_fingerprint,
+                  //allowed_drivers_see: user_fingerprint,
                   //intentional_request_decline: { $not: user_fingerprint },
                 };
 
