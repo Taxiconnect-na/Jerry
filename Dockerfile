@@ -22,7 +22,7 @@ RUN pm2 set pm2-logrotate:max_size 50Mb
 RUN yarn install
 RUN pm2 startup
 
-EXPOSE 9097
+EXPOSE 9999
 EXPOSE 9090
 EXPOSE 9091
 EXPOSE 9797

@@ -509,6 +509,7 @@ function parseRequestData(inputData, resolve) {
                         inputData.user_fingerprint +
                         "&make_new=true";
                       requestAPI(url, function (error, response, body) {
+                        console.log(error);
                         if (error === null) {
                           try {
                             body = JSON.parse(body);
@@ -937,6 +938,7 @@ function parseRequestData(inputData, resolve) {
                                 },
                               },
                               function (error, response, body) {
+                                console.log(error);
                                 //logger.info("here", body);
                                 if (error === null) {
                                   try {
@@ -3631,6 +3633,7 @@ redisCluster.on("connect", function () {
           })
             .then(
               (result) => {
+                console.log(result);
                 res.send(result);
               },
               (error) => {
