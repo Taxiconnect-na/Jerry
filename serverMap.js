@@ -1142,8 +1142,7 @@ function execTripChecker_Dispatcher(
                   isArrivedToDestination: false,
                   ride_mode:
                     /scheduled/i.test(requestType) === false
-                      ? requestType
-                      : {
+                      ? {
                           $in: [
                             ...driverData.operation_clearances,
                             ...driverData.operation_clearances.map(
@@ -1157,7 +1156,8 @@ function execTripChecker_Dispatcher(
                               mode.toUpperCase().trim()
                             ),
                           ],
-                        },
+                        }
+                      : requestType,
                   request_type: request_type_regex, //Shceduled or now rides/deliveries
                   //allowed_drivers_see: user_fingerprint,
                   //intentional_request_decline: { $not: user_fingerprint },
@@ -1191,8 +1191,7 @@ function execTripChecker_Dispatcher(
                         "ride_state_vars.isRideCompleted_driverSide": false,
                         ride_mode:
                           /scheduled/i.test(requestType) === false
-                            ? requestType
-                            : {
+                            ? {
                                 $in: [
                                   ...driverData.operation_clearances,
                                   ...driverData.operation_clearances.map(
@@ -1206,7 +1205,8 @@ function execTripChecker_Dispatcher(
                                     (mode) => mode.toUpperCase().trim()
                                   ),
                                 ],
-                              },
+                              }
+                            : requestType,
                       }
                     : {
                         taxi_id: user_fingerprint,
@@ -1215,8 +1215,7 @@ function execTripChecker_Dispatcher(
                         //request_type: "immediate", //? To check
                         ride_mode:
                           /scheduled/i.test(requestType) === false
-                            ? requestType
-                            : {
+                            ? {
                                 $in: [
                                   ...driverData.operation_clearances,
                                   ...driverData.operation_clearances.map(
@@ -1230,7 +1229,8 @@ function execTripChecker_Dispatcher(
                                     (mode) => mode.toUpperCase().trim()
                                   ),
                                 ],
-                              },
+                              }
+                            : requestType,
                         allowed_drivers_see: user_fingerprint,
                         /*intentional_request_decline: {
                   $not: user_fingerprint,
@@ -1626,8 +1626,7 @@ function execGetDrivers_requests_and_provide(
             //ride_mode: { $regex: requestType, $options: "i" }, //ride, delivery
             request_type: request_type_regex, //Shceduled or now rides/deliveries
           };
-    logger.warn(requestType);
-    logger.info(requestFilter);
+
     //---
     /*let requestFilter = {
       taxi_id: false,
