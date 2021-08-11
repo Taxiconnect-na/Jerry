@@ -1153,6 +1153,9 @@ function execTripChecker_Dispatcher(
                                   .toLowerCase()
                                   .trim()}`
                             ),
+                            ...driverData.operation_clearances.map((mode) =>
+                              mode.toUpperCase().trim()
+                            ),
                           ],
                         },
                   request_type: request_type_regex, //Shceduled or now rides/deliveries
@@ -1199,6 +1202,9 @@ function execTripChecker_Dispatcher(
                                         .toLowerCase()
                                         .trim()}`
                                   ),
+                                  ...driverData.operation_clearances.map(
+                                    (mode) => mode.toUpperCase().trim()
+                                  ),
                                 ],
                               },
                       }
@@ -1219,6 +1225,9 @@ function execTripChecker_Dispatcher(
                                         .substr(1)
                                         .toLowerCase()
                                         .trim()}`
+                                  ),
+                                  ...driverData.operation_clearances.map(
+                                    (mode) => mode.toUpperCase().trim()
                                   ),
                                 ],
                               },
