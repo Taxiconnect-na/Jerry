@@ -509,7 +509,6 @@ function parseRequestData(inputData, resolve) {
                         inputData.user_fingerprint +
                         "&make_new=true";
                       requestAPI(url, function (error, response, body) {
-                        console.log(error);
                         if (error === null) {
                           try {
                             body = JSON.parse(body);
@@ -938,7 +937,6 @@ function parseRequestData(inputData, resolve) {
                                 },
                               },
                               function (error, response, body) {
-                                console.log(error);
                                 //logger.info("here", body);
                                 if (error === null) {
                                   try {
@@ -3393,16 +3391,18 @@ function getRequests_graphPreview_forDrivers(
                       driverData[0].operational_state.default_selected_car
                         .vehicle_type,
                     ride_mode: {
-                      $in: driverData.operation_clearances.map((clearance) => [
-                        `${clearance[0].toUpperCase().trim()}${clearance
-                          .substr(1)
-                          .toLowerCase()
-                          .trim()}`,
-                        clearance.toUpperCase().trim(),
-                      ])[0],
+                      $in: driverData[0].operation_clearances.map(
+                        (clearance) => [
+                          `${clearance[0].toUpperCase().trim()}${clearance
+                            .substr(1)
+                            .toLowerCase()
+                            .trim()}`,
+                          clearance.toUpperCase().trim(),
+                        ]
+                      )[0],
                     },
-                    /*allowed_drivers_see: driver_fingerprint,
-              intentional_request_decline: driver_fingerprint,*/
+                    allowed_drivers_see: driver_fingerprint,
+                    //intentional_request_decline: driver_fingerprint,
                   }
             )
             //!.collation({ locale: "en", strength: 2 })
@@ -3633,7 +3633,6 @@ redisCluster.on("connect", function () {
           })
             .then(
               (result) => {
-                console.log(result);
                 res.send(result);
               },
               (error) => {
