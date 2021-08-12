@@ -563,6 +563,25 @@ function updateRiderLocationsLog(
   resolve
 ) {
   resolveDate();
+  //? Update the hisotry locations
+  //New record
+  new Promise((resCompute) => {
+    let dataBundle = {
+      user_fingerprint: locationData.user_fingerprint,
+      coordinates: {
+        latitude: locationData.latitude,
+        longitude: locationData.longitude,
+      },
+      date_logged: new Date(chaineDateUTC),
+    };
+    collectionRidersLocation_log.insertOne(dataBundle, function (err, res) {
+      resCompute(true);
+    });
+  })
+    .then(() => {})
+    .catch((error) => logger.error(error));
+  //?....
+
   if (/rider/i.test(locationData.user_nature)) {
     //Riders handler
     //! Update the pushnotfication token
@@ -579,21 +598,10 @@ function updateRiderLocationsLog(
         if (err) {
           //logger.info(err);
         }
+        //...
+        resolve(true);
       }
     );
-    //Check if new
-    //New record
-    let dataBundle = {
-      user_fingerprint: locationData.user_fingerprint,
-      coordinates: {
-        latitude: locationData.latitude,
-        longitude: locationData.longitude,
-      },
-      date_logged: new Date(chaineDateUTC),
-    };
-    collectionRidersLocation_log.insertOne(dataBundle, function (err, res) {
-      resolve(true);
-    });
   } else if (/driver/i.test(locationData.user_nature)) {
     //Drivers handler
     //Update the driver's operstional position
@@ -4902,6 +4910,44 @@ redisCluster.on("connect", function () {
           //let params = urlParser.parse(req.url, true);
           req = req.body;
 
+          //? Generic updates
+          if (
+            req !== undefined &&
+            req.latitude !== undefined &&
+            req.latitude !== null &&
+            req.longitude !== undefined &&
+            req.longitude !== null &&
+            req.user_fingerprint !== null &&
+            req.user_fingerprint !== undefined
+          ) {
+            //Update cache for this user's location
+            let pro3 = new Promise((resolve1) => {
+              updateRiderLocationInfosCache(req, resolve1);
+            }).then(
+              () => {
+                ////logger.info("updated cache");
+              },
+              () => {}
+            );
+
+            //Update rider's location - promise always
+            let pro4 = new Promise((resolve2) => {
+              updateRidersRealtimeLocationData(
+                collectionRidesDeliveries_data,
+                collectionRidersLocation_log,
+                collectionDrivers_profiles,
+                collectionPassengers_profiles,
+                req,
+                resolve2
+              );
+            }).then(
+              () => {
+                ////logger.info("Location updated [rider]");
+              },
+              () => {}
+            );
+          }
+
           if (
             req !== undefined &&
             req.latitude !== undefined &&
@@ -5095,33 +5141,6 @@ redisCluster.on("connect", function () {
                 //logger.info(error);
                 resMAIN({ request_status: "no_rides" });
               }
-            );
-
-            //Update cache for this user's location
-            let pro3 = new Promise((resolve1) => {
-              updateRiderLocationInfosCache(req, resolve1);
-            }).then(
-              () => {
-                ////logger.info("updated cache");
-              },
-              () => {}
-            );
-
-            //Update rider's location - promise always
-            let pro4 = new Promise((resolve2) => {
-              updateRidersRealtimeLocationData(
-                collectionRidesDeliveries_data,
-                collectionRidersLocation_log,
-                collectionDrivers_profiles,
-                collectionPassengers_profiles,
-                req,
-                resolve2
-              );
-            }).then(
-              () => {
-                ////logger.info("Location updated [rider]");
-              },
-              () => {}
             );
           } else if (
             req.makeFreshRequest !== undefined &&
