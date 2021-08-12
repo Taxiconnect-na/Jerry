@@ -1239,7 +1239,7 @@ function execTripChecker_Dispatcher(
                                 ],
                               }
                             : requestType,
-                        allowed_drivers_see: user_fingerprint,
+                        // allowed_drivers_see: user_fingerprint,
                         /*intentional_request_decline: {
                   $not: user_fingerprint,
                 },*/
@@ -1459,7 +1459,7 @@ function execGetDrivers_requests_and_provide(
             "ride_state_vars.isAccepted": false,
             "ride_state_vars.isRideCompleted_driverSide": false,
             isArrivedToDestination: false,
-            allowed_drivers_see: driverData.driver_fingerprint,
+            // allowed_drivers_see: driverData.driver_fingerprint,
             /*intentional_request_decline: {
               $not: driverData.driver_fingerprint,
             },*/
@@ -1616,7 +1616,7 @@ function execGetDrivers_requests_and_provide(
               driverData.operational_state.last_location.country !== undefined
                 ? driverData.operational_state.last_location.country
                 : "Namibia",
-            allowed_drivers_see: driverData.driver_fingerprint,
+            // allowed_drivers_see: driverData.driver_fingerprint,
             /*intentional_request_decline: {
         $not: driverData.driver_fingerprint,
       },*/
