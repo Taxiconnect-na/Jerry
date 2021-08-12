@@ -4217,7 +4217,15 @@ function getFreshProximity_driversList(
         : "online",
     "operational_state.last_location.city": req.city,
     "operational_state.last_location.country": req.country,
-    operation_clearances: req.ride_type,
+    operation_clearances: {
+      $in: [
+        req.ride_type.toUpperCase(),
+        `${req.ride_type[0].toUpperCase()}${req.ride_type
+          .substr(1)
+          .toLowerCase()}`,
+        req.ride_type.toLowerCase(),
+      ],
+    },
     //Filter the drivers based on the vehicle type if provided
     "operational_state.default_selected_car.vehicle_type":
       req.vehicle_type !== undefined && req.vehicle_type !== false
@@ -4237,13 +4245,14 @@ function getFreshProximity_driversList(
             ],
           },
   }; //?Indexed
+  logger.info(driverFilter);
   //...
   collectionDrivers_profiles
     .find(driverFilter)
     //!.collation({ locale: "en", strength: 2 })
     .toArray(function (err, driversProfiles) {
       if (err) {
-        //logger.info(err);
+        logger.info(err);
         resolveMother({ response: "no_close_drivers_found" });
       }
       //check that some drivers where found
@@ -5369,7 +5378,7 @@ redisCluster.on("connect", function () {
               req.make_new === "true" ||
               req.make_new
             ) {
-              //logger.info("MAKE NEW");
+              logger.info("MAKE NEW");
               //Get the list of drivers match the availability criteria
               new Promise((resGetFreshList) => {
                 getFreshProximity_driversList(
@@ -5402,7 +5411,7 @@ redisCluster.on("connect", function () {
                 .then(
                   (resp) => {
                     if (resp !== null) {
-                      //logger.info("FOUND CACHED DRIVER LIST");
+                      logger.info("FOUND CACHED DRIVER LIST");
                       //Has some cached data
                       try {
                         //Rehydrate the data
@@ -5477,21 +5486,22 @@ redisCluster.on("connect", function () {
                         .then(
                           (result) => {
                             //? DONE
+                            logger.warn(result);
                             resMAIN(result);
                           },
                           (error) => {
-                            //logger.info(error);
+                            logger.info(error);
                             resMAIN({ response: "no_close_drivers_found" });
                           }
                         )
                         .catch((error) => {
-                          //logger.info(error);
+                          logger.info(error);
                           resMAIN({ response: "no_close_drivers_found" });
                         });
                     }
                   },
                   (error) => {
-                    //logger.info(error);
+                    logger.info(error);
                     //Get the list of drivers match the availability criteria
                     new Promise((resGetFreshList) => {
                       getFreshProximity_driversList(

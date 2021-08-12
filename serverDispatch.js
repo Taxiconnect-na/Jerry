@@ -1035,7 +1035,7 @@ function parseRequestData(inputData, resolve) {
  * @param collectionRidesDeliveryData: rides and delivery collection
  * @param collectionDrivers_profiles: drivers profiles collection
  * connect type (connectMe/connectUS).
- * Responsible for sending notifications to drivers and a staged manner:
+ * Responsible for sending notifications to drivers in a staged manner:
  * ? Closest first (1 driver)
  * after 1min30'' of not accepting
  * ? increase the radius (3 drivers)
@@ -1632,8 +1632,8 @@ function sendStagedNotificationsDrivers(
         }).then(
           (reslt) => {
             if (/staged_dispatch_successfull/i.test(reslt.response)) {
-              //CONCLUDE THE REQUEST
-              resolve({ response: "successfully_dispatched" });
+              //CONCLUDE THE REQUEST - Nope
+              //resolve({ response: "successfully_dispatched" });
               //Proceed with the staged dispatch
               //1. Wait for 1 min 00'' - in ms
               logger.info(
@@ -1662,7 +1662,6 @@ function sendStagedNotificationsDrivers(
                       if (/staged_dispatch_successfull/i.test(reslt.response)) {
                         //Proceed with the staged dispatch
                         //Allow these drivers to see the requests athen resolve 2
-                        res(true); //Conclude promise 1
                         res2(true); //Conclude promise 2
                       } //End the staged dispatch - done
                       else {
@@ -1670,7 +1669,7 @@ function sendStagedNotificationsDrivers(
                           "DONE STAGED DISPATCH  ---ticket: " +
                             snapshotTripInfos.request_fp
                         );
-                        resolve({ response: "successfully_dispatched" });
+                        res2({ response: "successfully_dispatched" });
                       }
                     },
                     (error) => {
@@ -1679,12 +1678,19 @@ function sendStagedNotificationsDrivers(
                           snapshotTripInfos.request_fp
                       );
                       //Error - but notify dispatch as successfull
-                      resolve({ response: "successfully_dispatched" });
+                      res2(true);
                     }
                   );
-                })
-                  .then()
-                  .finally(() => {
+                }).then((result) => {
+                  if (
+                    result.response !== undefined &&
+                    result.response !== null
+                  ) {
+                    //?Successfully dispatched
+                    res(true);
+                    resolve({ response: "successfully_dispatched" });
+                  } //? Not yet done, continue with the dispatch
+                  else {
                     //2. Wait for 30 sec
                     logger.info(
                       "Waiting for 30sec ---ticket: " +
@@ -1724,7 +1730,7 @@ function sendStagedNotificationsDrivers(
                                 "DONE STAGED DISPATCH  ---ticket: " +
                                   snapshotTripInfos.request_fp
                               );
-                              resolve({ response: "successfully_dispatched" });
+                              res3({ response: "successfully_dispatched" });
                             }
                           },
                           (error) => {
@@ -1733,12 +1739,19 @@ function sendStagedNotificationsDrivers(
                                 snapshotTripInfos.request_fp
                             );
                             //Error - but notify dispatch as successfull
-                            resolve({ response: "successfully_dispatched" });
+                            res3(false);
                           }
                         );
-                      })
-                        .then()
-                        .finally(() => {
+                      }).then((result) => {
+                        if (
+                          result.response !== undefined &&
+                          result.response !== null
+                        ) {
+                          //?Successfully dispatched
+                          res(true);
+                          resolve({ response: "successfully_dispatched" });
+                        } //Continue with the staged process
+                        else {
                           //3. Wait for 1 min
                           logger.info(
                             "Waiting for 30sec ---ticket: " +
@@ -1778,7 +1791,7 @@ function sendStagedNotificationsDrivers(
                                       "DONE STAGED DISPATCH  ---ticket: " +
                                         snapshotTripInfos.request_fp
                                     );
-                                    resolve({
+                                    res4({
                                       response: "successfully_dispatched",
                                     });
                                   }
@@ -1789,9 +1802,7 @@ function sendStagedNotificationsDrivers(
                                       snapshotTripInfos.request_fp
                                   );
                                   //Error - but notify dispatch as successfull
-                                  resolve({
-                                    response: "successfully_dispatched",
-                                  });
+                                  res4(false);
                                 }
                               );
                             })
@@ -1807,9 +1818,11 @@ function sendStagedNotificationsDrivers(
                                 });
                               });
                           }, 1 * 30 * 1000);
-                        });
+                        }
+                      });
                     }, 1 * 30 * 1000);
-                  });
+                  }
+                });
               }, 35 * 1000);
             } //End the staged dispatch - done
             else {
@@ -1873,6 +1886,12 @@ function registerAllowedDriversForRidesAndNotify(
       : stagedBoundaries[incrementalStage].end
   );
 
+  logger.warn(stagedBoundaries[incrementalStage]);
+  logger.warn(
+    "List of drivers cherry picked for the staged dispatch in progress"
+  );
+  logger.warn(driversSnap.drivers_fp);
+
   //Check whether the request was accepted or not.
   let checkAcceptance = {
     "ride_state_vars.isAccepted": false,
@@ -1882,6 +1901,7 @@ function registerAllowedDriversForRidesAndNotify(
     .find(checkAcceptance)
     .toArray(function (err, requestInfos) {
       if (
+        requestInfos !== null &&
         requestInfos !== undefined &&
         requestInfos.length > 0 &&
         driversSnap.drivers_fp.length > 0
@@ -1904,6 +1924,9 @@ function registerAllowedDriversForRidesAndNotify(
           checkAcceptance,
           updatedAllowedSee,
           function (err, reslt) {
+            if (err) {
+              resolve({ response: "staged_dispatch_successfull" });
+            }
             //logger.info(err);
             //Send notifications to the newly registered drivers to the allowed_drivers_see
             //Send the push notifications
@@ -1985,6 +2008,10 @@ function registerAllowedDriversForRidesAndNotify(
         collectionRidesDeliveryData
           .find(checkAcceptance)
           .toArray(function (err, requestInfos) {
+            if (err) {
+              resolve({ response: "staged_dispatch_successfull" });
+            }
+            //...
             if (requestInfos.length > 0 && driversSnap.drivers_fp.length > 0) {
               //Not yet accepted
               requestInfos = requestInfos[0];
@@ -2272,7 +2299,7 @@ function acceptRequest_driver(
         resolve({ response: "unable_to_accept_request_error" });
       }
       //...
-      if (result.length > 0) {
+      if (result !== undefined && result !== null && result.length > 0) {
         //Wasn't accepted by a driver yet - proceed to the accepting
         //Save the accepting event
         new Promise((res) => {
@@ -2296,7 +2323,11 @@ function acceptRequest_driver(
               resolve({ response: "unable_to_accept_request_error" });
             }
             //...
-            if (driverData.length > 0) {
+            if (
+              driverData !== undefined &&
+              driverData !== null &&
+              driverData.length > 0
+            ) {
               //Found driver's data
               //Update the true request
               collectionRidesDeliveryData.updateOne(
@@ -2380,6 +2411,8 @@ function acceptRequest_driver(
                         }
                         //...
                         if (
+                          requestPrevData !== null &&
+                          requestPrevData !== undefined &&
                           requestPrevData.length > 0 &&
                           requestPrevData[0].request_fp !== undefined &&
                           requestPrevData[0].request_fp !== null
@@ -2528,7 +2561,7 @@ function cancelRequest_driver(
             //...
             if (
               resultCancelledRequests !== undefined &&
-              resultCancelledRequests.length <
+              resultCancelledRequests.length <=
                 parseInt(process.env.MAXIMUM_CANCELLATION_DRIVER_REQUESTS_LIMIT)
             ) {
               //Can cancel
@@ -2567,7 +2600,7 @@ function cancelRequest_driver(
                   if (err) {
                     resolve({ response: "unable_to_cancel_request_error" });
                   }
-                  //Send the push notifications - FOR DRIVERS
+                  //Send the push notifications - FOR ALL DRIVERS except the canceller
                   new Promise((resNotify) => {
                     //! Get all the drivers
                     let driverFilter = {
@@ -3896,82 +3929,82 @@ redisCluster.on("connect", function () {
       app.post("/dispatchRidesOrDeliveryRequests", function (req, res) {
         req = req.body;
         //TEST DATA
-        /*let testData = {
-        actualRider: "someonelese",
-        actualRiderPhone_number: "0817563369",
-        carTypeSelected: "normalTaxiEconomy",
-        connectType: "ConnectUs",
-        country: "Namibia",
-        destinationData: {
-          passenger1Destination: {
-            _id: "5f7e16126661813ab09e417f",
-            averageGeo: -10.989369499999999,
-            city: "Windhoek",
-            coordinates: [-22.548558, 17.0504368],
-            country: "Namibia",
-            location_id: 242368923,
-            location_name: "Grove Khomasdal Funky Town - Pequena Angola",
-            query: "Grovr",
-            state: "Khomas",
-            street: false,
+        let testData = {
+          actualRider: "someonelese",
+          actualRiderPhone_number: "0817563369",
+          carTypeSelected: "normalTaxiEconomy",
+          connectType: "ConnectUs",
+          country: "Namibia",
+          destinationData: {
+            passenger1Destination: {
+              _id: "5f7e16126661813ab09e417f",
+              averageGeo: -10.989369499999999,
+              city: "Windhoek",
+              coordinates: [-22.548558, 17.0504368],
+              country: "Namibia",
+              location_id: 242368923,
+              location_name: "Grove Khomasdal Funky Town - Pequena Angola",
+              query: "Grovr",
+              state: "Khomas",
+              street: false,
+            },
+            passenger2Destination: {
+              _id: "5fc8dde588e09715d0df05ca",
+              averageGeo: -5.491276299999999,
+              city: "Windhoek",
+              coordinates: [-22.5818168, 17.0878857],
+              country: "Namibia",
+              location_id: 1768699533,
+              location_name: "Showground Parking Area",
+              query: "Showg",
+              state: "Khomas",
+              street: "Jan Jonker Weg",
+            },
+            passenger3Destination: {
+              _id: "5f7de487c6811253c83529b3",
+              averageGeo: -10.975441900000003,
+              city: "Windhoek",
+              coordinates: [-22.56578, 17.0751551],
+              country: "Namibia",
+              location_id: 244132971,
+              location_name: "NUST Main St",
+              query: "Nust",
+              state: "Khomas",
+              street: false,
+            },
+            passenger4Destination: {
+              _id: "5f7de491c6811253c83529f6",
+              averageGeo: -11.1064516,
+              city: "Windhoek",
+              coordinates: [-22.6121691, 17.0233537],
+              country: "Namibia",
+              location_id: 6520901,
+              location_name: "University of Namibia (UNAM)",
+              query: "Unam",
+              state: "Khomas",
+              street: "Mandume Ndemufayo Avenue",
+            },
           },
-          passenger2Destination: {
-            _id: "5fc8dde588e09715d0df05ca",
-            averageGeo: -5.491276299999999,
+          fareAmount: 80,
+          isAllGoingToSameDestination: false,
+          naturePickup: "PrivateLocation",
+          passengersNo: 4,
+          pickupData: {
             city: "Windhoek",
-            coordinates: [-22.5818168, 17.0878857],
-            country: "Namibia",
-            location_id: 1768699533,
-            location_name: "Showground Parking Area",
-            query: "Showg",
-            state: "Khomas",
-            street: "Jan Jonker Weg",
+            coordinates: [-22.5705005, 17.0809437],
+            location_name: "Embassy of Brazil in Windhoek",
+            street_name: "Simeon Shixungileni Steet",
           },
-          passenger3Destination: {
-            _id: "5f7de487c6811253c83529b3",
-            averageGeo: -10.975441900000003,
-            city: "Windhoek",
-            coordinates: [-22.56578, 17.0751551],
-            country: "Namibia",
-            location_id: 244132971,
-            location_name: "NUST Main St",
-            query: "Nust",
-            state: "Khomas",
-            street: false,
-          },
-          passenger4Destination: {
-            _id: "5f7de491c6811253c83529f6",
-            averageGeo: -11.1064516,
-            city: "Windhoek",
-            coordinates: [-22.6121691, 17.0233537],
-            country: "Namibia",
-            location_id: 6520901,
-            location_name: "University of Namibia (UNAM)",
-            query: "Unam",
-            state: "Khomas",
-            street: "Mandume Ndemufayo Avenue",
-          },
-        },
-        fareAmount: 80,
-        isAllGoingToSameDestination: false,
-        naturePickup: "PrivateLocation",
-        passengersNo: 4,
-        pickupData: {
-          city: "Windhoek",
-          coordinates: [-22.5705005, 17.0809437],
-          location_name: "Embassy of Brazil in Windhoek",
-          street_name: "Simeon Shixungileni Steet",
-        },
-        pickupNote: "Hello world",
-        receiverName_delivery: false,
-        receiverPhone_delivery: false,
-        rideType: "RIDE",
-        timeScheduled: "immediate",
-        paymentMethod: "CASH",
-        user_fingerprint:
-          "5b29bb1b9ac69d884f13fd4be2badcd22b72b98a69189bfab806dcf7c5f5541b6cbe8087cf60c791",
-      };
-      req = testData;*/
+          pickupNote: "Hello world",
+          receiverName_delivery: false,
+          receiverPhone_delivery: false,
+          rideType: "RIDE",
+          timeScheduled: "immediate",
+          paymentMethod: "CASH",
+          user_fingerprint:
+            "5b29bb1b9ac69d884f13fd4be2badcd22b72b98a69189bfab806dcf7c5f5541b6cbe8087cf60c791",
+        };
+        req = testData;
         //...
         if (
           req.user_fingerprint !== undefined &&

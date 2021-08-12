@@ -17,8 +17,8 @@ RUN mkdir Riders_profile_pictures
 
 RUN npm install yarn -g --force
 RUN yarn global add pm2
-RUN pm2 install pm2-logrotate
-RUN pm2 set pm2-logrotate:max_size 50Mb
+#RUN pm2 install pm2-logrotate
+#RUN pm2 set pm2-logrotate:max_size 50Mb
 RUN yarn install
 RUN pm2 startup
 
