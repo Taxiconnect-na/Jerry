@@ -1909,6 +1909,76 @@ function registerAllowedDriversForRidesAndNotify(
         //Not yet accepted
         requestInfos = requestInfos[0];
         //...
+        new Promise((resComputeNotif) => {
+          //Send notifications to the newly registered drivers to the allowed_drivers_see
+          //Send the push notifications
+          let message = {
+            app_id: process.env.DRIVERS_APP_ID_ONESIGNAL,
+            android_channel_id: /RIDE/i.test(snapshotTripInfos.ride_type)
+              ? process.env.DRIVERS_ONESIGNAL_CHANNEL_NEW_NOTIFICATION
+              : process.env.DRIVERS_ONESIGNAL_CHANNEL_NEW_NOTIFICATION, //Ride or delivery channel
+            priority: 10,
+            contents: /RIDE/i.test(snapshotTripInfos.ride_type)
+              ? {
+                  en:
+                    "You have a new ride request " +
+                    (snapshotTripInfos.pickup_suburb !== false
+                      ? "from " + snapshotTripInfos.pickup_suburb !== undefined
+                        ? snapshotTripInfos.pickup_suburb !== undefined &&
+                          snapshotTripInfos.pickup_suburb !== false &&
+                          snapshotTripInfos.pickup_suburb !== null
+                          ? snapshotTripInfos.pickup_suburb.toUpperCase()
+                          : "near your location"
+                        : "near your location" +
+                            " to " +
+                            snapshotTripInfos.pickup_suburb !==
+                          undefined
+                        ? snapshotTripInfos.pickup_suburb !== undefined &&
+                          snapshotTripInfos.pickup_suburb !== false &&
+                          snapshotTripInfos.pickup_suburb !== null
+                          ? snapshotTripInfos.pickup_suburb.toUpperCase()
+                          : "near your location"
+                        : "near your location" +
+                          ". Click here for more details."
+                      : "near your location, click here for more details."),
+                }
+              : {
+                  en:
+                    "You have a new delivery request " +
+                    (snapshotTripInfos.pickup_suburb !== false
+                      ? "from " + snapshotTripInfos.pickup_suburb !== undefined
+                        ? snapshotTripInfos.pickup_suburb !== undefined &&
+                          snapshotTripInfos.pickup_suburb !== false &&
+                          snapshotTripInfos.pickup_suburb !== null
+                          ? snapshotTripInfos.pickup_suburb.toUpperCase()
+                          : "near your location"
+                        : "near your location" +
+                            " to " +
+                            snapshotTripInfos.pickup_suburb !==
+                          undefined
+                        ? snapshotTripInfos.pickup_suburb !== undefined &&
+                          snapshotTripInfos.pickup_suburb !== false &&
+                          snapshotTripInfos.pickup_suburb !== null
+                          ? snapshotTripInfos.pickup_suburb.toUpperCase()
+                          : "near your location"
+                        : "near your location" +
+                          ". Click here for more details."
+                      : "near your location, click here for more details."),
+                },
+            headings: /RIDE/i.test(snapshotTripInfos.ride_type)
+              ? { en: "New ride request, N$" + snapshotTripInfos.fare }
+              : { en: "New delivery request, N$" + snapshotTripInfos.fare },
+            content_available: true,
+            include_player_ids: driversSnap.pushNotif_tokens,
+          };
+          //logger.info(message);
+          //Send
+          sendPushUPNotification(message);
+          //...
+          resComputeNotif(true);
+        })
+          .then(() => {})
+          .catch(() => {});
         //Add the drivers' fingerprints to the allowed_drivers_see
         let updatedAllowedSee = {
           $set: {
@@ -1928,73 +1998,6 @@ function registerAllowedDriversForRidesAndNotify(
               resolve({ response: "staged_dispatch_successfull" });
             }
             //logger.info(err);
-            //Send notifications to the newly registered drivers to the allowed_drivers_see
-            //Send the push notifications
-            let message = {
-              app_id: process.env.DRIVERS_APP_ID_ONESIGNAL,
-              android_channel_id: /RIDE/i.test(snapshotTripInfos.ride_type)
-                ? process.env.DRIVERS_ONESIGNAL_CHANNEL_NEW_NOTIFICATION
-                : process.env.DRIVERS_ONESIGNAL_CHANNEL_NEW_NOTIFICATION, //Ride or delivery channel
-              priority: 10,
-              contents: /RIDE/i.test(snapshotTripInfos.ride_type)
-                ? {
-                    en:
-                      "You have a new ride request " +
-                      (snapshotTripInfos.pickup_suburb !== false
-                        ? "from " + snapshotTripInfos.pickup_suburb !==
-                          undefined
-                          ? snapshotTripInfos.pickup_suburb !== undefined &&
-                            snapshotTripInfos.pickup_suburb !== false &&
-                            snapshotTripInfos.pickup_suburb !== null
-                            ? snapshotTripInfos.pickup_suburb.toUpperCase()
-                            : "near your location"
-                          : "near your location" +
-                              " to " +
-                              snapshotTripInfos.pickup_suburb !==
-                            undefined
-                          ? snapshotTripInfos.pickup_suburb !== undefined &&
-                            snapshotTripInfos.pickup_suburb !== false &&
-                            snapshotTripInfos.pickup_suburb !== null
-                            ? snapshotTripInfos.pickup_suburb.toUpperCase()
-                            : "near your location"
-                          : "near your location" +
-                            ". Click here for more details."
-                        : "near your location, click here for more details."),
-                  }
-                : {
-                    en:
-                      "You have a new delivery request " +
-                      (snapshotTripInfos.pickup_suburb !== false
-                        ? "from " + snapshotTripInfos.pickup_suburb !==
-                          undefined
-                          ? snapshotTripInfos.pickup_suburb !== undefined &&
-                            snapshotTripInfos.pickup_suburb !== false &&
-                            snapshotTripInfos.pickup_suburb !== null
-                            ? snapshotTripInfos.pickup_suburb.toUpperCase()
-                            : "near your location"
-                          : "near your location" +
-                              " to " +
-                              snapshotTripInfos.pickup_suburb !==
-                            undefined
-                          ? snapshotTripInfos.pickup_suburb !== undefined &&
-                            snapshotTripInfos.pickup_suburb !== false &&
-                            snapshotTripInfos.pickup_suburb !== null
-                            ? snapshotTripInfos.pickup_suburb.toUpperCase()
-                            : "near your location"
-                          : "near your location" +
-                            ". Click here for more details."
-                        : "near your location, click here for more details."),
-                  },
-              headings: /RIDE/i.test(snapshotTripInfos.ride_type)
-                ? { en: "New ride request, N$" + snapshotTripInfos.fare }
-                : { en: "New delivery request, N$" + snapshotTripInfos.fare },
-              content_available: true,
-              include_player_ids: driversSnap.pushNotif_tokens,
-            };
-            //logger.info(message);
-            //Send
-            sendPushUPNotification(message);
-            //...
             resolve({ response: "staged_dispatch_successfull" });
           }
         );
