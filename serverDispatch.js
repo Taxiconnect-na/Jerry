@@ -1095,7 +1095,7 @@ function intitiateStagedDispatch(
     snapshotTripInfos.city +
     "&country=" +
     snapshotTripInfos.country +
-    "&list_limit=all";
+    "&list_limit=all&make_new=true";
   requestAPI(url, function (error, response, body) {
     logger.info(body);
     try {
@@ -3437,7 +3437,7 @@ function getRequests_graphPreview_forDrivers(
                         ]
                       )[0],
                     },
-                    allowed_drivers_see: driver_fingerprint,
+                    // allowed_drivers_see: driver_fingerprint,
                     //intentional_request_decline: driver_fingerprint,
                   }
             )
