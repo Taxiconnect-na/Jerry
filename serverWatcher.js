@@ -1567,7 +1567,15 @@ function requestsDriverSubscriber_watcher(
                       ? "Windhoek"
                       : request.pickup_location_infos.city,
                   "operational_state.last_location.country": request.country,
-                  operation_clearances: request.ride_mode,
+                  operation_clearances: {
+                    $in: [
+                      request.ride_mode.toUpperCase(),
+                      `${request.ride_mode[0].toUpperCase()}${request.ride_mode
+                        .substr(1)
+                        .toLowerCase()}`,
+                      request.ride_mode.toLowerCase(),
+                    ],
+                  },
                   //Filter the drivers based on the vehicle type if provided
                   "operational_state.default_selected_car.vehicle_type":
                     request.carTypeSelected !== undefined &&
