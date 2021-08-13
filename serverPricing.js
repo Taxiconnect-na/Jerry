@@ -1452,6 +1452,21 @@ function estimateFullVehiclesCatPrices(
 }
 
 /**
+ * @func doubleTheFareIfNecessary
+ * Responsible for getting any type of fare and doubling it if the base fare received is NAD14
+ * and if going until home
+ * @param initialFare: the initial fare to be doubled
+ * @param goingUntilHome: if the customer is going until home or not
+ */
+function doubleTheFareIfNecessary(initialFare, goingUntilHome) {
+  if (initialFare == 14 && goingUntilHome) {
+    return initialFare * 2;
+  }
+  //...
+  return initialFare;
+}
+
+/**
  * @func computeInDepthPricesMap
  * @param resolve
  * @param completedInputData: completed operations input data
@@ -1639,7 +1654,10 @@ function computeInDepthPricesMap(
                     //Add base ride fare if the user is found to be going to the same suburb
                     if (tmpPickupPickup === tmpDestinationSuburb) {
                       //Same suburb -> fare = base ride price
-                      basePrice += vehicle.base_fare;
+                      basePrice += doubleTheFareIfNecessary(
+                        vehicle.base_fare,
+                        completedInputData.isGoingUntilHome
+                      );
                     }
                     let didFindRegisteredSuburbs = false; //To know whether or not has found registered suburbs or else did not find matching suburbs.
                     //...
@@ -1652,7 +1670,10 @@ function computeInDepthPricesMap(
                         if (basePrice > 0) {
                           //Add basic vehicle price instead of false suburb fare
                           //basePrice += suburbToSuburbInfo.fare;
-                          basePrice += vehicle.base_fare;
+                          basePrice += doubleTheFareIfNecessary(
+                            vehicle.base_fare,
+                            completedInputData.isGoingUntilHome
+                          );
                           lockPorgress = true;
                           didFindRegisteredSuburbs = true; //Found false suburbs-consider as registered.
                         }
@@ -1677,7 +1698,11 @@ function computeInDepthPricesMap(
                           logger.info(vehicle.base_fare);
                           //basePrice += vehicle.base_fare;
                           //? Remove N$2 discount for electric rides
-                          basePrice += parseFloat(suburbToSuburbInfo.fare) - 2;
+                          basePrice +=
+                            doubleTheFareIfNecessary(
+                              parseFloat(suburbToSuburbInfo.fare),
+                              completedInputData.isGoingUntilHome
+                            ) - 2;
                         } //Normal taxis
                         else {
                           logger.info(suburbToSuburbInfo.fare);
@@ -1685,7 +1710,10 @@ function computeInDepthPricesMap(
                             completedInputData.destination_location_infos
                           );
                           logger.info(suburbToSuburbInfo);
-                          basePrice += parseFloat(suburbToSuburbInfo.fare);
+                          basePrice += doubleTheFareIfNecessary(
+                            parseFloat(suburbToSuburbInfo.fare),
+                            completedInputData.isGoingUntilHome
+                          );
                         }
                       }
                     });
@@ -1730,7 +1758,10 @@ function computeInDepthPricesMap(
                       );
                       //Estimate a realistic price for now - EXTREMELY URGENT
                       //Assign ride base price
-                      basePrice += vehicle.base_fare;
+                      basePrice += doubleTheFareIfNecessary(
+                        vehicle.base_fare,
+                        completedInputData.isGoingUntilHome
+                      );
                     }
                   } else if (
                     /Comfort/i.test(vehicle.category) ||
@@ -1766,11 +1797,14 @@ function computeInDepthPricesMap(
         }
         //Add header price and time multiplier ONLY for the Economy category and not airport rides
         if (/Economy/i.test(vehicle.category) && isGoingToAirport === false) {
-          basePrice =
-            completedInputData.isGoingUntilHome &&
-            /RIDE/i.test(completedInputData.ride_mode)
-              ? basePrice * 2
-              : basePrice; //! Apply the going until home doubling effect on the rides only.
+          // if (/connectUs/i.test(completedInputData.connect_type)) {
+          //   basePrice =
+          //     completedInputData.isGoingUntilHome &&
+          //     /RIDE/i.test(completedInputData.ride_mode)
+          //       ? basePrice * 2
+          //       : basePrice; //! Apply the going until home doubling effect on the rides only.
+          // }
+          //...
           basePrice *= timeDayMultiplier;
           basePrice += headerPrice; //Add header price LAST
         }
