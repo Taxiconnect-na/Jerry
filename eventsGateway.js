@@ -1090,7 +1090,8 @@ io.on("connection", (socket) => {
         "/getRiders_walletInfos?user_fingerprint=" +
         req.user_fingerprint +
         "&mode=" +
-        req.mode;
+        req.mode +
+        "&avoidCached_data=true";
 
       requestAPI(url, function (error, response, body) {
         if (error === null) {
