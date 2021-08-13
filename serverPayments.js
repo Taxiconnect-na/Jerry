@@ -1435,7 +1435,7 @@ MongoClient.connect(
                         process.env.ACCOUNTS_SERVICE_PORT +
                         "/getRiders_walletInfos?user_fingerprint=" +
                         req.user_fingerprint +
-                        "&mode=total";
+                        "&mode=total&avoidCached_data=true";
 
                       requestAPI(url, function (error, response, body) {
                         if (error === null) {
