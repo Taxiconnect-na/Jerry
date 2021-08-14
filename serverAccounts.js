@@ -1144,6 +1144,19 @@ function getDaily_requestAmount_driver(
       if (resp !== null && avoidCached_data == false) {
         //Has a previous record
         try {
+          //? Rehydrate
+          new Promise((res) => {
+            exec_computeDaily_amountMade(
+              collectionRidesDeliveryData,
+              collectionDrivers_profiles,
+              driver_fingerprint,
+              res
+            );
+          }).then(
+            (result) => {},
+            (error) => {}
+          );
+          //...
           resp = JSON.parse(resp);
           //...
           resolve(resp);
@@ -6207,6 +6220,136 @@ redisCluster.on("connect", function () {
         else {
           res.send({ response: "error_invalid_data" });
         }
+      });
+
+      /**
+       * REFERRALS STATE NOTIFICATIONS FOR RIDERS
+       * ? Responsible for sending notifications to drivers
+       */
+      app.get("/notifyCustomersForReferralsProgress", function (req, res) {
+        new Promise((resCompute) => {
+          if (
+            req.name !== undefined &&
+            req.name !== null &&
+            req.referrer_fingerprint !== undefined &&
+            req.referrer_fingerprint !== null
+          ) {
+            //Get the referrer's details
+            collectionPassengers_profiles
+              .find({ user_fingerprint: req.referrer_fingerprint })
+              .toArray(function (err, userData) {
+                if (err) {
+                  logger.error(err);
+                  resCompute({ response: "error" });
+                }
+                //...
+                if (
+                  userData !== undefined &&
+                  userData !== null &&
+                  userData.length > 0
+                ) {
+                  if (/markPaid/i.test(req.name)) {
+                    //?Mark as paid
+                    //! Notify the rider
+                    //Send the push notifications
+                    let message = {
+                      app_id: process.env.RIDERS_APP_ID_ONESIGNAL,
+                      android_channel_id:
+                        process.env
+                          .RIDERS_ONESIGNAL_CHANNEL_AUTOCANCELLED_REQUEST, //Ride - Auto-cancelled group
+                      priority: 10,
+                      contents: {
+                        en: "Y",
+                      },
+                      headings: { en: "Referral payout" },
+                      content_available: true,
+                      include_player_ids: [
+                        userData.pushnotif_token !== null &&
+                        userData.pushnotif_token.userId !== undefined
+                          ? userData.pushnotif_token.userId
+                          : "false",
+                      ],
+                    };
+                    //Send
+                    sendPushUPNotification(message);
+                    resCompute({ response: "success" });
+                  } else if (/MarkRejected/i.test(req.name)) {
+                    //?Mark as rejected
+                    //! Notify the rider
+                    //Send the push notifications
+                    let message = {
+                      app_id: process.env.RIDERS_APP_ID_ONESIGNAL,
+                      android_channel_id:
+                        process.env
+                          .RIDERS_ONESIGNAL_CHANNEL_AUTOCANCELLED_REQUEST, //Ride - Auto-cancelled group
+                      priority: 10,
+                      contents: {
+                        en: "Y",
+                      },
+                      headings: { en: "Referral payout" },
+                      content_available: true,
+                      include_player_ids: [
+                        userData.pushnotif_token !== null &&
+                        userData.pushnotif_token.userId !== undefined
+                          ? userData.pushnotif_token.userId
+                          : "false",
+                      ],
+                    };
+                    //Send
+                    sendPushUPNotification(message);
+                    resCompute({ response: "success" });
+                  } else if (/DeleteFromRider/i.test(req.name)) {
+                    //?Delete from rider
+                    resCompute({ response: "success" });
+                  } else if (/DeleteReferral/i.test(req.name)) {
+                    //?Delete referral
+                    resCompute({ response: "success" });
+                  } else if (/RegisterReferredDriver/i.test(req.name)) {
+                    //?Register referred driver
+                    //! Notify the rider
+                    //Send the push notifications
+                    let message = {
+                      app_id: process.env.RIDERS_APP_ID_ONESIGNAL,
+                      android_channel_id:
+                        process.env
+                          .RIDERS_ONESIGNAL_CHANNEL_AUTOCANCELLED_REQUEST, //Ride - Auto-cancelled group
+                      priority: 10,
+                      contents: {
+                        en: "Y",
+                      },
+                      headings: { en: "Referral payout" },
+                      content_available: true,
+                      include_player_ids: [
+                        userData.pushnotif_token !== null &&
+                        userData.pushnotif_token.userId !== undefined
+                          ? userData.pushnotif_token.userId
+                          : "false",
+                      ],
+                    };
+                    //Send
+                    sendPushUPNotification(message);
+                    resCompute({ response: "success" });
+                  } //No valid name
+                  else {
+                    resCompute({ response: "error" });
+                  }
+                } //No data found
+                else {
+                  resCompute({ response: "error" });
+                }
+              });
+          } //Invalid data
+          else {
+            resCompute({ response: "error" });
+          }
+        })
+          .then((result) => {
+            res.send(result);
+          })
+          .catch((error) => {
+            logger.error(error);
+            res.send({ response: "error" });
+          });
       });
     }
   );

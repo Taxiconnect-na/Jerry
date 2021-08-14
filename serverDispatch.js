@@ -507,7 +507,7 @@ function parseRequestData(inputData, resolve) {
                         parsedData.pickup_location_infos.coordinates.longitude +
                         "&user_fingerprint=" +
                         inputData.user_fingerprint +
-                        "&make_new=true";
+                        "&make_new=false";
                       requestAPI(url, function (error, response, body) {
                         if (error === null) {
                           try {

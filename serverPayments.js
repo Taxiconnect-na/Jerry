@@ -711,7 +711,7 @@ function checkReceipient_walletTransaction(
       .replace("+", "")
       .trim(); //? Critical, should only contain digits
     let regFiler = {
-      phone_number: dataBundle.payNumberOrPhoneNumber.trim(),
+      phone_number: `+${dataBundle.payNumberOrPhoneNumber.trim()}`,
     };
     //...
     collectionPassengers_profiles
@@ -821,6 +821,7 @@ function checkReceipient_walletTransaction(
             "cars_data.taxi_number":
               dataBundle.payNumberOrPhoneNumber.toUpperCase(),
           };
+          logger.warn(regFiler);
           //...
           collectionDrivers_profiles
             .find(regFiler)
