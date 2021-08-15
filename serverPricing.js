@@ -726,7 +726,7 @@ function manageAutoCompleteDestinationLocations(
                   //Check if redis already have key record
                   redisCluster.setex(
                     redisKey,
-                    parseInt(process.env.REDIS_EXPIRATION_5MIN) * 24,
+                    parseInt(process.env.REDIS_EXPIRATION_5MIN) * 72,
                     JSON.stringify({
                       location_name: destinationLocations.location_name,
                       street_name: destinationLocations.street_name,
@@ -1047,7 +1047,7 @@ function execMongoSearchAutoComplete(
                     //add new record
                     redisCluster.setex(
                       redisKey,
-                      parseInt(process.env.REDIS_EXPIRATION_5MIN) * 24,
+                      parseInt(process.env.REDIS_EXPIRATION_5MIN) * 72,
                       JSON.stringify({
                         suburb: body.address.suburb,
                         state: body.address.state,
@@ -1201,7 +1201,7 @@ function execMongoSearchAutoComplete(
                       //add new record
                       redisCluster.setex(
                         redisKey,
-                        parseInt(process.env.REDIS_EXPIRATION_5MIN) * 24,
+                        parseInt(process.env.REDIS_EXPIRATION_5MIN) * 72,
                         JSON.stringify({
                           suburb: body.address.suburb,
                           state: body.address.state,
@@ -1376,7 +1376,7 @@ function execMongoSearchAutoComplete(
                 //add new record
                 redisCluster.setex(
                   redisKey,
-                  parseInt(process.env.REDIS_EXPIRATION_5MIN) * 24,
+                  parseInt(process.env.REDIS_EXPIRATION_5MIN) * 72,
                   JSON.stringify({
                     suburb: body.address.suburb,
                     state: body.address.state,
@@ -1525,17 +1525,25 @@ function estimateFullVehiclesCatPrices(
           let genericRidesInfos = result;
           //Get all the city's price map (cirteria: city, country and pickup)
           new Promise((res) => {
+            //? Add suburb name exception
+            //? 1. Windhoek Central -> Windhoek Central / CBD
+            completedInputData.pickup_location_infos.suburb =
+              /Windhoek Central/i.test(
+                completedInputData.pickup_location_infos.suburb
+              )
+                ? `${completedInputData.pickup_location_infos.suburb.trim()} / CBD`
+                : completedInputData.pickup_location_infos.suburb.trim();
+            //?...
             filterQuery = {
               country: completedInputData.country,
               city: completedInputData.pickup_location_infos.city,
-              pickup_suburb:
-                completedInputData.pickup_location_infos.suburb.trim(),
+              pickup_suburb: completedInputData.pickup_location_infos.suburb,
             };
+
             collectionPricesLocationsMap
               .find(filterQuery)
               //!.collation({ locale: "en", strength: 2 })
               .toArray(function (err, result) {
-                logger.warn(result);
                 if (result.length > 0) {
                   //Found corresponding prices maps
                   res(result);
@@ -1643,6 +1651,7 @@ function estimateFullVehiclesCatPrices(
  */
 function doubleTheFareIfNecessary(initialFare, goingUntilHome) {
   if (initialFare == 14 && goingUntilHome) {
+    logger.warn("Doubled the fare called");
     return initialFare * 2;
   }
   //...
@@ -1668,9 +1677,18 @@ function computeInDepthPricesMap(
 ) {
   resolveDate();
   logger.info("compute in depth called");
+  //? Add suburb name exception
+  //? 1. Windhoek Central -> Windhoek Central / CBD
+  completedInputData.pickup_location_infos.suburb = /Windhoek Central/i.test(
+    completedInputData.pickup_location_infos.suburb
+  )
+    ? `${completedInputData.pickup_location_infos.suburb.trim()} / CBD`
+    : completedInputData.pickup_location_infos.suburb.trim();
+  //?...
   //ESTABLISH IMPORTANT PRICING VARIABLES
   let connectType = completedInputData.connect_type;
   let pickup_suburb = completedInputData.pickup_location_infos.suburb;
+
   let pickup_hour = (completedInputData.pickup_time / 1000) * 60 * 60;
   let pickup_minutes = pickup_hour * 60;
   let pickup_type = completedInputData.pickup_location_infos.pickup_type; //PrivateLocation, TaxiRank or Airport.
@@ -1761,6 +1779,13 @@ function computeInDepthPricesMap(
           }
           //...
           completedInputData.destination_location_infos.map((destination) => {
+            //! Add suburb name exception - Only apply to the destination suburb.
+            //? 1. Windhoek Central -> Windhoek Central / CBD
+            destination.suburb = /Windhoek Central/i.test(destination.suburb)
+              ? `${destination.suburb.trim()} / CBD`
+              : destination.suburb.trim();
+            //?...
+
             let tmpPickupPickup = pickup_suburb;
             let tmpDestinationSuburb = destination.suburb;
             //To Airport - mark vehicles that can't do airports as unavailable.
@@ -1842,6 +1867,7 @@ function computeInDepthPricesMap(
                         completedInputData.isGoingUntilHome
                       );
                     }
+
                     let didFindRegisteredSuburbs = false; //To know whether or not has found registered suburbs or else did not find matching suburbs.
                     //...
                     globalPricesMap.map((suburbToSuburbInfo) => {
@@ -1849,6 +1875,8 @@ function computeInDepthPricesMap(
                         suburbToSuburbInfo.pickup_suburb === false &&
                         lockPorgress === false
                       ) {
+                        logger.error("Not Found correspondence");
+                        logger.error(suburbToSuburbInfo.pickup_suburb);
                         //Add once
                         if (basePrice > 0) {
                           //Add basic vehicle price instead of false suburb fare
@@ -1888,11 +1916,6 @@ function computeInDepthPricesMap(
                             ) - 2;
                         } //Normal taxis
                         else {
-                          logger.info(suburbToSuburbInfo.fare);
-                          logger.info(
-                            completedInputData.destination_location_infos
-                          );
-                          logger.info(suburbToSuburbInfo);
                           basePrice += doubleTheFareIfNecessary(
                             parseFloat(suburbToSuburbInfo.fare),
                             completedInputData.isGoingUntilHome
