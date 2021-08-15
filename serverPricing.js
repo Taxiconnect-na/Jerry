@@ -1875,8 +1875,6 @@ function computeInDepthPricesMap(
                         suburbToSuburbInfo.pickup_suburb === false &&
                         lockPorgress === false
                       ) {
-                        logger.error("Not Found correspondence");
-                        logger.error(suburbToSuburbInfo.pickup_suburb);
                         //Add once
                         if (basePrice > 0) {
                           //Add basic vehicle price instead of false suburb fare
