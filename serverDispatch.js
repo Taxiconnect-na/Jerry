@@ -187,7 +187,9 @@ function parseRequestData(inputData, resolve) {
   //! CHECK FOR A POTENTIAL CACHED VALUE FOR recoveredd data (from mysql)
   redisGet(
     `${
-      inputData.request_fp !== undefined ? inputData.request_fp : "empty"
+      inputData.request_fp !== undefined
+        ? inputData.request_fp
+        : inputData.user_fingerprint
     }-recoveredData`
   ).then((resp) => {
     if (resp !== null) {
