@@ -42,6 +42,7 @@ var chaineDateUTC = null;
 var dateObject = null;
 const moment = require("moment");
 const { stringify, parse } = require("flatted");
+const { filter } = require("compression");
 
 function resolveDate() {
   //Resolve date
@@ -3441,7 +3442,6 @@ function getRequests_graphPreview_forDrivers(
                     //intentional_request_decline: driver_fingerprint,
                   }
             )
-            //!.collation({ locale: "en", strength: 2 })
             .toArray(function (err, filteredRequests) {
               if (err) {
                 resolve({
@@ -3450,9 +3450,12 @@ function getRequests_graphPreview_forDrivers(
                   scheduled: 0,
                 });
               }
-              //logger.info(filteredRequests);
               //...
-              if (filteredRequests.length > 0) {
+              if (
+                filteredRequests !== undefined &&
+                filteredRequests !== null &&
+                filteredRequests.length > 0
+              ) {
                 //? Auto segregate rides, deliveries and scheduled rides
                 let parentPromises = filteredRequests.map((requestInfo) => {
                   return new Promise((resSegregate) => {
@@ -3478,7 +3481,34 @@ function getRequests_graphPreview_forDrivers(
                 Promise.all(parentPromises)
                   .then(
                     (resultSegregatedRequests) => {
-                      resolve(requestsGraph);
+                      //? Check if there are any scheduled requests that are not completed yet and add them to the count
+                      collectionRidesDeliveryData
+                        .find({
+                          taxi_id: driver_fingerprint,
+                          request_type: "scheduled",
+                          "ride_state_vars.isAccepted": true,
+                          "ride_state_vars.isRideCompleted_driverSide": false,
+                          isArrivedToDestination: false,
+                        })
+                        .toArray(function (err, scheduledTripData) {
+                          if (err) {
+                            resolve(requestsGraph);
+                          }
+                          //...
+                          if (
+                            scheduledTripData !== undefined &&
+                            scheduledTripData !== null &&
+                            scheduledTripData.length > 0
+                          ) {
+                            //Found some scheduled rides
+                            //Add the number to the graph
+                            requestsGraph.scheduled += scheduledTripData.length;
+                            resolve(requestsGraph);
+                          } //No not yet completed scheduled rides
+                          else {
+                            resolve(requestsGraph);
+                          }
+                        });
                     },
                     (error) => {
                       //logger.info(error);
@@ -3499,11 +3529,42 @@ function getRequests_graphPreview_forDrivers(
                   });
               } //No requests
               else {
-                resolve({
-                  rides: 0,
-                  deliveries: 0,
-                  scheduled: 0,
-                });
+                //? Check if there are any scheduled requests that are not completed yet and add them to the count
+                collectionRidesDeliveryData
+                  .find({
+                    taxi_id: driver_fingerprint,
+                    request_type: "scheduled",
+                    "ride_state_vars.isAccepted": true,
+                    "ride_state_vars.isRideCompleted_driverSide": false,
+                    isArrivedToDestination: false,
+                  })
+                  .toArray(function (err, scheduledTripData) {
+                    if (err) {
+                      resolve({
+                        rides: 0,
+                        deliveries: 0,
+                        scheduled: 0,
+                      });
+                    }
+                    //...
+                    if (
+                      scheduledTripData !== undefined &&
+                      scheduledTripData !== null &&
+                      scheduledTripData.length > 0
+                    ) {
+                      //Found some scheduled rides
+                      //Add the number to the graph
+                      requestsGraph.scheduled += scheduledTripData.length;
+                      resolve(requestsGraph);
+                    } //No not yet completed scheduled rides
+                    else {
+                      resolve({
+                        rides: 0,
+                        deliveries: 0,
+                        scheduled: 0,
+                      });
+                    }
+                  });
               }
             });
         } catch (error) {
