@@ -76,7 +76,7 @@ app
 
 //EVENTS ROUTER
 io.on("connection", (socket) => {
-  logger.info("Connected to the event gateway.");
+  logger.info("Connected to the event gateway (2.0.388).");
   /**
    * MAP SERVICE, port 9090
    * Route: updatePassengerLocation
