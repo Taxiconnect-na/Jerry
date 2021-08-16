@@ -52,7 +52,7 @@ resolveDate();
 
 app
   .get("/", function (req, res) {
-    res.send("[+] Events gateway running.");
+    res.send("[+] Events gateway running (2.0.388).");
   })
   .use(express.static(path.join(__dirname, "assets")));
 app
@@ -76,7 +76,7 @@ app
 
 //EVENTS ROUTER
 io.on("connection", (socket) => {
-  logger.info("Connected to the event gateway (2.0.388).");
+  logger.info("Connected to the event gateway.");
   /**
    * MAP SERVICE, port 9090
    * Route: updatePassengerLocation
