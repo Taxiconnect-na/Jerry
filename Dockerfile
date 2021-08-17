@@ -4,9 +4,9 @@ ADD . /app/
 WORKDIR /app
 RUN rm .env
 #Production
-#RUN mv .env_live .env
+RUN mv .env_live .env
 #Development
-RUN mv .env_dev .env
+# RUN mv .env_dev .env
 
 #Download the certificate for DocumentDb Connection!
 RUN wget https://s3.amazonaws.com/rds-downloads/rds-combined-ca-bundle.pem
