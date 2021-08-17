@@ -52,7 +52,7 @@ resolveDate();
 
 app
   .get("/", function (req, res) {
-    res.send("[+] Events gateway running.");
+    res.send("[+] Events gateway running (2.0.388).");
   })
   .use(express.static(path.join(__dirname, "assets")));
 app
@@ -352,10 +352,16 @@ io.on("connection", (socket) => {
         "&list_limit=" +
         list_limit;
       requestAPI(url, function (error, response, body) {
-        ////logger.info(body);
         if (error === null) {
           try {
             body = JSON.parse(body);
+            //! Force the limit to 7
+            body =
+              body.length !== undefined && body.length > 7
+                ? body.slice(0, 7)
+                : body;
+            //!---
+
             socket.emit("get_closest_drivers_to_point-response", body);
           } catch (error) {
             socket.emit("get_closest_drivers_to_point-response", false);

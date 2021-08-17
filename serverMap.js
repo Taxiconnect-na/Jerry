@@ -1108,7 +1108,6 @@ function execTripChecker_Dispatcher(
         isDriverSuspended: false, //! When a driver is suspended - lock all requests.
         "operational_state.status": "online",
       })
-      //!.collation({ locale: "en", strength: 2 })
       .toArray(function (err, driverData) {
         if (err) {
           resolve(false);
@@ -1130,7 +1129,7 @@ function execTripChecker_Dispatcher(
           let request_type_regex = /scheduled/i.test(requestType)
             ? "scheduled"
             : "immediate"; //For scheduled requests display or not.
-          //....
+          //? Deduct the ride mode -> RIDE or DELIVERY -> Code inline
           //Check if the driver has an accepted and not completed request already
           //! OVERRIDE FOR THE DRIVER'S SUPER ACCOUNT
           let checkRide0 =
@@ -1148,34 +1147,29 @@ function execTripChecker_Dispatcher(
                   "ride_state_vars.isAccepted": true,
                   "ride_state_vars.isRideCompleted_driverSide": false,
                   isArrivedToDestination: false,
-                  ride_mode:
-                    /scheduled/i.test(requestType) === false
-                      ? {
-                          $in: [
-                            ...driverData.operation_clearances,
-                            ...driverData.operation_clearances.map(
-                              (mode) =>
-                                `${mode[0].toUpperCase().trim()}${mode
-                                  .substr(1)
-                                  .toLowerCase()
-                                  .trim()}`
-                            ),
-                            ...driverData.operation_clearances.map((mode) =>
-                              mode.toUpperCase().trim()
-                            ),
-                          ],
-                        }
-                      : requestType,
+                  ride_mode: {
+                    $in: [
+                      ...driverData.operation_clearances,
+                      ...driverData.operation_clearances.map(
+                        (mode) =>
+                          `${mode[0].toUpperCase().trim()}${mode
+                            .substr(1)
+                            .toLowerCase()
+                            .trim()}`
+                      ),
+                      ...driverData.operation_clearances.map((mode) =>
+                        mode.toUpperCase().trim()
+                      ),
+                    ],
+                  },
                   request_type: request_type_regex, //Shceduled or now rides/deliveries
                   //allowed_drivers_see: user_fingerprint,
                   //intentional_request_decline: { $not: user_fingerprint },
                 };
-
           //-----
 
           collectionRidesDeliveries_data
             .find(checkRide0)
-            //!.collation({ locale: "en", strength: 2 })
             .toArray(function (err, acceptedRidesArray) {
               if (err) {
                 resolve(false);
@@ -1197,48 +1191,42 @@ function execTripChecker_Dispatcher(
                         taxi_id: user_fingerprint,
                         connect_type: "ConnectMe",
                         "ride_state_vars.isRideCompleted_driverSide": false,
-                        ride_mode:
-                          /scheduled/i.test(requestType) === false
-                            ? {
-                                $in: [
-                                  ...driverData.operation_clearances,
-                                  ...driverData.operation_clearances.map(
-                                    (mode) =>
-                                      `${mode[0].toUpperCase().trim()}${mode
-                                        .substr(1)
-                                        .toLowerCase()
-                                        .trim()}`
-                                  ),
-                                  ...driverData.operation_clearances.map(
-                                    (mode) => mode.toUpperCase().trim()
-                                  ),
-                                ],
-                              }
-                            : requestType,
+                        ride_mode: {
+                          $in: [
+                            ...driverData.operation_clearances,
+                            ...driverData.operation_clearances.map(
+                              (mode) =>
+                                `${mode[0].toUpperCase().trim()}${mode
+                                  .substr(1)
+                                  .toLowerCase()
+                                  .trim()}`
+                            ),
+                            ...driverData.operation_clearances.map((mode) =>
+                              mode.toUpperCase().trim()
+                            ),
+                          ],
+                        },
                       }
                     : {
                         taxi_id: user_fingerprint,
                         connect_type: "ConnectMe",
                         "ride_state_vars.isRideCompleted_driverSide": false,
                         //request_type: "immediate", //? To check
-                        ride_mode:
-                          /scheduled/i.test(requestType) === false
-                            ? {
-                                $in: [
-                                  ...driverData.operation_clearances,
-                                  ...driverData.operation_clearances.map(
-                                    (mode) =>
-                                      `${mode[0].toUpperCase().trim()}${mode
-                                        .substr(1)
-                                        .toLowerCase()
-                                        .trim()}`
-                                  ),
-                                  ...driverData.operation_clearances.map(
-                                    (mode) => mode.toUpperCase().trim()
-                                  ),
-                                ],
-                              }
-                            : requestType,
+                        ride_mode: {
+                          $in: [
+                            ...driverData.operation_clearances,
+                            ...driverData.operation_clearances.map(
+                              (mode) =>
+                                `${mode[0].toUpperCase().trim()}${mode
+                                  .substr(1)
+                                  .toLowerCase()
+                                  .trim()}`
+                            ),
+                            ...driverData.operation_clearances.map((mode) =>
+                              mode.toUpperCase().trim()
+                            ),
+                          ],
+                        },
                         // allowed_drivers_see: user_fingerprint,
                         /*intentional_request_decline: {
                   $not: user_fingerprint,
@@ -1246,7 +1234,6 @@ function execTripChecker_Dispatcher(
                       };
                 collectionRidesDeliveries_data
                   .find(checkRide1)
-                  //!.collation({ locale: "en", strength: 2 })
                   .toArray(function (err, result1) {
                     if (err) {
                       resolve(false);
@@ -1314,7 +1301,7 @@ function execTripChecker_Dispatcher(
                   });
               } //NO rides already accepted yet - send full list of allowed to see rides
               else {
-                ////logger.info("FULL_ALLLOWEDTOSEE_REQUESTS");
+                //logger.info("FULL_ALLLOWEDTOSEE_REQUESTS");
                 new Promise((res) => {
                   execGetDrivers_requests_and_provide(
                     driverData,
@@ -1474,7 +1461,6 @@ function execGetDrivers_requests_and_provide(
     //...
     collectionRidesDeliveries_data
       .find(requestFilter)
-      //!.collation({ locale: "en", strength: 2 })
       .toArray(function (err, requestsData) {
         if (err) {
           resolve(false);
@@ -1708,7 +1694,6 @@ function execGetDrivers_requests_and_provide(
             );
           }).then(
             (resultFinal) => {
-              ////logger.info("REFINED");
               //logger.info("REFINED -> ", resultFinal);
               resolve(resultFinal);
             },
@@ -5102,9 +5087,8 @@ redisCluster.on("connect", function () {
             );
 
             //Check for any existing ride
-            logger.error(req);
             let pro2 = new Promise((res) => {
-              ////logger.info("fetching data");
+              //logger.info("fetching data");
               tripChecker_Dispatcher(
                 req.avoidCached_data !== undefined &&
                   req.avoidCached_data !== null

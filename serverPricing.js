@@ -205,6 +205,23 @@ function autocompleteInputData(
         try {
           resp = parse(resp);
 
+          //? Check the other suburbs as well
+          let otherSuburbsChecker =
+            inputData.destination_location_infos.length > 1
+              ? inputData.destination_location_infos[1].suburb !== false
+              : true;
+          otherSuburbsChecker =
+            otherSuburbsChecker &&
+            (inputData.destination_location_infos.length > 2
+              ? inputData.destination_location_infos[2].suburb !== false
+              : true);
+          otherSuburbsChecker =
+            otherSuburbsChecker &&
+            (inputData.destination_location_infos.length > 3
+              ? inputData.destination_location_infos[3].suburb !== false
+              : true);
+          //? ------------
+
           //TODO:  Restore essential data, BUT do not overwrite unique trip data
           inputData.pickup_location_infos.suburb =
             resp.pickup_location_infos.suburb; //Update main object
@@ -229,7 +246,8 @@ function autocompleteInputData(
             inputData.pickup_location_infos.city !== false &&
             inputData.pickup_location_infos.city !== "false" &&
             inputData.pickup_location_infos.city !== undefined &&
-            inputData.pickup_location_infos.city !== null
+            inputData.pickup_location_infos.city !== null &&
+            otherSuburbsChecker
           ) {
             resolve(inputData);
           } //Make a fresh test
@@ -341,11 +359,12 @@ function execTrueAutocompleteInputData(
           logger.info("Found something in the cache");
           //Check if there's our concerned record for the pickup location
           let focusedRecord = resp;
-          logger.error(focusedRecord);
           //Check for wanted record
           if (
             focusedRecord !== false &&
             focusedRecord.suburb !== undefined &&
+            focusedRecord.suburb !== null &&
+            focusedRecord.suburb !== false &&
             focusedRecord.city !== false &&
             focusedRecord.city !== "false" &&
             focusedRecord.city !== undefined &&
@@ -388,6 +407,7 @@ function execTrueAutocompleteInputData(
                   resolve(inputData);
                 } //Error
                 else {
+                  logger.info("error");
                   resolve(false);
                 }
               },
@@ -464,7 +484,6 @@ function execTrueAutocompleteInputData(
           }).then(
             (result) => {
               if (result !== false) {
-                logger.error(result);
                 inputData.pickup_location_infos.suburb = result.suburb; //! Update main object
                 inputData.pickup_location_infos.state = result.state;
                 inputData.pickup_location_infos.city = result.city; //! Very crucial
@@ -724,8 +743,9 @@ function manageAutoCompleteDestinationLocations(
                       ? destinationLocations.city.trim().toLowerCase()
                       : destinationLocations.city);
                   //Check if redis already have key record
-                  redisCluster.set(
+                  redisCluster.setex(
                     redisKey,
+                    parseInt(process.env.REDIS_EXPIRATION_5MIN) * 72,
                     JSON.stringify({
                       location_name: destinationLocations.location_name,
                       street_name: destinationLocations.street_name,
@@ -789,33 +809,31 @@ function doMongoSearchForAutocompletedSuburbs(
     locationInfos["make_new"] = false;
   }
   //!!!
-  let redisKey = `savedSuburbResults-
-    ${
-      locationInfos.location_name !== undefined &&
-      locationInfos.location_name !== false
-        ? locationInfos.location_name.trim().toLowerCase()
-        : locationInfos.location_name
-    }-
-    ${
-      locationInfos.street_name !== undefined &&
-      locationInfos.street_name !== false
-        ? locationInfos.street_name.trim().toLowerCase()
-        : locationInfos.street_name
-    }-
-    ${
-      locationInfos.city !== undefined && locationInfos.city !== false
-        ? locationInfos.city.trim().toLowerCase()
-        : locationInfos.city
-    }-
-    ${
-      locationInfos.country !== undefined && locationInfos.country !== false
-        ? locationInfos.country.trim().toLowerCase()
-        : locationInfos.country
-    }`;
+  let redisKey = `savedSuburbResults-${
+    locationInfos.location_name !== undefined &&
+    locationInfos.location_name !== false
+      ? locationInfos.location_name.trim().toLowerCase()
+      : locationInfos.location_name
+  }-${
+    locationInfos.street_name !== undefined &&
+    locationInfos.street_name !== false
+      ? locationInfos.street_name.trim().toLowerCase()
+      : locationInfos.street_name
+  }-${
+    locationInfos.city !== undefined && locationInfos.city !== false
+      ? locationInfos.city.trim().toLowerCase()
+      : locationInfos.city
+  }-${
+    locationInfos.country !== undefined && locationInfos.country !== false
+      ? locationInfos.country.trim().toLowerCase()
+      : locationInfos.country
+  }`;
+
   //Check from redis first
   redisGet(redisKey).then(
     (resp) => {
       if (resp !== null && locationInfos.make_new === false) {
+        logger.warn("Cached considered");
         //Has a previous record
         try {
           //Rehydrate the cached data
@@ -839,6 +857,7 @@ function doMongoSearchForAutocompletedSuburbs(
             resp.location_name !== null &&
             resp.suburb !== undefined &&
             resp.suburb !== null &&
+            resp.suburb !== false &&
             resp.city !== false &&
             resp.city !== "false" &&
             resp.city !== undefined &&
@@ -949,234 +968,114 @@ function execMongoSearchAutoComplete(
   collectionSavedSuburbResults,
   annotate = false
 ) {
-  //! Make sure that "make_new" is provided
-  if (locationInfos.make_new === undefined || locationInfos.make_new === null) {
-    locationInfos["make_new"] = false;
+  //! APPLY BLUE OCEAN BUG FIX FOR THE PICKUP LOCATION COORDINATES
+  //? 1. Destination
+  //? Get temporary vars
+  let pickLatitude1 = parseFloat(locationInfos.coordinates.latitude);
+  let pickLongitude1 = parseFloat(locationInfos.coordinates.longitude);
+  //! Coordinates order fix - major bug fix for ocean bug
+  if (
+    pickLatitude1 !== undefined &&
+    pickLatitude1 !== null &&
+    pickLatitude1 !== 0 &&
+    pickLongitude1 !== undefined &&
+    pickLongitude1 !== null &&
+    pickLongitude1 !== 0
+  ) {
+    //? Switch latitude and longitude - check the negative sign
+    if (parseFloat(pickLongitude1) < 0) {
+      //Negative - switch
+      locationInfos.coordinates.latitude = pickLongitude1;
+      locationInfos.coordinates.longitude = pickLatitude1;
+    }
   }
+  //! -------
+
+  //! Make sure that "make_new" is provided - default: true
+  // if (locationInfos.make_new === undefined || locationInfos.make_new === null) {
+  //   locationInfos["make_new"] = true;
+  // }
+  locationInfos["make_new"] = true; //!Force new search
   //!!!
   resolveDate();
   //Check mongodb for previous record
-  let findPrevQuery = {
-    location_name: locationInfos.location_name,
-    city: locationInfos.city,
-    street_name: locationInfos.street_name,
-  };
-  collectionSavedSuburbResults
-    .find(findPrevQuery)
-    .toArray(function (err, result) {
-      if (
-        result !== undefined &&
-        result.length > 0 &&
-        locationInfos.make_new === false
-      ) {
-        //Found previous record
-        //! Make a fresh search
-        let url =
-          process.env.URL_NOMINATIM_SERVICES +
-          "/reverse?format=json&lat=" +
-          locationInfos.coordinates.latitude +
-          "&lon=" +
-          locationInfos.coordinates.longitude +
-          "&zoom=18&addressdetails=1&extratags=1&namedetails=1";
-        requestAPI(url, function (err, response, body) {
-          try {
-            //Get only the state and suburb infos
-            body = JSON.parse(body);
-            if (body.address !== undefined && body.address !== null) {
-              if (
-                body.address.state !== undefined &&
-                body.address.suburb !== undefined
-              ) {
-                //! Check that the city is present else, take the destination's city - or default to Windhoek
-                body.address["city"] =
-                  body.address.city !== false &&
-                  body.address.city !== "false" &&
-                  body.address.city !== undefined &&
-                  body.address.city !== null
-                    ? body.address.city
-                    : "Windhoek";
-
-                //? Update the previous record
-                logger.info("fresh search done!");
-                new Promise((res1) => {
-                  //Save result in MongoDB
-                  let newRecord = {
-                    $set: {
-                      suburb: body.address.suburb,
-                      state: body.address.state,
-                      location_name:
-                        body.namedetails["name"] !== undefined &&
-                        body.namedetails["name"] !== null
-                          ? body.namedetails["name"]
-                          : body.address.amenity !== undefined &&
-                            body.address.amenity !== null
-                          ? body.address.amenity
-                          : body.address.road,
-                      city: body.address.city,
-                      country: body.address.country,
-                      street_name:
-                        body.address.road !== undefined &&
-                        body.address.road !== null
-                          ? body.address.road
-                          : body.namedetails["name:en"],
-                      date_updated: new Date(chaineDateUTC),
-                    },
-                  };
-
-                  collectionSavedSuburbResults.updateOne(
-                    findPrevQuery,
-                    newRecord,
-                    function (err, reslt) {
-                      logger.info("Updated prev record in mongo");
-                      res1(true);
-                    }
-                  );
-                }).then(
-                  () => {},
-                  () => {}
-                );
-
-                //Cache result
-                new Promise((res2) => {
-                  //Update the cache
-                  //add new record
-                  redisCluster.set(
-                    redisKey,
-                    JSON.stringify({
-                      suburb: body.address.suburb,
-                      state: body.address.state,
-                      location_name:
-                        body.namedetails["name"] !== undefined &&
-                        body.namedetails["name"] !== null
-                          ? body.namedetails["name"]
-                          : body.address.amenity !== undefined &&
-                            body.address.amenity !== null
-                          ? body.address.amenity
-                          : body.address.road,
-                      city: body.address.city,
-                      country: body.address.country,
-                      street_name:
-                        body.address.road !== undefined &&
-                        body.address.road !== null
-                          ? body.address.road
-                          : body.namedetails["name:en"],
-                    })
-                  );
-                  //...
-                  res2(true);
-                }).then(
-                  () => {},
-                  (error) => {
-                    logger.info(error);
-                  }
-                );
-                //..respond - complete the input data
-                //locationInfos.suburb = body.address.suburb;
-                //locationInfos.state = body.address.state;
-                resolve({
-                  passenger_number_id:
-                    locationInfos.passenger_number_id !== undefined &&
-                    locationInfos.passenger_number_id !== null
-                      ? locationInfos.passenger_number_id
-                      : 1,
-                  suburb: body.address.suburb,
-                  state: body.address.state,
-                  location_name:
-                    body.namedetails["name"] !== undefined &&
-                    body.namedetails["name"] !== null
-                      ? body.namedetails["name"]
-                      : body.address.amenity !== undefined &&
-                        body.address.amenity !== null
-                      ? body.address.amenity
-                      : body.address.road,
-                  city: body.address.city,
-                  country: body.address.country,
-                  street_name:
-                    body.address.road !== undefined &&
-                    body.address.road !== null
-                      ? body.address.road
-                      : body.namedetails["name"],
-                });
-              } //Error
-              else {
-                resolve(false);
-              }
-            } //error
-            else {
-              resolve(false);
-            }
-          } catch (error) {
-            logger.info(error);
-            resolve(false);
-          }
-        });
-      } //Do a fresh search
-      else {
-        let url =
-          process.env.URL_NOMINATIM_SERVICES +
-          "/reverse?format=json&lat=" +
-          locationInfos.coordinates.latitude +
-          "&lon=" +
-          locationInfos.coordinates.longitude +
-          "&zoom=18&addressdetails=1&extratags=1&namedetails=1";
-        requestAPI(url, function (err, response, body) {
-          try {
-            logger.info(body);
-            //Get only the state and suburb infos
-            body = JSON.parse(body);
-            if (body.address !== undefined && body.address !== null) {
-              if (
-                body.address.state !== undefined &&
-                (body.address.suburb !== undefined ||
-                  body.address.neighbourhood !== undefined ||
-                  body.address.highway !== undefined)
-              ) {
-                //! Check that the suburb are present if not use the neighbourhood, if not use the highway
-                body.address["suburb"] =
+  if (locationInfos.make_new === false) {
+    //Find previous record
+    let findPrevQuery = {
+      location_name: locationInfos.location_name,
+      city: locationInfos.city,
+      street_name: locationInfos.street_name,
+    };
+    collectionSavedSuburbResults
+      .find(findPrevQuery)
+      .toArray(function (err, result) {
+        if (
+          result !== undefined &&
+          result.length > 0 &&
+          locationInfos.make_new === false
+        ) {
+          //Found previous record
+          //! Make a fresh search
+          let url =
+            process.env.URL_NOMINATIM_SERVICES +
+            "/reverse?format=json&lat=" +
+            locationInfos.coordinates.latitude +
+            "&lon=" +
+            locationInfos.coordinates.longitude +
+            "&zoom=18&addressdetails=1&extratags=1&namedetails=1";
+          requestAPI(url, function (err, response, body) {
+            try {
+              //Get only the state and suburb infos
+              body = JSON.parse(body);
+              if (body.address !== undefined && body.address !== null) {
+                if (
+                  body.address.state !== undefined &&
                   body.address.suburb !== undefined
-                    ? body.address.suburb
-                    : body.address.neighbourhood !== undefined
-                    ? body.address.neighbourhood
-                    : body.address.highway;
-                //! PICKUP LOCATION REINFORCEMENTS
-                logger.info("fresh search done! - MAKE NEW");
-                //! Check that the city is present else, take the destination's city - or default to Windhoek
-                body.address["city"] =
-                  body.address.city !== false &&
-                  body.address.city !== "false" &&
-                  body.address.city !== undefined &&
-                  body.address.city !== null
-                    ? body.address.city
-                    : "Windhoek";
+                ) {
+                  //! Check that the city is present else, take the destination's city - or default to Windhoek
+                  body.address["city"] =
+                    body.address.city !== false &&
+                    body.address.city !== "false" &&
+                    body.address.city !== undefined &&
+                    body.address.city !== null
+                      ? body.address.city
+                      : "Windhoek";
 
-                try {
+                  //? Update the previous record
+                  logger.info("fresh search done!");
                   new Promise((res1) => {
                     //Save result in MongoDB
                     let newRecord = {
-                      suburb: body.address.suburb,
-                      state: body.address.state,
-                      location_name:
-                        body.namedetails["name"] !== undefined &&
-                        body.namedetails["name"] !== null
-                          ? body.namedetails["name"]
-                          : body.address.amenity !== undefined &&
-                            body.address.amenity !== null
-                          ? body.address.amenity
-                          : body.address.road,
-                      city: body.address.city,
-                      country: body.address.country,
-                      street_name:
-                        body.address.road !== undefined &&
-                        body.address.road !== null
-                          ? body.address.road
-                          : body.namedetails["name:en"],
-                      date_updated: new Date(chaineDateUTC),
+                      $set: {
+                        suburb: body.address.suburb,
+                        state: body.address.state,
+                        location_name:
+                          body.namedetails["name"] !== undefined &&
+                          body.namedetails["name"] !== null
+                            ? body.namedetails["name"]
+                            : body.address.amenity !== undefined &&
+                              body.address.amenity !== null
+                            ? body.address.amenity
+                            : body.address.road,
+                        city: body.address.city,
+                        country: body.address.country,
+                        street_name:
+                          body.address.road !== undefined &&
+                          body.address.road !== null
+                            ? body.address.road
+                            : body.namedetails["name:en"],
+                        date_updated: new Date(chaineDateUTC),
+                      },
                     };
 
-                    collectionSavedSuburbResults.insertOne(
-                      newRecord,
+                    collectionSavedSuburbResults.updateOne(
+                      findPrevQuery,
+                      { $set: newRecord },
+                      {
+                        upsert: true,
+                      },
                       function (err, reslt) {
-                        logger.info("Saved new record in mongo");
+                        logger.info("Updated prev record in mongo");
                         res1(true);
                       }
                     );
@@ -1189,8 +1088,9 @@ function execMongoSearchAutoComplete(
                   new Promise((res2) => {
                     //Update the cache
                     //add new record
-                    redisCluster.set(
+                    redisCluster.setex(
                       redisKey,
+                      parseInt(process.env.REDIS_EXPIRATION_5MIN) * 72,
                       JSON.stringify({
                         suburb: body.address.suburb,
                         state: body.address.state,
@@ -1220,25 +1120,8 @@ function execMongoSearchAutoComplete(
                     }
                   );
                   //..respond - complete the input data
-                  locationInfos = {
-                    suburb: body.address.suburb,
-                    state: body.address.state,
-                    location_name:
-                      body.namedetails["name"] !== undefined &&
-                      body.namedetails["name"] !== null
-                        ? body.namedetails["name"]
-                        : body.address.amenity !== undefined &&
-                          body.address.amenity !== null
-                        ? body.address.amenity
-                        : body.address.road,
-                    city: body.address.city,
-                    country: body.address.country,
-                    street_name:
-                      body.address.road !== undefined &&
-                      body.address.road !== null
-                        ? body.address.road
-                        : body.namedetails["name"],
-                  };
+                  //locationInfos.suburb = body.address.suburb;
+                  //locationInfos.state = body.address.state;
                   resolve({
                     passenger_number_id:
                       locationInfos.passenger_number_id !== undefined &&
@@ -1263,24 +1146,671 @@ function execMongoSearchAutoComplete(
                         ? body.address.road
                         : body.namedetails["name"],
                   });
-                } catch (error) {
+                } //Error
+                else {
                   resolve(false);
                 }
-              } //Error
+              } //error
               else {
                 resolve(false);
               }
-            } //error
-            else {
+            } catch (error) {
+              logger.info(error);
               resolve(false);
             }
-          } catch (error) {
-            logger.info(error);
+          });
+        } //Do a fresh search
+        else {
+          let url =
+            process.env.URL_SEARCH_SERVICES +
+            "reverse?lon=" +
+            locationInfos.coordinates.longitude +
+            "&lat=" +
+            locationInfos.coordinates.latitude;
+
+          // let url =
+          //   process.env.URL_NOMINATIM_SERVICES +
+          //   "/reverse?format=json&lat=" +
+          //   locationInfos.coordinates.latitude +
+          //   "&lon=" +
+          //   locationInfos.coordinates.longitude +
+          //   "&zoom=18&addressdetails=1&extratags=1&namedetails=1";
+          requestAPI(url, function (err, response, body) {
+            try {
+              logger.info(body);
+              //Get only the state and suburb (district) infos
+              body = JSON.parse(body);
+              if (body.country !== undefined && body.district !== null) {
+                if (
+                  body.state !== undefined &&
+                  (body.district !== undefined || body.street !== undefined)
+                ) {
+                  //? Adapt data to fit existing pipeline
+                  body["suburb"] = body.district;
+                  body["address"] = body;
+                  //! Check that the suburb are present if not use the neighbourhood, if not use the highway
+                  body.address["suburb"] =
+                    body.address.suburb !== undefined
+                      ? body.address.suburb
+                      : body.address.street;
+                  //! PICKUP LOCATION REINFORCEMENTS
+                  logger.info("fresh search done! - MAKE NEW");
+                  //! Check that the city is present else, take the destination's city - or default to Windhoek
+                  body.address["city"] =
+                    body.address.city !== false &&
+                    body.address.city !== "false" &&
+                    body.address.city !== undefined &&
+                    body.address.city !== null
+                      ? body.address.city
+                      : "Windhoek";
+
+                  try {
+                    new Promise((res1) => {
+                      //Save result in MongoDB
+                      let newRecord = {
+                        suburb: body.address.suburb,
+                        state: body.address.state,
+                        location_name:
+                          body.address.name !== undefined &&
+                          body.address.name !== null
+                            ? body.address.name
+                            : body.address.street !== undefined &&
+                              body.address.street !== null
+                            ? body.address.street
+                            : body.address.suburb,
+                        city: body.address.city,
+                        country: body.address.country,
+                        street_name:
+                          body.address.street !== undefined &&
+                          body.address.street !== null
+                            ? body.address.street
+                            : body.address.name,
+                        date_updated: new Date(chaineDateUTC),
+                      };
+
+                      collectionSavedSuburbResults.updateOne(
+                        findPrevQuery,
+                        { $set: newRecord },
+                        {
+                          upsert: true,
+                        },
+                        function (err, reslt) {
+                          logger.info("Saved new record in mongo");
+                          res1(true);
+                        }
+                      );
+                    }).then(
+                      () => {},
+                      () => {}
+                    );
+
+                    //Cache result
+                    new Promise((res2) => {
+                      //Update the cache
+                      //add new record
+                      redisCluster.setex(
+                        redisKey,
+                        parseInt(process.env.REDIS_EXPIRATION_5MIN) * 72,
+                        JSON.stringify({
+                          suburb: body.address.suburb,
+                          state: body.address.state,
+                          location_name:
+                            body.address.name !== undefined &&
+                            body.address.name !== null
+                              ? body.address.name
+                              : body.address.street !== undefined &&
+                                body.address.street !== null
+                              ? body.address.street
+                              : body.address.suburb,
+                          city: body.address.city,
+                          country: body.address.country,
+                          street_name:
+                            body.address.street !== undefined &&
+                            body.address.street !== null
+                              ? body.address.street
+                              : body.address.name,
+                        })
+                      );
+                      //...
+                      res2(true);
+                    }).then(
+                      () => {},
+                      (error) => {
+                        logger.info(error);
+                      }
+                    );
+                    //..respond - complete the input data
+                    resolve({
+                      passenger_number_id:
+                        locationInfos.passenger_number_id !== undefined &&
+                        locationInfos.passenger_number_id !== null
+                          ? locationInfos.passenger_number_id
+                          : 1,
+                      suburb: body.address.suburb,
+                      state: body.address.state,
+                      location_name:
+                        body.address.name !== undefined &&
+                        body.address.name !== null
+                          ? body.address.name
+                          : body.address.street !== undefined &&
+                            body.address.street !== null
+                          ? body.address.street
+                          : body.address.suburb,
+                      city: body.address.city,
+                      country: body.address.country,
+                      street_name:
+                        body.address.street !== undefined &&
+                        body.address.street !== null
+                          ? body.address.street
+                          : body.address.name,
+                    });
+                  } catch (error) {
+                    resolve(false);
+                  }
+                } //Error
+                else {
+                  resolve(false);
+                }
+              } //! Fall back to Nominatim
+              else {
+                logger.warn("Fallback catched by Nominatim");
+                let urlNominatim =
+                  process.env.URL_NOMINATIM_SERVICES +
+                  "/reverse?format=json&lat=" +
+                  locationInfos.coordinates.latitude +
+                  "&lon=" +
+                  locationInfos.coordinates.longitude +
+                  "&zoom=18&addressdetails=1&extratags=1&namedetails=1";
+                requestAPI(urlNominatim, function (err, response, body) {
+                  try {
+                    logger.warn(err);
+                    logger.info(body);
+                    //Get only the state and suburb infos
+                    body = JSON.parse(body);
+                    if (body.address !== undefined && body.address !== null) {
+                      if (
+                        body.address.state !== undefined &&
+                        (body.address.suburb !== undefined ||
+                          body.address.neighbourhood !== undefined ||
+                          body.address.highway !== undefined)
+                      ) {
+                        //! Check that the suburb are present if not use the neighbourhood, if not use the highway
+                        body.address["suburb"] =
+                          body.address.suburb !== undefined
+                            ? body.address.suburb
+                            : body.address.neighbourhood !== undefined
+                            ? body.address.neighbourhood
+                            : body.address.highway;
+                        //! PICKUP LOCATION REINFORCEMENTS
+                        logger.info("fresh search done! - MAKE NEW");
+                        //! Check that the city is present else, take the destination's city - or default to Windhoek
+                        body.address["city"] =
+                          body.address.city !== false &&
+                          body.address.city !== "false" &&
+                          body.address.city !== undefined &&
+                          body.address.city !== null
+                            ? body.address.city
+                            : "Windhoek";
+
+                        try {
+                          new Promise((res1) => {
+                            //Save result in MongoDB
+                            let newRecord = {
+                              suburb: body.address.suburb,
+                              state: body.address.state,
+                              location_name:
+                                body.namedetails["name"] !== undefined &&
+                                body.namedetails["name"] !== null
+                                  ? body.namedetails["name"]
+                                  : body.address.amenity !== undefined &&
+                                    body.address.amenity !== null
+                                  ? body.address.amenity
+                                  : body.address.road,
+                              city: body.address.city,
+                              country: body.address.country,
+                              street_name:
+                                body.address.road !== undefined &&
+                                body.address.road !== null
+                                  ? body.address.road
+                                  : body.namedetails["name:en"],
+                              date_updated: new Date(chaineDateUTC),
+                            };
+
+                            collectionSavedSuburbResults.updateOne(
+                              findPrevQuery,
+                              { $set: newRecord },
+                              {
+                                upsert: true,
+                              },
+                              function (err, reslt) {
+                                logger.info("Saved new record in mongo");
+                                res1(true);
+                              }
+                            );
+                          }).then(
+                            () => {},
+                            () => {}
+                          );
+
+                          //Cache result
+                          new Promise((res2) => {
+                            //Update the cache
+                            //add new record
+                            redisCluster.setex(
+                              redisKey,
+                              parseInt(process.env.REDIS_EXPIRATION_5MIN) * 72,
+                              JSON.stringify({
+                                suburb: body.address.suburb,
+                                state: body.address.state,
+                                location_name:
+                                  body.namedetails["name"] !== undefined &&
+                                  body.namedetails["name"] !== null
+                                    ? body.namedetails["name"]
+                                    : body.address.amenity !== undefined &&
+                                      body.address.amenity !== null
+                                    ? body.address.amenity
+                                    : body.address.road,
+                                city: body.address.city,
+                                country: body.address.country,
+                                street_name:
+                                  body.address.road !== undefined &&
+                                  body.address.road !== null
+                                    ? body.address.road
+                                    : body.namedetails["name:en"],
+                              })
+                            );
+                            //...
+                            res2(true);
+                          }).then(
+                            () => {},
+                            (error) => {
+                              logger.info(error);
+                            }
+                          );
+                          //..respond - complete the input data
+                          locationInfos = {
+                            suburb: body.address.suburb,
+                            state: body.address.state,
+                            location_name:
+                              body.namedetails["name"] !== undefined &&
+                              body.namedetails["name"] !== null
+                                ? body.namedetails["name"]
+                                : body.address.amenity !== undefined &&
+                                  body.address.amenity !== null
+                                ? body.address.amenity
+                                : body.address.road,
+                            city: body.address.city,
+                            country: body.address.country,
+                            street_name:
+                              body.address.road !== undefined &&
+                              body.address.road !== null
+                                ? body.address.road
+                                : body.namedetails["name"],
+                          };
+                          resolve({
+                            passenger_number_id:
+                              locationInfos.passenger_number_id !== undefined &&
+                              locationInfos.passenger_number_id !== null
+                                ? locationInfos.passenger_number_id
+                                : 1,
+                            suburb: body.address.suburb,
+                            state: body.address.state,
+                            location_name:
+                              body.namedetails["name"] !== undefined &&
+                              body.namedetails["name"] !== null
+                                ? body.namedetails["name"]
+                                : body.address.amenity !== undefined &&
+                                  body.address.amenity !== null
+                                ? body.address.amenity
+                                : body.address.road,
+                            city: body.address.city,
+                            country: body.address.country,
+                            street_name:
+                              body.address.road !== undefined &&
+                              body.address.road !== null
+                                ? body.address.road
+                                : body.namedetails["name"],
+                          });
+                        } catch (error) {
+                          resolve(false);
+                        }
+                      } //Error
+                      else {
+                        resolve(false);
+                      }
+                    } //error
+                    else {
+                      resolve(false);
+                    }
+                  } catch (error) {
+                    logger.info(error);
+                    resolve(false);
+                  }
+                });
+              }
+            } catch (error) {
+              logger.info(error);
+              resolve(false);
+            }
+          });
+        }
+      });
+  } //? Find new records - from Nominatim
+  else {
+    logger.warn("New search Nominatim initiated");
+    let url =
+      process.env.URL_SEARCH_SERVICES +
+      "reverse?lon=" +
+      locationInfos.coordinates.longitude +
+      "&lat=" +
+      locationInfos.coordinates.latitude;
+
+    // let url =
+    //   process.env.URL_NOMINATIM_SERVICES +
+    //   "/reverse?format=json&lat=" +
+    //   locationInfos.coordinates.latitude +
+    //   "&lon=" +
+    //   locationInfos.coordinates.longitude +
+    //   "&zoom=18&addressdetails=1&extratags=1&namedetails=1";
+    requestAPI(url, function (err, response, body) {
+      try {
+        logger.info(body);
+        //Get only the state and suburb (district) infos
+        body = JSON.parse(body);
+        if (body.country !== undefined && body.district !== null) {
+          if (
+            body.state !== undefined &&
+            (body.district !== undefined || body.street !== undefined)
+          ) {
+            //? Adapt data to fit existing pipeline
+            body["suburb"] = body.district;
+            body["address"] = body;
+            //! Check that the suburb are present if not use the neighbourhood, if not use the highway
+            body.address["suburb"] =
+              body.address.suburb !== undefined
+                ? body.address.suburb
+                : body.address.street;
+            //! PICKUP LOCATION REINFORCEMENTS
+            logger.info("fresh search done! - MAKE NEW");
+            //! Check that the city is present else, take the destination's city - or default to Windhoek
+            body.address["city"] =
+              body.address.city !== false &&
+              body.address.city !== "false" &&
+              body.address.city !== undefined &&
+              body.address.city !== null
+                ? body.address.city
+                : "Windhoek";
+
+            try {
+              new Promise((res1) => {
+                //Save result in MongoDB
+                let newRecord = {
+                  suburb: body.address.suburb,
+                  state: body.address.state,
+                  location_name:
+                    body.address.name !== undefined &&
+                    body.address.name !== null
+                      ? body.address.name
+                      : body.address.street !== undefined &&
+                        body.address.street !== null
+                      ? body.address.street
+                      : body.address.suburb,
+                  city: body.address.city,
+                  country: body.address.country,
+                  street_name:
+                    body.address.street !== undefined &&
+                    body.address.street !== null
+                      ? body.address.street
+                      : body.address.name,
+                  date_updated: new Date(chaineDateUTC),
+                };
+
+                collectionSavedSuburbResults.updateOne(
+                  findPrevQuery,
+                  { $set: newRecord },
+                  {
+                    upsert: true,
+                  },
+                  function (err, reslt) {
+                    logger.info("Saved new record in mongo");
+                    res1(true);
+                  }
+                );
+              }).then(
+                () => {},
+                () => {}
+              );
+
+              //Cache result
+              new Promise((res2) => {
+                //Update the cache
+                //add new record
+                redisCluster.setex(
+                  redisKey,
+                  parseInt(process.env.REDIS_EXPIRATION_5MIN) * 72,
+                  JSON.stringify({
+                    suburb: body.address.suburb,
+                    state: body.address.state,
+                    location_name:
+                      body.address.name !== undefined &&
+                      body.address.name !== null
+                        ? body.address.name
+                        : body.address.street !== undefined &&
+                          body.address.street !== null
+                        ? body.address.street
+                        : body.address.suburb,
+                    city: body.address.city,
+                    country: body.address.country,
+                    street_name:
+                      body.address.street !== undefined &&
+                      body.address.street !== null
+                        ? body.address.street
+                        : body.address.name,
+                  })
+                );
+                //...
+                res2(true);
+              }).then(
+                () => {},
+                (error) => {
+                  logger.info(error);
+                }
+              );
+              //..respond - complete the input data
+              resolve({
+                passenger_number_id:
+                  locationInfos.passenger_number_id !== undefined &&
+                  locationInfos.passenger_number_id !== null
+                    ? locationInfos.passenger_number_id
+                    : 1,
+                suburb: body.address.suburb,
+                state: body.address.state,
+                location_name:
+                  body.address.name !== undefined && body.address.name !== null
+                    ? body.address.name
+                    : body.address.street !== undefined &&
+                      body.address.street !== null
+                    ? body.address.street
+                    : body.address.suburb,
+                city: body.address.city,
+                country: body.address.country,
+                street_name:
+                  body.address.street !== undefined &&
+                  body.address.street !== null
+                    ? body.address.street
+                    : body.address.name,
+              });
+            } catch (error) {
+              resolve(false);
+            }
+          } //Error
+          else {
             resolve(false);
           }
-        });
+        } //! Fall back to Nominatim
+        else {
+          logger.warn("Fallback catched by Nominatim");
+          let urlNominatim =
+            process.env.URL_NOMINATIM_SERVICES +
+            "/reverse?format=json&lat=" +
+            locationInfos.coordinates.latitude +
+            "&lon=" +
+            locationInfos.coordinates.longitude +
+            "&zoom=18&addressdetails=1&extratags=1&namedetails=1";
+          requestAPI(urlNominatim, function (err, response, body) {
+            try {
+              logger.warn(err);
+              logger.info(body);
+              //Get only the state and suburb infos
+              body = JSON.parse(body);
+              if (body.address !== undefined && body.address !== null) {
+                if (
+                  body.address.state !== undefined &&
+                  (body.address.suburb !== undefined ||
+                    body.address.neighbourhood !== undefined ||
+                    body.address.highway !== undefined)
+                ) {
+                  //! Check that the suburb are present if not use the neighbourhood, if not use the highway
+                  body.address["suburb"] =
+                    body.address.suburb !== undefined
+                      ? body.address.suburb
+                      : body.address.neighbourhood !== undefined
+                      ? body.address.neighbourhood
+                      : body.address.highway;
+                  //! PICKUP LOCATION REINFORCEMENTS
+                  logger.info("fresh search done! - MAKE NEWA");
+                  //! Check that the city is present else, take the destination's city - or default to Windhoek
+                  body.address["city"] =
+                    body.address.city !== false &&
+                    body.address.city !== "false" &&
+                    body.address.city !== undefined &&
+                    body.address.city !== null
+                      ? body.address.city
+                      : "Windhoek";
+
+                  try {
+                    new Promise((res1) => {
+                      //Save result in MongoDB
+                      let newRecord = {
+                        suburb: body.address.suburb,
+                        state: body.address.state,
+                        location_name:
+                          body.namedetails["name"] !== undefined &&
+                          body.namedetails["name"] !== null
+                            ? body.namedetails["name"]
+                            : body.address.amenity !== undefined &&
+                              body.address.amenity !== null
+                            ? body.address.amenity
+                            : body.address.road,
+                        city: body.address.city,
+                        country: body.address.country,
+                        street_name:
+                          body.address.road !== undefined &&
+                          body.address.road !== null
+                            ? body.address.road
+                            : body.namedetails["name:en"],
+                        date_updated: new Date(chaineDateUTC),
+                      };
+
+                      collectionSavedSuburbResults.updateOne(
+                        findPrevQuery,
+                        { $set: newRecord },
+                        {
+                          upsert: true,
+                        },
+                        function (err, reslt) {
+                          logger.info("Saved new record in mongo");
+                          res1(true);
+                        }
+                      );
+                    }).then(
+                      () => {},
+                      () => {}
+                    );
+
+                    //Cache result
+                    new Promise((res2) => {
+                      //Update the cache
+                      //add new record
+                      redisCluster.setex(
+                        redisKey,
+                        parseInt(process.env.REDIS_EXPIRATION_5MIN) * 72,
+                        JSON.stringify({
+                          suburb: body.address.suburb,
+                          state: body.address.state,
+                          location_name:
+                            body.namedetails["name"] !== undefined &&
+                            body.namedetails["name"] !== null
+                              ? body.namedetails["name"]
+                              : body.address.amenity !== undefined &&
+                                body.address.amenity !== null
+                              ? body.address.amenity
+                              : body.address.road,
+                          city: body.address.city,
+                          country: body.address.country,
+                          street_name:
+                            body.address.road !== undefined &&
+                            body.address.road !== null
+                              ? body.address.road
+                              : body.namedetails["name:en"],
+                        })
+                      );
+                      //...
+                      res2(true);
+                    }).then(
+                      () => {},
+                      (error) => {
+                        logger.info(error);
+                      }
+                    );
+                    //..respond - complete the input data
+                    resolve({
+                      passenger_number_id:
+                        locationInfos.passenger_number_id !== undefined &&
+                        locationInfos.passenger_number_id !== null
+                          ? locationInfos.passenger_number_id
+                          : 1,
+                      suburb: body.address.suburb,
+                      state: body.address.state,
+                      location_name:
+                        body.namedetails["name"] !== undefined &&
+                        body.namedetails["name"] !== null
+                          ? body.namedetails["name"]
+                          : body.address.amenity !== undefined &&
+                            body.address.amenity !== null
+                          ? body.address.amenity
+                          : body.address.road,
+                      city: body.address.city,
+                      country: body.address.country,
+                      street_name:
+                        body.address.road !== undefined &&
+                        body.address.road !== null
+                          ? body.address.road
+                          : body.namedetails["name"],
+                    });
+                  } catch (error) {
+                    resolve(false);
+                  }
+                } //Error
+                else {
+                  resolve(false);
+                }
+              } //error
+              else {
+                resolve(false);
+              }
+            } catch (error) {
+              logger.info(error);
+              resolve(false);
+            }
+          });
+        }
+      } catch (error) {
+        logger.info(error);
+        resolve(false);
       }
     });
+  }
 }
 
 /**
@@ -1329,30 +1859,33 @@ function estimateFullVehiclesCatPrices(
       availability: { $in: ["available", "unavailable"] },
     };
 
-    logger.warn(filterQuery);
-
     collectionVehiclesInfos
       .find(filterQuery)
       //!.collation({ locale: "en", strength: 2 })
       .toArray(function (err, result) {
-        logger.warn(err);
-        logger.warn(result);
         if (result !== null && result !== undefined && result.length > 0) {
           //Found something
           let genericRidesInfos = result;
           //Get all the city's price map (cirteria: city, country and pickup)
           new Promise((res) => {
+            //? Add suburb name exception
+            //? 1. Windhoek Central -> Windhoek Central / CBD
+            completedInputData.pickup_location_infos.suburb =
+              /Windhoek Central/i.test(
+                completedInputData.pickup_location_infos.suburb
+              )
+                ? `${completedInputData.pickup_location_infos.suburb.trim()} / CBD`
+                : completedInputData.pickup_location_infos.suburb.trim();
+            //?...
             filterQuery = {
               country: completedInputData.country,
               city: completedInputData.pickup_location_infos.city,
-              pickup_suburb:
-                completedInputData.pickup_location_infos.suburb.trim(),
+              pickup_suburb: completedInputData.pickup_location_infos.suburb,
             };
+
             collectionPricesLocationsMap
               .find(filterQuery)
-              //!.collation({ locale: "en", strength: 2 })
               .toArray(function (err, result) {
-                logger.warn(result);
                 if (result.length > 0) {
                   //Found corresponding prices maps
                   res(result);
@@ -1408,7 +1941,6 @@ function estimateFullVehiclesCatPrices(
           }).then(
             (reslt) => {
               let globalPricesMap = reslt;
-              logger.warn(reslt);
               //call computeInDepthPricesMap
               new Promise((res) => {
                 computeInDepthPricesMap(
@@ -1452,6 +1984,22 @@ function estimateFullVehiclesCatPrices(
 }
 
 /**
+ * @func doubleTheFareIfNecessary
+ * Responsible for getting any type of fare and doubling it if the base fare received is NAD14
+ * and if going until home
+ * @param initialFare: the initial fare to be doubled
+ * @param goingUntilHome: if the customer is going until home or not
+ */
+function doubleTheFareIfNecessary(initialFare, goingUntilHome) {
+  if (initialFare == 14 && goingUntilHome) {
+    logger.warn("Doubled the fare called");
+    return initialFare * 2;
+  }
+  //...
+  return initialFare;
+}
+
+/**
  * @func computeInDepthPricesMap
  * @param resolve
  * @param completedInputData: completed operations input data
@@ -1470,9 +2018,18 @@ function computeInDepthPricesMap(
 ) {
   resolveDate();
   logger.info("compute in depth called");
+  //? Add suburb name exception
+  //? 1. Windhoek Central -> Windhoek Central / CBD
+  completedInputData.pickup_location_infos.suburb = /Windhoek Central/i.test(
+    completedInputData.pickup_location_infos.suburb
+  )
+    ? `${completedInputData.pickup_location_infos.suburb.trim()} / CBD`
+    : completedInputData.pickup_location_infos.suburb.trim();
+  //?...
   //ESTABLISH IMPORTANT PRICING VARIABLES
   let connectType = completedInputData.connect_type;
   let pickup_suburb = completedInputData.pickup_location_infos.suburb;
+
   let pickup_hour = (completedInputData.pickup_time / 1000) * 60 * 60;
   let pickup_minutes = pickup_hour * 60;
   let pickup_type = completedInputData.pickup_location_infos.pickup_type; //PrivateLocation, TaxiRank or Airport.
@@ -1563,6 +2120,13 @@ function computeInDepthPricesMap(
           }
           //...
           completedInputData.destination_location_infos.map((destination) => {
+            //! Add suburb name exception - Only apply to the destination suburb.
+            //? 1. Windhoek Central -> Windhoek Central / CBD
+            destination.suburb = /Windhoek Central/i.test(destination.suburb)
+              ? `${destination.suburb.trim()} / CBD`
+              : destination.suburb.trim();
+            //?...
+
             let tmpPickupPickup = pickup_suburb;
             let tmpDestinationSuburb = destination.suburb;
             //To Airport - mark vehicles that can't do airports as unavailable.
@@ -1639,8 +2203,12 @@ function computeInDepthPricesMap(
                     //Add base ride fare if the user is found to be going to the same suburb
                     if (tmpPickupPickup === tmpDestinationSuburb) {
                       //Same suburb -> fare = base ride price
-                      basePrice += vehicle.base_fare;
+                      basePrice += doubleTheFareIfNecessary(
+                        vehicle.base_fare,
+                        completedInputData.isGoingUntilHome
+                      );
                     }
+
                     let didFindRegisteredSuburbs = false; //To know whether or not has found registered suburbs or else did not find matching suburbs.
                     //...
                     globalPricesMap.map((suburbToSuburbInfo) => {
@@ -1652,7 +2220,10 @@ function computeInDepthPricesMap(
                         if (basePrice > 0) {
                           //Add basic vehicle price instead of false suburb fare
                           //basePrice += suburbToSuburbInfo.fare;
-                          basePrice += vehicle.base_fare;
+                          basePrice += doubleTheFareIfNecessary(
+                            vehicle.base_fare,
+                            completedInputData.isGoingUntilHome
+                          );
                           lockPorgress = true;
                           didFindRegisteredSuburbs = true; //Found false suburbs-consider as registered.
                         }
@@ -1674,18 +2245,19 @@ function computeInDepthPricesMap(
                         didFindRegisteredSuburbs = true; //Found registered suburbs.
                         //If the car type is economy electric, add its base price
                         if (/electricEconomy/i.test(vehicle.car_type)) {
-                          logger.info(vehicle.base_fare);
                           //basePrice += vehicle.base_fare;
                           //? Remove N$2 discount for electric rides
-                          basePrice += parseFloat(suburbToSuburbInfo.fare) - 2;
+                          basePrice +=
+                            doubleTheFareIfNecessary(
+                              parseFloat(suburbToSuburbInfo.fare),
+                              completedInputData.isGoingUntilHome
+                            ) - 2;
                         } //Normal taxis
                         else {
-                          logger.info(suburbToSuburbInfo.fare);
-                          logger.info(
-                            completedInputData.destination_location_infos
+                          basePrice += doubleTheFareIfNecessary(
+                            parseFloat(suburbToSuburbInfo.fare),
+                            completedInputData.isGoingUntilHome
                           );
-                          logger.info(suburbToSuburbInfo);
-                          basePrice += parseFloat(suburbToSuburbInfo.fare);
                         }
                       }
                     });
@@ -1730,7 +2302,10 @@ function computeInDepthPricesMap(
                       );
                       //Estimate a realistic price for now - EXTREMELY URGENT
                       //Assign ride base price
-                      basePrice += vehicle.base_fare;
+                      basePrice += doubleTheFareIfNecessary(
+                        vehicle.base_fare,
+                        completedInputData.isGoingUntilHome
+                      );
                     }
                   } else if (
                     /Comfort/i.test(vehicle.category) ||
@@ -1766,11 +2341,14 @@ function computeInDepthPricesMap(
         }
         //Add header price and time multiplier ONLY for the Economy category and not airport rides
         if (/Economy/i.test(vehicle.category) && isGoingToAirport === false) {
-          basePrice =
-            completedInputData.isGoingUntilHome &&
-            /RIDE/i.test(completedInputData.ride_mode)
-              ? basePrice * 2
-              : basePrice; //! Apply the going until home doubling effect on the rides only.
+          // if (/connectUs/i.test(completedInputData.connect_type)) {
+          //   basePrice =
+          //     completedInputData.isGoingUntilHome &&
+          //     /RIDE/i.test(completedInputData.ride_mode)
+          //       ? basePrice * 2
+          //       : basePrice; //! Apply the going until home doubling effect on the rides only.
+          // }
+          //...
           basePrice *= timeDayMultiplier;
           basePrice += headerPrice; //Add header price LAST
         }
@@ -2443,7 +3021,7 @@ redisCluster.on("connect", function () {
       /**
        * GET SUBURBS INFORMATION
        * [Should be moved to the MAP service]
-       * Resposible for getting the corresponding suburbs for provided location.
+       * Resposible for getting the corresponding suburbs for the provided location.
        * Input data: location name, street name, city, country and coordinates (obj, lat and long)
        */
       app.get("/getCorrespondingSuburbInfos", function (req, res) {
@@ -2466,7 +3044,9 @@ redisCluster.on("connect", function () {
                     longitude: req.longitude,
                   },
                   make_new:
-                    req.make_new !== undefined && req.make_new !== null
+                    req.make_new !== undefined &&
+                    req.make_new !== null &&
+                    /true/i.test(req.make_new)
                       ? true
                       : false,
                 },
