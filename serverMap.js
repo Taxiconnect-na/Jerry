@@ -5826,7 +5826,11 @@ redisCluster.on("connect", function () {
                 res.send({ request_status: "no_rides" });
               }
               //...
-              if (parentTripDetails.length > 0) {
+              if (
+                parentTripDetails !== undefined &&
+                parentTripDetails !== null &&
+                parentTripDetails.length > 0
+              ) {
                 //There's a trip in progress
                 //Save the event of an external user getting the trip infos and all the corresponding data
                 let eventBundle = {
@@ -5841,6 +5845,7 @@ redisCluster.on("connect", function () {
                 new Promise((res) => {
                   ////logger.info("fetching data");
                   tripChecker_Dispatcher(
+                    true,
                     collectionRidesDeliveries_data,
                     collectionDrivers_profiles,
                     collectionPassengers_profiles,
@@ -5871,7 +5876,11 @@ redisCluster.on("connect", function () {
                       () => {}
                     );
                     //Update the rider
-                    if (result !== false) {
+                    if (
+                      result !== null &&
+                      result !== undefined &&
+                      result !== false
+                    ) {
                       if (result != "no_rides") {
                         //!Get the sender's details and attach it the to response
                         collectionPassengers_profiles
@@ -5923,9 +5932,8 @@ redisCluster.on("connect", function () {
                     }
                   },
                   (error) => {
-                    //logger.info(error);
+                    logger.error(error);
                     res.send({ request_status: "no_rides" });
-                    ////logger.info(error);
                   }
                 );
               } //No rides in progress

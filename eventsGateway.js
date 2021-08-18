@@ -401,8 +401,10 @@ io.on("connection", (socket) => {
         req.sharedTo_user_fingerprint +
         "&trip_simplified_id=" +
         req.trip_simplified_id;
+      logger.error(url);
       requestAPI(url, function (error, response, body) {
-        ////logger.info(body);
+        logger.warn(error);
+        logger.error(body);
         if (error === null) {
           try {
             body = JSON.parse(body);
