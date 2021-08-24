@@ -1530,7 +1530,7 @@ function parseDetailed_walletGetData(
               tmpDateHolder !== null ? tmpDateHolder[0].split("-") : null;
             let validDate =
               tmpDateHolder !== null
-                ? `${datElementHolder[2]}-${datElementHolder[1]}-${datElementHolder[0]}T${tmpDateHolder[1]}:00.000Z`
+                ? `${datElementHolder[2]}-${datElementHolder[0]}-${datElementHolder[1]}T${tmpDateHolder[1]}:00.000Z`
                 : transaction.date_captured;
 
             let tmpDateCaptured = new Date(new String(validDate)); //! Avoid invalid date formats - BUG FIX ATTEMPT
