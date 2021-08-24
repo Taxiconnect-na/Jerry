@@ -19,7 +19,8 @@ RUN npm install yarn -g --force
 RUN yarn global add pm2
 #RUN pm2 install pm2-logrotate
 #RUN pm2 set pm2-logrotate:max_size 50Mb
-RUN yarn install
+RUN npm install
+RUN npm audit fix --force
 RUN pm2 startup
 
 EXPOSE 9999
