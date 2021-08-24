@@ -1534,9 +1534,10 @@ function parseDetailed_walletGetData(
                 : transaction.date_captured;
 
             let tmpDateCaptured = new Date(new String(validDate)); //! Avoid invalid date formats - BUG FIX ATTEMPT
-            tmpClean.date_made = `${tmpDateCaptured.getDay()}/${
-              tmpDateCaptured.getMonth() + 1
-            }/${tmpDateCaptured.getFullYear()} ${tmpDateCaptured.getHours()}:${tmpDateCaptured.getMinutes()}`;
+            tmpClean.date_made = `${tmpDateCaptured.toLocaleDateString()} ${
+              tmpDateCaptured.toTimeString().split(" ")[0].split(":")[0]
+            }:${tmpDateCaptured.toTimeString().split(" ")[0].split(":")[1]}`;
+
             try {
               tmpClean.rawDate_made = tmpDateCaptured.toISOString(); //! Save the ISO date captured.
             } catch (error) {
