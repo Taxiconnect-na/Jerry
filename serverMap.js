@@ -3478,15 +3478,15 @@ function updateRiderLocationInfosCache(req, resolve) {
     //Driver
     //Enrich the driver's data to be stored in the right set in redis geospatial
     //drivers-city-vehicleType
-    new Promise((reqUpdate) => {
-      storedUpDriversGeospatialData(req, reqUpdate);
-    })
-      .then((result) => {
-        logger.warn("Successfully updated the driver geospatial data!");
-      })
-      .catch((error) => {
-        logger.warn(error);
-      });
+    // new Promise((reqUpdate) => {
+    //   storedUpDriversGeospatialData(req, reqUpdate);
+    // })
+    //   .then((result) => {
+    //     logger.warn("Successfully updated the driver geospatial data!");
+    //   })
+    //   .catch((error) => {
+    //     logger.warn(error);
+    //   });
   }
   //!------------------------------------
   //Check if a previous entry alreay exist

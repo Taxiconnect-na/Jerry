@@ -454,7 +454,11 @@ function getBachRidesHistory(
               resolve({ response: "error_authentication_failed" });
             }
             //...
-            if (ridesData.length > 0) {
+            if (
+              ridesData !== undefined &&
+              ridesData !== null &&
+              ridesData.length > 0
+            ) {
               //Found something - reformat
               let parentPromises = ridesData.map((requestSingle) => {
                 return new Promise((res1) => {
@@ -3075,7 +3079,6 @@ function execGet_driversDeepInsights_fromWalletData(
                                   "startingPoint_forFreshPayouts",
                                 user_fingerprint: driver_fingerprint,
                               })
-                              //!.collation({ locale: "en", strength: 2 })
                               .toArray(function (err, referenceData) {
                                 if (err) {
                                   resFindNexyPayoutDate(false);
@@ -3127,10 +3130,16 @@ function execGet_driversDeepInsights_fromWalletData(
                             _GLOBAL_OBJECT.header.scheduled_payment_date =
                               resultPayoutDate;
                             //! Cache data --- ~ min
-                            redisCluster.set(
-                              redisKey,
-                              stringify(_GLOBAL_OBJECT)
-                            );
+                            new Promise((resCache) => {
+                              redisCluster.set(
+                                redisKey,
+                                stringify(_GLOBAL_OBJECT)
+                              );
+                              resCache(true);
+                            })
+                              .then()
+                              .catch();
+                            //...
                             resolve(_GLOBAL_OBJECT);
                           } //Couldn't find a payout date
                           else {
@@ -3219,7 +3228,6 @@ function execGet_driversDeepInsights_fromWalletData(
           transaction_nature: "weeklyPaidDriverAutomatic",
           recipient_fp: driver_fingerprint,
         })
-        //!.collation({ locale: "en", strength: 2 })
         .toArray(function (err, resultLastPayout) {
           if (err) {
             resFindNexyPayoutDate(false);
@@ -3244,7 +3252,6 @@ function execGet_driversDeepInsights_fromWalletData(
                 flag_annotation: "startingPoint_forFreshPayouts",
                 user_fingerprint: driver_fingerprint,
               })
-              //!.collation({ locale: "en", strength: 2 })
               .toArray(function (err, referenceData) {
                 if (err) {
                   resFindNexyPayoutDate(false);
@@ -3298,7 +3305,12 @@ function execGet_driversDeepInsights_fromWalletData(
             //? Update the next payout date var
             _GLOBAL_OBJECT.header.scheduled_payment_date = resultPayoutDate;
             //! Cache data --- ~ min
-            redisCluster.set(redisKey, stringify(_GLOBAL_OBJECT));
+            new Promise((resCache) => {
+              redisCluster.set(redisKey, stringify(_GLOBAL_OBJECT));
+              resCache(true);
+            })
+              .then()
+              .catch();
             //....
             resolve(_GLOBAL_OBJECT);
           } //Couldn't find a payout date

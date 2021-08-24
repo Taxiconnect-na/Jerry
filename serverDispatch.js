@@ -3381,6 +3381,8 @@ function getRequests_graphPreview_forDrivers(
       }
       //...
       if (
+        driverData !== undefined &&
+        driverData !== null &&
         driverData.length > 0 &&
         driverData[0].driver_fingerprint !== undefined &&
         driverData[0].driver_fingerprint !== null

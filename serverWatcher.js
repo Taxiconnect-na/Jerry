@@ -2278,9 +2278,8 @@ redisCluster.on("connect", function () {
           });
       });
 
-      //! FOR SUPER HEAVY PROCESSES - 30min
-      var antiNotificationSpammerLog = new Set(); //To hold unique user fps to avoid sending many notifications to one user.
-      cron.schedule("*/30 * * * *", function () {
+      //! FOR SUPER HEAVY PROCESSES - 10min
+      cron.schedule("*/10 * * * *", function () {
         //? 1. Refresh every driver's wallet
         new Promise((res1) => {
           updateDrivers_walletCachedData(collectionDrivers_profiles, res1);
@@ -2296,6 +2295,11 @@ redisCluster.on("connect", function () {
           .catch((error) => {
             logger.info(error);
           });
+      });
+
+      //! FOR LIGHT HEAVY PROCESSES REQUIRING - 30min
+      var antiNotificationSpammerLog = new Set(); //To hold unique user fps to avoid sending many notifications to one user.
+      cron.schedule("*/30 * * * *", function () {
         //? 7. Watch all the trips which are not confirmed by the riders yet
         new Promise((res7) => {
           notifyRidersOf_completedRides(
