@@ -529,7 +529,9 @@ function getLocationList_five(
 redisCluster.on("connect", function () {
   logger.info("[*] Redis connected");
   MongoClient.connect(
-    process.env.URL_MONGODB,
+    /live/i.test(process.env.SERVER_TYPE)
+      ? process.env.URL_MONGODB_PROD
+      : process.env.URL_MONGODB_DEV,
     /production/i.test(process.env.EVIRONMENT)
       ? {
           tlsCAFile: certFile, //The DocDB cert
