@@ -1483,6 +1483,30 @@ function getRiders_wallet_summary(
 }
 
 /**
+ * @func provideDateFromUnISOString
+ * Responsible for returning a valid iso string from a non valid iso input
+ * widely used in the old system
+ */
+function provideDateFromUnISOString(dateString) {
+  dateString = dateString.split(", ");
+  //Get the day month and year
+  let day = parseInt(dateString[0].split("-")[0]);
+  let month = parseInt(dateString[0].split("-")[1]);
+  let year = parseInt(dateString[0].split("-")[2]);
+  //.get the hour minute and seconds
+  let hours = parseInt(dateString[1].split(":")[0]);
+  let minutes = parseInt(dateString[1].split(":")[1]);
+  //?Form the date ISO format
+  let date = new Date();
+  date.setFullYear = year;
+  date.setMonth = month;
+  date.setDate = day;
+  date.setHours(hours, minutes, 0);
+  ///...
+  return date;
+}
+
+/**
  * @func parseDetailed_walletGetData
  * Responsible for parsing the detailed wallet details into a form that's suitable for clients and more uniform.
  * ! Remove private information like: fingerprints, mongodb ids.
@@ -1523,25 +1547,18 @@ function parseDetailed_walletGetData(
             //? 3. Payment currency
             tmpClean.payment_currency = process.env.PAYMENT_CURRENCY;
             //? 4. Add and resolve the date made and the timestamp
-            let tmpDateHolder = /\,/i.test(transaction.date_captured)
-              ? transaction.date_captured.split(", ")
-              : null;
-            let datElementHolder =
-              tmpDateHolder !== null ? tmpDateHolder[0].split("-") : null;
-            let validDate =
-              tmpDateHolder !== null
-                ? `${datElementHolder[2]}-${datElementHolder[0]}-${datElementHolder[1]}T${tmpDateHolder[1]}:00.000Z`
-                : transaction.date_captured;
+            let tmpDateCaptured = /\,/i.test(transaction.date_captured)
+              ? provideDateFromUnISOString(transaction.date_captured)
+              : new Date(new String(transaction.date_captured)); //! Avoid invalid date formats - BUG FIX ATTEMPT
 
-            let tmpDateCaptured = new Date(new String(validDate)); //! Avoid invalid date formats - BUG FIX ATTEMPT
-            tmpClean.date_made = `${tmpDateCaptured.toLocaleDateString()} ${
-              tmpDateCaptured.toTimeString().split(" ")[0].split(":")[0]
-            }:${tmpDateCaptured.toTimeString().split(" ")[0].split(":")[1]}`;
+            tmpClean.date_made =
+              moment(tmpDateCaptured).format("DD-MM-YYYY HH:MM a");
 
             try {
               tmpClean.rawDate_made = tmpDateCaptured.toISOString(); //! Save the ISO date captured.
             } catch (error) {
-              logger.info(error);
+              logger.error(error);
+              logger.warn(transaction.date_captured);
               tmpClean.rawDate_made = transaction.date_requestedRaw;
             }
             tmpClean.timestamp = tmpDateCaptured.getTime();
