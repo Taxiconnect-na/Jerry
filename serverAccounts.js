@@ -1141,7 +1141,6 @@ function getDaily_requestAmount_driver(
   resolveDate();
   //Form the redis key
   let redisKey = "dailyAmount-" + driver_fingerprint;
-  logger.info(driver_fingerprint);
   //..
   redisGet(redisKey).then(
     (resp) => {
@@ -1157,7 +1156,9 @@ function getDaily_requestAmount_driver(
               res
             );
           }).then(
-            (result) => {},
+            (result) => {
+              redisCluster.set(redisKey, JSON.stringify(result));
+            },
             (error) => {}
           );
           //...
@@ -1252,6 +1253,21 @@ function getDaily_requestAmount_driver(
 }
 
 /**
+ * @func checkIfSameDay
+ * Responsible for finding out if two dates where on the same day or Not
+ * @param date1: first date
+ * @param date2: second date
+ * ? The order of the dates does not matter.
+ * @return true: same day
+ * @return false: not same day
+ */
+
+function checkIfSameDay(date1, date2) {
+  let hourDiff = Math.abs((date1 - date2) / (1000 * 3600)); //In hour
+  return hourDiff < 24;
+}
+
+/**
  * @func exec_computeDaily_amountMade
  * Responsible for executing all the operations related to the computation of the driver's daily amount.
  * @param collectionRidesDeliveryData: the list of all the rides/deliveries
@@ -1291,7 +1307,6 @@ function exec_computeDaily_amountMade(
 
         collectionRidesDeliveryData
           .find(filterRequest)
-          //!.collation({ locale: "en", strength: 2 })
           .toArray(function (err, requestsArray) {
             if (err) {
               resolve({
@@ -1307,17 +1322,17 @@ function exec_computeDaily_amountMade(
             }
             //...
             let amount = 0;
-            if (requestsArray !== undefined && requestsArray.length > 0) {
+            if (
+              requestsArray !== null &&
+              requestsArray !== undefined &&
+              requestsArray.length > 0
+            ) {
               requestsArray.map((request) => {
                 if (
-                  String(chaineDateUTC)
-                    .replace("T", " ")
-                    .split(" ")[0]
-                    .trim() ===
-                  String(new Date(request.date_requested).toISOString())
-                    .replace("T", " ")
-                    .split(" ")[0]
-                    .trim()
+                  checkIfSameDay(
+                    new Date(chaineDateUTC),
+                    new Date(request.date_requested)
+                  )
                 ) {
                   //Same day
                   let tmpFare = parseFloat(request.fare);
