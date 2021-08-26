@@ -4449,637 +4449,674 @@ var collectionWalletTransactions_logs = null;
 var collectionAdsCompanies_central = null;
 redisCluster.on("connect", function () {
   logger.info("[*] Redis connected");
+  requestAPI(
+    /development/i.test(process.env.EVIRONMENT)
+      ? `${process.env.AUTHENTICATOR_URL}get_API_CRED_DATA?environment=dev_local` //? Development localhost url
+      : /production/i.test(process.env.EVIRONMENT)
+      ? /live/i.test(process.env.SERVER_TYPE)
+        ? `${process.env.AUTHENTICATOR_URL}get_API_CRED_DATA?environment=production` //? Live production url
+        : `${process.env.AUTHENTICATOR_URL}get_API_CRED_DATA?environment=dev_production` //? Dev live testing url
+      : `${process.env.AUTHENTICATOR_URL}get_API_CRED_DATA?environment=dev_local`, //?Fall back url
+    function (error, response, body) {
+      body = JSON.parse(body);
+      //...
+      process.env.AWS_S3_ID = body.AWS_S3_ID;
+      process.env.AWS_S3_SECRET = body.AWS_S3_SECRET;
+      process.env.URL_MONGODB_DEV = body.URL_MONGODB_DEV;
+      process.env.URL_MONGODB_PROD = body.URL_MONGODB_PROD;
 
-  MongoClient.connect(
-    /live/i.test(process.env.SERVER_TYPE)
-      ? process.env.URL_MONGODB_PROD
-      : process.env.URL_MONGODB_DEV,
-    /production/i.test(process.env.EVIRONMENT)
-      ? {
-          tlsCAFile: certFile, //The DocDB cert
-          useUnifiedTopology: true,
-          useNewUrlParser: true,
-        }
-      : {
-          useUnifiedTopology: true,
-          useNewUrlParser: true,
-        },
-    function (err, clientMongo) {
-      if (err) throw err;
-      logger.info("[+] Account services active.");
-      const dbMongo = clientMongo.db(process.env.DB_NAME_MONGODDB);
-      collectionPassengers_profiles = dbMongo.collection("passengers_profiles"); //Hold all the passengers profiles
-      collectionRidesDeliveryData = dbMongo.collection(
-        "rides_deliveries_requests"
-      ); //Hold all the requests made (rides and deliveries)
-      collection_OTP_dispatch_map = dbMongo.collection("OTP_dispatch_map");
-      collectionDrivers_profiles = dbMongo.collection("drivers_profiles"); //Hold all the drivers profiles
-      collectionGlobalEvents = dbMongo.collection("global_events"); //Hold all the random events that happened somewhere.
-      collectionWalletTransactions_logs = dbMongo.collection(
-        "wallet_transactions_logs"
-      ); //Hold all the wallet transactions (exlude rides/deliveries records which are in the rides/deliveries collection)
-      collectionAdsCompanies_central = dbMongo.collection(
-        "ads_companies_central"
-      ); //Hold all the companies that subscribed for the Ad program.
-      collectionReferralsInfos = dbMongo.collection(
-        "referrals_information_global"
-      ); //Hold all the referrals infos
-      //-------------
-      app
-        .get("/", function (req, res) {
-          logger.info("Account services up");
-        })
-        .use(
-          express.json({
-            limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
-            extended: true,
-          })
-        )
-        .use(
-          express.urlencoded({
-            limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
-            extended: true,
-          })
-        )
-        .use(helmet());
-      //.use(morgan("combined", { stream: accessLogStream }));
-
-      /**
-       * GENERATE OTP AND CHECK THE USER EXISTANCE
-       * Responsible for generating an otp and checking whether a user was already registered or not.
-       * If already registered send also the user fingerprint.
-       */
-      app.get("/sendOTPAndCheckUserStatus", function (req, res) {
-        resolveDate();
-        let params = urlParser.parse(req.url, true);
-        //logger.info(params);
-        req = params.query;
-
-        if (
-          req.phone_number !== undefined &&
-          req.phone_number !== null &&
-          req.phone_number.length > 8
-        ) {
-          req.phone_number = req.phone_number.trim();
-          let onlyDigitsPhone = req.phone_number.replace("+", "").trim(); //Critical, should only contain digits
-          //Ok
-          //! ADD DEBUG TEST DATA -> CODE 88766
-          //Send the message then check the passenger's status
-          let otp = /856997167/i.test(onlyDigitsPhone)
-            ? 88766
-            : otpGenerator.generate(5, {
-                upperCase: false,
-                specialChars: false,
-                alphabets: false,
-              });
-          //! --------------
-          //let otp = 55576;
-          otp = String(otp).length < 5 ? parseInt(otp) * 10 : otp;
-          new Promise((res0) => {
-            let message = otp + ` is your TaxiConnect Verification Code.`;
-            SendSMSTo(onlyDigitsPhone, message);
-            res0(true);
-            //SMS
-          }).then(
-            () => {},
-            (error) => {
-              logger.info(error);
+      MongoClient.connect(
+        /live/i.test(process.env.SERVER_TYPE)
+          ? process.env.URL_MONGODB_PROD
+          : process.env.URL_MONGODB_DEV,
+        /production/i.test(process.env.EVIRONMENT)
+          ? {
+              tlsCAFile: certFile, //The DocDB cert
+              useUnifiedTopology: true,
+              useNewUrlParser: true,
             }
-          );
+          : {
+              useUnifiedTopology: true,
+              useNewUrlParser: true,
+            },
+        function (err, clientMongo) {
+          if (err) throw err;
+          logger.info("[+] Account services active.");
+          const dbMongo = clientMongo.db(process.env.DB_NAME_MONGODDB);
+          collectionPassengers_profiles = dbMongo.collection(
+            "passengers_profiles"
+          ); //Hold all the passengers profiles
+          collectionRidesDeliveryData = dbMongo.collection(
+            "rides_deliveries_requests"
+          ); //Hold all the requests made (rides and deliveries)
+          collection_OTP_dispatch_map = dbMongo.collection("OTP_dispatch_map");
+          collectionDrivers_profiles = dbMongo.collection("drivers_profiles"); //Hold all the drivers profiles
+          collectionGlobalEvents = dbMongo.collection("global_events"); //Hold all the random events that happened somewhere.
+          collectionWalletTransactions_logs = dbMongo.collection(
+            "wallet_transactions_logs"
+          ); //Hold all the wallet transactions (exlude rides/deliveries records which are in the rides/deliveries collection)
+          collectionAdsCompanies_central = dbMongo.collection(
+            "ads_companies_central"
+          ); //Hold all the companies that subscribed for the Ad program.
+          collectionReferralsInfos = dbMongo.collection(
+            "referrals_information_global"
+          ); //Hold all the referrals infos
+          //-------------
+          app
+            .get("/", function (req, res) {
+              logger.info("Account services up");
+            })
+            .use(
+              express.json({
+                limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
+                extended: true,
+              })
+            )
+            .use(
+              express.urlencoded({
+                limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
+                extended: true,
+              })
+            )
+            .use(helmet());
+          //.use(morgan("combined", { stream: accessLogStream }));
 
-          //1. Check the user's status
-          new Promise((res1) => {
-            checkUserStatus(
-              req,
-              otp,
-              collection_OTP_dispatch_map,
-              collectionPassengers_profiles,
-              collectionDrivers_profiles,
-              res1
-            );
-          }).then(
-            (result) => {
-              //if (!/driver/i.test(req.user_nature)) {
-              //! Only send SMS to users or registered drivers
-              //2. Generate and SMS the OTP
-              /*new Promise((res0) => {
-              let message =
-                `<#> ` + otp + ` is your TaxiConnect Verification Code.`;
-              SendSMSTo(onlyDigitsPhone, message);
-              res0(true);
-              //SMS
-            }).then(
-              () => {},
-              (error) => {
-                logger.info(error);
-              }
-            );*/
-              //}
-              //!---------
+          /**
+           * GENERATE OTP AND CHECK THE USER EXISTANCE
+           * Responsible for generating an otp and checking whether a user was already registered or not.
+           * If already registered send also the user fingerprint.
+           */
+          app.get("/sendOTPAndCheckUserStatus", function (req, res) {
+            resolveDate();
+            let params = urlParser.parse(req.url, true);
+            //logger.info(params);
+            req = params.query;
 
-              //Save otp in profile if the user was already registered
-              logger.warn(req.user_fp);
-              if (
-                result.response !== undefined &&
-                result.user_fp !== undefined &&
-                result.user_fp !== null
-              ) {
-                //Registered user
-                new Promise((res2) => {
-                  let secretData = {
-                    $set: {
-                      "account_verifications.phone_verification_secrets": {
-                        otp: parseInt(otp),
-                        date_sent: new Date(chaineDateUTC),
-                      },
-                    },
+            if (
+              req.phone_number !== undefined &&
+              req.phone_number !== null &&
+              req.phone_number.length > 8
+            ) {
+              req.phone_number = req.phone_number.trim();
+              let onlyDigitsPhone = req.phone_number.replace("+", "").trim(); //Critical, should only contain digits
+              //Ok
+              //! ADD DEBUG TEST DATA -> CODE 88766
+              //Send the message then check the passenger's status
+              let otp = /856997167/i.test(onlyDigitsPhone)
+                ? 88766
+                : otpGenerator.generate(5, {
+                    upperCase: false,
+                    specialChars: false,
+                    alphabets: false,
+                  });
+              //! --------------
+              //let otp = 55576;
+              otp = String(otp).length < 5 ? parseInt(otp) * 10 : otp;
+              new Promise((res0) => {
+                let message = otp + ` is your TaxiConnect Verification Code.`;
+                SendSMSTo(onlyDigitsPhone, message);
+                res0(true);
+                //SMS
+              }).then(
+                () => {},
+                (error) => {
+                  logger.info(error);
+                }
+              );
+
+              //1. Check the user's status
+              new Promise((res1) => {
+                checkUserStatus(
+                  req,
+                  otp,
+                  collection_OTP_dispatch_map,
+                  collectionPassengers_profiles,
+                  collectionDrivers_profiles,
+                  res1
+                );
+              }).then(
+                (result) => {
+                  //if (!/driver/i.test(req.user_nature)) {
+                  //! Only send SMS to users or registered drivers
+                  //2. Generate and SMS the OTP
+                  /*new Promise((res0) => {
+                  let message =
+                    `<#> ` + otp + ` is your TaxiConnect Verification Code.`;
+                  SendSMSTo(onlyDigitsPhone, message);
+                  res0(true);
+                  //SMS
+                }).then(
+                  () => {},
+                  (error) => {
+                    logger.info(error);
+                  }
+                );*/
+                  //}
+                  //!---------
+
+                  //Save otp in profile if the user was already registered
+                  logger.warn(req.user_fp);
+                  if (
+                    result.response !== undefined &&
+                    result.user_fp !== undefined &&
+                    result.user_fp !== null
+                  ) {
+                    //Registered user
+                    new Promise((res2) => {
+                      let secretData = {
+                        $set: {
+                          "account_verifications.phone_verification_secrets": {
+                            otp: parseInt(otp),
+                            date_sent: new Date(chaineDateUTC),
+                          },
+                        },
+                      };
+                      //.
+                      //1. Passengers
+                      if (
+                        req.user_nature === undefined ||
+                        req.user_nature === null ||
+                        /passenger/i.test(req.user_nature)
+                      ) {
+                        collectionPassengers_profiles.updateOne(
+                          { user_fingerprint: result.user_fp },
+                          secretData,
+                          function (err, reslt) {
+                            logger.info(err);
+                            res2(true);
+                          }
+                        );
+                      } else if (
+                        req.user_nature !== undefined &&
+                        req.user_nature !== null &&
+                        /driver/i.test(req.user_nature)
+                      ) {
+                        logger.info("DRIVER HERE DETECCTEDD");
+                        //2. Drivers
+                        collectionDrivers_profiles.updateOne(
+                          { driver_fingerprint: result.user_fp },
+                          secretData,
+                          function (err, reslt) {
+                            logger.info(err);
+                            res2(true);
+                          }
+                        );
+                      }
+                    })
+                      .then(
+                        () => {
+                          //...
+                          res.send(result);
+                        },
+                        () => {
+                          ///....
+                          res.send(result);
+                        }
+                      )
+                      .catch((error) => {
+                        ///....
+                        res.send(result);
+                      });
+                  } else {
+                    ///....
+                    res.send(result);
+                  }
+                  //...
+                },
+                (error) => {
+                  logger.info(error);
+                  res.send({ response: "error_checking_user" });
+                }
+              );
+            } //Error phone number not received
+            else {
+              res.send({ response: "error_phone_number_not_received" });
+            }
+          });
+
+          /**
+           * CHECK THAT THE OTP ENTERED BY THE USER IS CORRECT
+           * Responsible for checking that the otp entered by the user matches the one generated.
+           */
+          app.get("/checkSMSOTPTruly", function (req, res) {
+            resolveDate();
+            let params = urlParser.parse(req.url, true);
+            req = params.query;
+
+            if (
+              req.phone_number !== undefined &&
+              req.phone_number !== null &&
+              req.otp !== undefined &&
+              req.otp !== null
+            ) {
+              req.phone_number = req.phone_number.replace("+", "").trim(); //Critical, should only contain digits
+
+              new Promise((res0) => {
+                if (/^unregistered$/i.test(req.user_nature.trim())) {
+                  //Checking for unregistered users
+                  let checkOTP = {
+                    phone_number: { $regex: req.phone_number },
+                    otp: parseInt(req.otp),
                   };
-                  //.
+                  //Check if it exists for this number
+                  collection_OTP_dispatch_map
+                    .find(checkOTP)
+                    .toArray(function (error, result) {
+                      if (error) {
+                        res0({ response: "error_checking_otp" });
+                      }
+                      //...
+                      if (result.length > 0) {
+                        //True OTP
+                        res0({ response: true });
+                      } //Wrong otp
+                      else {
+                        res0({ response: false });
+                      }
+                    });
+                } //Checking for registered user - check the OTP secrets binded to the profile
+                else {
+                  //! Will need the user_fingerprint to be provided.
                   //1. Passengers
                   if (
-                    req.user_nature === undefined ||
-                    req.user_nature === null ||
+                    req.user_nature !== undefined &&
+                    req.user_nature !== null &&
                     /passenger/i.test(req.user_nature)
                   ) {
-                    collectionPassengers_profiles.updateOne(
-                      { user_fingerprint: result.user_fp },
-                      secretData,
-                      function (err, reslt) {
-                        logger.info(err);
-                        res2(true);
-                      }
-                    );
+                    logger.info("Passenger");
+                    let checkOTP = {
+                      phone_number: { $regex: req.phone_number },
+                      "account_verifications.phone_verification_secrets.otp":
+                        parseInt(req.otp),
+                    }; //?Indexed
+                    //Check if it exists for this number
+                    collectionPassengers_profiles
+                      .find(checkOTP)
+                      .toArray(function (error, result) {
+                        if (error) {
+                          res0({ response: "error_checking_otp" });
+                        }
+                        //...
+                        if (result.length > 0) {
+                          //True OTP
+                          res0({ response: true });
+                        } //Wrong otp
+                        else {
+                          res0({ response: true }); //! BUG
+                        }
+                      });
                   } else if (
                     req.user_nature !== undefined &&
                     req.user_nature !== null &&
                     /driver/i.test(req.user_nature)
                   ) {
-                    logger.info("DRIVER HERE DETECCTEDD");
+                    logger.info(req);
                     //2. Drivers
-                    collectionDrivers_profiles.updateOne(
-                      { driver_fingerprint: result.user_fp },
-                      secretData,
-                      function (err, reslt) {
-                        logger.info(err);
-                        res2(true);
-                      }
-                    );
+                    let checkOTP = {
+                      phone_number: { $regex: req.phone_number },
+                      "account_verifications.phone_verification_secrets.otp":
+                        parseInt(req.otp),
+                    };
+                    //Check if it exists for this number
+                    collectionDrivers_profiles
+                      .find(checkOTP)
+                      .toArray(function (error, result) {
+                        if (error) {
+                          logger.info(error);
+                          res0({ response: "error_checking_otp" });
+                        }
+                        //...
+                        if (result.length > 0) {
+                          //True OTP
+                          res0({ response: true });
+                        } //Wrong otp
+                        else {
+                          res0({ response: false });
+                        }
+                      });
                   }
-                })
-                  .then(
-                    () => {
-                      //...
-                      res.send(result);
-                    },
-                    () => {
-                      ///....
-                      res.send(result);
-                    }
-                  )
-                  .catch((error) => {
-                    ///....
-                    res.send(result);
-                  });
-              } else {
-                ///....
-                res.send(result);
-              }
-              //...
-            },
-            (error) => {
-              logger.info(error);
-              res.send({ response: "error_checking_user" });
-            }
-          );
-        } //Error phone number not received
-        else {
-          res.send({ response: "error_phone_number_not_received" });
-        }
-      });
-
-      /**
-       * CHECK THAT THE OTP ENTERED BY THE USER IS CORRECT
-       * Responsible for checking that the otp entered by the user matches the one generated.
-       */
-      app.get("/checkSMSOTPTruly", function (req, res) {
-        resolveDate();
-        let params = urlParser.parse(req.url, true);
-        req = params.query;
-
-        if (
-          req.phone_number !== undefined &&
-          req.phone_number !== null &&
-          req.otp !== undefined &&
-          req.otp !== null
-        ) {
-          req.phone_number = req.phone_number.replace("+", "").trim(); //Critical, should only contain digits
-
-          new Promise((res0) => {
-            if (/^unregistered$/i.test(req.user_nature.trim())) {
-              //Checking for unregistered users
-              let checkOTP = {
-                phone_number: { $regex: req.phone_number },
-                otp: parseInt(req.otp),
-              };
-              //Check if it exists for this number
-              collection_OTP_dispatch_map
-                .find(checkOTP)
-                .toArray(function (error, result) {
-                  if (error) {
-                    res0({ response: "error_checking_otp" });
-                  }
-                  //...
-                  if (result.length > 0) {
-                    //True OTP
-                    res0({ response: true });
-                  } //Wrong otp
-                  else {
-                    res0({ response: false });
-                  }
-                });
-            } //Checking for registered user - check the OTP secrets binded to the profile
-            else {
-              //! Will need the user_fingerprint to be provided.
-              //1. Passengers
-              if (
-                req.user_nature !== undefined &&
-                req.user_nature !== null &&
-                /passenger/i.test(req.user_nature)
-              ) {
-                logger.info("Passenger");
-                let checkOTP = {
-                  phone_number: { $regex: req.phone_number },
-                  "account_verifications.phone_verification_secrets.otp":
-                    parseInt(req.otp),
-                }; //?Indexed
-                //Check if it exists for this number
-                collectionPassengers_profiles
-                  .find(checkOTP)
-                  .toArray(function (error, result) {
-                    if (error) {
-                      res0({ response: "error_checking_otp" });
-                    }
-                    //...
-                    if (result.length > 0) {
-                      //True OTP
-                      res0({ response: true });
-                    } //Wrong otp
-                    else {
-                      res0({ response: true }); //! BUG
-                    }
-                  });
-              } else if (
-                req.user_nature !== undefined &&
-                req.user_nature !== null &&
-                /driver/i.test(req.user_nature)
-              ) {
-                logger.info(req);
-                //2. Drivers
-                let checkOTP = {
-                  phone_number: { $regex: req.phone_number },
-                  "account_verifications.phone_verification_secrets.otp":
-                    parseInt(req.otp),
-                };
-                //Check if it exists for this number
-                collectionDrivers_profiles
-                  .find(checkOTP)
-                  .toArray(function (error, result) {
-                    if (error) {
-                      logger.info(error);
-                      res0({ response: "error_checking_otp" });
-                    }
-                    //...
-                    if (result.length > 0) {
-                      //True OTP
-                      res0({ response: true });
-                    } //Wrong otp
-                    else {
-                      res0({ response: false });
-                    }
-                  });
-              }
-            }
-          }).then(
-            (reslt) => {
-              res.send(reslt);
-            },
-            (error) => {
-              res.send({ response: "error_checking_otp" });
-            }
-          );
-        } //Error - missing details
-        else {
-          res.send({ response: "error_checking_otp" });
-        }
-      });
-
-      /**
-       * CREATE A NEW ACCOUNT - RIDER
-       * Responsible for creating a minimal rider account with only the phone number as an argument.
-       */
-      app.get("/createMinimalRiderAccount", function (req, res) {
-        resolveDate();
-        let params = urlParser.parse(req.url, true);
-        req = params.query;
-
-        if (req.phone_number !== undefined && req.phone_number !== null) {
-          new Promise((res0) => {
-            //Generate fingerprint: phone number + date
-            new Promise((res1) => {
-              generateUniqueFingerprint(
-                req.phone_number + chaineDateUTC,
-                false,
-                res1
-              );
-            }).then(
-              (user_fingerprint) => {
-                let minimalAccount = {
-                  name: "User",
-                  surname: "",
-                  gender: "Unknown",
-                  user_fingerprint: user_fingerprint,
-                  phone_number: /^\+/.test(req.phone_number)
-                    ? req.phone_number
-                    : "+" + req.phone_number.trim(),
-                  email: false,
-                  password: false,
-                  account_state: "minimal", //The state of the account in terms of it's creation: minimal or full
-                  media: {
-                    profile_picture: "user.png",
-                  },
-                  account_verifications: {
-                    is_accountVerified: true, //Account already checked
-                    is_policies_accepted: true, //Terms and conditions implicitly accepted
-                  },
-                  pushnotif_token:
-                    req.pushnotif_token !== undefined &&
-                    req.pushnotif_token !== null
-                      ? decodeURIComponent(req.pushnotif_token)
-                      : false,
-                  last_updated: {
-                    date: new Date(chaineDateUTC),
-                  },
-                  date_registered: {
-                    date: new Date(chaineDateUTC),
-                  },
-                };
-                logger.info(minimalAccount);
-                //..
-                collectionPassengers_profiles.insertOne(
-                  minimalAccount,
-                  function (error, result) {
-                    if (error) {
-                      res0({ response: "error_creating_account" });
-                    }
-                    //...Send back the status and fingerprint
-                    res0({
-                      response: "successfully_created",
-                      user_fp: user_fingerprint,
-                    });
-                  }
-                );
-              },
-              (error) => {
-                res0({ response: "error_creating_account" });
-              }
-            );
-          }).then(
-            (result) => {
-              res.send(result);
-            },
-            (error) => {
-              logger.info(error);
-              res.send({ response: "error_creating_account" });
-            }
-          );
-        } //Error - missing details
-        else {
-          res.send({ response: "error_creating_account" });
-        }
-      });
-
-      /**
-       * UDPATE ADDITIONAL DETAILS WHILE CREATING ACCOUNT - RIDER
-       * Responsible for updating the rider's profile with the additional profile infos (name, gender and email)
-       */
-      app.get("/updateAdditionalProfileData_newAccount", function (req, res) {
-        resolveDate();
-        let params = urlParser.parse(req.url, true);
-        req = params.query;
-
-        logger.info(req);
-
-        if (
-          req.user_fingerprint !== undefined &&
-          req.user_fingerprint !== null &&
-          req.name !== undefined &&
-          req.name !== null &&
-          req.gender !== undefined &&
-          req.gender !== null &&
-          req.email !== undefined &&
-          req.email !== null
-        ) {
-          req.email = req.email.toLowerCase().trim();
-          req.name = req.name.trim();
-          //? Split name and surnamme
-          let nameHolder = req.name.split(" ");
-          req.name = nameHolder[0].trim();
-          req.surname = nameHolder.slice(1, 5).join(" ").trim();
-          //..
-          try {
-            new Promise((res0) => {
-              let findProfile = {
-                user_fingerprint: req.user_fingerprint,
-              };
-              let updateProfile = {
-                $set: {
-                  name: req.name,
-                  email: req.email,
-                  gender: req.gender,
-                  account_state: "full", //! ADDD ACCOUNT STATE - full
-                  last_updated: new Date(chaineDateUTC),
+                }
+              }).then(
+                (reslt) => {
+                  res.send(reslt);
                 },
-              };
-              //Update
-              collectionPassengers_profiles.updateOne(
-                findProfile,
-                updateProfile,
-                function (error, result) {
-                  if (error) {
-                    logger.info(error);
-                    res0({
-                      response:
-                        "error_adding_additional_profile_details_new_account",
-                    });
-                  }
-                  //Get the profile details
-                  collectionPassengers_profiles
-                    .find(findProfile)
-                    .toArray(function (err, riderProfile) {
-                      if (err) {
-                        logger.info(err);
-                        res0({
-                          response:
-                            "error_adding_additional_profile_details_new_account",
-                        });
-                      }
-                      logger.info(riderProfile);
-                      //...
-                      if (riderProfile.length > 0) {
-                        //Found something
-                        res0({
-                          response: "updated",
-                          user_fp: riderProfile[0].user_fingerprint,
-                          name: riderProfile[0].name,
-                          surname: riderProfile[0].surname,
-                          gender: riderProfile[0].gender,
-                          phone_number: riderProfile[0].phone_number,
-                          email: riderProfile[0].email,
-                          account_state: "full", //!VERY IMPORTANT - MARK ACCOUNT CREATION STATE AS FULL - to avoid redirection to complete details screen.
-                          profile_picture: `${process.env.AWS_S3_RIDERS_PROFILE_PICTURES_PATH}/${riderProfile[0].media.profile_picture}`,
-                          pushnotif_token: riderProfile[0].pushnotif_token,
-                        });
-                      } //Error finding profile
-                      else {
-                        res0({
-                          response:
-                            "error_adding_additional_profile_details_new_account",
-                        });
-                      }
-                    });
+                (error) => {
+                  res.send({ response: "error_checking_otp" });
                 }
               );
-            }).then(
-              (result) => {
-                res.send(result);
-              },
-              (error) => {
-                logger.info(error);
+            } //Error - missing details
+            else {
+              res.send({ response: "error_checking_otp" });
+            }
+          });
+
+          /**
+           * CREATE A NEW ACCOUNT - RIDER
+           * Responsible for creating a minimal rider account with only the phone number as an argument.
+           */
+          app.get("/createMinimalRiderAccount", function (req, res) {
+            resolveDate();
+            let params = urlParser.parse(req.url, true);
+            req = params.query;
+
+            if (req.phone_number !== undefined && req.phone_number !== null) {
+              new Promise((res0) => {
+                //Generate fingerprint: phone number + date
+                new Promise((res1) => {
+                  generateUniqueFingerprint(
+                    req.phone_number + chaineDateUTC,
+                    false,
+                    res1
+                  );
+                }).then(
+                  (user_fingerprint) => {
+                    let minimalAccount = {
+                      name: "User",
+                      surname: "",
+                      gender: "Unknown",
+                      user_fingerprint: user_fingerprint,
+                      phone_number: /^\+/.test(req.phone_number)
+                        ? req.phone_number
+                        : "+" + req.phone_number.trim(),
+                      email: false,
+                      password: false,
+                      account_state: "minimal", //The state of the account in terms of it's creation: minimal or full
+                      media: {
+                        profile_picture: "user.png",
+                      },
+                      account_verifications: {
+                        is_accountVerified: true, //Account already checked
+                        is_policies_accepted: true, //Terms and conditions implicitly accepted
+                      },
+                      pushnotif_token:
+                        req.pushnotif_token !== undefined &&
+                        req.pushnotif_token !== null
+                          ? decodeURIComponent(req.pushnotif_token)
+                          : false,
+                      last_updated: {
+                        date: new Date(chaineDateUTC),
+                      },
+                      date_registered: {
+                        date: new Date(chaineDateUTC),
+                      },
+                    };
+                    logger.info(minimalAccount);
+                    //..
+                    collectionPassengers_profiles.insertOne(
+                      minimalAccount,
+                      function (error, result) {
+                        if (error) {
+                          res0({ response: "error_creating_account" });
+                        }
+                        //...Send back the status and fingerprint
+                        res0({
+                          response: "successfully_created",
+                          user_fp: user_fingerprint,
+                        });
+                      }
+                    );
+                  },
+                  (error) => {
+                    res0({ response: "error_creating_account" });
+                  }
+                );
+              }).then(
+                (result) => {
+                  res.send(result);
+                },
+                (error) => {
+                  logger.info(error);
+                  res.send({ response: "error_creating_account" });
+                }
+              );
+            } //Error - missing details
+            else {
+              res.send({ response: "error_creating_account" });
+            }
+          });
+
+          /**
+           * UDPATE ADDITIONAL DETAILS WHILE CREATING ACCOUNT - RIDER
+           * Responsible for updating the rider's profile with the additional profile infos (name, gender and email)
+           */
+          app.get(
+            "/updateAdditionalProfileData_newAccount",
+            function (req, res) {
+              resolveDate();
+              let params = urlParser.parse(req.url, true);
+              req = params.query;
+
+              logger.info(req);
+
+              if (
+                req.user_fingerprint !== undefined &&
+                req.user_fingerprint !== null &&
+                req.name !== undefined &&
+                req.name !== null &&
+                req.gender !== undefined &&
+                req.gender !== null &&
+                req.email !== undefined &&
+                req.email !== null
+              ) {
+                req.email = req.email.toLowerCase().trim();
+                req.name = req.name.trim();
+                //? Split name and surnamme
+                let nameHolder = req.name.split(" ");
+                req.name = nameHolder[0].trim();
+                req.surname = nameHolder.slice(1, 5).join(" ").trim();
+                //..
+                try {
+                  new Promise((res0) => {
+                    let findProfile = {
+                      user_fingerprint: req.user_fingerprint,
+                    };
+                    let updateProfile = {
+                      $set: {
+                        name: req.name,
+                        email: req.email,
+                        gender: req.gender,
+                        account_state: "full", //! ADDD ACCOUNT STATE - full
+                        last_updated: new Date(chaineDateUTC),
+                      },
+                    };
+                    //Update
+                    collectionPassengers_profiles.updateOne(
+                      findProfile,
+                      updateProfile,
+                      function (error, result) {
+                        if (error) {
+                          logger.info(error);
+                          res0({
+                            response:
+                              "error_adding_additional_profile_details_new_account",
+                          });
+                        }
+                        //Get the profile details
+                        collectionPassengers_profiles
+                          .find(findProfile)
+                          .toArray(function (err, riderProfile) {
+                            if (err) {
+                              logger.info(err);
+                              res0({
+                                response:
+                                  "error_adding_additional_profile_details_new_account",
+                              });
+                            }
+                            logger.info(riderProfile);
+                            //...
+                            if (riderProfile.length > 0) {
+                              //Found something
+                              res0({
+                                response: "updated",
+                                user_fp: riderProfile[0].user_fingerprint,
+                                name: riderProfile[0].name,
+                                surname: riderProfile[0].surname,
+                                gender: riderProfile[0].gender,
+                                phone_number: riderProfile[0].phone_number,
+                                email: riderProfile[0].email,
+                                account_state: "full", //!VERY IMPORTANT - MARK ACCOUNT CREATION STATE AS FULL - to avoid redirection to complete details screen.
+                                profile_picture: `${process.env.AWS_S3_RIDERS_PROFILE_PICTURES_PATH}/${riderProfile[0].media.profile_picture}`,
+                                pushnotif_token:
+                                  riderProfile[0].pushnotif_token,
+                              });
+                            } //Error finding profile
+                            else {
+                              res0({
+                                response:
+                                  "error_adding_additional_profile_details_new_account",
+                              });
+                            }
+                          });
+                      }
+                    );
+                  }).then(
+                    (result) => {
+                      res.send(result);
+                    },
+                    (error) => {
+                      logger.info(error);
+                      res.send({
+                        response:
+                          "error_adding_additional_profile_details_new_account",
+                      });
+                    }
+                  );
+                } catch (error) {
+                  logger.info(error);
+                  res.send({
+                    response:
+                      "error_adding_additional_profile_details_new_account",
+                  });
+                }
+              }
+              //Error - missing details
+              else {
+                logger.info("missing details");
                 res.send({
                   response:
                     "error_adding_additional_profile_details_new_account",
                 });
               }
-            );
-          } catch (error) {
-            logger.info(error);
-            res.send({
-              response: "error_adding_additional_profile_details_new_account",
-            });
-          }
-        }
-        //Error - missing details
-        else {
-          logger.info("missing details");
-          res.send({
-            response: "error_adding_additional_profile_details_new_account",
+            }
+          );
+
+          /**
+           * GET RIDES HISTORY FOR THE RIDERS
+           * Responsible for getting different rides to mainly display in the "Your rides" tab for riders (or drivers?)
+           * Past, Scheduled or Business
+           * Targeted requests are very usefull when it comes to fetch more details about a SPECIFIC ride (ride fp required!)
+           * ride_type: Past (already completed - can include scheduled), Scheduled (upcoming) or Business (with business flag)
+           * LIMIT: last 50 rides
+           */
+          app.get("/getRides_historyRiders", function (req, res) {
+            resolveDate();
+            let params = urlParser.parse(req.url, true);
+            req = params.query;
+            logger.info(req);
+
+            if (
+              req.user_fingerprint !== undefined &&
+              req.user_fingerprint !== null
+            ) {
+              //Valid
+              if (
+                req.target !== undefined &&
+                req.target !== null &&
+                req.request_fp !== undefined &&
+                req.request_fp !== null
+              ) {
+                //Targeted request
+                new Promise((res0) => {
+                  getBachRidesHistory(
+                    req,
+                    collectionRidesDeliveryData,
+                    collectionDrivers_profiles,
+                    res0
+                  );
+                }).then(
+                  (result) => {
+                    logger.info(result);
+                    res.send(result);
+                  },
+                  (error) => {
+                    logger.info(error);
+                    res.send({ response: "error_authentication_failed" });
+                  }
+                );
+              } else if (
+                req.ride_type !== undefined &&
+                req.ride_type !== null
+              ) {
+                //Batch request - history request
+                new Promise((res0) => {
+                  getBachRidesHistory(
+                    req,
+                    collectionRidesDeliveryData,
+                    collectionDrivers_profiles,
+                    res0
+                  );
+                }).then(
+                  (result) => {
+                    logger.info(result);
+                    res.send(result);
+                  },
+                  (error) => {
+                    logger.info(error);
+                    res.send({ response: "error_authentication_failed" });
+                  }
+                );
+              } //Invalid data
+              else {
+                res.send({ response: "error_authentication_failed" });
+              }
+            } //Invalid data
+            else {
+              res.send({ response: "error_authentication_failed" });
+            }
           });
-        }
-      });
 
-      /**
-       * GET RIDES HISTORY FOR THE RIDERS
-       * Responsible for getting different rides to mainly display in the "Your rides" tab for riders (or drivers?)
-       * Past, Scheduled or Business
-       * Targeted requests are very usefull when it comes to fetch more details about a SPECIFIC ride (ride fp required!)
-       * ride_type: Past (already completed - can include scheduled), Scheduled (upcoming) or Business (with business flag)
-       * LIMIT: last 50 rides
-       */
-      app.get("/getRides_historyRiders", function (req, res) {
-        resolveDate();
-        let params = urlParser.parse(req.url, true);
-        req = params.query;
-        logger.info(req);
+          /**
+           * COMPUTE DAILY REQUESTS AMMOUNT FOR DRIVERS
+           * Responsible for getting the daily amount made so far by the driver for exactly all the completed requests.
+           */
+          app.get("/computeDaily_amountMadeSoFar", function (req, res) {
+            new Promise((resMAIN) => {
+              resolveDate();
+              let params = urlParser.parse(req.url, true);
+              req = params.query;
 
-        if (
-          req.user_fingerprint !== undefined &&
-          req.user_fingerprint !== null
-        ) {
-          //Valid
-          if (
-            req.target !== undefined &&
-            req.target !== null &&
-            req.request_fp !== undefined &&
-            req.request_fp !== null
-          ) {
-            //Targeted request
-            new Promise((res0) => {
-              getBachRidesHistory(
-                req,
-                collectionRidesDeliveryData,
-                collectionDrivers_profiles,
-                res0
-              );
-            }).then(
-              (result) => {
-                logger.info(result);
-                res.send(result);
-              },
-              (error) => {
-                logger.info(error);
-                res.send({ response: "error_authentication_failed" });
-              }
-            );
-          } else if (req.ride_type !== undefined && req.ride_type !== null) {
-            //Batch request - history request
-            new Promise((res0) => {
-              getBachRidesHistory(
-                req,
-                collectionRidesDeliveryData,
-                collectionDrivers_profiles,
-                res0
-              );
-            }).then(
-              (result) => {
-                logger.info(result);
-                res.send(result);
-              },
-              (error) => {
-                logger.info(error);
-                res.send({ response: "error_authentication_failed" });
-              }
-            );
-          } //Invalid data
-          else {
-            res.send({ response: "error_authentication_failed" });
-          }
-        } //Invalid data
-        else {
-          res.send({ response: "error_authentication_failed" });
-        }
-      });
-
-      /**
-       * COMPUTE DAILY REQUESTS AMMOUNT FOR DRIVERS
-       * Responsible for getting the daily amount made so far by the driver for exactly all the completed requests.
-       */
-      app.get("/computeDaily_amountMadeSoFar", function (req, res) {
-        new Promise((resMAIN) => {
-          resolveDate();
-          let params = urlParser.parse(req.url, true);
-          req = params.query;
-
-          if (
-            req.driver_fingerprint !== undefined &&
-            req.driver_fingerprint !== null
-          ) {
-            new Promise((res0) => {
-              getDaily_requestAmount_driver(
-                collectionRidesDeliveryData,
-                collectionDrivers_profiles,
-                req.driver_fingerprint,
-                req.avoidCached_data !== undefined &&
-                  req.avoidCached_data !== null
-                  ? true
-                  : false,
-                res0
-              );
-            }).then(
-              (result) => {
-                resMAIN(result);
-              },
-              (error) => {
-                logger.info(error);
+              if (
+                req.driver_fingerprint !== undefined &&
+                req.driver_fingerprint !== null
+              ) {
+                new Promise((res0) => {
+                  getDaily_requestAmount_driver(
+                    collectionRidesDeliveryData,
+                    collectionDrivers_profiles,
+                    req.driver_fingerprint,
+                    req.avoidCached_data !== undefined &&
+                      req.avoidCached_data !== null
+                      ? true
+                      : false,
+                    res0
+                  );
+                }).then(
+                  (result) => {
+                    resMAIN(result);
+                  },
+                  (error) => {
+                    logger.info(error);
+                    resMAIN({
+                      amount: 0,
+                      currency: "NAD",
+                      currency_symbol: "N$",
+                      supported_requests_types: "none",
+                      response: "error",
+                    });
+                  }
+                );
+              } //Error
+              else {
                 resMAIN({
                   amount: 0,
                   currency: "NAD",
@@ -5088,295 +5125,351 @@ redisCluster.on("connect", function () {
                   response: "error",
                 });
               }
-            );
-          } //Error
-          else {
-            resMAIN({
-              amount: 0,
-              currency: "NAD",
-              currency_symbol: "N$",
-              supported_requests_types: "none",
-              response: "error",
-            });
-          }
-        })
-          .then(
-            (result) => {
-              res.send(result);
-            },
-            (error) => {
-              logger.info(error);
-              res.send({
-                amount: 0,
-                currency: "NAD",
-                currency_symbol: "N$",
-                supported_requests_types: "none",
-                response: "error",
-              });
-            }
-          )
-          .catch((error) => {
-            logger.info(error);
-            res.send({
-              amount: 0,
-              currency: "NAD",
-              currency_symbol: "N$",
-              supported_requests_types: "none",
-              response: "error",
-            });
-          });
-      });
-
-      /**
-       * Go ONLINE/OFFLINE FOR DRIVERS
-       * Responsible for going online or offline for drivers / or getting the operational status of drivers (online/offline).
-       * ! Use Caching
-       * @param driver_fingerprint
-       * @param state: online or offline
-       */
-      app.get("/goOnline_offlineDrivers", function (req, res) {
-        new Promise((resMAIN) => {
-          resolveDate();
-          let params = urlParser.parse(req.url, true);
-          req = params.query;
-          let redisKey = "offline_online_status-" + req.driver_fingerprint;
-
-          if (
-            req.driver_fingerprint !== undefined &&
-            req.driver_fingerprint !== null &&
-            req.action !== undefined &&
-            req.action !== null &&
-            req.state !== undefined &&
-            req.state !== null
-          ) {
-            if (/make/i.test(req.action)) {
-              //Found a driver
-              let updateData = {
-                $set: {
-                  "operational_state.status": /online/i.test(req.state)
-                    ? "online"
-                    : "offline",
-                },
-              };
-              //Make a modification
-              //Valid data received
-              new Promise((res0) => {
-                //Check the driver
-                collectionDrivers_profiles
-                  .find({ driver_fingerprint: req.driver_fingerprint })
-                  .toArray(function (err, driverData) {
-                    if (err) {
-                      res0({ response: "error_invalid_request" });
-                    }
-                    //...
-                    if (driverData.length > 0) {
-                      //! GET THE SUSPENSION INFOS
-                      let suspensionInfos = {
-                        is_suspended:
-                          driverData[0].isDriverSuspended !== undefined &&
-                          driverData[0].isDriverSuspended !== null
-                            ? driverData[0].isDriverSuspended
-                            : false,
-                        message:
-                          driverData[0].suspension_infos !== undefined &&
-                          driverData[0].suspension_infos !== null
-                            ? /UNPAID_COMISSION/i.test(
-                                driverData[0].suspension_infos[
-                                  driverData[0].suspension_infos.length - 1
-                                ].reason
-                              )
-                              ? `Your account has been suspended to an overdue TaxiConnect commission.`
-                              : false
-                            : false,
-                      };
-                      //! ------------------------
-                      //Check if the driver has an active request - NOT LOG OUT WITH AN ACTIVE REQUEST
-                      let checkActiveRequests = {
-                        taxi_id: req.driver_fingerprint,
-                        "ride_state_vars.isAccepted": true,
-                        "ride_state_vars.isRideCompleted_driverSide": false,
-                      };
-                      //check
-                      collectionRidesDeliveryData
-                        .find(checkActiveRequests)
-                        .toArray(function (err, currentActiveRequests) {
-                          if (err) {
-                            res0({ response: "error_invalid_request" });
-                          }
-                          //...
-                          if (/offline/i.test(req.state)) {
-                            //Only if the driver wants to go out
-                            if (currentActiveRequests.length <= 0) {
-                              //No active requests - proceed
-                              collectionDrivers_profiles.updateOne(
-                                { driver_fingerprint: req.driver_fingerprint },
-                                updateData,
-                                function (err, reslt) {
-                                  if (err) {
-                                    res0({ response: "error_invalid_request" });
-                                  }
-                                  //...
-                                  //Save the going offline event
-                                  new Promise((res) => {
-                                    collectionGlobalEvents.insertOne({
-                                      event_name:
-                                        "driver_switching_status_request",
-                                      status: /online/i.test(req.state)
-                                        ? "online"
-                                        : "offline",
-                                      driver_fingerprint:
-                                        req.driver_fingerprint,
-                                      date: new Date(chaineDateUTC),
-                                    });
-                                    res(true);
-                                  }).then(
-                                    () => {},
-                                    () => {}
-                                  );
-                                  //? Update the cache
-                                  new Promise((resGetStatus) => {
-                                    getDriver_onlineOffline_status(
-                                      req,
-                                      resGetStatus
-                                    );
-                                  })
-                                    .then(
-                                      (result) => {
-                                        //!Cache the result
-                                        redisCluster.setex(
-                                          redisKey,
-                                          parseInt(
-                                            process.env.REDIS_EXPIRATION_5MIN
-                                          ) * 9,
-                                          JSON.stringify(result)
-                                        );
-                                      },
-                                      (error) => {}
-                                    )
-                                    .catch();
-                                  //Done
-                                  res0({
-                                    response: "successfully_done",
-                                    flag: /online/i.test(req.state)
-                                      ? "online"
-                                      : "offline",
-                                    suspension_infos: suspensionInfos,
-                                  });
-                                }
-                              );
-                            } //Has an active request - abort going offline
-                            else {
-                              res0({
-                                response:
-                                  "error_going_offline_activeRequest_inProgress",
-                              });
-                            }
-                          } //If the driver want to go online - proceed
-                          else {
-                            collectionDrivers_profiles.updateOne(
-                              { driver_fingerprint: req.driver_fingerprint },
-                              updateData,
-                              function (err, reslt) {
-                                if (err) {
-                                  res0({ response: "error_invalid_request" });
-                                }
-                                //...
-                                //Save the going offline event
-                                new Promise((res) => {
-                                  collectionGlobalEvents.insertOne({
-                                    event_name:
-                                      "driver_switching_status_request",
-                                    status: /online/i.test(req.state)
-                                      ? "online"
-                                      : "offline",
-                                    driver_fingerprint: req.driver_fingerprint,
-                                    date: new Date(chaineDateUTC),
-                                  });
-                                  res(true);
-                                }).then(
-                                  () => {},
-                                  () => {}
-                                );
-                                //? Update the cache
-                                new Promise((resGetStatus) => {
-                                  getDriver_onlineOffline_status(
-                                    req,
-                                    resGetStatus
-                                  );
-                                })
-                                  .then(
-                                    (result) => {
-                                      //!Cache the result
-                                      redisCluster.setex(
-                                        redisKey,
-                                        parseInt(
-                                          process.env.REDIS_EXPIRATION_5MIN
-                                        ) * 9,
-                                        JSON.stringify(result)
-                                      );
-                                    },
-                                    (error) => {}
-                                  )
-                                  .catch();
-                                //Done
-                                res0({
-                                  response: "successfully_done",
-                                  flag: /online/i.test(req.state)
-                                    ? "online"
-                                    : "offline",
-                                  suspension_infos: suspensionInfos,
-                                });
-                              }
-                            );
-                          }
-                        });
-                    } //Error - unknown driver
-                    else {
-                      res0({ response: "error_invalid_request" });
-                    }
-                  });
-              }).then(
+            })
+              .then(
                 (result) => {
-                  resMAIN(result);
+                  res.send(result);
                 },
                 (error) => {
                   logger.info(error);
-                  resMAIN({ response: "error_invalid_request" });
+                  res.send({
+                    amount: 0,
+                    currency: "NAD",
+                    currency_symbol: "N$",
+                    supported_requests_types: "none",
+                    response: "error",
+                  });
                 }
-              );
-            } else if (/get/i.test(req.action)) {
-              /*resMAIN({
-              response: "successfully_got",
-              flag: "online",
-              //suspension_infos: { is_suspended: false },
-            });*/
-              //Check the cache first
-              redisGet(redisKey).then(
-                (resp) => {
-                  if (resp !== null) {
-                    try {
-                      new Promise((resGetStatus) => {
-                        getDriver_onlineOffline_status(req, resGetStatus);
-                      })
-                        .then(
-                          (result) => {
-                            //!Cache the result
-                            redisCluster.setex(
-                              redisKey,
-                              parseInt(process.env.REDIS_EXPIRATION_5MIN) * 9,
-                              JSON.stringify(result)
-                            );
-                          },
-                          (error) => {
+              )
+              .catch((error) => {
+                logger.info(error);
+                res.send({
+                  amount: 0,
+                  currency: "NAD",
+                  currency_symbol: "N$",
+                  supported_requests_types: "none",
+                  response: "error",
+                });
+              });
+          });
+
+          /**
+           * Go ONLINE/OFFLINE FOR DRIVERS
+           * Responsible for going online or offline for drivers / or getting the operational status of drivers (online/offline).
+           * ! Use Caching
+           * @param driver_fingerprint
+           * @param state: online or offline
+           */
+          app.get("/goOnline_offlineDrivers", function (req, res) {
+            new Promise((resMAIN) => {
+              resolveDate();
+              let params = urlParser.parse(req.url, true);
+              req = params.query;
+              let redisKey = "offline_online_status-" + req.driver_fingerprint;
+
+              if (
+                req.driver_fingerprint !== undefined &&
+                req.driver_fingerprint !== null &&
+                req.action !== undefined &&
+                req.action !== null &&
+                req.state !== undefined &&
+                req.state !== null
+              ) {
+                if (/make/i.test(req.action)) {
+                  //Found a driver
+                  let updateData = {
+                    $set: {
+                      "operational_state.status": /online/i.test(req.state)
+                        ? "online"
+                        : "offline",
+                    },
+                  };
+                  //Make a modification
+                  //Valid data received
+                  new Promise((res0) => {
+                    //Check the driver
+                    collectionDrivers_profiles
+                      .find({ driver_fingerprint: req.driver_fingerprint })
+                      .toArray(function (err, driverData) {
+                        if (err) {
+                          res0({ response: "error_invalid_request" });
+                        }
+                        //...
+                        if (driverData.length > 0) {
+                          //! GET THE SUSPENSION INFOS
+                          let suspensionInfos = {
+                            is_suspended:
+                              driverData[0].isDriverSuspended !== undefined &&
+                              driverData[0].isDriverSuspended !== null
+                                ? driverData[0].isDriverSuspended
+                                : false,
+                            message:
+                              driverData[0].suspension_infos !== undefined &&
+                              driverData[0].suspension_infos !== null
+                                ? /UNPAID_COMISSION/i.test(
+                                    driverData[0].suspension_infos[
+                                      driverData[0].suspension_infos.length - 1
+                                    ].reason
+                                  )
+                                  ? `Your account has been suspended to an overdue TaxiConnect commission.`
+                                  : false
+                                : false,
+                          };
+                          //! ------------------------
+                          //Check if the driver has an active request - NOT LOG OUT WITH AN ACTIVE REQUEST
+                          let checkActiveRequests = {
+                            taxi_id: req.driver_fingerprint,
+                            "ride_state_vars.isAccepted": true,
+                            "ride_state_vars.isRideCompleted_driverSide": false,
+                          };
+                          //check
+                          collectionRidesDeliveryData
+                            .find(checkActiveRequests)
+                            .toArray(function (err, currentActiveRequests) {
+                              if (err) {
+                                res0({ response: "error_invalid_request" });
+                              }
+                              //...
+                              if (/offline/i.test(req.state)) {
+                                //Only if the driver wants to go out
+                                if (currentActiveRequests.length <= 0) {
+                                  //No active requests - proceed
+                                  collectionDrivers_profiles.updateOne(
+                                    {
+                                      driver_fingerprint:
+                                        req.driver_fingerprint,
+                                    },
+                                    updateData,
+                                    function (err, reslt) {
+                                      if (err) {
+                                        res0({
+                                          response: "error_invalid_request",
+                                        });
+                                      }
+                                      //...
+                                      //Save the going offline event
+                                      new Promise((res) => {
+                                        collectionGlobalEvents.insertOne({
+                                          event_name:
+                                            "driver_switching_status_request",
+                                          status: /online/i.test(req.state)
+                                            ? "online"
+                                            : "offline",
+                                          driver_fingerprint:
+                                            req.driver_fingerprint,
+                                          date: new Date(chaineDateUTC),
+                                        });
+                                        res(true);
+                                      }).then(
+                                        () => {},
+                                        () => {}
+                                      );
+                                      //? Update the cache
+                                      new Promise((resGetStatus) => {
+                                        getDriver_onlineOffline_status(
+                                          req,
+                                          resGetStatus
+                                        );
+                                      })
+                                        .then(
+                                          (result) => {
+                                            //!Cache the result
+                                            redisCluster.setex(
+                                              redisKey,
+                                              parseInt(
+                                                process.env
+                                                  .REDIS_EXPIRATION_5MIN
+                                              ) * 9,
+                                              JSON.stringify(result)
+                                            );
+                                          },
+                                          (error) => {}
+                                        )
+                                        .catch();
+                                      //Done
+                                      res0({
+                                        response: "successfully_done",
+                                        flag: /online/i.test(req.state)
+                                          ? "online"
+                                          : "offline",
+                                        suspension_infos: suspensionInfos,
+                                      });
+                                    }
+                                  );
+                                } //Has an active request - abort going offline
+                                else {
+                                  res0({
+                                    response:
+                                      "error_going_offline_activeRequest_inProgress",
+                                  });
+                                }
+                              } //If the driver want to go online - proceed
+                              else {
+                                collectionDrivers_profiles.updateOne(
+                                  {
+                                    driver_fingerprint: req.driver_fingerprint,
+                                  },
+                                  updateData,
+                                  function (err, reslt) {
+                                    if (err) {
+                                      res0({
+                                        response: "error_invalid_request",
+                                      });
+                                    }
+                                    //...
+                                    //Save the going offline event
+                                    new Promise((res) => {
+                                      collectionGlobalEvents.insertOne({
+                                        event_name:
+                                          "driver_switching_status_request",
+                                        status: /online/i.test(req.state)
+                                          ? "online"
+                                          : "offline",
+                                        driver_fingerprint:
+                                          req.driver_fingerprint,
+                                        date: new Date(chaineDateUTC),
+                                      });
+                                      res(true);
+                                    }).then(
+                                      () => {},
+                                      () => {}
+                                    );
+                                    //? Update the cache
+                                    new Promise((resGetStatus) => {
+                                      getDriver_onlineOffline_status(
+                                        req,
+                                        resGetStatus
+                                      );
+                                    })
+                                      .then(
+                                        (result) => {
+                                          //!Cache the result
+                                          redisCluster.setex(
+                                            redisKey,
+                                            parseInt(
+                                              process.env.REDIS_EXPIRATION_5MIN
+                                            ) * 9,
+                                            JSON.stringify(result)
+                                          );
+                                        },
+                                        (error) => {}
+                                      )
+                                      .catch();
+                                    //Done
+                                    res0({
+                                      response: "successfully_done",
+                                      flag: /online/i.test(req.state)
+                                        ? "online"
+                                        : "offline",
+                                      suspension_infos: suspensionInfos,
+                                    });
+                                  }
+                                );
+                              }
+                            });
+                        } //Error - unknown driver
+                        else {
+                          res0({ response: "error_invalid_request" });
+                        }
+                      });
+                  }).then(
+                    (result) => {
+                      resMAIN(result);
+                    },
+                    (error) => {
+                      logger.info(error);
+                      resMAIN({ response: "error_invalid_request" });
+                    }
+                  );
+                } else if (/get/i.test(req.action)) {
+                  /*resMAIN({
+                  response: "successfully_got",
+                  flag: "online",
+                  //suspension_infos: { is_suspended: false },
+                });*/
+                  //Check the cache first
+                  redisGet(redisKey).then(
+                    (resp) => {
+                      if (resp !== null) {
+                        try {
+                          new Promise((resGetStatus) => {
+                            getDriver_onlineOffline_status(req, resGetStatus);
+                          })
+                            .then(
+                              (result) => {
+                                //!Cache the result
+                                redisCluster.setex(
+                                  redisKey,
+                                  parseInt(process.env.REDIS_EXPIRATION_5MIN) *
+                                    9,
+                                  JSON.stringify(result)
+                                );
+                              },
+                              (error) => {
+                                logger.info(error);
+                              }
+                            )
+                            .catch((error) => {
+                              logger.info(error);
+                            });
+                          //Quickly return result
+                          resMAIN(JSON.parse(resp));
+                        } catch (error) {
+                          new Promise((resGetStatus) => {
+                            getDriver_onlineOffline_status(req, resGetStatus);
+                          })
+                            .then(
+                              (result) => {
+                                //!Cache the result
+                                redisCluster.setex(
+                                  redisKey,
+                                  parseInt(process.env.REDIS_EXPIRATION_5MIN) *
+                                    9,
+                                  JSON.stringify(result)
+                                );
+                                //...
+                                resMAIN(result);
+                              },
+                              (error) => {
+                                logger.info(error);
+                                resMAIN({ response: "error_invalid_request" });
+                              }
+                            )
+                            .catch((error) => {
+                              logger.info(error);
+                              resMAIN({ response: "error_invalid_request" });
+                            });
+                        }
+                      } //Make a fresh request
+                      else {
+                        new Promise((resGetStatus) => {
+                          getDriver_onlineOffline_status(req, resGetStatus);
+                        })
+                          .then(
+                            (result) => {
+                              //!Cache the result
+                              redisCluster.setex(
+                                redisKey,
+                                parseInt(process.env.REDIS_EXPIRATION_5MIN) * 9,
+                                JSON.stringify(result)
+                              );
+                              //...
+                              resMAIN(result);
+                            },
+                            (error) => {
+                              logger.info(error);
+                              resMAIN({ response: "error_invalid_request" });
+                            }
+                          )
+                          .catch((error) => {
                             logger.info(error);
-                          }
-                        )
-                        .catch((error) => {
-                          logger.info(error);
-                        });
-                      //Quickly return result
-                      resMAIN(JSON.parse(resp));
-                    } catch (error) {
+                            resMAIN({ response: "error_invalid_request" });
+                          });
+                      }
+                    },
+                    (error) => {
+                      //Make a fresh request
+                      logger.info(error);
                       new Promise((resGetStatus) => {
                         getDriver_onlineOffline_status(req, resGetStatus);
                       })
@@ -5401,161 +5494,80 @@ redisCluster.on("connect", function () {
                           resMAIN({ response: "error_invalid_request" });
                         });
                     }
-                  } //Make a fresh request
-                  else {
-                    new Promise((resGetStatus) => {
-                      getDriver_onlineOffline_status(req, resGetStatus);
-                    })
-                      .then(
-                        (result) => {
-                          //!Cache the result
-                          redisCluster.setex(
-                            redisKey,
-                            parseInt(process.env.REDIS_EXPIRATION_5MIN) * 9,
-                            JSON.stringify(result)
-                          );
-                          //...
-                          resMAIN(result);
-                        },
-                        (error) => {
-                          logger.info(error);
-                          resMAIN({ response: "error_invalid_request" });
-                        }
-                      )
-                      .catch((error) => {
-                        logger.info(error);
-                        resMAIN({ response: "error_invalid_request" });
-                      });
-                  }
-                },
-                (error) => {
-                  //Make a fresh request
-                  logger.info(error);
-                  new Promise((resGetStatus) => {
-                    getDriver_onlineOffline_status(req, resGetStatus);
-                  })
-                    .then(
-                      (result) => {
-                        //!Cache the result
-                        redisCluster.setex(
-                          redisKey,
-                          parseInt(process.env.REDIS_EXPIRATION_5MIN) * 9,
-                          JSON.stringify(result)
-                        );
-                        //...
-                        resMAIN(result);
-                      },
-                      (error) => {
-                        logger.info(error);
-                        resMAIN({ response: "error_invalid_request" });
-                      }
-                    )
-                    .catch((error) => {
-                      logger.info(error);
-                      resMAIN({ response: "error_invalid_request" });
-                    });
-                }
-              );
-            }
-          } //Invalid data
-          else {
-            resMAIN({
-              response: "successfully_got",
-              flag: "online",
-              suspension_infos: { is_suspended: false },
-            });
-            //resMAIN({ response: "error_invalid_request" });
-          }
-        })
-          .then((result) => {
-            res.send(result);
-          })
-          .catch((error) => {
-            logger.info(error);
-            //res.send({ response: "error_invalid_request" });
-            res.send({
-              response: "successfully_got",
-              flag: "online",
-              suspension_infos: { is_suspended: false },
-            });
-          });
-      });
-
-      /**
-       * COMPUTE WALLET SUMMARY FOR RIDERS
-       * ? Responsible for computing the wallet summary (total and detailed) for the riders.
-       * ! Supports 2 modes: total (will only return the current total wallet balance) or detailed (will return the total amount and the list of all wallet transactions)
-       */
-      app.get("/getRiders_walletInfos", function (req, res) {
-        resolveDate();
-        let params = urlParser.parse(req.url, true);
-        req = params.query;
-
-        if (
-          req.user_fingerprint !== undefined &&
-          req.user_fingerprint !== null &&
-          req.mode !== undefined &&
-          req.mode !== null
-        ) {
-          let regModeLimiter = new RegExp(req.mode, "i"); //Limit data to total balance (total) or total balance+details (detailed)
-          new Promise((resolve) => {
-            getRiders_wallet_summary(
-              req,
-              collectionRidesDeliveryData,
-              collectionWalletTransactions_logs,
-              collectionDrivers_profiles,
-              collectionPassengers_profiles,
-              resolve,
-              req.avoidCached_data !== undefined &&
-                req.avoidCached_data !== null
-                ? true
-                : false,
-              req.userType !== undefined && req.userType !== null
-                ? req.userType
-                : "rider"
-            );
-          }).then(
-            (result) => {
-              try {
-                //! ADD EXCEPTIONS
-                let exceptions_users_to_wallet = [
-                  "5b29bb1b9ac69d884f13fd4be2badcd22b72b98a69189bfab806dcf7c5f5541b6cbe8087cf60c791",
-                  "48aecfa6a98979574c6db8a77fd0a9e09dd4f37b2e4811343c65d31a88c404f46169466ff0e03e46",
-                ];
-                result.wallet_state = exceptions_users_to_wallet.includes(
-                  req.user_fingerprint
-                )
-                  ? "unlocked"
-                  : process.env.USERS_WALLET_STATE;
-                //...
-                let responseHolder = regModeLimiter.test("detailed")
-                  ? result
-                  : result.total !== undefined
-                  ? {
-                      total: result.total,
-                      wallet_state: process.env.USERS_WALLET_STATE,
-                    }
-                  : { total: 0, wallet_state: process.env.USERS_WALLET_STATE };
-                if (
-                  /"transactions\_data"\:"0"/i.test(stringify(responseHolder))
-                ) {
-                  //! No records - send predefined - Major bug fix!
-                  res.send(
-                    regModeLimiter.test("detailed")
-                      ? {
-                          total: 0,
-                          transactions_data: null,
-                          wallet_state: process.env.USERS_WALLET_STATE,
-                        }
-                      : {
-                          total: 0,
-                          wallet_state: process.env.USERS_WALLET_STATE,
-                        }
                   );
-                } //Has some records
-                else {
-                  res.send(
-                    regModeLimiter.test("detailed")
+                }
+              } //Invalid data
+              else {
+                resMAIN({
+                  response: "successfully_got",
+                  flag: "online",
+                  suspension_infos: { is_suspended: false },
+                });
+                //resMAIN({ response: "error_invalid_request" });
+              }
+            })
+              .then((result) => {
+                res.send(result);
+              })
+              .catch((error) => {
+                logger.info(error);
+                //res.send({ response: "error_invalid_request" });
+                res.send({
+                  response: "successfully_got",
+                  flag: "online",
+                  suspension_infos: { is_suspended: false },
+                });
+              });
+          });
+
+          /**
+           * COMPUTE WALLET SUMMARY FOR RIDERS
+           * ? Responsible for computing the wallet summary (total and detailed) for the riders.
+           * ! Supports 2 modes: total (will only return the current total wallet balance) or detailed (will return the total amount and the list of all wallet transactions)
+           */
+          app.get("/getRiders_walletInfos", function (req, res) {
+            resolveDate();
+            let params = urlParser.parse(req.url, true);
+            req = params.query;
+
+            if (
+              req.user_fingerprint !== undefined &&
+              req.user_fingerprint !== null &&
+              req.mode !== undefined &&
+              req.mode !== null
+            ) {
+              let regModeLimiter = new RegExp(req.mode, "i"); //Limit data to total balance (total) or total balance+details (detailed)
+              new Promise((resolve) => {
+                getRiders_wallet_summary(
+                  req,
+                  collectionRidesDeliveryData,
+                  collectionWalletTransactions_logs,
+                  collectionDrivers_profiles,
+                  collectionPassengers_profiles,
+                  resolve,
+                  req.avoidCached_data !== undefined &&
+                    req.avoidCached_data !== null
+                    ? true
+                    : false,
+                  req.userType !== undefined && req.userType !== null
+                    ? req.userType
+                    : "rider"
+                );
+              }).then(
+                (result) => {
+                  try {
+                    //! ADD EXCEPTIONS
+                    let exceptions_users_to_wallet = [
+                      "5b29bb1b9ac69d884f13fd4be2badcd22b72b98a69189bfab806dcf7c5f5541b6cbe8087cf60c791",
+                      "48aecfa6a98979574c6db8a77fd0a9e09dd4f37b2e4811343c65d31a88c404f46169466ff0e03e46",
+                    ];
+                    result.wallet_state = exceptions_users_to_wallet.includes(
+                      req.user_fingerprint
+                    )
+                      ? "unlocked"
+                      : process.env.USERS_WALLET_STATE;
+                    //...
+                    let responseHolder = regModeLimiter.test("detailed")
                       ? result
                       : result.total !== undefined
                       ? {
@@ -5565,839 +5577,893 @@ redisCluster.on("connect", function () {
                       : {
                           total: 0,
                           wallet_state: process.env.USERS_WALLET_STATE,
+                        };
+                    if (
+                      /"transactions\_data"\:"0"/i.test(
+                        stringify(responseHolder)
+                      )
+                    ) {
+                      //! No records - send predefined - Major bug fix!
+                      res.send(
+                        regModeLimiter.test("detailed")
+                          ? {
+                              total: 0,
+                              transactions_data: null,
+                              wallet_state: process.env.USERS_WALLET_STATE,
+                            }
+                          : {
+                              total: 0,
+                              wallet_state: process.env.USERS_WALLET_STATE,
+                            }
+                      );
+                    } //Has some records
+                    else {
+                      res.send(
+                        regModeLimiter.test("detailed")
+                          ? result
+                          : result.total !== undefined
+                          ? {
+                              total: result.total,
+                              wallet_state: process.env.USERS_WALLET_STATE,
+                            }
+                          : {
+                              total: 0,
+                              wallet_state: process.env.USERS_WALLET_STATE,
+                            }
+                      );
+                    }
+                  } catch (error) {
+                    logger.info(error);
+                    res.send(
+                      regModeLimiter.test("detailed")
+                        ? {
+                            total: 0,
+                            transactions_data: null,
+                            wallet_state: process.env.USERS_WALLET_STATE,
+                          }
+                        : {
+                            total: 0,
+                            wallet_state: process.env.USERS_WALLET_STATE,
+                          }
+                    );
+                  }
+                },
+                (error) => {
+                  logger.info(error);
+                  res.send(
+                    regModeLimiter.test("detailed")
+                      ? {
+                          total: 0,
+                          transactions_data: null,
+                          wallet_state: process.env.USERS_WALLET_STATE,
+                        }
+                      : {
+                          total: 0,
+                          wallet_state: process.env.USERS_WALLET_STATE,
                         }
                   );
                 }
-              } catch (error) {
-                logger.info(error);
-                res.send(
-                  regModeLimiter.test("detailed")
-                    ? {
-                        total: 0,
-                        transactions_data: null,
-                        wallet_state: process.env.USERS_WALLET_STATE,
-                      }
-                    : { total: 0, wallet_state: process.env.USERS_WALLET_STATE }
-                );
-              }
-            },
-            (error) => {
-              logger.info(error);
+              );
+            } //Invalid parameters
+            else {
+              let regModeLimiter = new RegExp(req.mode, "i"); //Limit data to total balance (total) or total balance+details (detailed)
               res.send(
                 regModeLimiter.test("detailed")
                   ? {
                       total: 0,
                       transactions_data: null,
+                      response: "error",
+                      tag: "invalid_parameters",
                       wallet_state: process.env.USERS_WALLET_STATE,
                     }
-                  : { total: 0, wallet_state: process.env.USERS_WALLET_STATE }
+                  : {
+                      total: 0,
+                      response: "error",
+                      tag: "invalid_parameters",
+                      wallet_state: process.env.USERS_WALLET_STATE,
+                    }
               );
             }
-          );
-        } //Invalid parameters
-        else {
-          let regModeLimiter = new RegExp(req.mode, "i"); //Limit data to total balance (total) or total balance+details (detailed)
-          res.send(
-            regModeLimiter.test("detailed")
-              ? {
-                  total: 0,
-                  transactions_data: null,
-                  response: "error",
-                  tag: "invalid_parameters",
-                  wallet_state: process.env.USERS_WALLET_STATE,
-                }
-              : {
-                  total: 0,
-                  response: "error",
-                  tag: "invalid_parameters",
-                  wallet_state: process.env.USERS_WALLET_STATE,
-                }
-          );
-        }
-      });
+          });
 
-      /**
-       * COMPUTE THE DETAILED WALLET SUMMARY FOR THE DRIVERS
-       * ? Responsible for computing the wallet summary (total and detailed) for the drivers.
-       */
-      app.get("/getDrivers_walletInfosDeep", function (req, res) {
-        new Promise((resMAIN) => {
-          resolveDate();
-          let params = urlParser.parse(req.url, true);
-          req = params.query;
-          logger.info(req);
+          /**
+           * COMPUTE THE DETAILED WALLET SUMMARY FOR THE DRIVERS
+           * ? Responsible for computing the wallet summary (total and detailed) for the drivers.
+           */
+          app.get("/getDrivers_walletInfosDeep", function (req, res) {
+            new Promise((resMAIN) => {
+              resolveDate();
+              let params = urlParser.parse(req.url, true);
+              req = params.query;
+              logger.info(req);
 
-          if (
-            req.user_fingerprint !== undefined &&
-            req.user_fingerprint !== null
-          ) {
-            let regModeLimiter = new RegExp(req.mode, "i"); //Limit data to total balance (total) or total balance+details (detailed)
+              if (
+                req.user_fingerprint !== undefined &&
+                req.user_fingerprint !== null
+              ) {
+                let regModeLimiter = new RegExp(req.mode, "i"); //Limit data to total balance (total) or total balance+details (detailed)
 
-            new Promise((resCompute) => {
-              let url =
-                `${
-                  /production/i.test(process.env.EVIRONMENT)
-                    ? `http://${process.env.INSTANCE_PRIVATE_IP}`
-                    : process.env.LOCAL_URL
-                }` +
-                ":" +
-                process.env.ACCOUNTS_SERVICE_PORT +
-                "/getRiders_walletInfos?user_fingerprint=" +
-                req.user_fingerprint +
-                "&mode=detailed&userType=driver";
+                new Promise((resCompute) => {
+                  let url =
+                    `${
+                      /production/i.test(process.env.EVIRONMENT)
+                        ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+                        : process.env.LOCAL_URL
+                    }` +
+                    ":" +
+                    process.env.ACCOUNTS_SERVICE_PORT +
+                    "/getRiders_walletInfos?user_fingerprint=" +
+                    req.user_fingerprint +
+                    "&mode=detailed&userType=driver";
 
-              //Add caching strategy if any
-              if (req.avoidCached_data !== undefined) {
-                url += "&avoidCached_data=" + req.avoidCached_data;
-              }
+                  //Add caching strategy if any
+                  if (req.avoidCached_data !== undefined) {
+                    url += "&avoidCached_data=" + req.avoidCached_data;
+                  }
 
-              requestAPI(url, function (error, response, body) {
-                if (error === null) {
-                  try {
-                    body = JSON.parse(body);
-                    if (
-                      body.transactions_data !== null &&
-                      body.transactions_data !== undefined &&
-                      body.transactions_data.length > 0
-                    ) {
-                      //? Has some transaction data
-                      resCompute(body);
-                    } //! No transaction data - return current value
-                    else {
+                  requestAPI(url, function (error, response, body) {
+                    if (error === null) {
+                      try {
+                        body = JSON.parse(body);
+                        if (
+                          body.transactions_data !== null &&
+                          body.transactions_data !== undefined &&
+                          body.transactions_data.length > 0
+                        ) {
+                          //? Has some transaction data
+                          resCompute(body);
+                        } //! No transaction data - return current value
+                        else {
+                          resCompute(
+                            regModeLimiter.test("detailed")
+                              ? {
+                                  total: 0,
+                                  transactions_data: null,
+                                  response: "empty",
+                                  tag: "empty_wallet",
+                                }
+                              : {
+                                  total: 0,
+                                  response: "empty",
+                                  tag: "empty_wallet",
+                                }
+                          );
+                        }
+                      } catch (error) {
+                        resCompute(
+                          regModeLimiter.test("detailed")
+                            ? {
+                                total: 0,
+                                transactions_data: null,
+                                response: "error",
+                                tag: "invalid_parameters",
+                              }
+                            : {
+                                total: 0,
+                                response: "error",
+                                tag: "invalid_parameters",
+                              }
+                        );
+                      }
+                    } else {
                       resCompute(
                         regModeLimiter.test("detailed")
                           ? {
                               total: 0,
                               transactions_data: null,
-                              response: "empty",
-                              tag: "empty_wallet",
+                              response: "error",
+                              tag: "invalid_parameters",
                             }
-                          : { total: 0, response: "empty", tag: "empty_wallet" }
+                          : {
+                              total: 0,
+                              response: "error",
+                              tag: "invalid_parameters",
+                            }
                       );
                     }
-                  } catch (error) {
-                    resCompute(
-                      regModeLimiter.test("detailed")
-                        ? {
-                            total: 0,
-                            transactions_data: null,
-                            response: "error",
-                            tag: "invalid_parameters",
-                          }
-                        : {
-                            total: 0,
-                            response: "error",
-                            tag: "invalid_parameters",
-                          }
-                    );
-                  }
-                } else {
-                  resCompute(
-                    regModeLimiter.test("detailed")
-                      ? {
-                          total: 0,
-                          transactions_data: null,
-                          response: "error",
-                          tag: "invalid_parameters",
-                        }
-                      : {
-                          total: 0,
-                          response: "error",
-                          tag: "invalid_parameters",
-                        }
-                  );
-                }
-              });
-            })
-              .then(
-                (resultWalletdata) => {
-                  //? Final data
-                  new Promise((resGetDeepInsights) => {
-                    let redisKey = `${req.user_fingerprint}-deepWalletData-driver`;
-                    //?computeDriver_walletDeepInsights(walletBasicData, redisKey, avoidCached_data?, resolve)
-                    computeDriver_walletDeepInsights(
-                      resultWalletdata,
-                      collectionWalletTransactions_logs,
-                      req.user_fingerprint,
-                      redisKey,
-                      req.avoidCached_data !== undefined &&
-                        req.avoidCached_data !== null
-                        ? req.avoidCached_data
-                        : false,
-                      resGetDeepInsights
-                    );
-                  })
-                    .then(
-                      (resultInsights) => {
-                        //! Sort the weeks from the biggest week and year to the smallest
-                        resultInsights.weeks_view =
-                          resultInsights.weeks_view !== null &&
-                          resultInsights.weeks_view !== undefined
-                            ? resultInsights.weeks_view.sort((a, b) =>
-                                a.year_number < b.year_number &&
-                                a.week_number < b.year_number
-                                  ? -1
-                                  : 1
-                              )
-                            : resultInsights.weeks_view;
-                        //? Remove the record holder
-                        //? Add transaction data if transactionData=true
-                        res.send(
-                          resultInsights.header !== undefined &&
-                            resultInsights.header !== null
-                            ? req.transactionData !== undefined &&
-                              /true/i.test(req.transactionData)
-                              ? {
-                                  header: resultInsights.header,
-                                  weeks_view: resultInsights.weeks_view,
-                                  transactions_data:
-                                    resultInsights.transactions_data,
-                                }
-                              : {
-                                  header: resultInsights.header,
-                                  weeks_view: resultInsights.weeks_view,
-                                }
-                            : resultInsights
+                  });
+                })
+                  .then(
+                    (resultWalletdata) => {
+                      //? Final data
+                      new Promise((resGetDeepInsights) => {
+                        let redisKey = `${req.user_fingerprint}-deepWalletData-driver`;
+                        //?computeDriver_walletDeepInsights(walletBasicData, redisKey, avoidCached_data?, resolve)
+                        computeDriver_walletDeepInsights(
+                          resultWalletdata,
+                          collectionWalletTransactions_logs,
+                          req.user_fingerprint,
+                          redisKey,
+                          req.avoidCached_data !== undefined &&
+                            req.avoidCached_data !== null
+                            ? req.avoidCached_data
+                            : false,
+                          resGetDeepInsights
                         );
-                      },
-                      (error) => {
-                        logger.info(error);
-                        res.send({
-                          header: null,
-                          weeks_view: null,
-                          response: "error",
+                      })
+                        .then(
+                          (resultInsights) => {
+                            //! Sort the weeks from the biggest week and year to the smallest
+                            resultInsights.weeks_view =
+                              resultInsights.weeks_view !== null &&
+                              resultInsights.weeks_view !== undefined
+                                ? resultInsights.weeks_view.sort((a, b) =>
+                                    a.year_number < b.year_number &&
+                                    a.week_number < b.year_number
+                                      ? -1
+                                      : 1
+                                  )
+                                : resultInsights.weeks_view;
+                            //? Remove the record holder
+                            //? Add transaction data if transactionData=true
+                            res.send(
+                              resultInsights.header !== undefined &&
+                                resultInsights.header !== null
+                                ? req.transactionData !== undefined &&
+                                  /true/i.test(req.transactionData)
+                                  ? {
+                                      header: resultInsights.header,
+                                      weeks_view: resultInsights.weeks_view,
+                                      transactions_data:
+                                        resultInsights.transactions_data,
+                                    }
+                                  : {
+                                      header: resultInsights.header,
+                                      weeks_view: resultInsights.weeks_view,
+                                    }
+                                : resultInsights
+                            );
+                          },
+                          (error) => {
+                            logger.info(error);
+                            res.send({
+                              header: null,
+                              weeks_view: null,
+                              response: "error",
+                            });
+                          }
+                        )
+                        .catch((error) => {
+                          logger.info(error);
+                          res.send({
+                            header: null,
+                            weeks_view: null,
+                            response: "error",
+                          });
                         });
-                      }
-                    )
-                    .catch((error) => {
+                    },
+                    (error) => {
                       logger.info(error);
                       res.send({
                         header: null,
                         weeks_view: null,
                         response: "error",
                       });
+                    }
+                  )
+                  .catch((error) => {
+                    logger.info(error);
+                    res.send({
+                      header: null,
+                      weeks_view: null,
+                      response: "error",
                     });
-                },
-                (error) => {
-                  logger.info(error);
-                  res.send({
-                    header: null,
-                    weeks_view: null,
-                    response: "error",
                   });
-                }
-              )
-              .catch((error) => {
-                logger.info(error);
+              } //Invalid params
+              else {
                 res.send({
                   header: null,
                   weeks_view: null,
                   response: "error",
                 });
-              });
-          } //Invalid params
-          else {
-            res.send({
-              header: null,
-              weeks_view: null,
-              response: "error",
-            });
-          }
-          //...
-          resMAIN(true);
-        })
-          .then()
-          .catch();
-      });
+              }
+              //...
+              resMAIN(true);
+            })
+              .then()
+              .catch();
+          });
 
-      /**
-       * MODIFY PASSENGERS PROFILE DETAILS
-       * ? Responsible for updating ANY information related to the passengers profile.
-       * ? Informations that can be updated: name, surname, picture, email, phone number, gender.
-       */
-      app.post("/updateRiders_profileInfos", function (req, res) {
-        resolveDate();
-        req = req.body;
+          /**
+           * MODIFY PASSENGERS PROFILE DETAILS
+           * ? Responsible for updating ANY information related to the passengers profile.
+           * ? Informations that can be updated: name, surname, picture, email, phone number, gender.
+           */
+          app.post("/updateRiders_profileInfos", function (req, res) {
+            resolveDate();
+            req = req.body;
 
-        if (
-          req.user_fingerprint !== undefined &&
-          req.user_fingerprint !== null &&
-          req.infoToUpdate !== undefined &&
-          req.infoToUpdate !== null &&
-          req.dataToUpdate !== undefined &&
-          req.dataToUpdate !== null
-        ) {
-          new Promise((resolve) => {
-            updateRiders_generalProfileInfos(
-              collectionPassengers_profiles,
-              collection_OTP_dispatch_map,
-              collectionGlobalEvents,
-              req,
-              resolve
-            );
-          }).then(
-            (result) => {
-              res.send(result);
-            },
-            (error) => {
+            if (
+              req.user_fingerprint !== undefined &&
+              req.user_fingerprint !== null &&
+              req.infoToUpdate !== undefined &&
+              req.infoToUpdate !== null &&
+              req.dataToUpdate !== undefined &&
+              req.dataToUpdate !== null
+            ) {
+              new Promise((resolve) => {
+                updateRiders_generalProfileInfos(
+                  collectionPassengers_profiles,
+                  collection_OTP_dispatch_map,
+                  collectionGlobalEvents,
+                  req,
+                  resolve
+                );
+              }).then(
+                (result) => {
+                  res.send(result);
+                },
+                (error) => {
+                  res.send({ response: "error", flag: "invalid_data" });
+                }
+              );
+            } //Invalid data
+            else {
               res.send({ response: "error", flag: "invalid_data" });
             }
-          );
+          });
+
+          /**
+           * GATHER ADS ANALYTICS FOR RIDERS
+           * ? Responsible for ccollecting all the Ads events from the riders/drivers app.
+           * ? Information: user fingerprint, user nature (rider, driver), screen identifier, company identifier, campaign identifier
+           */
+          app.post("/gatherAdsManagerAnalytics", function (req, res) {
+            resolveDate();
+            req = req.body;
+            //logger.warn(req);
+            res.send({ response: "error", flag: "no_ads_to_get" });
+
+            /*if (
+          req.user_fingerprint !== undefined &&
+          req.user_fingerprint !== null &&
+          req.user_nature !== undefined &&
+          req.user_nature !== null &&
+          req.screen_identifier !== undefined &&
+          req.screen_identifier !== null &&
+          req.company_identifier !== undefined &&
+          req.company_identifier !== null &&
+          req.campaign_identifier !== undefined &&
+          req.campaign_identifier !== null
+        ) {
+          new Promise((resolve) => {
+            try {
+              //! Save the Ad event
+              let eventBundle = {
+                event_name: "Ad_gathering",
+                user_fingerprint: req.user_fingerprint,
+                user_nature: req.user_nature,
+                ad_infos: {
+                  screen_identifier: req.screen_identifier,
+                  company_identifier: req.company_identifier,
+                  campaign_identifier: req.campaign_identifier,
+                },
+                date: new Date(chaineDateUTC),
+              };
+              //! -----
+              collectionGlobalEvents.insertOne(eventBundle, function (err, result) {
+                if (err) {
+                  logger.warn(err);
+                }
+                //...
+                resolve(true);
+              });
+            } catch (error) {
+              logger.warn(error);
+              resolve(false);
+            }
+          })
+            .then(
+              (result) => {
+                logger.info(result);
+                res.send({ response: "success" });
+              },
+              (error) => {
+                logger.info(error);
+                res.send({ response: "error", flag: "invalid_data" });
+              }
+            )
+            .catch((error) => {
+              logger.info(error);
+              res.send({ response: "error", flag: "invalid_data" });
+            });
         } //Invalid data
         else {
           res.send({ response: "error", flag: "invalid_data" });
-        }
-      });
-
-      /**
-       * GATHER ADS ANALYTICS FOR RIDERS
-       * ? Responsible for ccollecting all the Ads events from the riders/drivers app.
-       * ? Information: user fingerprint, user nature (rider, driver), screen identifier, company identifier, campaign identifier
-       */
-      app.post("/gatherAdsManagerAnalytics", function (req, res) {
-        resolveDate();
-        req = req.body;
-        //logger.warn(req);
-        res.send({ response: "error", flag: "no_ads_to_get" });
-
-        /*if (
-      req.user_fingerprint !== undefined &&
-      req.user_fingerprint !== null &&
-      req.user_nature !== undefined &&
-      req.user_nature !== null &&
-      req.screen_identifier !== undefined &&
-      req.screen_identifier !== null &&
-      req.company_identifier !== undefined &&
-      req.company_identifier !== null &&
-      req.campaign_identifier !== undefined &&
-      req.campaign_identifier !== null
-    ) {
-      new Promise((resolve) => {
-        try {
-          //! Save the Ad event
-          let eventBundle = {
-            event_name: "Ad_gathering",
-            user_fingerprint: req.user_fingerprint,
-            user_nature: req.user_nature,
-            ad_infos: {
-              screen_identifier: req.screen_identifier,
-              company_identifier: req.company_identifier,
-              campaign_identifier: req.campaign_identifier,
-            },
-            date: new Date(chaineDateUTC),
-          };
-          //! -----
-          collectionGlobalEvents.insertOne(eventBundle, function (err, result) {
-            if (err) {
-              logger.warn(err);
-            }
-            //...
-            resolve(true);
+        }*/
           });
-        } catch (error) {
-          logger.warn(error);
-          resolve(false);
-        }
-      })
-        .then(
-          (result) => {
-            logger.info(result);
-            res.send({ response: "success" });
-          },
-          (error) => {
-            logger.info(error);
+
+          /**
+           * GET AD INFORMATION
+           * ? Responsible for getting the ad infos for the companies based on the operating city to the riders/drivers
+           * ? Required infos: user_fingerprint.
+           * ! Cache as much as possible.
+           */
+          app.get("/getAdsManagerRunningInfos", function (req, res) {
+            resolveDate();
+            let params = urlParser.parse(req.url, true);
+            req = params.query;
             res.send({ response: "error", flag: "invalid_data" });
-          }
-        )
-        .catch((error) => {
-          logger.info(error);
-          res.send({ response: "error", flag: "invalid_data" });
-        });
-    } //Invalid data
-    else {
-      res.send({ response: "error", flag: "invalid_data" });
-    }*/
-      });
-
-      /**
-       * GET AD INFORMATION
-       * ? Responsible for getting the ad infos for the companies based on the operating city to the riders/drivers
-       * ? Required infos: user_fingerprint.
-       * ! Cache as much as possible.
-       */
-      app.get("/getAdsManagerRunningInfos", function (req, res) {
-        resolveDate();
-        let params = urlParser.parse(req.url, true);
-        req = params.query;
-        res.send({ response: "error", flag: "invalid_data" });
-        /*logger.info(req);
-
-    if (
-      req.user_fingerprint !== undefined &&
-      req.user_fingerprint !== null &&
-      req.user_nature !== undefined &&
-      req.user_nature !== null &&
-      req.city !== undefined &&
-      req.city !== null
-    ) {
-      //Valid
-      //? Get the only visible Ad campaign based on the operation city
-      new Promise((resGet) => {
-        getAdsManagerRunningInfos(req, resGet);
-      })
-        .then(
-          (result) => {
-            res.send(result);
-          },
-          (error) => {
-            logger.info(error);
-            res.send({ response: "error", flag: "invalid_data" });
-          }
-        )
-        .catch((error) => {
-          logger.info(error);
-          res.send({ response: "error", flag: "invalid_data" });
-        });
-    } //Invalid data
-    else {
-      res.send({ response: "error", flag: "invalid_data" });
-    }*/
-      });
-
-      /**
-       * DRIVERS REFERRAL API
-       * ? Responsible for performing all the referral related information: checking drivers, submitting referrals,
-       * ? getting the list of referred drivers by a specific user.
-       * ! Cache as much as possible.
-       * @param user_fingerprint
-       * @param user_nature: rider/driver
-       * @param action: get, submit or check
-       * @param driver_infos: name, taxi_number and phone_number of the driver being referred.
-       */
-      app.get("/performDriversReferralOperations", function (req, res) {
-        resolveDate();
-        let params = urlParser.parse(req.url, true);
-        req = params.query;
-
+            /*logger.info(req);
+    
         if (
           req.user_fingerprint !== undefined &&
           req.user_fingerprint !== null &&
           req.user_nature !== undefined &&
           req.user_nature !== null &&
-          /(rider|driver)/i.test(req.user_nature) &&
-          req.action !== undefined &&
-          req.action !== null
+          req.city !== undefined &&
+          req.city !== null
         ) {
-          if (/get/i.test(req.action)) {
-            //Get the list of referred drivers
-            //? Save the get event
-            new Promise((resEvent) => {
-              let eventSaverObj = {
-                event_name: "getting_referral_forTaxiDriver_userList",
-                user_referrer: req.user_fingerprint,
-                user_referrer_nature: req.user_nature,
-                date: new Date(chaineDateUTC),
-              };
-              //...
-              collectionGlobalEvents.insertOne(
-                eventSaverObj,
-                function (err, reslt) {
-                  resEvent(true);
-                }
-              );
+          //Valid
+          //? Get the only visible Ad campaign based on the operation city
+          new Promise((resGet) => {
+            getAdsManagerRunningInfos(req, resGet);
+          })
+            .then(
+              (result) => {
+                res.send(result);
+              },
+              (error) => {
+                logger.info(error);
+                res.send({ response: "error", flag: "invalid_data" });
+              }
+            )
+            .catch((error) => {
+              logger.info(error);
+              res.send({ response: "error", flag: "invalid_data" });
             });
-            //? --------------------
-            let redisKey = `${req.user_fingerprint}-referredDriversList-CACHE`;
-            redisGet(redisKey)
-              .then((resp) => {
-                if (resp !== null) {
-                  //REHYDRATE
-                  new Promise((resCompute) => {
-                    getReferredDrivers_list(
-                      req,
-                      collectionReferralsInfos,
-                      redisKey,
-                      resCompute
-                    );
-                  })
-                    .then()
-                    .catch();
+        } //Invalid data
+        else {
+          res.send({ response: "error", flag: "invalid_data" });
+        }*/
+          });
+
+          /**
+           * DRIVERS REFERRAL API
+           * ? Responsible for performing all the referral related information: checking drivers, submitting referrals,
+           * ? getting the list of referred drivers by a specific user.
+           * ! Cache as much as possible.
+           * @param user_fingerprint
+           * @param user_nature: rider/driver
+           * @param action: get, submit or check
+           * @param driver_infos: name, taxi_number and phone_number of the driver being referred.
+           */
+          app.get("/performDriversReferralOperations", function (req, res) {
+            resolveDate();
+            let params = urlParser.parse(req.url, true);
+            req = params.query;
+
+            if (
+              req.user_fingerprint !== undefined &&
+              req.user_fingerprint !== null &&
+              req.user_nature !== undefined &&
+              req.user_nature !== null &&
+              /(rider|driver)/i.test(req.user_nature) &&
+              req.action !== undefined &&
+              req.action !== null
+            ) {
+              if (/get/i.test(req.action)) {
+                //Get the list of referred drivers
+                //? Save the get event
+                new Promise((resEvent) => {
+                  let eventSaverObj = {
+                    event_name: "getting_referral_forTaxiDriver_userList",
+                    user_referrer: req.user_fingerprint,
+                    user_referrer_nature: req.user_nature,
+                    date: new Date(chaineDateUTC),
+                  };
                   //...
-                  res.send(JSON.parse(resp));
-                } //No records found - do a fresh request
-                else {
-                  new Promise((resCompute) => {
-                    getReferredDrivers_list(
-                      req,
-                      collectionReferralsInfos,
-                      redisKey,
-                      resCompute
-                    );
-                  })
-                    .then((result) => {
-                      res.send(result);
-                    })
-                    .catch((error) => {
-                      logger.info(error);
-                      res.send({ response: "error_unexpected" });
-                    });
-                }
-              })
-              .catch((error) => {
-                new Promise((resCompute) => {
-                  getReferredDrivers_list(
-                    req,
-                    collectionReferralsInfos,
-                    redisKey,
-                    resCompute
+                  collectionGlobalEvents.insertOne(
+                    eventSaverObj,
+                    function (err, reslt) {
+                      resEvent(true);
+                    }
                   );
+                });
+                //? --------------------
+                let redisKey = `${req.user_fingerprint}-referredDriversList-CACHE`;
+                redisGet(redisKey)
+                  .then((resp) => {
+                    if (resp !== null) {
+                      //REHYDRATE
+                      new Promise((resCompute) => {
+                        getReferredDrivers_list(
+                          req,
+                          collectionReferralsInfos,
+                          redisKey,
+                          resCompute
+                        );
+                      })
+                        .then()
+                        .catch();
+                      //...
+                      res.send(JSON.parse(resp));
+                    } //No records found - do a fresh request
+                    else {
+                      new Promise((resCompute) => {
+                        getReferredDrivers_list(
+                          req,
+                          collectionReferralsInfos,
+                          redisKey,
+                          resCompute
+                        );
+                      })
+                        .then((result) => {
+                          res.send(result);
+                        })
+                        .catch((error) => {
+                          logger.info(error);
+                          res.send({ response: "error_unexpected" });
+                        });
+                    }
+                  })
+                  .catch((error) => {
+                    new Promise((resCompute) => {
+                      getReferredDrivers_list(
+                        req,
+                        collectionReferralsInfos,
+                        redisKey,
+                        resCompute
+                      );
+                    })
+                      .then((result) => {
+                        res.send(result);
+                      })
+                      .catch((error) => {
+                        logger.info(error);
+                        res.send({ response: "error_unexpected" });
+                      });
+                  });
+              } else if (
+                /check/i.test(req.action) &&
+                req.taxi_number !== undefined &&
+                req.taxi_number !== null
+              ) {
+                //Check the driver's taxi number
+                //? Save the checking event
+                new Promise((resEvent) => {
+                  let eventSaverObj = {
+                    event_name: "checking_referral_forTaxiDriver",
+                    user_referrer: req.user_fingerprint,
+                    user_referrer_nature: req.user_nature,
+                    taxi_number: req.taxi_number,
+                    date: new Date(chaineDateUTC),
+                  };
+                  //...
+                  collectionGlobalEvents.insertOne(
+                    eventSaverObj,
+                    function (err, reslt) {
+                      resEvent(true);
+                    }
+                  );
+                });
+                //? --------------------
+                //! Check that the user is authentic
+                let collectionToCheck = /rider/i.test(req.user_nature)
+                  ? collectionPassengers_profiles
+                  : collectionDrivers_profiles;
+                let finderUserQuery = /rider/i.test(req.user_nature)
+                  ? { user_fingerprint: req.user_fingerprint }
+                  : { driver_fingerprint: req.user_fingerprint };
+
+                collectionToCheck
+                  .find(finderUserQuery)
+                  .toArray(function (err, userData) {
+                    if (err) {
+                      res.send({ response: "error_unexpected_auth" });
+                    }
+                    //...
+                    if (userData !== undefined && userData.length > 0) {
+                      //? Authentic user
+                      //! Format the driver's taxi number
+                      req.taxi_number = req.taxi_number.toUpperCase().trim();
+                      //!---
+                      new Promise((resCompute) => {
+                        //1. Check if the driver is already registered
+                        let finderQuery = {
+                          "cars_data.taxi_number": req.taxi_number,
+                        };
+                        collectionDrivers_profiles
+                          .find(finderQuery)
+                          //!.collation({ locale: "en", strength: 2 })
+                          .toArray(function (err, reslt) {
+                            if (err) {
+                              resCompute({ response: "error_unexpected" });
+                            }
+                            //...
+                            if (reslt !== undefined && reslt.length > 0) {
+                              //Driver already registered
+                              resCompute({
+                                response: "driver_alreadyRegistered",
+                              });
+                            } //Driver not yet officially registered
+                            else {
+                              //? 2. Check if the driver was already referred
+                              let finderNarrower = {
+                                taxi_number: req.taxi_number,
+                                is_referralExpired: false,
+                              };
+                              //...
+                              collectionReferralsInfos
+                                .find(finderNarrower)
+                                //!.collation({ locale: "en", strength: 2 })
+                                .toArray(function (err, result) {
+                                  if (err) {
+                                    resCompute({
+                                      response: "error_unexpected",
+                                    });
+                                  }
+                                  //...
+                                  if (
+                                    result !== undefined &&
+                                    result.length > 0
+                                  ) {
+                                    //! Driver already referred
+                                    resCompute({
+                                      response: "driver_alreadyReferred",
+                                    });
+                                  } //? Not yet referred
+                                  else {
+                                    resCompute({
+                                      response: "driver_freeForReferral",
+                                    });
+                                  }
+                                });
+                            }
+                          });
+                      })
+                        .then((result) => {
+                          res.send(result);
+                        })
+                        .catch((error) => {
+                          logger.info(error);
+                          res.send({ response: "error_unexpected" });
+                        });
+                    } //Fraud user
+                    else {
+                      res.send({ response: "error_unexpected_auth" });
+                    }
+                  });
+              } else if (
+                /submit/i.test(req.action) &&
+                req.taxi_number !== undefined &&
+                req.taxi_number !== null &&
+                req.driver_phone !== undefined &&
+                req.driver_phone !== null &&
+                req.driver_name !== undefined &&
+                req.driver_name !== null
+              ) {
+                //Submit the user's (rider/driver) referral request
+                //! Format the infos
+                req.taxi_number = req.taxi_number.toUpperCase().trim();
+                req.driver_phone = req.driver_phone.trim();
+                new Promise((resCompute) => {
+                  //! 1. Check for non duplicata
+                  let finderNarrower = {
+                    taxi_number: req.taxi_number,
+                    user_referrer: req.user_fingerprint,
+                    user_referrer_nature: req.user_nature,
+                    is_referralExpired: false,
+                  };
+                  //...
+                  collectionReferralsInfos
+                    .find(finderNarrower)
+                    //!.collation({ locale: "en", strength: 2 })
+                    .toArray(function (err, result) {
+                      if (err) {
+                        resCompute({ response: "error_unexpected" });
+                      }
+                      //...
+                      if (result !== undefined && result.length > 0) {
+                        //! Found an active referral
+                        resCompute({
+                          response: "error_unexpected_foundActive",
+                        });
+                      } //? Not yet referred
+                      else {
+                        //ADD 2 DAYS MAX OF EXPIRATION TIME.
+                        let referralObject = {
+                          referral_fingerprint: dateObject.unix(),
+                          driver_name: req.driver_name,
+                          driver_phone: req.driver_phone,
+                          taxi_number: req.taxi_number,
+                          user_referrer: req.user_fingerprint,
+                          user_referrer_nature: req.user_nature,
+                          expiration_time: new Date(
+                            new Date(chaineDateUTC).getTime() +
+                              2 * 24 * 3600 * 1000
+                          ),
+                          is_referralExpired: false,
+                          is_paid: false,
+                          amount_paid: false,
+                          amount_paid_percentage: 50,
+                          is_referral_rejected: false, //! Whether the referral is rejected or not: Rejected referrals cannot receive payments.
+                          is_official_deleted_user_side: false, //! Deleted referrals on the user side cannot receive payment or be seen ever again by the user, only not paid referrals can be deleted.
+                          date_referred: new Date(chaineDateUTC),
+                        };
+                        new Promise((res) => {
+                          generateUniqueFingerprint(
+                            `${chaineDateUTC}-${req.user_fingerprint}-${req.driver_phone}`,
+                            false,
+                            res
+                          );
+                        })
+                          .then(
+                            (result) => {
+                              referralObject.referral_fingerprint = result; //Update with the fingerprint;
+                            },
+                            (error) => {
+                              logger.warn(error);
+                              referralObject.referral_fingerprint =
+                                parsedData.user_fingerprint + dateObject.unix(); //Make a fingerprint out of the timestamp
+                            }
+                          )
+                          .finally(() => {
+                            //...
+                            collectionReferralsInfos.insertOne(
+                              referralObject,
+                              function (err, result) {
+                                if (err) {
+                                  resCompute({ response: "error_unexpected" });
+                                }
+                                //...
+                                resCompute({
+                                  response: "successfully_referred",
+                                });
+                              }
+                            );
+                          });
+                      }
+                    });
                 })
                   .then((result) => {
                     res.send(result);
                   })
                   .catch((error) => {
-                    logger.info(error);
-                    res.send({ response: "error_unexpected" });
-                  });
-              });
-          } else if (
-            /check/i.test(req.action) &&
-            req.taxi_number !== undefined &&
-            req.taxi_number !== null
-          ) {
-            //Check the driver's taxi number
-            //? Save the checking event
-            new Promise((resEvent) => {
-              let eventSaverObj = {
-                event_name: "checking_referral_forTaxiDriver",
-                user_referrer: req.user_fingerprint,
-                user_referrer_nature: req.user_nature,
-                taxi_number: req.taxi_number,
-                date: new Date(chaineDateUTC),
-              };
-              //...
-              collectionGlobalEvents.insertOne(
-                eventSaverObj,
-                function (err, reslt) {
-                  resEvent(true);
-                }
-              );
-            });
-            //? --------------------
-            //! Check that the user is authentic
-            let collectionToCheck = /rider/i.test(req.user_nature)
-              ? collectionPassengers_profiles
-              : collectionDrivers_profiles;
-            let finderUserQuery = /rider/i.test(req.user_nature)
-              ? { user_fingerprint: req.user_fingerprint }
-              : { driver_fingerprint: req.user_fingerprint };
-
-            collectionToCheck
-              .find(finderUserQuery)
-              .toArray(function (err, userData) {
-                if (err) {
-                  res.send({ response: "error_unexpected_auth" });
-                }
-                //...
-                if (userData !== undefined && userData.length > 0) {
-                  //? Authentic user
-                  //! Format the driver's taxi number
-                  req.taxi_number = req.taxi_number.toUpperCase().trim();
-                  //!---
-                  new Promise((resCompute) => {
-                    //1. Check if the driver is already registered
-                    let finderQuery = {
-                      "cars_data.taxi_number": req.taxi_number,
-                    };
-                    collectionDrivers_profiles
-                      .find(finderQuery)
-                      //!.collation({ locale: "en", strength: 2 })
-                      .toArray(function (err, reslt) {
-                        if (err) {
-                          resCompute({ response: "error_unexpected" });
-                        }
-                        //...
-                        if (reslt !== undefined && reslt.length > 0) {
-                          //Driver already registered
-                          resCompute({ response: "driver_alreadyRegistered" });
-                        } //Driver not yet officially registered
-                        else {
-                          //? 2. Check if the driver was already referred
-                          let finderNarrower = {
-                            taxi_number: req.taxi_number,
-                            is_referralExpired: false,
-                          };
-                          //...
-                          collectionReferralsInfos
-                            .find(finderNarrower)
-                            //!.collation({ locale: "en", strength: 2 })
-                            .toArray(function (err, result) {
-                              if (err) {
-                                resCompute({ response: "error_unexpected" });
-                              }
-                              //...
-                              if (result !== undefined && result.length > 0) {
-                                //! Driver already referred
-                                resCompute({
-                                  response: "driver_alreadyReferred",
-                                });
-                              } //? Not yet referred
-                              else {
-                                resCompute({
-                                  response: "driver_freeForReferral",
-                                });
-                              }
-                            });
-                        }
-                      });
-                  })
-                    .then((result) => {
-                      res.send(result);
-                    })
-                    .catch((error) => {
-                      logger.info(error);
-                      res.send({ response: "error_unexpected" });
-                    });
-                } //Fraud user
-                else {
-                  res.send({ response: "error_unexpected_auth" });
-                }
-              });
-          } else if (
-            /submit/i.test(req.action) &&
-            req.taxi_number !== undefined &&
-            req.taxi_number !== null &&
-            req.driver_phone !== undefined &&
-            req.driver_phone !== null &&
-            req.driver_name !== undefined &&
-            req.driver_name !== null
-          ) {
-            //Submit the user's (rider/driver) referral request
-            //! Format the infos
-            req.taxi_number = req.taxi_number.toUpperCase().trim();
-            req.driver_phone = req.driver_phone.trim();
-            new Promise((resCompute) => {
-              //! 1. Check for non duplicata
-              let finderNarrower = {
-                taxi_number: req.taxi_number,
-                user_referrer: req.user_fingerprint,
-                user_referrer_nature: req.user_nature,
-                is_referralExpired: false,
-              };
-              //...
-              collectionReferralsInfos
-                .find(finderNarrower)
-                //!.collation({ locale: "en", strength: 2 })
-                .toArray(function (err, result) {
-                  if (err) {
+                    logger.warn(error);
                     resCompute({ response: "error_unexpected" });
-                  }
-                  //...
-                  if (result !== undefined && result.length > 0) {
-                    //! Found an active referral
-                    resCompute({
-                      response: "error_unexpected_foundActive",
-                    });
-                  } //? Not yet referred
-                  else {
-                    //ADD 2 DAYS MAX OF EXPIRATION TIME.
-                    let referralObject = {
-                      referral_fingerprint: dateObject.unix(),
-                      driver_name: req.driver_name,
-                      driver_phone: req.driver_phone,
-                      taxi_number: req.taxi_number,
-                      user_referrer: req.user_fingerprint,
-                      user_referrer_nature: req.user_nature,
-                      expiration_time: new Date(
-                        new Date(chaineDateUTC).getTime() + 2 * 24 * 3600 * 1000
-                      ),
-                      is_referralExpired: false,
-                      is_paid: false,
-                      amount_paid: false,
-                      amount_paid_percentage: 50,
-                      is_referral_rejected: false, //! Whether the referral is rejected or not: Rejected referrals cannot receive payments.
-                      is_official_deleted_user_side: false, //! Deleted referrals on the user side cannot receive payment or be seen ever again by the user, only not paid referrals can be deleted.
-                      date_referred: new Date(chaineDateUTC),
-                    };
-                    new Promise((res) => {
-                      generateUniqueFingerprint(
-                        `${chaineDateUTC}-${req.user_fingerprint}-${req.driver_phone}`,
-                        false,
-                        res
-                      );
-                    })
-                      .then(
-                        (result) => {
-                          referralObject.referral_fingerprint = result; //Update with the fingerprint;
-                        },
-                        (error) => {
-                          logger.warn(error);
-                          referralObject.referral_fingerprint =
-                            parsedData.user_fingerprint + dateObject.unix(); //Make a fingerprint out of the timestamp
-                        }
-                      )
-                      .finally(() => {
-                        //...
-                        collectionReferralsInfos.insertOne(
-                          referralObject,
-                          function (err, result) {
-                            if (err) {
-                              resCompute({ response: "error_unexpected" });
-                            }
-                            //...
-                            resCompute({ response: "successfully_referred" });
-                          }
-                        );
-                      });
-                  }
-                });
+                  });
+              } //Invalid data received
+              else {
+                res.send({ response: "error_invalid_data" });
+              }
+            } //Invalid data received
+            else {
+              res.send({ response: "error_invalid_data" });
+            }
+          });
+
+          /**
+           * REFERRALS STATE NOTIFICATIONS FOR RIDERS
+           * ? Responsible for sending notifications to drivers
+           */
+          app.get("/notifyCustomersForReferralsProgress", function (req, res) {
+            new Promise((resCompute) => {
+              if (
+                req.name !== undefined &&
+                req.name !== null &&
+                req.referrer_fingerprint !== undefined &&
+                req.referrer_fingerprint !== null
+              ) {
+                //Get the referrer's details
+                collectionPassengers_profiles
+                  .find({ user_fingerprint: req.referrer_fingerprint })
+                  .toArray(function (err, userData) {
+                    if (err) {
+                      logger.error(err);
+                      resCompute({ response: "error" });
+                    }
+                    //...
+                    if (
+                      userData !== undefined &&
+                      userData !== null &&
+                      userData.length > 0
+                    ) {
+                      if (/markPaid/i.test(req.name)) {
+                        //?Mark as paid
+                        //! Notify the rider
+                        //Send the push notifications
+                        let message = {
+                          app_id: process.env.RIDERS_APP_ID_ONESIGNAL,
+                          android_channel_id:
+                            process.env
+                              .RIDERS_ONESIGNAL_CHANNEL_AUTOCANCELLED_REQUEST, //Ride - Auto-cancelled group
+                          priority: 10,
+                          contents: {
+                            en: "Y",
+                          },
+                          headings: { en: "Referral payout" },
+                          content_available: true,
+                          include_player_ids: [
+                            userData.pushnotif_token !== null &&
+                            userData.pushnotif_token.userId !== undefined
+                              ? userData.pushnotif_token.userId
+                              : "false",
+                          ],
+                        };
+                        //Send
+                        sendPushUPNotification(message);
+                        resCompute({ response: "success" });
+                      } else if (/MarkRejected/i.test(req.name)) {
+                        //?Mark as rejected
+                        //! Notify the rider
+                        //Send the push notifications
+                        let message = {
+                          app_id: process.env.RIDERS_APP_ID_ONESIGNAL,
+                          android_channel_id:
+                            process.env
+                              .RIDERS_ONESIGNAL_CHANNEL_AUTOCANCELLED_REQUEST, //Ride - Auto-cancelled group
+                          priority: 10,
+                          contents: {
+                            en: "Y",
+                          },
+                          headings: { en: "Referral payout" },
+                          content_available: true,
+                          include_player_ids: [
+                            userData.pushnotif_token !== null &&
+                            userData.pushnotif_token.userId !== undefined
+                              ? userData.pushnotif_token.userId
+                              : "false",
+                          ],
+                        };
+                        //Send
+                        sendPushUPNotification(message);
+                        resCompute({ response: "success" });
+                      } else if (/DeleteFromRider/i.test(req.name)) {
+                        //?Delete from rider
+                        resCompute({ response: "success" });
+                      } else if (/DeleteReferral/i.test(req.name)) {
+                        //?Delete referral
+                        resCompute({ response: "success" });
+                      } else if (/RegisterReferredDriver/i.test(req.name)) {
+                        //?Register referred driver
+                        //! Notify the rider
+                        //Send the push notifications
+                        let message = {
+                          app_id: process.env.RIDERS_APP_ID_ONESIGNAL,
+                          android_channel_id:
+                            process.env
+                              .RIDERS_ONESIGNAL_CHANNEL_AUTOCANCELLED_REQUEST, //Ride - Auto-cancelled group
+                          priority: 10,
+                          contents: {
+                            en: "Y",
+                          },
+                          headings: { en: "Referral payout" },
+                          content_available: true,
+                          include_player_ids: [
+                            userData.pushnotif_token !== null &&
+                            userData.pushnotif_token.userId !== undefined
+                              ? userData.pushnotif_token.userId
+                              : "false",
+                          ],
+                        };
+                        //Send
+                        sendPushUPNotification(message);
+                        resCompute({ response: "success" });
+                      } //No valid name
+                      else {
+                        resCompute({ response: "error" });
+                      }
+                    } //No data found
+                    else {
+                      resCompute({ response: "error" });
+                    }
+                  });
+              } //Invalid data
+              else {
+                resCompute({ response: "error" });
+              }
             })
               .then((result) => {
                 res.send(result);
               })
               .catch((error) => {
-                logger.warn(error);
-                resCompute({ response: "error_unexpected" });
+                logger.error(error);
+                res.send({ response: "error" });
               });
-          } //Invalid data received
-          else {
-            res.send({ response: "error_invalid_data" });
-          }
-        } //Invalid data received
-        else {
-          res.send({ response: "error_invalid_data" });
-        }
-      });
-
-      /**
-       * REFERRALS STATE NOTIFICATIONS FOR RIDERS
-       * ? Responsible for sending notifications to drivers
-       */
-      app.get("/notifyCustomersForReferralsProgress", function (req, res) {
-        new Promise((resCompute) => {
-          if (
-            req.name !== undefined &&
-            req.name !== null &&
-            req.referrer_fingerprint !== undefined &&
-            req.referrer_fingerprint !== null
-          ) {
-            //Get the referrer's details
-            collectionPassengers_profiles
-              .find({ user_fingerprint: req.referrer_fingerprint })
-              .toArray(function (err, userData) {
-                if (err) {
-                  logger.error(err);
-                  resCompute({ response: "error" });
-                }
-                //...
-                if (
-                  userData !== undefined &&
-                  userData !== null &&
-                  userData.length > 0
-                ) {
-                  if (/markPaid/i.test(req.name)) {
-                    //?Mark as paid
-                    //! Notify the rider
-                    //Send the push notifications
-                    let message = {
-                      app_id: process.env.RIDERS_APP_ID_ONESIGNAL,
-                      android_channel_id:
-                        process.env
-                          .RIDERS_ONESIGNAL_CHANNEL_AUTOCANCELLED_REQUEST, //Ride - Auto-cancelled group
-                      priority: 10,
-                      contents: {
-                        en: "Y",
-                      },
-                      headings: { en: "Referral payout" },
-                      content_available: true,
-                      include_player_ids: [
-                        userData.pushnotif_token !== null &&
-                        userData.pushnotif_token.userId !== undefined
-                          ? userData.pushnotif_token.userId
-                          : "false",
-                      ],
-                    };
-                    //Send
-                    sendPushUPNotification(message);
-                    resCompute({ response: "success" });
-                  } else if (/MarkRejected/i.test(req.name)) {
-                    //?Mark as rejected
-                    //! Notify the rider
-                    //Send the push notifications
-                    let message = {
-                      app_id: process.env.RIDERS_APP_ID_ONESIGNAL,
-                      android_channel_id:
-                        process.env
-                          .RIDERS_ONESIGNAL_CHANNEL_AUTOCANCELLED_REQUEST, //Ride - Auto-cancelled group
-                      priority: 10,
-                      contents: {
-                        en: "Y",
-                      },
-                      headings: { en: "Referral payout" },
-                      content_available: true,
-                      include_player_ids: [
-                        userData.pushnotif_token !== null &&
-                        userData.pushnotif_token.userId !== undefined
-                          ? userData.pushnotif_token.userId
-                          : "false",
-                      ],
-                    };
-                    //Send
-                    sendPushUPNotification(message);
-                    resCompute({ response: "success" });
-                  } else if (/DeleteFromRider/i.test(req.name)) {
-                    //?Delete from rider
-                    resCompute({ response: "success" });
-                  } else if (/DeleteReferral/i.test(req.name)) {
-                    //?Delete referral
-                    resCompute({ response: "success" });
-                  } else if (/RegisterReferredDriver/i.test(req.name)) {
-                    //?Register referred driver
-                    //! Notify the rider
-                    //Send the push notifications
-                    let message = {
-                      app_id: process.env.RIDERS_APP_ID_ONESIGNAL,
-                      android_channel_id:
-                        process.env
-                          .RIDERS_ONESIGNAL_CHANNEL_AUTOCANCELLED_REQUEST, //Ride - Auto-cancelled group
-                      priority: 10,
-                      contents: {
-                        en: "Y",
-                      },
-                      headings: { en: "Referral payout" },
-                      content_available: true,
-                      include_player_ids: [
-                        userData.pushnotif_token !== null &&
-                        userData.pushnotif_token.userId !== undefined
-                          ? userData.pushnotif_token.userId
-                          : "false",
-                      ],
-                    };
-                    //Send
-                    sendPushUPNotification(message);
-                    resCompute({ response: "success" });
-                  } //No valid name
-                  else {
-                    resCompute({ response: "error" });
-                  }
-                } //No data found
-                else {
-                  resCompute({ response: "error" });
-                }
-              });
-          } //Invalid data
-          else {
-            resCompute({ response: "error" });
-          }
-        })
-          .then((result) => {
-            res.send(result);
-          })
-          .catch((error) => {
-            logger.error(error);
-            res.send({ response: "error" });
           });
-      });
+        }
+      );
     }
   );
 });

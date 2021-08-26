@@ -251,80 +251,100 @@ var collectionWalletTransactions_logs = null;
 
 redisCluster.on("connect", function () {
   //logger.info("[*] Redis connected");
-  MongoClient.connect(
-    /live/i.test(process.env.SERVER_TYPE)
-      ? process.env.URL_MONGODB_PROD
-      : process.env.URL_MONGODB_DEV,
-    /production/i.test(process.env.EVIRONMENT)
-      ? {
-          tlsCAFile: certFile, //The DocDB cert
-          useUnifiedTopology: true,
-          useNewUrlParser: true,
-        }
-      : {
-          useUnifiedTopology: true,
-          useNewUrlParser: true,
-        },
-    function (err, clientMongo) {
-      if (err) throw err;
+  requestAPI(
+    /development/i.test(process.env.EVIRONMENT)
+      ? `${process.env.AUTHENTICATOR_URL}get_API_CRED_DATA?environment=dev_local` //? Development localhost url
+      : /production/i.test(process.env.EVIRONMENT)
+      ? /live/i.test(process.env.SERVER_TYPE)
+        ? `${process.env.AUTHENTICATOR_URL}get_API_CRED_DATA?environment=production` //? Live production url
+        : `${process.env.AUTHENTICATOR_URL}get_API_CRED_DATA?environment=dev_production` //? Dev live testing url
+      : `${process.env.AUTHENTICATOR_URL}get_API_CRED_DATA?environment=dev_local`, //?Fall back url
+    function (error, response, body) {
+      body = JSON.parse(body);
+      //...
+      process.env.AWS_S3_ID = body.AWS_S3_ID;
+      process.env.AWS_S3_SECRET = body.AWS_S3_SECRET;
+      process.env.URL_MONGODB_DEV = body.URL_MONGODB_DEV;
+      process.env.URL_MONGODB_PROD = body.URL_MONGODB_PROD;
 
-      //if (err) throw err;
-      logger.info("[+] Analytics services active.");
-      const dbMongo = clientMongo.db(process.env.DB_NAME_MONGODDB);
-      collectionRidesDeliveries_data = dbMongo.collection(
-        "rides_deliveries_requests"
-      ); //Hold all the requests made (rides and deliveries)
-      collectionRelativeDistances = dbMongo.collection(
-        "relative_distances_riders_drivers"
-      ); //Hold the relative distances between rider and the drivers (online, same city, same country) at any given time
-      collectionRidersLocation_log = dbMongo.collection(
-        "historical_positioning_logs"
-      ); //Hold all the location updated from the rider
-      collectionDrivers_profiles = dbMongo.collection("drivers_profiles"); //Hold all the drivers profiles
-      collectionPassengers_profiles = dbMongo.collection("passengers_profiles"); //Hold all the passengers profiles.
-      collectionGlobalEvents = dbMongo.collection("global_events"); //Hold all the random events that happened somewhere.
-      collectionWalletTransactions_logs = dbMongo.collection(
-        "wallet_transactions_logs"
-      ); //Hold the latest information about the riders topups
-      //-------------
-      app
-        .get("/", function (req, res) {
-          res.send("Map services up");
-        })
-        .use(
-          express.json({
-            limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
-            extended: true,
-          })
-        )
-        .use(
-          express.urlencoded({
-            limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
-            extended: true,
-          })
-        )
-        .use(helmet());
+      MongoClient.connect(
+        /live/i.test(process.env.SERVER_TYPE)
+          ? process.env.URL_MONGODB_PROD
+          : process.env.URL_MONGODB_DEV,
+        /production/i.test(process.env.EVIRONMENT)
+          ? {
+              tlsCAFile: certFile, //The DocDB cert
+              useUnifiedTopology: true,
+              useNewUrlParser: true,
+            }
+          : {
+              useUnifiedTopology: true,
+              useNewUrlParser: true,
+            },
+        function (err, clientMongo) {
+          if (err) throw err;
 
-      /**
-       * GET GENERAL OBSERVABILITY DATA
-       *? Responsible for getting all the data in motion that will reflect the current or historical
-       *? state of the all network.
-       * REDIS propertiy
-       */
-      app.post("/getGlobalObservabilityData", function (req, res) {
-        new Promise((resMAIN) => {
-          let request = req.body;
+          //if (err) throw err;
+          logger.info("[+] Analytics services active.");
+          const dbMongo = clientMongo.db(process.env.DB_NAME_MONGODDB);
+          collectionRidesDeliveries_data = dbMongo.collection(
+            "rides_deliveries_requests"
+          ); //Hold all the requests made (rides and deliveries)
+          collectionRelativeDistances = dbMongo.collection(
+            "relative_distances_riders_drivers"
+          ); //Hold the relative distances between rider and the drivers (online, same city, same country) at any given time
+          collectionRidersLocation_log = dbMongo.collection(
+            "historical_positioning_logs"
+          ); //Hold all the location updated from the rider
+          collectionDrivers_profiles = dbMongo.collection("drivers_profiles"); //Hold all the drivers profiles
+          collectionPassengers_profiles = dbMongo.collection(
+            "passengers_profiles"
+          ); //Hold all the passengers profiles.
+          collectionGlobalEvents = dbMongo.collection("global_events"); //Hold all the random events that happened somewhere.
+          collectionWalletTransactions_logs = dbMongo.collection(
+            "wallet_transactions_logs"
+          ); //Hold the latest information about the riders topups
+          //-------------
+          app
+            .get("/", function (req, res) {
+              res.send("Map services up");
+            })
+            .use(
+              express.json({
+                limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
+                extended: true,
+              })
+            )
+            .use(
+              express.urlencoded({
+                limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
+                extended: true,
+              })
+            )
+            .use(helmet());
 
-          getGlobalObservabilityData("Windhoek", resMAIN);
-        })
-          .then((result) => {
-            res.send(result);
-          })
-          .catch((error) => {
-            logger.error(error);
-            res.send(false);
+          /**
+           * GET GENERAL OBSERVABILITY DATA
+           *? Responsible for getting all the data in motion that will reflect the current or historical
+           *? state of the all network.
+           * REDIS propertiy
+           */
+          app.post("/getGlobalObservabilityData", function (req, res) {
+            new Promise((resMAIN) => {
+              let request = req.body;
+
+              getGlobalObservabilityData("Windhoek", resMAIN);
+            })
+              .then((result) => {
+                res.send(result);
+              })
+              .catch((error) => {
+                logger.error(error);
+                res.send(false);
+              });
           });
-      });
+        }
+      );
     }
   );
 });

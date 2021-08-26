@@ -2143,322 +2143,341 @@ function notifyRidersOf_completedRides(
 
 redisCluster.on("connect", function () {
   logger.info("[*] Redis connected");
-  MongoClient.connect(
-    /live/i.test(process.env.SERVER_TYPE)
-      ? process.env.URL_MONGODB_PROD
-      : process.env.URL_MONGODB_DEV,
-    /production/i.test(process.env.EVIRONMENT)
-      ? {
-          tlsCAFile: certFile, //The DocDB cert
-          useUnifiedTopology: true,
-          useNewUrlParser: true,
-        }
-      : {
-          useUnifiedTopology: true,
-          useNewUrlParser: true,
-        },
-    function (err, clientMongo) {
-      if (err) throw err;
-      logger.info("[+] Watcher services active.");
-      const dbMongo = clientMongo.db(process.env.DB_NAME_MONGODDB);
-      const collectionPassengers_profiles = dbMongo.collection(
-        "passengers_profiles"
-      ); //Hold all the passengers profiles
-      const collectionRidesDeliveryData = dbMongo.collection(
-        "rides_deliveries_requests"
-      ); //Hold all the requests made (rides and deliveries)
-      const collection_OTP_dispatch_map =
-        dbMongo.collection("OTP_dispatch_map");
-      const collectionDrivers_profiles = dbMongo.collection("drivers_profiles"); //Hold all the drivers profiles
-      const collectionGlobalEvents = dbMongo.collection("global_events"); //Hold all the random events that happened somewhere.
-      const collectionWalletTransactions_logs = dbMongo.collection(
-        "wallet_transactions_logs"
-      ); //Hold all the wallet transactions (exlude rides/deliveries records which are in the rides/deliveries collection)
-      collectionReferralsInfos = dbMongo.collection(
-        "referrals_information_global"
-      ); //Hold all the referrals infos
-      //-------------
-      app
-        .get("/", function (req, res) {
-          logger.info("Account services up");
-        })
-        .use(
-          express.json({
-            limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
-            extended: true,
-          })
-        )
-        .use(
-          express.urlencoded({
-            limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
-            extended: true,
-          })
-        );
+  requestAPI(
+    /development/i.test(process.env.EVIRONMENT)
+      ? `${process.env.AUTHENTICATOR_URL}get_API_CRED_DATA?environment=dev_local` //? Development localhost url
+      : /production/i.test(process.env.EVIRONMENT)
+      ? /live/i.test(process.env.SERVER_TYPE)
+        ? `${process.env.AUTHENTICATOR_URL}get_API_CRED_DATA?environment=production` //? Live production url
+        : `${process.env.AUTHENTICATOR_URL}get_API_CRED_DATA?environment=dev_production` //? Dev live testing url
+      : `${process.env.AUTHENTICATOR_URL}get_API_CRED_DATA?environment=dev_local`, //?Fall back url
+    function (error, response, body) {
+      body = JSON.parse(body);
+      //...
+      process.env.AWS_S3_ID = body.AWS_S3_ID;
+      process.env.AWS_S3_SECRET = body.AWS_S3_SECRET;
+      process.env.URL_MONGODB_DEV = body.URL_MONGODB_DEV;
+      process.env.URL_MONGODB_PROD = body.URL_MONGODB_PROD;
 
-      /**
-       * MAIN Watcher loop
-       * ! ONLY USE PROMISIFIED FUNCTIONS!
-       * ! ALWAYS CATCH TROUBLE!
-       */
-      //! Every 2 min - Light work
-      cron.schedule("*/2 * * * *", function () {
-        resolveDate();
-        //...
-        logger.info(`[${chaineDateUTC}] - Watcher loopedi`);
-
-        //? 4. Observe all the subscribeless requests
-        /*new Promise((res4) => {
-      requestsDriverSubscriber_watcher(
-        collectionRidesDeliveryData,
-        collectionDrivers_profiles,
-        res4
-      );
-    })
-      .then(
-        (result) => {
-          logger.info(result);
-        },
-        (error) => {
-          logger.info(error);
-        }
-      )
-      .catch((error) => {
-        logger.info(error);
-      });*/
-
-        //? 5. Auto switch on all the drivers by default
-        //! TO BE REVISED
-        /*new Promise((res5) => {
-        collectionDrivers_profiles
-          .find({ "operational_state.status": "offline" })
-          .toArray(function (err, driverData) {
-            if (err) {
-              res5(false);
+      MongoClient.connect(
+        /live/i.test(process.env.SERVER_TYPE)
+          ? process.env.URL_MONGODB_PROD
+          : process.env.URL_MONGODB_DEV,
+        /production/i.test(process.env.EVIRONMENT)
+          ? {
+              tlsCAFile: certFile, //The DocDB cert
+              useUnifiedTopology: true,
+              useNewUrlParser: true,
             }
+          : {
+              useUnifiedTopology: true,
+              useNewUrlParser: true,
+            },
+        function (err, clientMongo) {
+          if (err) throw err;
+          logger.info("[+] Watcher services active.");
+          const dbMongo = clientMongo.db(process.env.DB_NAME_MONGODDB);
+          const collectionPassengers_profiles = dbMongo.collection(
+            "passengers_profiles"
+          ); //Hold all the passengers profiles
+          const collectionRidesDeliveryData = dbMongo.collection(
+            "rides_deliveries_requests"
+          ); //Hold all the requests made (rides and deliveries)
+          const collection_OTP_dispatch_map =
+            dbMongo.collection("OTP_dispatch_map");
+          const collectionDrivers_profiles =
+            dbMongo.collection("drivers_profiles"); //Hold all the drivers profiles
+          const collectionGlobalEvents = dbMongo.collection("global_events"); //Hold all the random events that happened somewhere.
+          const collectionWalletTransactions_logs = dbMongo.collection(
+            "wallet_transactions_logs"
+          ); //Hold all the wallet transactions (exlude rides/deliveries records which are in the rides/deliveries collection)
+          collectionReferralsInfos = dbMongo.collection(
+            "referrals_information_global"
+          ); //Hold all the referrals infos
+          //-------------
+          app
+            .get("/", function (req, res) {
+              logger.info("Account services up");
+            })
+            .use(
+              express.json({
+                limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
+                extended: true,
+              })
+            )
+            .use(
+              express.urlencoded({
+                limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
+                extended: true,
+              })
+            );
+
+          /**
+           * MAIN Watcher loop
+           * ! ONLY USE PROMISIFIED FUNCTIONS!
+           * ! ALWAYS CATCH TROUBLE!
+           */
+          //! Every 2 min - Light work
+          cron.schedule("*/2 * * * *", function () {
+            resolveDate();
             //...
-            if (driverData !== undefined && driverData.length > 0) {
-              //Found offline drivers
-              //? Switch online
-              collectionDrivers_profiles.updateMany(
-                { "operational_state.status": "offline" },
-                { $set: { "operational_state.status": "online" } },
-                function (err, resultUpdate) {
-                  res5(true);
+            logger.info(`[${chaineDateUTC}] - Watcher loopedi`);
+
+            //? 4. Observe all the subscribeless requests
+            /*new Promise((res4) => {
+          requestsDriverSubscriber_watcher(
+            collectionRidesDeliveryData,
+            collectionDrivers_profiles,
+            res4
+          );
+        })
+          .then(
+            (result) => {
+              logger.info(result);
+            },
+            (error) => {
+              logger.info(error);
+            }
+          )
+          .catch((error) => {
+            logger.info(error);
+          });*/
+
+            //? 5. Auto switch on all the drivers by default
+            //! TO BE REVISED
+            /*new Promise((res5) => {
+            collectionDrivers_profiles
+              .find({ "operational_state.status": "offline" })
+              .toArray(function (err, driverData) {
+                if (err) {
+                  res5(false);
                 }
-              );
-            } else {
-              res5(true);
-            }
-          });
-      })
-        .then((result) => {
-          logger.info(result);
-        })
-        .catch((error) => {
-          logger.info(error);
-        });*/
-
-        //? 6. Watch all the referral's expiration dates and updates the corresponding expiration flag.
-        new Promise((res6) => {
-          observeReferralData_andUpdateExpiration(
-            collectionReferralsInfos,
-            collectionPassengers_profiles,
-            collectionDrivers_profiles,
-            res6
-          );
-        })
-          .then(
-            (result) => {
-              logger.info(result);
-            },
-            (error) => {
-              logger.info(error);
-            }
-          )
-          .catch((error) => {
-            logger.info(error);
-          });
-      });
-
-      //! FOR SUPER HEAVY PROCESSES - 5min
-      cron.schedule("*/5 * * * *", function () {
-        //? 1. Refresh every driver's wallet
-        new Promise((res1) => {
-          updateDrivers_walletCachedData(collectionDrivers_profiles, res1);
-        })
-          .then(
-            (result) => {
-              logger.info(result);
-            },
-            (error) => {
-              logger.info(error);
-            }
-          )
-          .catch((error) => {
-            logger.info(error);
-          });
-      });
-
-      //! FOR LIGHT HEAVY PROCESSES REQUIRING - 30min
-      var antiNotificationSpammerLog = new Set(); //To hold unique user fps to avoid sending many notifications to one user.
-      cron.schedule("*/30 * * * *", function () {
-        //? 7. Watch all the trips which are not confirmed by the riders yet
-        new Promise((res7) => {
-          notifyRidersOf_completedRides(
-            collectionPassengers_profiles,
-            collectionRidesDeliveryData,
-            collectionGlobalEvents,
-            antiNotificationSpammerLog,
-            res7
-          );
-        })
-          .then(
-            (result) => {
-              logger.info(result);
-              antiNotificationSpammerLog = new Set();
-            },
-            (error) => {
-              logger.info(error);
-              antiNotificationSpammerLog = new Set();
-            }
-          )
-          .catch((error) => {
-            logger.info(error);
-            antiNotificationSpammerLog = new Set();
-          });
-      });
-
-      //! FOR LIGHT HEAVY PROCESSES REQUIRING - 5min
-      cron.schedule("*/5 * * * *", function () {
-        //? 1. Clean X hold requests
-        new Promise((res1) => {
-          removeOldRequests_madeWithoutBeingAttended(
-            collectionPassengers_profiles,
-            collectionRidesDeliveryData,
-            res1
-          );
-        })
-          .then(
-            (result) => {
-              //logger.info(result);
-            },
-            (error) => {
-              //logger.info(error);
-            }
-          )
-          .catch((error) => {
-            //logger.info(error);
-          });
-
-        //? 2. Keep the drivers next payment date UP TO DATE
-        new Promise((res2) => {
-          updateNext_paymentDateDrivers(
-            collectionDrivers_profiles,
-            collectionWalletTransactions_logs,
-            collectionRidesDeliveryData,
-            collectionGlobalEvents,
-            res2
-          );
-        })
-          .then(
-            (result) => {
-              logger.info(result);
-            },
-            (error) => {
-              logger.info(error);
-            }
-          )
-          .catch((error) => {
-            logger.info(error);
-          });
-
-        //? 3. Observe all the scheduled requests for executions
-        new Promise((res3) => {
-          scheduledRequestsWatcher_junky(
-            collectionRidesDeliveryData,
-            collectionDrivers_profiles,
-            collectionPassengers_profiles,
-            res3
-          );
-        })
-          .then(
-            (result) => {
-              logger.info(result);
-            },
-            (error) => {
-              logger.info(error);
-            }
-          )
-          .catch((error) => {
-            logger.info(error);
-          });
-
-        //? 2. Reinforce the date type for the transaction logs
-        /*new Promise((res2) => {
-        collectionWalletTransactions_logs
-          .find({ date_captured: { $type: "string" } })
-          .toArray(function (err, transactionData) {
-            if (err) {
-              logger.info(err);
-              res2(false);
-            }
-            //...
-            if (transactionData !== undefined && transactionData.length > 0) {
-              //Found some dirty data
-              logger.info("Dirty date with string type found");
-              let parentPromises = transactionData.map((transaction) => {
-                return new Promise((resCompute) => {
-                  collectionWalletTransactions_logs.updateOne(
-                    { _id: ObjectId(transaction._id) },
-                    {
-                      $set: {
-                        date_captured: new Date(transaction.date_captured),
-                      },
-                    },
+                //...
+                if (driverData !== undefined && driverData.length > 0) {
+                  //Found offline drivers
+                  //? Switch online
+                  collectionDrivers_profiles.updateMany(
+                    { "operational_state.status": "offline" },
+                    { $set: { "operational_state.status": "online" } },
                     function (err, resultUpdate) {
-                      if (err) {
-                        logger.info(err);
-                        resCompute(false);
-                      }
-                      //...
-                      resCompute(true);
+                      res5(true);
                     }
                   );
-                });
+                } else {
+                  res5(true);
+                }
               });
-              //DONE
-              Promise.all(parentPromises)
-                .then(
-                  (result) => {
-                    res2(result);
-                  },
-                  (error) => {
-                    logger.info(error);
-                    res2(false);
-                  }
-                )
-                .catch((error) => {
+          })
+            .then((result) => {
+              logger.info(result);
+            })
+            .catch((error) => {
+              logger.info(error);
+            });*/
+
+            //? 6. Watch all the referral's expiration dates and updates the corresponding expiration flag.
+            new Promise((res6) => {
+              observeReferralData_andUpdateExpiration(
+                collectionReferralsInfos,
+                collectionPassengers_profiles,
+                collectionDrivers_profiles,
+                res6
+              );
+            })
+              .then(
+                (result) => {
+                  logger.info(result);
+                },
+                (error) => {
                   logger.info(error);
-                  res2(false);
-                });
-            } //No data found
-            else {
-              res2(true);
-            }
+                }
+              )
+              .catch((error) => {
+                logger.info(error);
+              });
           });
-      })
-        .then(
-          (result) => {
-            logger.info(result);
-          },
-          (error) => {
-            logger.info(error);
-          }
-        )
-        .catch((error) => {
-          logger.info(error);
-        });*/
-      });
+
+          //! FOR SUPER HEAVY PROCESSES - 5min
+          cron.schedule("*/5 * * * *", function () {
+            //? 1. Refresh every driver's wallet
+            new Promise((res1) => {
+              updateDrivers_walletCachedData(collectionDrivers_profiles, res1);
+            })
+              .then(
+                (result) => {
+                  logger.info(result);
+                },
+                (error) => {
+                  logger.info(error);
+                }
+              )
+              .catch((error) => {
+                logger.info(error);
+              });
+          });
+
+          //! FOR LIGHT HEAVY PROCESSES REQUIRING - 30min
+          var antiNotificationSpammerLog = new Set(); //To hold unique user fps to avoid sending many notifications to one user.
+          cron.schedule("*/30 * * * *", function () {
+            //? 7. Watch all the trips which are not confirmed by the riders yet
+            new Promise((res7) => {
+              notifyRidersOf_completedRides(
+                collectionPassengers_profiles,
+                collectionRidesDeliveryData,
+                collectionGlobalEvents,
+                antiNotificationSpammerLog,
+                res7
+              );
+            })
+              .then(
+                (result) => {
+                  logger.info(result);
+                  antiNotificationSpammerLog = new Set();
+                },
+                (error) => {
+                  logger.info(error);
+                  antiNotificationSpammerLog = new Set();
+                }
+              )
+              .catch((error) => {
+                logger.info(error);
+                antiNotificationSpammerLog = new Set();
+              });
+          });
+
+          //! FOR LIGHT HEAVY PROCESSES REQUIRING - 5min
+          cron.schedule("*/5 * * * *", function () {
+            //? 1. Clean X hold requests
+            new Promise((res1) => {
+              removeOldRequests_madeWithoutBeingAttended(
+                collectionPassengers_profiles,
+                collectionRidesDeliveryData,
+                res1
+              );
+            })
+              .then(
+                (result) => {
+                  //logger.info(result);
+                },
+                (error) => {
+                  //logger.info(error);
+                }
+              )
+              .catch((error) => {
+                //logger.info(error);
+              });
+
+            //? 2. Keep the drivers next payment date UP TO DATE
+            new Promise((res2) => {
+              updateNext_paymentDateDrivers(
+                collectionDrivers_profiles,
+                collectionWalletTransactions_logs,
+                collectionRidesDeliveryData,
+                collectionGlobalEvents,
+                res2
+              );
+            })
+              .then(
+                (result) => {
+                  logger.info(result);
+                },
+                (error) => {
+                  logger.info(error);
+                }
+              )
+              .catch((error) => {
+                logger.info(error);
+              });
+
+            //? 3. Observe all the scheduled requests for executions
+            new Promise((res3) => {
+              scheduledRequestsWatcher_junky(
+                collectionRidesDeliveryData,
+                collectionDrivers_profiles,
+                collectionPassengers_profiles,
+                res3
+              );
+            })
+              .then(
+                (result) => {
+                  logger.info(result);
+                },
+                (error) => {
+                  logger.info(error);
+                }
+              )
+              .catch((error) => {
+                logger.info(error);
+              });
+
+            //? 2. Reinforce the date type for the transaction logs
+            /*new Promise((res2) => {
+            collectionWalletTransactions_logs
+              .find({ date_captured: { $type: "string" } })
+              .toArray(function (err, transactionData) {
+                if (err) {
+                  logger.info(err);
+                  res2(false);
+                }
+                //...
+                if (transactionData !== undefined && transactionData.length > 0) {
+                  //Found some dirty data
+                  logger.info("Dirty date with string type found");
+                  let parentPromises = transactionData.map((transaction) => {
+                    return new Promise((resCompute) => {
+                      collectionWalletTransactions_logs.updateOne(
+                        { _id: ObjectId(transaction._id) },
+                        {
+                          $set: {
+                            date_captured: new Date(transaction.date_captured),
+                          },
+                        },
+                        function (err, resultUpdate) {
+                          if (err) {
+                            logger.info(err);
+                            resCompute(false);
+                          }
+                          //...
+                          resCompute(true);
+                        }
+                      );
+                    });
+                  });
+                  //DONE
+                  Promise.all(parentPromises)
+                    .then(
+                      (result) => {
+                        res2(result);
+                      },
+                      (error) => {
+                        logger.info(error);
+                        res2(false);
+                      }
+                    )
+                    .catch((error) => {
+                      logger.info(error);
+                      res2(false);
+                    });
+                } //No data found
+                else {
+                  res2(true);
+                }
+              });
+          })
+            .then(
+              (result) => {
+                logger.info(result);
+              },
+              (error) => {
+                logger.info(error);
+              }
+            )
+            .catch((error) => {
+              logger.info(error);
+            });*/
+          });
+        }
+      );
     }
   );
 });
