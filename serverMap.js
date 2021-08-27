@@ -934,6 +934,7 @@ function tripChecker_Dispatcher(
   redisGet(RIDE_REDIS_KEY)
     .then((resp) => {
       if (resp !== null && avoidCached_data === false) {
+        // logger.error("CACHED");
         //Has a record
         try {
           //Make a rehydrate request
@@ -960,7 +961,7 @@ function tripChecker_Dispatcher(
           //....
           resolve(resp);
         } catch (error) {
-          //logger.warn(error);
+          logger.warn(error);
           //Make a fresh request
           new Promise((resCompute) => {
             execTripChecker_Dispatcher(
@@ -981,6 +982,7 @@ function tripChecker_Dispatcher(
         }
       } //No record
       else {
+        // logger.error("FRESH");
         //Make a fresh request
         new Promise((resCompute) => {
           execTripChecker_Dispatcher(
@@ -1001,7 +1003,7 @@ function tripChecker_Dispatcher(
       }
     })
     .catch((error) => {
-      //logger.warn(error);
+      logger.warn(error);
       //Make a fresh request
       new Promise((resCompute) => {
         execTripChecker_Dispatcher(
@@ -1324,7 +1326,7 @@ function execTripChecker_Dispatcher(
                     resolve(resultFinal);
                   },
                   (error) => {
-                    //logger.info(error);
+                    logger.error(error);
                     resolve(false);
                   }
                 );
@@ -3662,11 +3664,8 @@ function reverseGeocoderExec(resolve, req, updateCache = false, redisKey) {
     req.longitude +
     "&lat=" +
     req.latitude;
-  logger.info(url);
+
   requestAPI(url, function (error, response, body) {
-    //body = JSON.parse(body);
-    logger.warn(error);
-    logger.info(body);
     try {
       ////logger.info(body);
       body = JSON.parse(body);

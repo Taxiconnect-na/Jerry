@@ -2606,6 +2606,7 @@ function cancelRequest_driver(
                   if (err) {
                     resolve({ response: "unable_to_cancel_request_error" });
                   }
+
                   //Send the push notifications - FOR ALL DRIVERS except the canceller
                   new Promise((resNotify) => {
                     //! Get all the drivers

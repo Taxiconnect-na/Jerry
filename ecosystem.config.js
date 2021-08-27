@@ -3,7 +3,7 @@ module.exports = {
     {
       name: "Events gateway",
       script: "eventsGateway.js",
-      instances: 1,
+      instances: "max",
       autorestart: true,
       watch: false,
       max_memory_restart: "1G",
@@ -14,7 +14,7 @@ module.exports = {
     {
       name: "Account service",
       script: "serverAccounts.js",
-      instances: 1,
+      instances: "max",
       autorestart: true,
       watch: false,
       max_memory_restart: "1G",
@@ -25,7 +25,7 @@ module.exports = {
     {
       name: "Dispatch service",
       script: "serverDispatch.js",
-      instances: 1,
+      instances: "max",
       autorestart: true,
       watch: false,
       max_memory_restart: "1G",
@@ -36,7 +36,7 @@ module.exports = {
     {
       name: "Map service",
       script: "serverMap.js",
-      instances: 1,
+      instances: "max",
       autorestart: true,
       watch: false,
       max_memory_restart: "1G",
@@ -47,7 +47,7 @@ module.exports = {
     {
       name: "Pricing service",
       script: "serverPricing.js",
-      instances: 1,
+      instances: "max",
       autorestart: true,
       watch: false,
       max_memory_restart: "1G",
@@ -58,7 +58,7 @@ module.exports = {
     {
       name: "Search service",
       script: "serverSearch.js",
-      instances: 1,
+      instances: "max",
       autorestart: true,
       watch: false,
       max_memory_restart: "1G",
@@ -69,7 +69,7 @@ module.exports = {
     {
       name: "Payment service",
       script: "serverPayments.js",
-      instances: 1,
+      instances: "max",
       autorestart: true,
       watch: false,
       max_memory_restart: "1G",
