@@ -2,6 +2,10 @@ const OS = require("os");
 process.env.UV_THREADPOOL_SIZE = OS.cpus().length;
 //---
 const winston = require("winston");
+const exceptionToLog = new RegExp(
+  /(AWS_S3_ID|AWS_S3_SECRET|URL_MONGODB_PROD)/,
+  "i"
+);
 
 const customLevels = {
   levels: {
@@ -27,7 +31,10 @@ module.exports = {
         format: "YY-MM-DD HH:MM:SS",
       }),
       winston.format.printf(
-        (info) => ` ${info.timestamp}  ${info.level} : ${info.message}`
+        (info) =>
+          ` ${info.timestamp}  ${info.level} : ${
+            exceptionToLog.test(info.message) ? "*" : info.message
+          }`
       )
     ),
     addColors: winston.addColors({

@@ -528,93 +528,120 @@ function getLocationList_five(
 }
 redisCluster.on("connect", function () {
   logger.info("[*] Redis connected");
-  MongoClient.connect(
-    process.env.URL_MONGODB,
-    /production/i.test(process.env.EVIRONMENT)
-      ? {
-          tlsCAFile: certFile, //The DocDB cert
-          useUnifiedTopology: true,
-          useNewUrlParser: true,
-        }
-      : {
-          useUnifiedTopology: true,
-          useNewUrlParser: true,
-        },
-    function (err, clientMongo) {
-      if (err) throw err;
-      logger.info("Connected to Mongodb");
-      const dbMongo = clientMongo.db(process.env.DB_NAME_MONGODDB);
-      const collectionMongoDb = dbMongo.collection(
-        "searched_locations_persist"
-      );
-      //-------------
-      //Cached restore OR initialized
-      app
-        .use(
-          express.json({
-            limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
-            extended: true,
-          })
-        )
-        .use(
-          express.urlencoded({
-            limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
-            extended: true,
-          })
-        );
+  requestAPI(
+    /development/i.test(process.env.EVIRONMENT)
+      ? `${process.env.AUTHENTICATOR_URL}get_API_CRED_DATA?environment=dev_local` //? Development localhost url
+      : /production/i.test(process.env.EVIRONMENT)
+      ? /live/i.test(process.env.SERVER_TYPE)
+        ? `${process.env.AUTHENTICATOR_URL}get_API_CRED_DATA?environment=production` //? Live production url
+        : `${process.env.AUTHENTICATOR_URL}get_API_CRED_DATA?environment=dev_production` //? Dev live testing url
+      : `${process.env.AUTHENTICATOR_URL}get_API_CRED_DATA?environment=dev_local`, //?Fall back url
+    function (error, response, body) {
+      body = JSON.parse(body);
+      //...
+      process.env.AWS_S3_ID = body.AWS_S3_ID;
+      process.env.AWS_S3_SECRET = body.AWS_S3_SECRET;
+      process.env.URL_MONGODB_DEV = body.URL_MONGODB_DEV;
+      process.env.URL_MONGODB_PROD = body.URL_MONGODB_PROD;
 
-      //1. SEARCH API
-      app.get("/getSearchedLocations", function (request, res) {
-        resolveDate();
-        //..
-        let params = urlParser.parse(request.url, true);
-        request = params.query;
-        logger.info(request);
-        let request0 = null;
-        //Update search timestamp
-        //search_timestamp = dateObject.unix();
-        let search_timestamp = request.query.length;
-        //1. Get the bbox
-        request0 = new Promise((res, rej) => {
-          getCityBbox(request.city, res);
-        }).then(
-          (result) => {
-            let bbox = result;
-            //Get the location
-            new Promise((res, rej) => {
-              let tmpTimestamp = search_timestamp;
-              //Replace wanaheda by Samora Machel Constituency
-              request.query = /(wanaheda|wanahe|wanahed)/i.test(request.query)
-                ? "Samora Machel Constituency"
-                : request.query;
-              //...
-              getLocationList_five(
-                request.query,
-                request.city,
-                request.country,
-                bbox,
-                res,
-                tmpTimestamp,
-                collectionMongoDb
-              );
+      MongoClient.connect(
+        /live/i.test(process.env.SERVER_TYPE)
+          ? process.env.URL_MONGODB_PROD
+          : process.env.URL_MONGODB_DEV,
+        /production/i.test(process.env.EVIRONMENT)
+          ? {
+              tlsCAFile: certFile, //The DocDB cert
+              useUnifiedTopology: true,
+              useNewUrlParser: true,
+            }
+          : {
+              useUnifiedTopology: true,
+              useNewUrlParser: true,
+            },
+        function (err, clientMongo) {
+          if (err) throw err;
+          logger.info("Connected to Mongodb");
+          const dbMongo = clientMongo.db(process.env.DB_NAME_MONGODDB);
+          const collectionMongoDb = dbMongo.collection(
+            "searched_locations_persist"
+          );
+          //-------------
+          //Cached restore OR initialized
+          app
+            .use(
+              express.json({
+                limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
+                extended: true,
+              })
+            )
+            .use(
+              express.urlencoded({
+                limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
+                extended: true,
+              })
+            );
+
+          //1. SEARCH API
+          app.get("/getSearchedLocations", function (request, res) {
+            resolveDate();
+            //..
+            let params = urlParser.parse(request.url, true);
+            request = params.query;
+            logger.info(request);
+            let request0 = null;
+            //Update search timestamp
+            //search_timestamp = dateObject.unix();
+            let search_timestamp = request.query.length;
+            //1. Get the bbox
+            request0 = new Promise((res, rej) => {
+              getCityBbox(request.city, res);
             }).then(
               (result) => {
-                logger.info(result);
-                if (
-                  parseInt(search_timestamp) !=
-                  parseInt(result.search_timestamp)
-                ) {
-                  //Inconsistent - do not update
-                  //logger.info('Inconsistent');
-                  //res.send(false);
-                  res.send(result);
-                } //Consistent - update
-                else {
-                  //logger.info('Consistent');
-                  //logObject(result);
-                  //socket.emit("getLocations-response", result);
-                  res.send(result);
-                }
+                let bbox = result;
+                //Get the location
+                new Promise((res, rej) => {
+                  let tmpTimestamp = search_timestamp;
+                  //Replace wanaheda by Samora Machel Constituency
+                  request.query = /(wanaheda|wanahe|wanahed)/i.test(
+                    request.query
+                  )
+                    ? "Samora Machel Constituency"
+                    : request.query;
+                  //...
+                  getLocationList_five(
+                    request.query,
+                    request.city,
+                    request.country,
+                    bbox,
+                    res,
+                    tmpTimestamp,
+                    collectionMongoDb
+                  );
+                }).then(
+                  (result) => {
+                    logger.info(result);
+                    if (
+                      parseInt(search_timestamp) !=
+                      parseInt(result.search_timestamp)
+                    ) {
+                      //Inconsistent - do not update
+                      //logger.info('Inconsistent');
+                      //res.send(false);
+                      res.send(result);
+                    } //Consistent - update
+                    else {
+                      //logger.info('Consistent');
+                      //logObject(result);
+                      //socket.emit("getLocations-response", result);
+                      res.send(result);
+                    }
+                  },
+                  (error) => {
+                    logger.info(error);
+                    //socket.emit("getLocations-response", false);
+                    res.send(false);
+                  }
+                );
               },
               (error) => {
                 logger.info(error);
@@ -622,14 +649,9 @@ redisCluster.on("connect", function () {
                 res.send(false);
               }
             );
-          },
-          (error) => {
-            logger.info(error);
-            //socket.emit("getLocations-response", false);
-            res.send(false);
-          }
-        );
-      });
+          });
+        }
+      );
     }
   );
 });

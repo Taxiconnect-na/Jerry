@@ -401,8 +401,10 @@ io.on("connection", (socket) => {
         req.sharedTo_user_fingerprint +
         "&trip_simplified_id=" +
         req.trip_simplified_id;
+      logger.error(url);
       requestAPI(url, function (error, response, body) {
-        ////logger.info(body);
+        logger.warn(error);
+        logger.error(body);
         if (error === null) {
           try {
             body = JSON.parse(body);
@@ -1980,6 +1982,49 @@ io.on("connection", (socket) => {
           response: "error_unexpected",
         }
       );
+    }
+  });
+
+  /**
+   * ! ADMIN APIS only
+   */
+
+  /**
+   * 1. Get global map projections of all the trips in progress.
+   * ? Responsible for getting all the trips in progress in realtime for observation purposes.
+   */
+  socket.on("getTripsObservabilityStats_io", function (req) {
+    if (true) {
+      //Do the checkings
+      let url =
+        `${
+          /production/i.test(process.env.EVIRONMENT)
+            ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+            : process.env.LOCAL_URL
+        }` +
+        ":" +
+        process.env.ANALYTICS_SERVICE_PORT +
+        "/getGlobalObservabilityData";
+
+      requestAPI.post({ url, form: req }, function (error, response, body) {
+        if (error === null) {
+          //Success
+          try {
+            body = JSON.parse(body);
+            socket.emit("getTripsObservabilityStats_io-response", body);
+          } catch (error) {
+            socket.emit("getTripsObservabilityStats_io-response", {
+              response: "error",
+              flag: "invalid_data",
+            });
+          }
+        } else {
+          socket.emit("getTripsObservabilityStats_io-response", {
+            response: "error",
+            flag: "invalid_data",
+          });
+        }
+      });
     }
   });
 });
