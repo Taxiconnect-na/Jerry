@@ -2198,70 +2198,77 @@ function computeInDepthPricesMap(
                 if (/RIDE/i.test(vehicle.ride_type)) {
                   //RIDES
                   if (/Economy/i.test(vehicle.category)) {
+                    let didFindRegisteredSuburbs = false; //To know whether or not has found registered suburbs or else did not find matching suburbs.
+
                     //Added up all the suburb related infos based on connect me of connectUS
                     let lockPorgress = false; //Reponsible for avoiding repetitive removeal in case of FALSE suburb
-                    //Add base ride fare if the user is found to be going to the same suburb
+                    //? Add base ride fare if the user is found to be going to the same suburb
                     if (tmpPickupPickup === tmpDestinationSuburb) {
                       //Same suburb -> fare = base ride price
                       basePrice += doubleTheFareIfNecessary(
                         vehicle.base_fare,
                         completedInputData.isGoingUntilHome
                       );
+                      didFindRegisteredSuburbs = true;
                     }
 
-                    let didFindRegisteredSuburbs = false; //To know whether or not has found registered suburbs or else did not find matching suburbs.
                     //...
-                    globalPricesMap.map((suburbToSuburbInfo) => {
-                      if (
-                        suburbToSuburbInfo.pickup_suburb === false &&
-                        lockPorgress === false
-                      ) {
-                        //Add once
-                        if (basePrice > 0) {
-                          //Add basic vehicle price instead of false suburb fare
-                          //basePrice += suburbToSuburbInfo.fare;
-                          basePrice += doubleTheFareIfNecessary(
-                            vehicle.base_fare,
-                            completedInputData.isGoingUntilHome
-                          );
-                          lockPorgress = true;
-                          didFindRegisteredSuburbs = true; //Found false suburbs-consider as registered.
-                        }
-                      } else if (
-                        suburbToSuburbInfo.pickup_suburb !== false &&
-                        destination.suburb !== false &&
-                        new RegExp(
-                          suburbToSuburbInfo.pickup_suburb.toUpperCase().trim(),
-                          "i"
-                        ).test(tmpPickupPickup.toUpperCase().trim()) &&
-                        new RegExp(
-                          suburbToSuburbInfo.destination_suburb
-                            .toUpperCase()
-                            .trim(),
-                          "i"
-                        ).test(destination.suburb.toUpperCase().trim())
-                      ) {
-                        lockPorgress = false;
-                        didFindRegisteredSuburbs = true; //Found registered suburbs.
-                        //If the car type is economy electric, add its base price
-                        if (/electricEconomy/i.test(vehicle.car_type)) {
-                          //basePrice += vehicle.base_fare;
-                          //? Remove N$2 discount for electric rides
-                          basePrice +=
-                            doubleTheFareIfNecessary(
+                    if (didFindRegisteredSuburbs === false) {
+                      globalPricesMap.map((suburbToSuburbInfo) => {
+                        if (
+                          suburbToSuburbInfo.pickup_suburb === false &&
+                          lockPorgress === false
+                        ) {
+                          //Add once
+                          if (basePrice > 0) {
+                            //Add basic vehicle price instead of false suburb fare
+                            //basePrice += suburbToSuburbInfo.fare;
+                            basePrice += doubleTheFareIfNecessary(
+                              vehicle.base_fare,
+                              completedInputData.isGoingUntilHome
+                            );
+                            lockPorgress = true;
+                            didFindRegisteredSuburbs = true; //Found false suburbs-consider as registered.
+                          }
+                        } else if (
+                          suburbToSuburbInfo.pickup_suburb !== false &&
+                          destination.suburb !== false &&
+                          new RegExp(
+                            suburbToSuburbInfo.pickup_suburb
+                              .toUpperCase()
+                              .trim(),
+                            "i"
+                          ).test(tmpPickupPickup.toUpperCase().trim()) &&
+                          new RegExp(
+                            suburbToSuburbInfo.destination_suburb
+                              .toUpperCase()
+                              .trim(),
+                            "i"
+                          ).test(destination.suburb.toUpperCase().trim())
+                        ) {
+                          lockPorgress = false;
+                          didFindRegisteredSuburbs = true; //Found registered suburbs.
+                          //If the car type is economy electric, add its base price
+                          if (/electricEconomy/i.test(vehicle.car_type)) {
+                            //basePrice += vehicle.base_fare;
+                            //? Remove N$2 discount for electric rides
+                            basePrice +=
+                              doubleTheFareIfNecessary(
+                                parseFloat(suburbToSuburbInfo.fare),
+                                completedInputData.isGoingUntilHome
+                              ) - 2;
+                          } //Normal taxis
+                          else {
+                            basePrice += doubleTheFareIfNecessary(
                               parseFloat(suburbToSuburbInfo.fare),
                               completedInputData.isGoingUntilHome
-                            ) - 2;
-                        } //Normal taxis
-                        else {
-                          basePrice += doubleTheFareIfNecessary(
-                            parseFloat(suburbToSuburbInfo.fare),
-                            completedInputData.isGoingUntilHome
-                          );
+                            );
+                          }
                         }
-                      }
-                    });
+                      });
+                    }
                     //...
+                    logger.warn(basePrice);
                     if (didFindRegisteredSuburbs === false) {
                       //Did not find suburbs with mathing suburbs included
                       //Register in mongo
@@ -2339,6 +2346,7 @@ function computeInDepthPricesMap(
             }
           });
         }
+
         //Add header price and time multiplier ONLY for the Economy category and not airport rides
         if (/Economy/i.test(vehicle.category) && isGoingToAirport === false) {
           // if (/connectUs/i.test(completedInputData.connect_type)) {
@@ -2353,12 +2361,10 @@ function computeInDepthPricesMap(
           basePrice += headerPrice; //Add header price LAST
         }
         //DONE update base price...
-        logger.info(
-          "ESTIMATED BASE PRICE (car type:",
-          vehicle.car_type,
-          ") --> ",
-          basePrice
-        );
+        logger.info("ESTIMATED BASE PRICE (car type:");
+        logger.info(vehicle.car_type);
+        logger.info(") --> ");
+        logger.info(basePrice);
         //Update the rides infos data
         genericRidesInfos[index].base_fare = basePrice;
         //Only get relevant information form the metadata
