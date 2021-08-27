@@ -2138,6 +2138,106 @@ function notifyRidersOf_completedRides(
 }
 
 /**
+ * @func autoOfflineInactiveDrivers
+ * Responsible for finding inactive drivers and automatically put them offline.
+ * ? A driver is considered to be offline if no location was updated for >=3 days.
+ * ? event name: auto_swicthOffline_inactiveDriver
+ * @param collectionDrivers_profiles: the drivers collection
+ * @param resolve
+ */
+function autoOfflineInactiveDrivers(
+  collectionDrivers_profiles,
+  collectionGlobalEvents,
+  resolve
+) {
+  resolveDate();
+  //Check from the supposedly "online drivers"
+  collectionDrivers_profiles
+    .find({ "operational_state.status": "online" })
+    .toArray(function (err, driversData) {
+      if (err) {
+        logger.error(err);
+        resolve({ response: "could_not_proceed" });
+      }
+      //...
+      if (
+        driversData !== undefined &&
+        driversData !== null &&
+        driversData.length > 0
+      ) {
+        //Found some drivers
+        let parentPromises = driversData.map((driver) => {
+          return new Promise((resCompute) => {
+            try {
+              let lastUpdated = new Date(
+                driver.operational_state.last_location !== null &&
+                driver.operational_state.last_location !== undefined
+                  ? driver.operational_state.last_location.date_updated
+                  : driver.date_updated
+              );
+              let refDate = new Date(chaineDateUTC);
+              let diff = Math.abs((refDate - lastUpdated) / (1000 * 3600 * 24)); //Days
+
+              if (diff >= 3) {
+                //!Greater than 3 days - consider as offline
+                collectionDrivers_profiles.updateOne(
+                  {
+                    driver_fingerprint: driver.driver_fingerprint,
+                  },
+                  { $set: { "operational_state.status": "offline" } },
+                  function (err, reslt) {
+                    if (err) {
+                      logger.error(err);
+                      resCompute(false);
+                    }
+                    //...Save the event
+                    new Promise((res) => {
+                      collectionGlobalEvents.insertOne({
+                        event_name: "auto_swicthOffline_inactiveDriver",
+                        driver_fingerprint: driver.driver_fingerprint,
+                        inactivity_durationDays: diff,
+                        date: new Date(chaineDateUTC),
+                      });
+                      res(true);
+                    }).then(
+                      () => {},
+                      () => {}
+                    );
+                    //...Marked as offline
+                    resCompute(true);
+                  }
+                );
+              } //?Less than 3 days consider as online
+              else {
+                logger.info("Less than 3 days of inactivity, leave.");
+                resCompute(false);
+              }
+            } catch (error) {
+              logger.error(error);
+              resCompute(false);
+            }
+          });
+        });
+
+        //DONE
+        Promise.all(parentPromises)
+          .then((result) => {
+            resolve({
+              response: "successfully_marked_inactiveDrivers_as_offline",
+            });
+          })
+          .catch((error) => {
+            logger.error(error);
+            resolve({ response: "could_not_proceed" });
+          });
+      } //No drivers online - Strange
+      else {
+        resolve({ response: "no_online_drivers" });
+      }
+    });
+}
+
+/**
  * MAIN
  */
 
@@ -2302,6 +2402,26 @@ redisCluster.on("connect", function () {
             //? 1. Refresh every driver's wallet
             new Promise((res1) => {
               updateDrivers_walletCachedData(collectionDrivers_profiles, res1);
+            })
+              .then(
+                (result) => {
+                  logger.info(result);
+                },
+                (error) => {
+                  logger.info(error);
+                }
+              )
+              .catch((error) => {
+                logger.info(error);
+              });
+
+            //?2. Mark as offline all the inactive drivers
+            new Promise((res2) => {
+              autoOfflineInactiveDrivers(
+                collectionDrivers_profiles,
+                collectionGlobalEvents,
+                res2
+              );
             })
               .then(
                 (result) => {
