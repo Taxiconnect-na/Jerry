@@ -210,6 +210,9 @@ function parseRequestData(inputData, resolve) {
         //Valid input
         let parsedData = {};
         //Complete unnested data
+        //? Add the dispatch strategy used
+        parsedData.dispatch_strategy = process.env.RIDES_DISPATCH_STRATEGY;
+        //...
         parsedData.client_id = inputData.user_fingerprint;
         parsedData.request_fp = dateObject.unix();
         //Compute the request fp
