@@ -2099,7 +2099,10 @@ function computeInDepthPricesMap(
             } //Economy
             else {
               //Apply passengers multiplier to fixed NAD45
-              basePrice = 45 + 2.5 * (passengersMultiplier - 1);
+              basePrice =
+                45 +
+                parseFloat(process.env.CONNECTME_ADDITION_PASSENGER_FEE) *
+                  (passengersMultiplier - 1);
             }
           } //ConnectUs
           else {
@@ -2153,7 +2156,9 @@ function computeInDepthPricesMap(
                   } //Economy
                   else {
                     //Apply passengers multiplier to fixed NAD45
-                    basePrice -= 2.5 * (passengersMultiplier - 1);
+                    basePrice -=
+                      parseFloat(process.env.CONNECTME_ADDITION_PASSENGER_FEE) *
+                      (passengersMultiplier - 1);
                   }
                 } //For connectUs remove base price for 1 user considered if not 0
                 else {
