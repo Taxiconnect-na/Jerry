@@ -1459,6 +1459,50 @@ io.on("connection", (socket) => {
 
   /**
    * ACCOUNTS SERVICE, port 9696
+   * Route: getDriversGeneralAccountNumber
+   * event: driversOverallNumbers
+   * Get all the big numbers for a drivers account
+   */
+  socket.on("driversOverallNumbers", function (req) {
+    //logger.info(req);
+    if (req.user_fingerprint !== undefined && req.user_fingerprint !== null) {
+      let url =
+        `${
+          /production/i.test(process.env.EVIRONMENT)
+            ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+            : process.env.LOCAL_URL
+        }` +
+        ":" +
+        process.env.ACCOUNTS_SERVICE_PORT +
+        "/getDriversGeneralAccountNumber?user_fingerprint=" +
+        req.user_fingerprint;
+
+      requestAPI(url, function (error, response, body) {
+        //logger.info(body);
+        if (error === null) {
+          try {
+            body = JSON.parse(body);
+            socket.emit("driversOverallNumbers-response", body);
+          } catch (error) {
+            socket.emit("driversOverallNumbers-response", {
+              response: "error",
+            });
+          }
+        } else {
+          socket.emit("driversOverallNumbers-response", {
+            response: "error",
+          });
+        }
+      });
+    } else {
+      socket.emit("driversOverallNumbers-response", {
+        response: "error",
+      });
+    }
+  });
+
+  /**
+   * ACCOUNTS SERVICE, port 9696
    * Route: updateRiders_profileInfos
    * event: updateRiders_profileInfos_io
    * Responsible for updating ANY information related to the passengers profile.

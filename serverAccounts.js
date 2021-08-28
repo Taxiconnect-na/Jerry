@@ -263,8 +263,6 @@ function checkUserStatus(
     phone_number: { $regex: userData.phone_number.replace("+", "").trim() },
   }; //?Indexed
 
-  logger.info(checkUser);
-
   //1. Passengers
   if (
     userData.user_nature === undefined ||
@@ -4437,6 +4435,164 @@ function getReferredDrivers_list(
 }
 
 /**
+ * @func getDriversGlobalAccountNumbers
+ * Responsible for getting the global numbers from a drivers account like:
+ * ?1. Total rides
+ * ?2. Total revenue
+ *
+ * @param driver_fingerprint
+ * @param resolve
+ */
+function getDriversGlobalAccountNumbers(driver_fingerprint, resolve) {
+  let redisKey = `${driver_fingerprint}-globalAccountNumbers`;
+
+  redisGet(redisKey).then((resp) => {
+    if (resp !== null) {
+      try {
+        //Rehydrate
+        new Promise((resCompute) => {
+          ExecgetDriversGlobalAccountNumbers(
+            driver_fingerprint,
+            redisKey,
+            resCompute
+          );
+        })
+          .then((result) => {})
+          .catch((error) => {
+            logger.error(error);
+          });
+        //...
+        logger.warn("Cached data");
+        resp = JSON.parse(resp);
+        resolve(resp);
+      } catch (error) {
+        logger.error(error);
+        new Promise((resCompute) => {
+          ExecgetDriversGlobalAccountNumbers(
+            driver_fingerprint,
+            redisKey,
+            resCompute
+          );
+        })
+          .then((result) => {
+            resolve(result);
+          })
+          .catch((error) => {
+            logger.error(error);
+            resolve({
+              response: {
+                rides: 0,
+                deliveries: 0,
+                revenue: 0,
+                rating: 0,
+              },
+            });
+          });
+      }
+    } //No cached data yet
+    else {
+      new Promise((resCompute) => {
+        ExecgetDriversGlobalAccountNumbers(
+          driver_fingerprint,
+          redisKey,
+          resCompute
+        );
+      })
+        .then((result) => {
+          resolve(result);
+        })
+        .catch((error) => {
+          logger.error(error);
+          resolve({
+            response: {
+              rides: 0,
+              deliveries: 0,
+              revenue: 0,
+              rating: 0,
+            },
+          });
+        });
+    }
+  });
+}
+/**
+ * Responsible for executing @func getDriversGlobalAccountNumbers
+ * @param driver_fingerprint
+ * @param redisKey
+ * @param resolve
+ */
+function ExecgetDriversGlobalAccountNumbers(
+  driver_fingerprint,
+  redisKey,
+  resolve
+) {
+  collectionRidesDeliveryData
+    .find({ taxi_id: driver_fingerprint, isArrivedToDestination: true })
+    .toArray(function (err, tripsData) {
+      if (err) {
+        logger.error(err);
+        resolve({ response: "error_getting_data" });
+      }
+      //..
+      if (
+        tripsData !== undefined &&
+        tripsData !== null &&
+        tripsData.length > 0
+      ) {
+        let rides = 0;
+        let revenue = 0;
+        let deliveries = 0;
+        let rating = 0;
+
+        //Has some historical data
+        tripsData.map((trip) => {
+          let tmpFare = parseFloat(trip.fare); //basic trip fare
+          tmpFare -= 0.1 * tmpFare; //TODO: should probably link the removal of the fare to the historical commission actually taken from it, because if the commission changes it will yield an inaccurate number.
+          revenue += tmpFare;
+          //...
+          rides += /RIDE/i.test(trip.ride_mode) ? 1 : 0;
+          deliveries += /DELIVERY/i.test(trip.ride_mode) ? 1 : 0;
+          //...
+          rating +=
+            trip.ride_state_vars.rider_driverRating !== undefined &&
+            trip.ride_state_vars.rider_driverRating !== null &&
+            /yet/i.test(trip.ride_state_vars.rider_driverRating) == false
+              ? parseFloat(trip.ride_state_vars.rider_driverRating)
+              : 0;
+        });
+        //Find the final rating - average
+        rating = (rating / tripsData.length).toFixed(1);
+        //DONE
+        let overview = {
+          rides: rides,
+          deliveries: deliveries,
+          trips: rides + deliveries,
+          revenue: Math.floor(revenue),
+          rating: rating,
+        };
+        //Cache the result
+        new Promise((resCache) => {
+          redisCluster.set(redisKey, JSON.stringify(overview));
+          resCache(true);
+        })
+          .then()
+          .catch();
+        //...
+        resolve(overview);
+      } //No historical data - zero
+      else {
+        resolve({
+          response: {
+            rides: 0,
+            deliveries: 0,
+            revenue: 0,
+          },
+        });
+      }
+    });
+}
+
+/**
  * MAIN
  */
 var collectionPassengers_profiles = null;
@@ -6460,6 +6616,36 @@ redisCluster.on("connect", function () {
               .catch((error) => {
                 logger.error(error);
                 res.send({ response: "error" });
+              });
+          });
+
+          /**
+           * GET DRIVERS ACCOUNT GENERAL NUMBERS.
+           * ? Responsible for getting the general numbers that reflect the state of a drivers account
+           * ? from the creation until now.
+           */
+          app.get("/getDriversGeneralAccountNumber", function (req, res) {
+            new Promise((resolve) => {
+              resolveDate();
+              let params = urlParser.parse(req.url, true);
+              req = params.query;
+
+              if (
+                req.user_fingerprint !== undefined &&
+                req.user_fingerprint !== null
+              ) {
+                getDriversGlobalAccountNumbers(req.user_fingerprint, resolve);
+              } //Error
+              else {
+                resolve({ response: "error_invalid_data" });
+              }
+            })
+              .then((result) => {
+                res.send(result);
+              })
+              .catch((error) => {
+                logger.error(error);
+                res.send({ response: "error_invalid_data" });
               });
           });
         }
