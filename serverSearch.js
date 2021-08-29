@@ -163,221 +163,148 @@ function similarityCheck_locations_search(arrayLocations, query, res) {
 /**
  * @func newLoaction_search_engine
  * Responsible for performing new location seearches based on some specific keywords.
+ * @param {*} keyREDIS: to save the global final result for 2 days
  * @param {*} queryOR
  * @param {*} city
  * @param {*} bbox
  * @param {*} res
  * @param {*} timestamp
- * @param {*} collectionMongoDb
- * @param {*} keyREDIS
  */
 
 function newLoaction_search_engine(
+  keyREDIS,
   queryOR,
   city,
   bbox,
   res,
-  timestamp,
-  collectionMongoDb,
-  keyREDIS
+  timestamp
 ) {
   //..
   query = encodeURIComponent(queryOR.toLowerCase().trim());
-  let urlRequest =
-    process.env.URL_SEARCH_SERVICES +
-    "api?q=" +
-    query +
-    "&bbox=" +
-    bbox +
-    "&limit=" +
-    _LIMIT_LOCATION_SEARCH_RESULTS;
+  // let urlRequest =
+  //   process.env.URL_SEARCH_SERVICES +
+  //   "api?q=" +
+  //   query +
+  //   "&bbox=" +
+  //   bbox +
+  //   "&limit=" +
+  //   _LIMIT_LOCATION_SEARCH_RESULTS;
+  //TODO: could allocate the country dynamically for scale.
+  let urlRequest = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${query}&key=${process.env.GOOGLE_API_KEY}&components=country:na`;
+
   requestAPI(urlRequest, function (err, response, body) {
     try {
       body = JSON.parse(body);
 
       if (body != undefined) {
         if (
-          body.features[0] !== undefined &&
-          body.features[0].properties != undefined
+          body.predictions !== undefined &&
+          body.predictions !== null &&
+          body.predictions.length > 0
         ) {
-          //logObject(body);
           //...
-          if (body.features.length > 0) {
-            var locationsSelected = []; //Will contain the first gathering of results - raw from search
-            //.
-            let request0 = body.features.map((locationPlace) => {
-              return new Promise((resolve) => {
-                let averageGeo = null;
-                if (locationPlace.properties.extent == undefined) {
-                  //Consider point to find the averge geo
-                  averageGeo = locationPlace.geometry.coordinates.reduce(
-                    (a, b) => a + b,
-                    0
-                  );
-                } //Average geo from extent
-                else {
-                  averageGeo = locationPlace.properties.extent.reduce(
-                    (a, b) => a + b,
-                    0
-                  );
-                }
+          //.
+          let request0 = body.predictions.map((locationPlace, index) => {
+            return new Promise((resolve) => {
+              let averageGeo = 0;
+              //? Deduct the street, city and country
+              let locationName = locationPlace.structured_formatting.main_text;
+              //Get the street city and country infos
+              let secondaryDetailsCombo =
+                locationPlace.structured_formatting.secondary_text !==
+                  undefined &&
+                locationPlace.structured_formatting.secondary_text !== null
+                  ? locationPlace.structured_formatting.secondary_text.split(
+                      ", "
+                    )
+                  : false; //Will contain the street, city and country respectively
+              let streetName =
+                secondaryDetailsCombo !== false
+                  ? secondaryDetailsCombo.length >= 3
+                    ? secondaryDetailsCombo[secondaryDetailsCombo.length - 3]
+                    : false
+                  : false;
+              //city
+              let cityName =
+                secondaryDetailsCombo !== false
+                  ? secondaryDetailsCombo.length >= 2
+                    ? secondaryDetailsCombo[secondaryDetailsCombo.length - 2]
+                    : false
+                  : false;
+              //Country
+              let countryName =
+                secondaryDetailsCombo !== false
+                  ? secondaryDetailsCombo.length >= 1
+                    ? secondaryDetailsCombo[secondaryDetailsCombo.length - 1]
+                    : false
+                  : false;
 
-                if (locationPlace.properties.street == undefined) {
-                  locationPlace.properties.street = false;
-                }
-                if (locationPlace.properties.name == undefined) {
-                  locationPlace.properties.name = false;
-                }
-                //...
-                let littlePack = {
-                  location_id: locationPlace.properties.osm_id,
-                  location_name: locationPlace.properties.name,
-                  coordinates: locationPlace.geometry.coordinates,
-                  averageGeo: averageGeo,
-                  city: locationPlace.properties.city,
-                  street: locationPlace.properties.street,
-                  state: locationPlace.properties.state,
-                  country: locationPlace.properties.country,
-                  query: queryOR,
-                };
-                //logObject(littlePack);
-                resolve(littlePack);
-              });
-            });
-            //Done with grathering result of brute API search
-            Promise.all(request0).then((val) => {
-              //logger.info(val);
-              //Remove all the false values
-              val = fastFilter(val, function (element) {
-                return element !== false;
-              });
               //...
-              //logObject(val);
-              let request1 = new Promise((resolve) => {
-                similarityCheck_locations_search(val, queryOR, resolve);
-              }).then(
-                (result) => {
-                  //logObject(result);
-                  //Remove the false
-                  result = fastFilter(result, function (element) {
-                    return element !== false;
-                  });
-
-                  if (result.length > 0) {
-                    //populated
-                    //Update search cache - redis
-                    redisGet(keyREDIS).then(
-                      (resp) => {
-                        //logger.info(resp);
-                        if (resp !== null) {
-                          let respPrevRedisCache = JSON.parse(resp);
-                          //logObject(respPrevRedisCache);
-                          respPrevRedisCache = respPrevRedisCache.map(
-                            JSON.stringify
-                          );
-                          //logObject(respPrevRedisCache);
-                          let newSearchRecords = [];
-                          //...
-                          let request2 = new Promise((resolve) => {
-                            result.map((item) => {
-                              //New record
-                              respPrevRedisCache.push(JSON.stringify(item));
-                              newSearchRecords.push(item);
-                            });
-                            //Remove duplicates from new search
-                            newSearchRecords = [...new Set(newSearchRecords)];
-                            resolve(newSearchRecords);
-                          }).then(
-                            (reslt) => {
-                              //Update cache
-                              //let cachedString = JSON.stringify(respPrevRedisCache);
-                              let cachedString = JSON.stringify(
-                                respPrevRedisCache.map(JSON.parse)
-                              );
-                              //logObject(newSearchRecords);
-                              if (newSearchRecords.length > 0) {
-                                new Promise((resUpdate) => {
-                                  collectionMongoDb.insertMany(
-                                    newSearchRecords,
-                                    function (err, res) {
-                                      logger.info(res);
-                                      resUpdate(
-                                        "Updated mongo with new search results from autocomplete"
-                                      );
-                                    }
-                                  );
-                                }).then(
-                                  () => {},
-                                  () => {}
-                                );
-                              }
-                              //Update redis local cache
-                              redisCluster.setex(
-                                keyREDIS,
-                                process.env.REDIS_EXPIRATION_5MIN * 16,
-                                cachedString
-                              );
-                              //Update mongodb - cache
-                              res({
-                                search_timestamp: timestamp,
-                                result: {
-                                  search_timestamp: timestamp,
-                                  result: removeResults_duplicates(
-                                    result
-                                  ).slice(0, 5),
-                                },
-                              });
-                            },
-                            (err) => {
-                              res({
-                                search_timestamp: timestamp,
-                                result: removeResults_duplicates(result).slice(
-                                  0,
-                                  5
-                                ),
-                              });
-                            }
-                          );
-                        } else {
-                          logger.info("setting redis");
-                          //set redis
-                          redisCluster.setex(
-                            keyREDIS,
-                            process.env.REDIS_EXPIRATION_5MIN * 16,
-                            JSON.stringify(result)
-                          );
-                          res({
-                            search_timestamp: timestamp,
-                            result: removeResults_duplicates(result).slice(
-                              0,
-                              5
-                            ),
-                          });
-                        }
-                      },
-                      (error) => {
-                        logger.info(error);
-                        res({
-                          search_timestamp: timestamp,
-                          result: removeResults_duplicates(result).slice(0, 5),
-                        });
-                      }
-                    );
-                  } //empty
-                  else {
-                    res(false);
-                  }
-                },
-                (error) => {
-                  logger.info(error);
-                  res(false);
-                }
-              );
+              let littlePack = {
+                indexSearch: index,
+                location_id: locationPlace.place_id,
+                location_name: locationName,
+                coordinates: null, //To be completed!
+                averageGeo: averageGeo,
+                city: cityName,
+                street: streetName,
+                state: null, //To be completed!
+                country: countryName,
+                query: queryOR,
+              };
+              //! Get the coordinates and save them in mongodb - to save on cost
+              new Promise((resCompute) => {
+                attachCoordinatesAndRegion(littlePack, resCompute);
+              })
+                .then((result) => {
+                  resolve(result);
+                })
+                .catch((error) => {
+                  logger.error(error);
+                  resolve(false);
+                });
             });
-          } //No results
-          else {
-            res(false);
-          }
+          });
+          //Done with grathering result of brute API search
+          Promise.all(request0).then((val) => {
+            //logger.info(val);
+            //Remove all the false values
+            let result = fastFilter(val, function (element) {
+              return element !== false;
+            });
+            //? Remove all the out of context cities
+            result = fastFilter(val, function (element) {
+              logger.warn(element);
+              let regFilterCity = new RegExp(city.trim(), "i");
+              return element.city !== false && element.city !== undefined
+                ? regFilterCity.test(element.city.trim())
+                : false;
+            });
+            //...
+            if (result.length > 0) {
+              let finalSearchResults = {
+                search_timestamp: timestamp,
+                result: removeResults_duplicates(result).slice(0, 5),
+              };
+
+              //! Cache globally the final result
+              new Promise((resCache) => {
+                redisCluster.setex(
+                  keyREDIS,
+                  parseFloat(process.env.REDIS_EXPIRATION_5MIN) * 864,
+                  JSON.stringify(finalSearchResults)
+                );
+                resCache(true);
+              })
+                .then()
+                .catch();
+              //populated
+              res(finalSearchResults);
+            } //empty
+            else {
+              res(false);
+            }
+          });
         } else {
           res(false);
         }
@@ -387,6 +314,201 @@ function newLoaction_search_engine(
     } catch (error) {
       logger.info(error);
       res(false);
+    }
+  });
+}
+
+/**
+ * @func attachCoordinatesAndRegion
+ * Responsible as the name indicates of addiing the coordinates of the location and the region.
+ * @param littlePack: the incomplete location to complete
+ * @param resolve
+ */
+function attachCoordinatesAndRegion(littlePack, resolve) {
+  //? Check if its wasn't cached before
+  let redisKey = `${littlePack.location_id}-coordinatesAndRegion`;
+  redisGet(redisKey).then((resp) => {
+    if (resp !== null) {
+      try {
+        logger.warn("Using cached coordinates and region");
+        resp = JSON.parse(resp);
+        //? Quickly complete
+        body = resp;
+        //Has a previous record
+        let coordinates = [
+          body.result.geometry.location.lat,
+          body.result.geometry.location.lng,
+        ];
+        let state = body.result.address_components
+          .filter((item) =>
+            item.types.includes("administrative_area_level_1")
+          )[0]
+          .long_name.replace(" Region", "");
+        //...
+        littlePack.coordinates = coordinates;
+        littlePack.state = state;
+        //...done
+        resolve(littlePack);
+      } catch (error) {
+        logger.error(error);
+        //Do a fresh search or from mongo
+        new Promise((resCompute) => {
+          doFreshGoogleSearchAndReturn(littlePack, redisKey, resCompute);
+        })
+          .then((result) => {
+            resolve(result);
+          })
+          .catch((error) => {
+            logger.error(error);
+            resolve(false);
+          });
+      }
+    } //Not cached - check Mongo
+    else {
+      //? First check in mongo
+      collectionAutoCompletedSubs
+        .find({ place_id: littlePack.location_id })
+        .toArray(function (err, placeInfo) {
+          if (err) {
+            logger.error(err);
+            //fresh
+            new Promise((resCompute) => {
+              doFreshGoogleSearchAndReturn(littlePack, redisKey, resCompute);
+            })
+              .then((result) => {
+                resolve(result);
+              })
+              .catch((error) => {
+                logger.error(error);
+                resolve(false);
+              });
+          }
+          //...
+          if (
+            placeInfo !== undefined &&
+            placeInfo !== null &&
+            placeInfo.length > 0
+          ) {
+            body = placeInfo[0];
+            //Has a previous record
+            let coordinates = [
+              body.result.geometry.location.lat,
+              body.result.geometry.location.lng,
+            ];
+            let state = body.result.address_components
+              .filter((item) =>
+                item.types.includes("administrative_area_level_1")
+              )[0]
+              .long_name.replace(" Region", "");
+            //...
+            littlePack.coordinates = coordinates;
+            littlePack.state = state;
+            //..Save the body in mongo
+            body["date_updated"] = new Date(chaineDateUTC);
+            new Promise((resSave) => {
+              collectionAutoCompletedSubs.updateOne(
+                { "result.place_id": littlePack.place_id },
+                {
+                  $set: body,
+                },
+                { upsert: true },
+                function (err, res) {
+                  logger.error(err);
+                  resSave(true);
+                }
+              );
+            })
+              .then()
+              .catch();
+            //...Cache it
+            new Promise((resCache) => {
+              redisCluster.setex(
+                redisKey,
+                parseFloat(process.env.REDIS_EXPIRATION_5MIN) * 864,
+                JSON.stringify(body)
+              );
+              resCache(true);
+            });
+            //...done
+            resolve(littlePack);
+          } //No previous mongo record - do fresh
+          else {
+            new Promise((resCompute) => {
+              doFreshGoogleSearchAndReturn(littlePack, redisKey, resCompute);
+            })
+              .then((result) => {
+                resolve(result);
+              })
+              .catch((error) => {
+                logger.error(error);
+                resolve(false);
+              });
+          }
+        });
+    }
+  });
+}
+
+/**
+ * @func doFreshGoogleSearchAndReturn
+ * Responsible for doing a clean google maps search, save the value in mongo, cache it and return an updated object.
+ */
+function doFreshGoogleSearchAndReturn(littlePack, redisKey, resolve) {
+  let urlRequest = `https://maps.googleapis.com/maps/api/place/details/json?placeid=${littlePack.location_id}&key=${process.env.GOOGLE_API_KEY}&fields=formatted_address,address_components,geometry,place_id`;
+
+  requestAPI(urlRequest, function (err, response, body) {
+    try {
+      body = JSON.parse(body);
+      if (
+        body.result !== undefined &&
+        body.result.address_components !== undefined &&
+        body.result.geometry !== undefined
+      ) {
+        let coordinates = [
+          body.result.geometry.location.lat,
+          body.result.geometry.location.lng,
+        ];
+        let state = body.result.address_components
+          .filter((item) =>
+            item.types.includes("administrative_area_level_1")
+          )[0]
+          .long_name.replace(" Region", "");
+        //...
+        littlePack.coordinates = coordinates;
+        littlePack.state = state;
+        //..Save the body in mongo
+        body["date_updated"] = new Date(chaineDateUTC);
+        new Promise((resSave) => {
+          collectionAutoCompletedSubs.updateOne(
+            { "result.place_id": littlePack.place_id },
+            { $set: body },
+            { upsert: true },
+            function (err, res) {
+              logger.error(err);
+              resSave(true);
+            }
+          );
+        })
+          .then()
+          .catch();
+        //...Cache it
+        new Promise((resCache) => {
+          redisCluster.setex(
+            redisKey,
+            parseFloat(process.env.REDIS_EXPIRATION_5MIN) * 864,
+            JSON.stringify(body)
+          );
+          resCache(true);
+        });
+        //...done
+        resolve(littlePack);
+      } //Invalid data
+      else {
+        resolve(false);
+      }
+    } catch (error) {
+      logger.error(error);
+      resolve(false);
     }
   });
 }
@@ -426,73 +548,30 @@ function removeResults_duplicates(arrayResults, resolve) {
  * @param {*} collectionMongoDb
  */
 
-function getLocationList_five(
-  queryOR,
-  city,
-  country,
-  bbox,
-  res,
-  timestamp,
-  collectionMongoDb
-) {
-  logger.info(city, country);
+function getLocationList_five(queryOR, city, country, bbox, res, timestamp) {
   //Check if cached results are available
-  let keyREDIS =
-    "search_locations-" +
-    city.trim().toLowerCase() +
-    "-" +
-    country.trim().toLowerCase();
+  let keyREDIS = `search_locations-${city.trim().toLowerCase()}-${country
+    .trim()
+    .toLowerCase()}-${queryOR}`;
   //-------------------------------------
   redisGet(keyREDIS).then(
-    (reslt) => {
-      if (reslt != null && reslt !== undefined) {
+    (resp) => {
+      if (resp != null && resp !== undefined) {
+        logger.warn("Found global search results for the same query input");
         //logObject(JSON.parse(reslt));
-        var cachedLocations = JSON.parse(reslt);
-        //sort based on the keyword, city and country names
-        cachedLocations = cachedLocations.filter((element) => {
-          if (
-            element.country != undefined &&
-            element.city != undefined &&
-            element.query != undefined
-          ) {
-            let regCheckerQuery = new RegExp(
-              escapeStringRegexp(queryOR.toLowerCase().trim()),
-              "i"
-            );
-            return (
-              regCheckerQuery.test(element.query) &&
-              element.country.toLowerCase().trim() ==
-                country.toLowerCase().trim() &&
-              element.city.toLowerCase().trim() == city.toLowerCase().trim()
-            );
-          } //Invalid element
-          else {
-            return false;
-          }
-        });
-        //...Check tolerance number
-        if (cachedLocations.length > 0) {
-          //Exists
-          logger.info("Cached data fetch");
-          //logObject(removeResults_duplicates(cachedLocations));
-          res({
-            search_timestamp: timestamp,
-            result: {
-              search_timestamp: timestamp,
-              result: removeResults_duplicates(cachedLocations).slice(0, 5),
-            },
-          });
-        } //No results launch new search
-        else {
+        try {
+          resp = JSON.parse(resp);
+          res(resp);
+        } catch (error) {
+          logger.error(error);
           logger.info("Launch new search");
           newLoaction_search_engine(
+            keyREDIS,
             queryOR,
             city,
             bbox,
             res,
-            timestamp,
-            collectionMongoDb,
-            keyREDIS
+            timestamp
           );
         }
       } //No cached results
@@ -500,13 +579,12 @@ function getLocationList_five(
         //Launch new search
         logger.info("Launch new search");
         newLoaction_search_engine(
+          keyREDIS,
           queryOR,
           city,
           bbox,
           res,
-          timestamp,
-          collectionMongoDb,
-          keyREDIS
+          timestamp
         );
       }
     },
@@ -514,18 +592,14 @@ function getLocationList_five(
       //Launch new search
       logger.info(error);
       logger.info("Launch new search");
-      newLoaction_search_engine(
-        queryOR,
-        city,
-        bbox,
-        res,
-        timestamp,
-        collectionMongoDb,
-        keyREDIS
-      );
+      newLoaction_search_engine(keyREDIS, queryOR, city, bbox, res, timestamp);
     }
   );
 }
+
+var collectionMongoDb = null;
+var collectionAutoCompletedSubs = null;
+
 redisCluster.on("connect", function () {
   logger.info("[*] Redis connected");
   requestAPI(
@@ -543,6 +617,7 @@ redisCluster.on("connect", function () {
       process.env.AWS_S3_SECRET = body.AWS_S3_SECRET;
       process.env.URL_MONGODB_DEV = body.URL_MONGODB_DEV;
       process.env.URL_MONGODB_PROD = body.URL_MONGODB_PROD;
+      process.env.GOOGLE_API_KEY = body.GOOGLE_API_KEY; //?Could be dev or prod depending on process.env.ENVIRONMENT
 
       MongoClient.connect(
         /live/i.test(process.env.SERVER_TYPE)
@@ -562,8 +637,9 @@ redisCluster.on("connect", function () {
           if (err) throw err;
           logger.info("Connected to Mongodb");
           const dbMongo = clientMongo.db(process.env.DB_NAME_MONGODDB);
-          const collectionMongoDb = dbMongo.collection(
-            "searched_locations_persist"
+          collectionMongoDb = dbMongo.collection("searched_locations_persist");
+          collectionAutoCompletedSubs = dbMongo.collection(
+            "autocompleted_location_suburbs"
           );
           //-------------
           //Cached restore OR initialized
@@ -599,7 +675,7 @@ redisCluster.on("connect", function () {
               (result) => {
                 let bbox = result;
                 //Get the location
-                new Promise((res, rej) => {
+                new Promise((res) => {
                   let tmpTimestamp = search_timestamp;
                   //Replace wanaheda by Samora Machel Constituency
                   request.query = /(wanaheda|wanahe|wanahed)/i.test(
@@ -627,13 +703,13 @@ redisCluster.on("connect", function () {
                       //Inconsistent - do not update
                       //logger.info('Inconsistent');
                       //res.send(false);
-                      res.send(result);
+                      res.send({ result: result });
                     } //Consistent - update
                     else {
                       //logger.info('Consistent');
                       //logObject(result);
                       //socket.emit("getLocations-response", result);
-                      res.send(result);
+                      res.send({ result: result });
                     }
                   },
                   (error) => {

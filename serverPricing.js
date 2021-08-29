@@ -830,124 +830,141 @@ function doMongoSearchForAutocompletedSuburbs(
   }`;
 
   //Check from redis first
-  redisGet(redisKey).then(
-    (resp) => {
-      if (resp !== null && locationInfos.make_new === false) {
-        logger.warn("Cached considered");
-        //Has a previous record
-        try {
-          //Rehydrate the cached data
-          //! HIGH PERFORMANCE RISK CODE
-          new Promise((res) => {
-            execMongoSearchAutoComplete(
-              res,
-              locationInfos,
-              redisKey,
-              collectionSavedSuburbResults,
-              annotate
-            );
-          }).then(
-            (result) => {},
-            (error) => {}
-          );
-          logger.info("FOUND REDIS RECORD OF SUBURB!");
-          resp = JSON.parse(resp);
-          if (
-            resp.location_name !== undefined &&
-            resp.location_name !== null &&
-            resp.suburb !== undefined &&
-            resp.suburb !== null &&
-            resp.suburb !== false &&
-            resp.city !== false &&
-            resp.city !== "false" &&
-            resp.city !== undefined &&
-            resp.city !== null
-          ) {
-            resp["passenger_number_id"] =
-              locationInfos.passenger_number_id !== undefined &&
-              locationInfos.passenger_number_id !== null
-                ? locationInfos.passenger_number_id
-                : 1;
-            resolve(resp);
-          } //Do fresh search
-          else {
-            new Promise((res) => {
-              execMongoSearchAutoComplete(
-                res,
-                locationInfos,
-                redisKey,
-                collectionSavedSuburbResults,
-                annotate
-              );
-            }).then(
-              (result) => {
-                resolve(result);
-              },
-              (error) => {
-                resolve(false);
-              }
-            );
-          }
-        } catch (
-          error //Error parsing -get from mongodb
-        ) {
-          new Promise((res) => {
-            execMongoSearchAutoComplete(
-              res,
-              locationInfos,
-              redisKey,
-              collectionSavedSuburbResults,
-              annotate
-            );
-          }).then(
-            (result) => {
-              resolve(result);
-            },
-            (error) => {
-              resolve(false);
-            }
-          );
-        }
-      } //No records - get from mongodb
-      else {
-        new Promise((res) => {
-          execMongoSearchAutoComplete(
-            res,
-            locationInfos,
-            redisKey,
-            collectionSavedSuburbResults,
-            annotate
-          );
-        }).then(
-          (result) => {
-            resolve(result);
-          },
-          (error) => {
-            logger.info(error);
-            resolve(false);
-          }
-        );
-      }
+  // redisGet(redisKey).then(
+  //   (resp) => {
+  //     if (resp !== null && locationInfos.make_new === false) {
+  //       logger.warn("Cached considered");
+  //       //Has a previous record
+  //       try {
+  //         //Rehydrate the cached data
+  //         //! HIGH PERFORMANCE RISK CODE
+  //         new Promise((res) => {
+  //           execMongoSearchAutoComplete(
+  //             res,
+  //             locationInfos,
+  //             redisKey,
+  //             collectionSavedSuburbResults,
+  //             annotate
+  //           );
+  //         }).then(
+  //           (result) => {},
+  //           (error) => {}
+  //         );
+  //         logger.info("FOUND REDIS RECORD OF SUBURB!");
+  //         resp = JSON.parse(resp);
+  //         if (
+  //           resp.location_name !== undefined &&
+  //           resp.location_name !== null &&
+  //           resp.suburb !== undefined &&
+  //           resp.suburb !== null &&
+  //           resp.suburb !== false &&
+  //           resp.city !== false &&
+  //           resp.city !== "false" &&
+  //           resp.city !== undefined &&
+  //           resp.city !== null
+  //         ) {
+  //           resp["passenger_number_id"] =
+  //             locationInfos.passenger_number_id !== undefined &&
+  //             locationInfos.passenger_number_id !== null
+  //               ? locationInfos.passenger_number_id
+  //               : 1;
+  //           resolve(resp);
+  //         } //Do fresh search
+  //         else {
+  //           new Promise((res) => {
+  //             execMongoSearchAutoComplete(
+  //               res,
+  //               locationInfos,
+  //               redisKey,
+  //               collectionSavedSuburbResults,
+  //               annotate
+  //             );
+  //           }).then(
+  //             (result) => {
+  //               resolve(result);
+  //             },
+  //             (error) => {
+  //               resolve(false);
+  //             }
+  //           );
+  //         }
+  //       } catch (
+  //         error //Error parsing -get from mongodb
+  //       ) {
+  //         new Promise((res) => {
+  //           execMongoSearchAutoComplete(
+  //             res,
+  //             locationInfos,
+  //             redisKey,
+  //             collectionSavedSuburbResults,
+  //             annotate
+  //           );
+  //         }).then(
+  //           (result) => {
+  //             resolve(result);
+  //           },
+  //           (error) => {
+  //             resolve(false);
+  //           }
+  //         );
+  //       }
+  //     } //No records - get from mongodb
+  //     else {
+  //       new Promise((res) => {
+  //         execMongoSearchAutoComplete(
+  //           res,
+  //           locationInfos,
+  //           redisKey,
+  //           collectionSavedSuburbResults,
+  //           annotate
+  //         );
+  //       }).then(
+  //         (result) => {
+  //           resolve(result);
+  //         },
+  //         (error) => {
+  //           logger.info(error);
+  //           resolve(false);
+  //         }
+  //       );
+  //     }
+  //   },
+  //   (error) => {
+  //     logger.info(error);
+  //     //Error -get from mongodb
+  //     new Promise((res) => {
+  //       execMongoSearchAutoComplete(
+  //         res,
+  //         locationInfos,
+  //         redisKey,
+  //         collectionSavedSuburbResults,
+  //         annotate
+  //       );
+  //     }).then(
+  //       (result) => {
+  //         resolve(result);
+  //       },
+  //       (error) => {
+  //         resolve(false);
+  //       }
+  //     );
+  //   }
+  // );
+
+  new Promise((res) => {
+    execMongoSearchAutoComplete(
+      res,
+      locationInfos,
+      redisKey,
+      collectionSavedSuburbResults,
+      annotate
+    );
+  }).then(
+    (result) => {
+      resolve(result);
     },
     (error) => {
-      logger.info(error);
-      //Error -get from mongodb
-      new Promise((res) => {
-        execMongoSearchAutoComplete(
-          res,
-          locationInfos,
-          redisKey,
-          collectionSavedSuburbResults,
-          annotate
-        );
-      }).then(
-        (result) => {
-          resolve(result);
-        },
-        (error) => {
-          resolve(false);
-        }
-      );
+      resolve(false);
     }
   );
 }
@@ -1514,7 +1531,7 @@ function execMongoSearchAutoComplete(
     //   "&zoom=18&addressdetails=1&extratags=1&namedetails=1";
     requestAPI(url, function (err, response, body) {
       try {
-        logger.info(body);
+        logger.warn(body);
         //Get only the state and suburb (district) infos
         body = JSON.parse(body);
         if (body.country !== undefined && body.district !== null) {
