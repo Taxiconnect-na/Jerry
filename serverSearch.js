@@ -387,7 +387,7 @@ function attachCoordinatesAndRegion(littlePack, resolve) {
     else {
       //? First check in mongo
       collectionAutoCompletedSubs
-        .find({ place_id: littlePack.location_id })
+        .find({ "result.place_id": littlePack.location_id })
         .toArray(function (err, placeInfo) {
           if (err) {
             logger.error(err);
