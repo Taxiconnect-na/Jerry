@@ -176,160 +176,92 @@ function autocompleteInputData(
   collectionSavedSuburbResults
 ) {
   let pickupInfos = inputData.pickup_location_infos;
-  let destinationInfos = inputData.destination_location_infos;
+
+  //! APPLY BLUE OCEAN BUG FIX FOR THE PICKUP LOCATION COORDINATES
+  //? 1. Destination
+  //? Get temporary vars
+  let pickLatitude1 = parseFloat(pickupInfos.coordinates.latitude);
+  let pickLongitude1 = parseFloat(pickupInfos.coordinates.longitude);
+  //! Coordinates order fix - major bug fix for ocean bug
+  if (
+    pickLatitude1 !== undefined &&
+    pickLatitude1 !== null &&
+    pickLatitude1 !== 0 &&
+    pickLongitude1 !== undefined &&
+    pickLongitude1 !== null &&
+    pickLongitude1 !== 0
+  ) {
+    //? Switch latitude and longitude - check the negative sign
+    if (parseFloat(pickLongitude1) < 0) {
+      //Negative - switch
+      pickupInfos.coordinates.latitude = pickLongitude1;
+      pickupInfos.coordinates.longitude = pickLatitude1;
+    }
+  }
+  //! -------
   //[PICKUP LOCATION] Complete pickup location suburb infos
-  //Check Redis for previous record
-  let redisKey =
-    "savedSuburbResults-" +
-    (pickupInfos.location_name !== undefined &&
-    pickupInfos.location_name !== false
-      ? pickupInfos.location_name.trim().toLowerCase()
-      : pickupInfos.location_name) +
-    "-" +
-    (pickupInfos.street_name !== undefined && pickupInfos.street_name !== false
-      ? pickupInfos.street_name.trim().toLowerCase()
-      : pickupInfos.street_name) +
-    "-" +
-    (pickupInfos.city !== undefined && pickupInfos.city !== false
-      ? pickupInfos.city.trim().toLowerCase()
-      : pickupInfos.city);
-  //..
-  //! Form Redis Key for final result
-  let redisFinal = `${redisKey}-${JSON.stringify(
-    destinationInfos.map((data) => data.location_name)
-  )}-finalResult`;
-  //...
-  redisGet(redisFinal)
-    .then((resp) => {
-      if (resp !== null) {
-        try {
-          resp = parse(resp);
+  let urlRequest = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${pickupInfos.coordinates.latitude},${pickupInfos.coordinates.longitude}&key=${process.env.GOOGLE_API_KEY}&location_type=GEOMETRIC_CENTER&language=en&fields=formatted_address,address_components,geometry,place_id`;
 
-          //? Check the other suburbs as well
-          let otherSuburbsChecker =
-            inputData.destination_location_infos.length > 1
-              ? inputData.destination_location_infos[1].suburb !== false
-              : true;
-          otherSuburbsChecker =
-            otherSuburbsChecker &&
-            (inputData.destination_location_infos.length > 2
-              ? inputData.destination_location_infos[2].suburb !== false
-              : true);
-          otherSuburbsChecker =
-            otherSuburbsChecker &&
-            (inputData.destination_location_infos.length > 3
-              ? inputData.destination_location_infos[3].suburb !== false
-              : true);
-          //? ------------
+  requestAPI(urlRequest, function (err, response, body) {
+    try {
+      body = JSON.parse(body);
+      if (
+        body.results !== undefined &&
+        body.results[0].address_components !== undefined &&
+        body.results[0].geometry !== undefined
+      ) {
+        let state = body.results[0].address_components
+          .filter((item) =>
+            item.types.includes("administrative_area_level_1")
+          )[0]
+          .long_name.replace(" Region", "");
+        let suburb = body.results[0].address_components
+          .filter((item) =>
+            item.types.includes("sublocality_level_1", "political")
+          )[0]
+          .short_name.trim();
+        //! Add /CBD for Windhoek Central suburb
+        suburb = /^Windhoek Central$/i.test(suburb)
+          ? `${suburb} / CBD`
+          : suburb;
+        //...
+        let street = body.results[0].address_components
+          .filter((item) => item.types.includes("route"))[0]
+          .short_name.trim();
+        //...
+        //? Write at the input data level - not the isolated pickup data
+        inputData.pickup_location_infos.state = state;
+        inputData.pickup_location_infos.suburb = suburb;
+        inputData.pickup_location_infos.street = street; //Update the street
 
-          //TODO:  Restore essential data, BUT do not overwrite unique trip data
-          inputData.pickup_location_infos.suburb =
-            resp.pickup_location_infos.suburb; //Update main object
-          inputData.pickup_location_infos.state =
-            resp.pickup_location_infos.state;
-          inputData.destination_location_infos =
-            resp.destination_location_infos;
-          inputData.pickup_location_infos.city =
-            resp.pickup_location_infos.city;
-          //?--
-          //! Do a quick pre-integrity check
-          if (
-            inputData.pickup_location_infos.suburb !== undefined &&
-            inputData.pickup_location_infos.suburb !== false &&
-            inputData.destination_location_infos[0].dropoff_type !==
-              undefined &&
-            inputData.destination_location_infos[0].dropoff_type !== false &&
-            inputData.destination_location_infos[0].suburb !== undefined &&
-            inputData.destination_location_infos[0].suburb !== false &&
-            inputData.destination_location_infos[0].state !== undefined &&
-            inputData.destination_location_infos[0].state !== false &&
-            inputData.pickup_location_infos.city !== false &&
-            inputData.pickup_location_infos.city !== "false" &&
-            inputData.pickup_location_infos.city !== undefined &&
-            inputData.pickup_location_infos.city !== null &&
-            otherSuburbsChecker
-          ) {
-            resolve(inputData);
-          } //Make a fresh test
-          else {
-            logger.error("Found invalid pickup location infos, fixing...");
-            new Promise((resCompute) => {
-              execTrueAutocompleteInputData(
-                redisKey,
-                redisFinal,
-                inputData,
-                collectionSavedSuburbResults,
-                resCompute
-              );
-            })
-              .then((result) => {
-                resolve(result);
-              })
-              .catch((error) => {
-                logger.info(error);
-                resolve(false);
-              });
-          }
-        } catch (error) {
-          logger.warn(error);
-          //Make a fresh request
-          new Promise((resCompute) => {
-            execTrueAutocompleteInputData(
-              redisKey,
-              redisFinal,
-              inputData,
-              collectionSavedSuburbResults,
-              resCompute
-            );
-          })
-            .then((result) => {
-              resolve(result);
-            })
-            .catch((error) => {
-              logger.info(error);
-              resolve(false);
-            });
-        }
-      } //No cached data - make a fresh request
+        //!EXCEPTIONS SUBURBS
+        //! 1. Make suburb Elisenheim if anything related to it (Eg. location_name)
+        inputData.pickup_location_infos.suburb = /Elisenheim/i.test(
+          inputData.pickup_location_infos.location_name
+        )
+          ? "Elisenheim"
+          : inputData.pickup_location_infos.suburb;
+        //! 2. Make suburb Ausspannplatz if anything related to it
+        inputData.pickup_location_infos.suburb = /Ausspannplatz/i.test(
+          inputData.pickup_location_infos.location_name
+        )
+          ? "Ausspannplatz"
+          : inputData.pickup_location_infos.suburb;
+        //DONE
+        resolve(inputData);
+      } //Couldn't complete the data
       else {
-        new Promise((resCompute) => {
-          execTrueAutocompleteInputData(
-            redisKey,
-            redisFinal,
-            inputData,
-            collectionSavedSuburbResults,
-            resCompute
-          );
-        })
-          .then((result) => {
-            resolve(result);
-          })
-          .catch((error) => {
-            logger.info(error);
-            resolve(false);
-          });
+        //? Send the same data
+        logger.warn("Could not complete the input data");
+        resolve(inputData);
       }
-    })
-    .catch((error) => {
-      logger.info(error);
-      //Make a fresh request
-      new Promise((resCompute) => {
-        execTrueAutocompleteInputData(
-          redisKey,
-          redisFinal,
-          inputData,
-          collectionSavedSuburbResults,
-          resCompute
-        );
-      })
-        .then((result) => {
-          resolve(result);
-        })
-        .catch((error) => {
-          logger.info(error);
-          resolve(false);
-        });
-    });
+    } catch (error) {
+      logger.error(error);
+      //? Send the same data
+      logger.warn("Could not complete the input data");
+      resolve(inputData);
+    }
+  });
 }
 
 /**
@@ -1876,123 +1808,120 @@ function estimateFullVehiclesCatPrices(
       availability: { $in: ["available", "unavailable"] },
     };
 
-    collectionVehiclesInfos
-      .find(filterQuery)
-      //!.collation({ locale: "en", strength: 2 })
-      .toArray(function (err, result) {
-        if (result !== null && result !== undefined && result.length > 0) {
-          //Found something
-          let genericRidesInfos = result;
-          //Get all the city's price map (cirteria: city, country and pickup)
-          new Promise((res) => {
-            //? Add suburb name exception
-            //? 1. Windhoek Central -> Windhoek Central / CBD
-            completedInputData.pickup_location_infos.suburb =
-              /Windhoek Central/i.test(
-                completedInputData.pickup_location_infos.suburb
-              )
-                ? `${completedInputData.pickup_location_infos.suburb.trim()} / CBD`
-                : completedInputData.pickup_location_infos.suburb.trim();
-            //?...
-            filterQuery = {
-              country: completedInputData.country,
-              city: completedInputData.pickup_location_infos.city,
-              pickup_suburb: completedInputData.pickup_location_infos.suburb,
-            };
+    collectionVehiclesInfos.find(filterQuery).toArray(function (err, result) {
+      if (result !== null && result !== undefined && result.length > 0) {
+        //Found something
+        let genericRidesInfos = result;
+        //Get all the city's price map (cirteria: city, country and pickup)
+        new Promise((res) => {
+          //? Add suburb name exception
+          //? 1. Windhoek Central -> Windhoek Central / CBD
+          completedInputData.pickup_location_infos.suburb =
+            /^Windhoek Central$/i.test(
+              completedInputData.pickup_location_infos.suburb.trim()
+            )
+              ? `${completedInputData.pickup_location_infos.suburb.trim()} / CBD`
+              : completedInputData.pickup_location_infos.suburb.trim();
+          //?...
+          filterQuery = {
+            country: completedInputData.country,
+            city: completedInputData.pickup_location_infos.city,
+            pickup_suburb: completedInputData.pickup_location_infos.suburb,
+          };
 
-            collectionPricesLocationsMap
-              .find(filterQuery)
-              .toArray(function (err, result) {
-                if (result.length > 0) {
-                  //Found corresponding prices maps
-                  res(result);
-                } //No prices map found - Set default prices NAD 14 - non realistic and fixed prices
-                else {
-                  //Did not find suburbs with mathing suburbs included
-                  //Register in mongo
-                  new Promise((resX) => {
-                    //Schema
-                    //{point1_suburb:XXXX, point2_suburb:XXXX, city:XXX, country:XXX, date:XXX}
-                    let queryNoMatch = {
-                      point1_suburb:
-                        completedInputData.pickup_location_infos.suburb,
-                      point2_suburb: "ANY",
-                      city: completedInputData.pickup_location_infos.city,
-                      country: completedInputData.country,
-                      date: new Date(chaineDateUTC),
-                    };
-                    let checkQuery = {
-                      point1_suburb:
-                        completedInputData.pickup_location_infos.suburb,
-                      point2_suburb: "ANY",
-                      city: completedInputData.pickup_location_infos.city,
-                      country: completedInputData.country,
-                    };
-                    //Check to avoid duplicates
-                    collectionNotFoundSubursPricesMap
-                      .find(checkQuery)
-                      .toArray(function (err, resultX) {
-                        if (resultX.length <= 0) {
-                          //New record
-                          collectionNotFoundSubursPricesMap.insertOne(
-                            queryNoMatch,
-                            function (err, res) {
-                              logger.info("New record added");
-                              resX(true);
-                            }
-                          );
-                        }
-                      });
-                  }).then(
-                    () => {},
-                    () => {}
-                  );
-                  res([
-                    { pickup_suburb: false, fare: 14 },
-                    { pickup_suburb: false, fare: 14 },
-                    { pickup_suburb: false, fare: 14 },
-                    { pickup_suburb: false, fare: 14 },
-                  ]);
-                }
-              });
-          }).then(
-            (reslt) => {
-              let globalPricesMap = reslt;
-              //call computeInDepthPricesMap
-              new Promise((res) => {
-                computeInDepthPricesMap(
-                  res,
-                  completedInputData,
-                  globalPricesMap,
-                  genericRidesInfos,
+          collectionPricesLocationsMap
+            .find(filterQuery)
+            .toArray(function (err, result) {
+              if (result.length > 0) {
+                //Found corresponding prices maps
+                res(result);
+              } //No prices map found - Set default prices NAD 14 - non realistic and fixed prices
+              else {
+                //Did not find suburbs with mathing suburbs included
+                //Register in mongo
+                new Promise((resX) => {
+                  //Schema
+                  //{point1_suburb:XXXX, point2_suburb:XXXX, city:XXX, country:XXX, date:XXX}
+                  let queryNoMatch = {
+                    point1_suburb:
+                      completedInputData.pickup_location_infos.suburb,
+                    point2_suburb: "ANY",
+                    city: completedInputData.pickup_location_infos.city,
+                    country: completedInputData.country,
+                    date: new Date(chaineDateUTC),
+                  };
+                  let checkQuery = {
+                    point1_suburb:
+                      completedInputData.pickup_location_infos.suburb,
+                    point2_suburb: "ANY",
+                    city: completedInputData.pickup_location_infos.city,
+                    country: completedInputData.country,
+                  };
+                  //Check to avoid duplicates
                   collectionNotFoundSubursPricesMap
+                    .find(checkQuery)
+                    .toArray(function (err, resultX) {
+                      if (resultX.length <= 0) {
+                        //New record
+                        collectionNotFoundSubursPricesMap.insertOne(
+                          queryNoMatch,
+                          function (err, res) {
+                            logger.info("New record added");
+                            resX(true);
+                          }
+                        );
+                      }
+                    });
+                }).then(
+                  () => {},
+                  () => {}
                 );
-              }).then(
-                (reslt) => {
-                  //DONE
-                  if (reslt !== false) {
-                    resolve(reslt);
-                  } //Error
-                  else {
-                    resolve(false);
-                  }
-                },
-                (error) => {
-                  logger.info(error);
+                res([
+                  { pickup_suburb: false, fare: 14 },
+                  { pickup_suburb: false, fare: 14 },
+                  { pickup_suburb: false, fare: 14 },
+                  { pickup_suburb: false, fare: 14 },
+                ]);
+              }
+            });
+        }).then(
+          (reslt) => {
+            let globalPricesMap = reslt;
+            //call computeInDepthPricesMap
+            new Promise((res) => {
+              computeInDepthPricesMap(
+                res,
+                completedInputData,
+                globalPricesMap,
+                genericRidesInfos,
+                collectionNotFoundSubursPricesMap
+              );
+            }).then(
+              (reslt) => {
+                //DONE
+                if (reslt !== false) {
+                  resolve(reslt);
+                } //Error
+                else {
                   resolve(false);
                 }
-              );
-            },
-            (error) => {
-              logger.info(error);
-              resolve(false);
-            }
-          );
-        } //No rides at all
-        else {
-          resolve({ response: "no_available_rides" });
-        }
-      });
+              },
+              (error) => {
+                logger.info(error);
+                resolve(false);
+              }
+            );
+          },
+          (error) => {
+            logger.info(error);
+            resolve(false);
+          }
+        );
+      } //No rides at all
+      else {
+        resolve({ response: "no_available_rides" });
+      }
+    });
   } //Invalid data
   else {
     logger.info("Invalid data");
@@ -2037,8 +1966,8 @@ function computeInDepthPricesMap(
   logger.info("compute in depth called");
   //? Add suburb name exception
   //? 1. Windhoek Central -> Windhoek Central / CBD
-  completedInputData.pickup_location_infos.suburb = /Windhoek Central/i.test(
-    completedInputData.pickup_location_infos.suburb
+  completedInputData.pickup_location_infos.suburb = /^Windhoek Central$/i.test(
+    completedInputData.pickup_location_infos.suburb.trim()
   )
     ? `${completedInputData.pickup_location_infos.suburb.trim()} / CBD`
     : completedInputData.pickup_location_infos.suburb.trim();
@@ -2142,7 +2071,7 @@ function computeInDepthPricesMap(
           completedInputData.destination_location_infos.map((destination) => {
             //! Add suburb name exception - Only apply to the destination suburb.
             //? 1. Windhoek Central -> Windhoek Central / CBD
-            destination.suburb = /Windhoek Central/i.test(destination.suburb)
+            destination.suburb = /^Windhoek Central$/i.test(destination.suburb)
               ? `${destination.suburb.trim()} / CBD`
               : destination.suburb.trim();
             //?...
@@ -2535,7 +2464,7 @@ function parsePricingInputData(resolve, inputData) {
                 tmpSchemaArray.map((element, index) => {
                   cleanInputData.destination_location_infos.push({
                     passenger_number_id: index + 1,
-                    dropoff_type: false,
+                    dropoff_type: "PrivateLocation",
                     coordinates: {
                       latitude:
                         inputData.destinationData.passenger1Destination
@@ -2559,8 +2488,10 @@ function parsePricingInputData(resolve, inputData) {
                         false
                         ? inputData.destinationData.passenger1Destination.street
                         : false,
-                    suburb: false,
-                    state: false,
+                    suburb:
+                      inputData.destinationData.passenger1Destination.suburb,
+                    state:
+                      inputData.destinationData.passenger1Destination.state,
                     city: inputData.pickupData.city,
                   });
                 });
@@ -2574,7 +2505,7 @@ function parsePricingInputData(resolve, inputData) {
                     inputData.destinationData.passenger1Destination;
                   cleanInputData.destination_location_infos.push({
                     passenger_number_id: 1,
-                    dropoff_type: false,
+                    dropoff_type: "PrivateLocation",
                     coordinates: {
                       latitude: passenger1Data.coordinates[0],
                       longitude: passenger1Data.coordinates[1],
@@ -2589,8 +2520,10 @@ function parsePricingInputData(resolve, inputData) {
                       passenger1Data.street !== false
                         ? passenger1Data.street
                         : false,
-                    suburb: false,
-                    state: false,
+                    suburb:
+                      inputData.destinationData.passenger1Destination.suburb,
+                    state:
+                      inputData.destinationData.passenger1Destination.state,
                     city: inputData.pickupData.city,
                   });
                   //Passenger2
@@ -2598,7 +2531,7 @@ function parsePricingInputData(resolve, inputData) {
                     inputData.destinationData.passenger2Destination;
                   cleanInputData.destination_location_infos.push({
                     passenger_number_id: 2,
-                    dropoff_type: false,
+                    dropoff_type: "PrivateLocation",
                     coordinates: {
                       latitude: passenger2Data.coordinates[0],
                       longitude: passenger2Data.coordinates[1],
@@ -2613,8 +2546,10 @@ function parsePricingInputData(resolve, inputData) {
                       passenger2Data.street !== false
                         ? passenger2Data.street
                         : false,
-                    suburb: false,
-                    state: false,
+                    suburb:
+                      inputData.destinationData.passenger2Destination.suburb,
+                    state:
+                      inputData.destinationData.passenger2Destination.state,
                     city: inputData.pickupData.city,
                   });
                   //Done
@@ -2625,7 +2560,7 @@ function parsePricingInputData(resolve, inputData) {
                     inputData.destinationData.passenger1Destination;
                   cleanInputData.destination_location_infos.push({
                     passenger_number_id: 1,
-                    dropoff_type: false,
+                    dropoff_type: "PrivateLocation",
                     coordinates: {
                       latitude: passenger1Data.coordinates[0],
                       longitude: passenger1Data.coordinates[1],
@@ -2640,8 +2575,10 @@ function parsePricingInputData(resolve, inputData) {
                       passenger1Data.street !== false
                         ? passenger1Data.street
                         : false,
-                    suburb: false,
-                    state: false,
+                    suburb:
+                      inputData.destinationData.passenger1Destination.suburb,
+                    state:
+                      inputData.destinationData.passenger1Destination.state,
                     city: inputData.pickupData.city,
                   });
                   //Passenger2
@@ -2649,7 +2586,7 @@ function parsePricingInputData(resolve, inputData) {
                     inputData.destinationData.passenger2Destination;
                   cleanInputData.destination_location_infos.push({
                     passenger_number_id: 2,
-                    dropoff_type: false,
+                    dropoff_type: "PrivateLocation",
                     coordinates: {
                       latitude: passenger2Data.coordinates[0],
                       longitude: passenger2Data.coordinates[1],
@@ -2664,8 +2601,10 @@ function parsePricingInputData(resolve, inputData) {
                       passenger2Data.street !== false
                         ? passenger2Data.street
                         : false,
-                    suburb: false,
-                    state: false,
+                    suburb:
+                      inputData.destinationData.passenger2Destination.suburb,
+                    state:
+                      inputData.destinationData.passenger2Destination.state,
                     city: inputData.pickupData.city,
                   });
                   //Passenger3
@@ -2673,7 +2612,7 @@ function parsePricingInputData(resolve, inputData) {
                     inputData.destinationData.passenger3Destination;
                   cleanInputData.destination_location_infos.push({
                     passenger_number_id: 3,
-                    dropoff_type: false,
+                    dropoff_type: "PrivateLocation",
                     coordinates: {
                       latitude: passenger3Data.coordinates[0],
                       longitude: passenger3Data.coordinates[1],
@@ -2688,8 +2627,10 @@ function parsePricingInputData(resolve, inputData) {
                       passenger3Data.street !== false
                         ? passenger3Data.street
                         : false,
-                    suburb: false,
-                    state: false,
+                    suburb:
+                      inputData.destinationData.passenger3Destination.suburb,
+                    state:
+                      inputData.destinationData.passenger3Destination.state,
                     city: inputData.pickupData.city,
                   });
                   //Done
@@ -2700,7 +2641,7 @@ function parsePricingInputData(resolve, inputData) {
                     inputData.destinationData.passenger1Destination;
                   cleanInputData.destination_location_infos.push({
                     passenger_number_id: 1,
-                    dropoff_type: false,
+                    dropoff_type: "PrivateLocation",
                     coordinates: {
                       latitude: passenger1Data.coordinates[0],
                       longitude: passenger1Data.coordinates[1],
@@ -2715,8 +2656,10 @@ function parsePricingInputData(resolve, inputData) {
                       passenger1Data.street !== false
                         ? passenger1Data.street
                         : false,
-                    suburb: false,
-                    state: false,
+                    suburb:
+                      inputData.destinationData.passenger1Destination.suburb,
+                    state:
+                      inputData.destinationData.passenger1Destination.state,
                     city: inputData.pickupData.city,
                   });
                   //Passenger2
@@ -2724,7 +2667,7 @@ function parsePricingInputData(resolve, inputData) {
                     inputData.destinationData.passenger2Destination;
                   cleanInputData.destination_location_infos.push({
                     passenger_number_id: 2,
-                    dropoff_type: false,
+                    dropoff_type: "PrivateLocation",
                     coordinates: {
                       latitude: passenger2Data.coordinates[0],
                       longitude: passenger2Data.coordinates[1],
@@ -2739,8 +2682,10 @@ function parsePricingInputData(resolve, inputData) {
                       passenger2Data.street !== false
                         ? passenger2Data.street
                         : false,
-                    suburb: false,
-                    state: false,
+                    suburb:
+                      inputData.destinationData.passenger2Destination.suburb,
+                    state:
+                      inputData.destinationData.passenger2Destination.state,
                     city: inputData.pickupData.city,
                   });
                   //Passenger3
@@ -2748,7 +2693,7 @@ function parsePricingInputData(resolve, inputData) {
                     inputData.destinationData.passenger3Destination;
                   cleanInputData.destination_location_infos.push({
                     passenger_number_id: 3,
-                    dropoff_type: false,
+                    dropoff_type: "PrivateLocation",
                     coordinates: {
                       latitude: passenger3Data.coordinates[0],
                       longitude: passenger3Data.coordinates[1],
@@ -2763,8 +2708,10 @@ function parsePricingInputData(resolve, inputData) {
                       passenger3Data.street !== false
                         ? passenger3Data.street
                         : false,
-                    suburb: false,
-                    state: false,
+                    suburb:
+                      inputData.destinationData.passenger3Destination.suburb,
+                    state:
+                      inputData.destinationData.passenger3Destination.state,
                     city: inputData.pickupData.city,
                   });
                   //Passenger4
@@ -2772,7 +2719,7 @@ function parsePricingInputData(resolve, inputData) {
                     inputData.destinationData.passenger4Destination;
                   cleanInputData.destination_location_infos.push({
                     passenger_number_id: 4,
-                    dropoff_type: false,
+                    dropoff_type: "PrivateLocation",
                     coordinates: {
                       latitude: passenger4Data.coordinates[0],
                       longitude: passenger4Data.coordinates[1],
@@ -2787,8 +2734,10 @@ function parsePricingInputData(resolve, inputData) {
                       passenger4Data.street !== false
                         ? passenger4Data.street
                         : false,
-                    suburb: false,
-                    state: false,
+                    suburb:
+                      inputData.destinationData.passenger4Destination.suburb,
+                    state:
+                      inputData.destinationData.passenger4Destination.state,
                     city: inputData.pickupData.city,
                   });
                   //Done
@@ -2799,7 +2748,7 @@ function parsePricingInputData(resolve, inputData) {
             else {
               cleanInputData.destination_location_infos.push({
                 passenger_number_id: 1,
-                dropoff_type: false,
+                dropoff_type: "PrivateLocation",
                 coordinates: {
                   latitude:
                     inputData.destinationData.passenger1Destination
@@ -2823,8 +2772,8 @@ function parsePricingInputData(resolve, inputData) {
                     false
                     ? inputData.destinationData.passenger1Destination.street
                     : false,
-                suburb: false,
-                state: false,
+                suburb: inputData.destinationData.passenger1Destination.suburb,
+                state: inputData.destinationData.passenger1Destination.state,
                 city: inputData.pickupData.city,
               });
               res(cleanInputData);
@@ -2878,6 +2827,7 @@ redisCluster.on("connect", function () {
       process.env.AWS_S3_SECRET = body.AWS_S3_SECRET;
       process.env.URL_MONGODB_DEV = body.URL_MONGODB_DEV;
       process.env.URL_MONGODB_PROD = body.URL_MONGODB_PROD;
+      process.env.GOOGLE_API_KEY = body.GOOGLE_API_KEY; //?Could be dev or prod depending on process.env.ENVIRONMENT
 
       MongoClient.connect(
         /live/i.test(process.env.SERVER_TYPE)
@@ -2999,6 +2949,7 @@ redisCluster.on("connect", function () {
                           }).then(
                             (result) => {
                               if (result !== false) {
+                                logger.warn(result);
                                 let completeInput = result;
                                 logger.info("Done autocompleting");
                                 //Generate prices metadata for all the relevant vehicles categories

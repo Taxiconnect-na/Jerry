@@ -190,7 +190,7 @@ function newLoaction_search_engine(
   //   "&limit=" +
   //   _LIMIT_LOCATION_SEARCH_RESULTS;
   //TODO: could allocate the country dynamically for scale.
-  let urlRequest = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${query}&key=${process.env.GOOGLE_API_KEY}&components=country:na`;
+  let urlRequest = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${query}&key=${process.env.GOOGLE_API_KEY}&components=country:na&language=en`;
 
   requestAPI(urlRequest, function (err, response, body) {
     try {
@@ -343,10 +343,30 @@ function attachCoordinatesAndRegion(littlePack, resolve) {
           .filter((item) =>
             item.types.includes("administrative_area_level_1")
           )[0]
-          .long_name.replace(" Region", "");
+          .short.replace(" Region", "");
+        let suburb = body.result.address_components
+          .filter((item) =>
+            item.types.includes("sublocality_level_1", "political")
+          )[0]
+          .short_name.trim();
+        //! Add /CBD for Windhoek Central suburb
+        suburb = /^Windhoek Central$/i.test(suburb)
+          ? `${suburb} / CBD`
+          : suburb;
         //...
         littlePack.coordinates = coordinates;
         littlePack.state = state;
+        littlePack.suburb = suburb;
+
+        //!EXCEPTIONS SUBURBS
+        //! 1. Make suburb Elisenheim if anything related to it (Eg. location_name)
+        littlePack.suburb = /Elisenheim/i.test(littlePack.location_name)
+          ? "Elisenheim"
+          : littlePack.suburb;
+        //! 2. Make suburb Ausspannplatz if anything related to it
+        littlePack.suburb = /Ausspannplatz/i.test(littlePack.location_name)
+          ? "Ausspannplatz"
+          : littlePack.suburb;
         //...done
         resolve(littlePack);
       } catch (error) {
@@ -399,10 +419,30 @@ function attachCoordinatesAndRegion(littlePack, resolve) {
               .filter((item) =>
                 item.types.includes("administrative_area_level_1")
               )[0]
-              .long_name.replace(" Region", "");
+              .short_name.replace(" Region", "");
+            let suburb = body.result.address_components
+              .filter((item) =>
+                item.types.includes("sublocality_level_1", "political")
+              )[0]
+              .short_name.trim();
+            //! Add /CBD for Windhoek Central suburb
+            suburb = /^Windhoek Central$/i.test(suburb)
+              ? `${suburb} / CBD`
+              : suburb;
             //...
             littlePack.coordinates = coordinates;
             littlePack.state = state;
+            littlePack.suburb = suburb;
+
+            //!EXCEPTIONS SUBURBS
+            //! 1. Make suburb Elisenheim if anything related to it (Eg. location_name)
+            littlePack.suburb = /Elisenheim/i.test(littlePack.location_name)
+              ? "Elisenheim"
+              : littlePack.suburb;
+            //! 2. Make suburb Ausspannplatz if anything related to it
+            littlePack.suburb = /Ausspannplatz/i.test(littlePack.location_name)
+              ? "Ausspannplatz"
+              : littlePack.suburb;
             //..Save the body in mongo
             body["date_updated"] = new Date(chaineDateUTC);
             new Promise((resSave) => {
@@ -454,7 +494,7 @@ function attachCoordinatesAndRegion(littlePack, resolve) {
  * Responsible for doing a clean google maps search, save the value in mongo, cache it and return an updated object.
  */
 function doFreshGoogleSearchAndReturn(littlePack, redisKey, resolve) {
-  let urlRequest = `https://maps.googleapis.com/maps/api/place/details/json?placeid=${littlePack.location_id}&key=${process.env.GOOGLE_API_KEY}&fields=formatted_address,address_components,geometry,place_id`;
+  let urlRequest = `https://maps.googleapis.com/maps/api/place/details/json?placeid=${littlePack.location_id}&key=${process.env.GOOGLE_API_KEY}&fields=formatted_address,address_components,geometry,place_id&language=en`;
 
   requestAPI(urlRequest, function (err, response, body) {
     try {
@@ -473,9 +513,29 @@ function doFreshGoogleSearchAndReturn(littlePack, redisKey, resolve) {
             item.types.includes("administrative_area_level_1")
           )[0]
           .long_name.replace(" Region", "");
+        let suburb = body.result.address_components
+          .filter((item) =>
+            item.types.includes("sublocality_level_1", "political")
+          )[0]
+          .short_name.trim();
+        //! Add /CBD for Windhoek Central suburb
+        suburb = /^Windhoek Central$/i.test(suburb)
+          ? `${suburb} / CBD`
+          : suburb;
         //...
         littlePack.coordinates = coordinates;
         littlePack.state = state;
+        littlePack.suburb = suburb;
+
+        //!EXCEPTIONS SUBURBS
+        //! 1. Make suburb Elisenheim if anything related to it (Eg. location_name)
+        littlePack.suburb = /Elisenheim/i.test(littlePack.location_name)
+          ? "Elisenheim"
+          : littlePack.suburb;
+        //! 2. Make suburb Ausspannplatz if anything related to it
+        littlePack.suburb = /Ausspannplatz/i.test(littlePack.location_name)
+          ? "Ausspannplatz"
+          : littlePack.suburb;
         //..Save the body in mongo
         body["date_updated"] = new Date(chaineDateUTC);
         new Promise((resSave) => {
