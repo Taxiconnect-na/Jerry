@@ -4038,6 +4038,7 @@ redisCluster.on("connect", function () {
                       parseRequestData(req, res);
                     }).then(
                       (result) => {
+                        logger.warn(result);
                         let parsedRequest = result;
                         if (result !== false) {
                           //! IF WALLET SELECTED - CHECK THE BALANCE, it should be >= to the trip fare, else ERROR_UNSIFFICIENT_FUNDS

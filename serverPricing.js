@@ -303,12 +303,12 @@ function doMongoSearchForAutocompletedSuburbs(
       logger.warn(result);
       resolve({
         passenger_number_id: 1,
-        suburb: result.suburb,
-        state: result.state,
+        suburb: result.pickup_location_infos.suburb,
+        state: result.pickup_location_infos.state,
         location_name: inputTemplate.location_name,
         city: inputTemplate.city,
         country: inputTemplate.country,
-        street_name: result.street,
+        street_name: result.pickup_location_infos.street,
       });
     })
     .catch((error) => {
