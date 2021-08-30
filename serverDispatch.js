@@ -2074,6 +2074,8 @@ function cancelRider_request(
       //...
       if (requestData.length > 0) {
         //Found something
+        //Add the cancelling reason
+        requestData[0]["rider_cancellation_reason"] = requestBundle_data.reason;
         //Add the deleted date
         requestData[0].date_deleted = new Date(chaineDateUTC);
         //Add any additional data
