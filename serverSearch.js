@@ -42,33 +42,6 @@ const escapeStringRegexp = require("escape-string-regexp");
 const urlParser = require("url");
 const moment = require("moment");
 
-//INITIALIZE LOCATION CACHE
-//Check if a checkpoint exists
-function restoreSearchedLocations_cache(res, collectionMongoDb) {
-  try {
-    collectionMongoDb.find({}).toArray(function (err, cachedData) {
-      //logger.info(cachedData);
-      if (res.lenth == 0) {
-        //Empty initialize
-        logger.info("Initializing empty cache");
-        //Initialize location cache - redis
-        redisCluster.set("search_locations", JSON.stringify([]));
-        res(true);
-      } //Not empty restore - redis
-      else {
-        logger.info("Restoring location cache");
-        redisCluster.set("search_locations", JSON.stringify(cachedData));
-        res(true);
-      }
-    });
-  } catch (err) {
-    logger.info(err);
-    //Initialize location cache - redis
-    redisCluster.set("search_locations", JSON.stringify([]));
-    res(true);
-  }
-}
-
 const cities_bbox = {
   windhoek: "16.65390,-22.41103,17.46414,-22.69829",
 };
@@ -179,16 +152,100 @@ function newLoaction_search_engine(
   res,
   timestamp
 ) {
-  //..
-  query = encodeURIComponent(queryOR.toLowerCase().trim());
-  // let urlRequest =
-  //   process.env.URL_SEARCH_SERVICES +
-  //   "api?q=" +
-  //   query +
-  //   "&bbox=" +
-  //   bbox +
-  //   "&limit=" +
-  //   _LIMIT_LOCATION_SEARCH_RESULTS;
+  //? 1. Check if it was written in mongodb
+  collectionSearchedLocationPersist
+    .find({ query: queryOR, city: city })
+    .toArray(function (err, searchedData) {
+      if (err) {
+        logger.error(err);
+        //Fresh search
+        new Promise((resCompute) => {
+          initializeFreshGetOfLocations(
+            keyREDIS,
+            queryOR,
+            city,
+            bbox,
+            resCompute,
+            timestamp
+          );
+        })
+          .then((result) => {
+            res(result);
+          })
+          .catch((error) => {
+            logger.error(error);
+            res(false);
+          });
+      }
+      //...
+      if (
+        searchedData !== undefined &&
+        searchedData !== null &&
+        searchedData.length > 0
+      ) {
+        logger.warn("FOUND SOME MONGODB RECORDS");
+        //TODO: could twik this value to allow a minimum limit of values
+        let finalSearchResults = {
+          search_timestamp: timestamp,
+          result: removeResults_duplicates(searchedData).slice(0, 5),
+        };
+        //! Cache globally the final result
+        new Promise((resCache) => {
+          redisCluster.setex(
+            keyREDIS,
+            parseFloat(process.env.REDIS_EXPIRATION_5MIN) * 24,
+            JSON.stringify(finalSearchResults)
+          );
+          resCache(true);
+        })
+          .then()
+          .catch();
+        //...DONE
+        res(finalSearchResults);
+      } //Fresh search
+      else {
+        logger.warn("NO MONG RECORDS< MAKE A FRESH SEARCH");
+        new Promise((resCompute) => {
+          initializeFreshGetOfLocations(
+            keyREDIS,
+            queryOR,
+            city,
+            bbox,
+            resCompute,
+            timestamp
+          );
+        })
+          .then((result) => {
+            res(result);
+          })
+          .catch((error) => {
+            logger.error(error);
+            res(false);
+          });
+      }
+    });
+}
+
+/**
+ * @func initializeFreshGetOfLocations
+ * Responsible for launching the request for fresh locations from Google
+ * @param {*} keyREDIS: to save the global final result for 2 days
+ * @param {*} queryOR
+ * @param {*} city
+ * @param {*} bbox
+ * @param {*} res
+ * @param {*} timestamp
+ */
+function initializeFreshGetOfLocations(
+  keyREDIS,
+  queryOR,
+  city,
+  bbox,
+  res,
+  timestamp
+) {
+  query = encodeURIComponent(queryOR.toLowerCase());
+
   //TODO: could allocate the country dynamically for scale.
   let urlRequest = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${query}&key=${process.env.GOOGLE_API_KEY}&components=country:na&language=en`;
 
@@ -274,30 +331,29 @@ function newLoaction_search_engine(
             });
             //? Remove all the out of context cities
             result = fastFilter(val, function (element) {
-              logger.warn(element);
               let regFilterCity = new RegExp(city.trim(), "i");
               return element.city !== false && element.city !== undefined
                 ? regFilterCity.test(element.city.trim())
                 : false;
             });
+            //! Save in mongo search persist - Cost reduction
+            new Promise((saveMongo) => {
+              collectionSearchedLocationPersist.insertMany(
+                result,
+                function (err, reslt) {
+                  saveMongo(true);
+                  logger.warn("SAVED IN MONGO PERSIST!");
+                }
+              );
+            })
+              .then()
+              .catch();
             //...
             if (result.length > 0) {
               let finalSearchResults = {
                 search_timestamp: timestamp,
                 result: removeResults_duplicates(result).slice(0, 5),
               };
-
-              //! Cache globally the final result
-              new Promise((resCache) => {
-                redisCluster.setex(
-                  keyREDIS,
-                  parseFloat(process.env.REDIS_EXPIRATION_5MIN) * 864,
-                  JSON.stringify(finalSearchResults)
-                );
-                resCache(true);
-              })
-                .then()
-                .catch();
               //populated
               res(finalSearchResults);
             } //empty
@@ -339,20 +395,39 @@ function attachCoordinatesAndRegion(littlePack, resolve) {
           body.result.geometry.location.lat,
           body.result.geometry.location.lng,
         ];
-        let state = body.result.address_components
-          .filter((item) =>
+        let state =
+          body.result.address_components.filter((item) =>
             item.types.includes("administrative_area_level_1")
-          )[0]
-          .short.replace(" Region", "");
-        let suburb = body.result.address_components
-          .filter((item) =>
+          )[0] !== undefined &&
+          body.result.address_components.filter((item) =>
+            item.types.includes("administrative_area_level_1")
+          )[0] !== null
+            ? body.result.address_components
+                .filter((item) =>
+                  item.types.includes("administrative_area_level_1")
+                )[0]
+                .short_name.replace(" Region", "")
+            : false;
+        let suburb =
+          body.result.address_components.filter((item) =>
             item.types.includes("sublocality_level_1", "political")
-          )[0]
-          .short_name.trim();
+          )[0] !== undefined &&
+          body.result.address_components.filter((item) =>
+            item.types.includes("sublocality_level_1", "political")
+          )[0] !== null
+            ? body.result.address_components
+                .filter((item) =>
+                  item.types.includes("sublocality_level_1", "political")
+                )[0]
+                .short_name.trim()
+            : false;
         //! Add /CBD for Windhoek Central suburb
-        suburb = /^Windhoek Central$/i.test(suburb)
-          ? `${suburb} / CBD`
-          : suburb;
+        suburb =
+          suburb !== false &&
+          suburb !== undefined &&
+          /^Windhoek Central$/i.test(suburb)
+            ? `${suburb} / CBD`
+            : suburb;
         //...
         littlePack.coordinates = coordinates;
         littlePack.state = state;
@@ -386,7 +461,7 @@ function attachCoordinatesAndRegion(littlePack, resolve) {
     } //Not cached - check Mongo
     else {
       //? First check in mongo
-      collectionAutoCompletedSubs
+      collectionSearchedLocationPersist
         .find({ "result.place_id": littlePack.location_id })
         .toArray(function (err, placeInfo) {
           if (err) {
@@ -415,20 +490,39 @@ function attachCoordinatesAndRegion(littlePack, resolve) {
               body.result.geometry.location.lat,
               body.result.geometry.location.lng,
             ];
-            let state = body.result.address_components
-              .filter((item) =>
+            let state =
+              body.result.address_components.filter((item) =>
                 item.types.includes("administrative_area_level_1")
-              )[0]
-              .short_name.replace(" Region", "");
-            let suburb = body.result.address_components
-              .filter((item) =>
+              )[0] !== undefined &&
+              body.result.address_components.filter((item) =>
+                item.types.includes("administrative_area_level_1")
+              )[0] !== null
+                ? body.result.address_components
+                    .filter((item) =>
+                      item.types.includes("administrative_area_level_1")
+                    )[0]
+                    .short_name.replace(" Region", "")
+                : false;
+            let suburb =
+              body.result.address_components.filter((item) =>
                 item.types.includes("sublocality_level_1", "political")
-              )[0]
-              .short_name.trim();
+              )[0] !== undefined &&
+              body.result.address_components.filter((item) =>
+                item.types.includes("sublocality_level_1", "political")
+              )[0] !== null
+                ? body.result.address_components
+                    .filter((item) =>
+                      item.types.includes("sublocality_level_1", "political")
+                    )[0]
+                    .short_name.trim()
+                : false;
             //! Add /CBD for Windhoek Central suburb
-            suburb = /^Windhoek Central$/i.test(suburb)
-              ? `${suburb} / CBD`
-              : suburb;
+            suburb =
+              suburb !== false &&
+              suburb !== undefined &&
+              /^Windhoek Central$/i.test(suburb)
+                ? `${suburb} / CBD`
+                : suburb;
             //...
             littlePack.coordinates = coordinates;
             littlePack.state = state;
@@ -446,7 +540,7 @@ function attachCoordinatesAndRegion(littlePack, resolve) {
             //..Save the body in mongo
             body["date_updated"] = new Date(chaineDateUTC);
             new Promise((resSave) => {
-              collectionAutoCompletedSubs.updateOne(
+              collectionAutoCompletedSuburbs.updateOne(
                 { "result.place_id": littlePack.place_id },
                 {
                   $set: body,
@@ -464,7 +558,7 @@ function attachCoordinatesAndRegion(littlePack, resolve) {
             new Promise((resCache) => {
               redisCluster.setex(
                 redisKey,
-                parseFloat(process.env.REDIS_EXPIRATION_5MIN) * 864,
+                parseFloat(process.env.REDIS_EXPIRATION_5MIN) * 24,
                 JSON.stringify(body)
               );
               resCache(true);
@@ -508,20 +602,39 @@ function doFreshGoogleSearchAndReturn(littlePack, redisKey, resolve) {
           body.result.geometry.location.lat,
           body.result.geometry.location.lng,
         ];
-        let state = body.result.address_components
-          .filter((item) =>
+        let state =
+          body.result.address_components.filter((item) =>
             item.types.includes("administrative_area_level_1")
-          )[0]
-          .long_name.replace(" Region", "");
-        let suburb = body.result.address_components
-          .filter((item) =>
+          )[0] !== undefined &&
+          body.result.address_components.filter((item) =>
+            item.types.includes("administrative_area_level_1")
+          )[0] !== null
+            ? body.result.address_components
+                .filter((item) =>
+                  item.types.includes("administrative_area_level_1")
+                )[0]
+                .long_name.replace(" Region", "")
+            : false;
+        let suburb =
+          body.result.address_components.filter((item) =>
             item.types.includes("sublocality_level_1", "political")
-          )[0]
-          .short_name.trim();
+          )[0] !== undefined &&
+          body.result.address_components.filter((item) =>
+            item.types.includes("sublocality_level_1", "political")
+          )[0] !== null
+            ? body.result.address_components
+                .filter((item) =>
+                  item.types.includes("sublocality_level_1", "political")
+                )[0]
+                .short_name.trim()
+            : false;
         //! Add /CBD for Windhoek Central suburb
-        suburb = /^Windhoek Central$/i.test(suburb)
-          ? `${suburb} / CBD`
-          : suburb;
+        suburb =
+          suburb !== false &&
+          suburb !== undefined &&
+          /^Windhoek Central$/i.test(suburb)
+            ? `${suburb} / CBD`
+            : suburb;
         //...
         littlePack.coordinates = coordinates;
         littlePack.state = state;
@@ -539,7 +652,7 @@ function doFreshGoogleSearchAndReturn(littlePack, redisKey, resolve) {
         //..Save the body in mongo
         body["date_updated"] = new Date(chaineDateUTC);
         new Promise((resSave) => {
-          collectionAutoCompletedSubs.updateOne(
+          collectionAutoCompletedSuburbs.updateOne(
             { "result.place_id": littlePack.place_id },
             { $set: body },
             { upsert: true },
@@ -555,7 +668,7 @@ function doFreshGoogleSearchAndReturn(littlePack, redisKey, resolve) {
         new Promise((resCache) => {
           redisCluster.setex(
             redisKey,
-            parseFloat(process.env.REDIS_EXPIRATION_5MIN) * 864,
+            parseFloat(process.env.REDIS_EXPIRATION_5MIN) * 24,
             JSON.stringify(body)
           );
           resCache(true);
@@ -605,14 +718,14 @@ function removeResults_duplicates(arrayResults, resolve) {
  * @param {*} bbox
  * @param {*} res
  * @param {*} timestamp
- * @param {*} collectionMongoDb
  */
 
 function getLocationList_five(queryOR, city, country, bbox, res, timestamp) {
+  resolveDate();
   //Check if cached results are available
   let keyREDIS = `search_locations-${city.trim().toLowerCase()}-${country
     .trim()
-    .toLowerCase()}-${queryOR}`;
+    .toLowerCase()}-${queryOR}`; //! Added time for debug
   //-------------------------------------
   redisGet(keyREDIS).then(
     (resp) => {
@@ -620,6 +733,20 @@ function getLocationList_five(queryOR, city, country, bbox, res, timestamp) {
         logger.warn("Found global search results for the same query input");
         //logObject(JSON.parse(reslt));
         try {
+          //Rehydrate records
+          new Promise((resCompute) => {
+            newLoaction_search_engine(
+              keyREDIS,
+              queryOR,
+              city,
+              bbox,
+              resCompute,
+              timestamp
+            );
+          })
+            .then()
+            .catch();
+          //...
           resp = JSON.parse(resp);
           res(resp);
         } catch (error) {
@@ -657,8 +784,8 @@ function getLocationList_five(queryOR, city, country, bbox, res, timestamp) {
   );
 }
 
-var collectionMongoDb = null;
-var collectionAutoCompletedSubs = null;
+var collectionSearchedLocationPersist = null;
+var collectionAutoCompletedSuburbs = null;
 
 redisCluster.on("connect", function () {
   logger.info("[*] Redis connected");
@@ -697,8 +824,10 @@ redisCluster.on("connect", function () {
           if (err) throw err;
           logger.info("Connected to Mongodb");
           const dbMongo = clientMongo.db(process.env.DB_NAME_MONGODDB);
-          collectionMongoDb = dbMongo.collection("searched_locations_persist");
-          collectionAutoCompletedSubs = dbMongo.collection(
+          collectionSearchedLocationPersist = dbMongo.collection(
+            "searched_locations_persist"
+          );
+          collectionAutoCompletedSuburbs = dbMongo.collection(
             "autocompleted_location_suburbs"
           );
           //-------------
@@ -724,7 +853,6 @@ redisCluster.on("connect", function () {
             let params = urlParser.parse(request.url, true);
             request = params.query;
             logger.info(request);
-            let request0 = null;
             //Update search timestamp
             //search_timestamp = dateObject.unix();
             let search_timestamp = request.query.length;
@@ -733,6 +861,7 @@ redisCluster.on("connect", function () {
               getCityBbox(request.city, res);
             }).then(
               (result) => {
+                logger.info(result);
                 let bbox = result;
                 //Get the location
                 new Promise((res) => {
@@ -750,12 +879,10 @@ redisCluster.on("connect", function () {
                     request.country,
                     bbox,
                     res,
-                    tmpTimestamp,
-                    collectionMongoDb
+                    tmpTimestamp
                   );
                 }).then(
                   (result) => {
-                    logger.info(result);
                     if (
                       parseInt(search_timestamp) !=
                       parseInt(result.search_timestamp)
@@ -768,13 +895,11 @@ redisCluster.on("connect", function () {
                     else {
                       //logger.info('Consistent');
                       //logObject(result);
-                      //socket.emit("getLocations-response", result);
                       res.send({ result: result });
                     }
                   },
                   (error) => {
                     logger.info(error);
-                    //socket.emit("getLocations-response", false);
                     res.send(false);
                   }
                 );
