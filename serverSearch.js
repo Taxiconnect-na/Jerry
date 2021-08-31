@@ -42,9 +42,11 @@ const escapeStringRegexp = require("escape-string-regexp");
 const urlParser = require("url");
 const moment = require("moment");
 
-const cities_bbox = {
-  windhoek: "16.65390,-22.41103,17.46414,-22.69829",
+const cities_center = {
+  windhoek: "-22.558926,17.073211", //Conventional center on which to biais the search results
 };
+
+const conventionalSearchRadius = 80000; //The radius in which to focus the search;
 
 //GLOBALS
 const _CITY = "Windhoek";
@@ -85,10 +87,10 @@ function logObject(obj) {
   );
 }
 
-function getCityBbox(city, res) {
+function getCityCenter(city, res) {
   city = city.toLowerCase().trim();
-  let bbox = cities_bbox[city];
-  res(bbox);
+  let cityCenter = cities_center[city];
+  res(cityCenter);
 }
 
 checkName = (name, str) => {
@@ -139,7 +141,7 @@ function similarityCheck_locations_search(arrayLocations, query, res) {
  * @param {*} keyREDIS: to save the global final result for 2 days
  * @param {*} queryOR
  * @param {*} city
- * @param {*} bbox
+ * @param {*} cityCenter
  * @param {*} res
  * @param {*} timestamp
  */
@@ -148,7 +150,7 @@ function newLoaction_search_engine(
   keyREDIS,
   queryOR,
   city,
-  bbox,
+  cityCenter,
   res,
   timestamp
 ) {
@@ -164,7 +166,7 @@ function newLoaction_search_engine(
             keyREDIS,
             queryOR,
             city,
-            bbox,
+            cityCenter,
             resCompute,
             timestamp
           );
@@ -211,7 +213,7 @@ function newLoaction_search_engine(
             keyREDIS,
             queryOR,
             city,
-            bbox,
+            cityCenter,
             resCompute,
             timestamp
           );
@@ -233,7 +235,7 @@ function newLoaction_search_engine(
  * @param {*} keyREDIS: to save the global final result for 2 days
  * @param {*} queryOR
  * @param {*} city
- * @param {*} bbox
+ * @param {*} cityCenter
  * @param {*} res
  * @param {*} timestamp
  */
@@ -241,14 +243,14 @@ function initializeFreshGetOfLocations(
   keyREDIS,
   queryOR,
   city,
-  bbox,
+  cityCenter,
   res,
   timestamp
 ) {
   query = encodeURIComponent(queryOR.toLowerCase());
 
   //TODO: could allocate the country dynamically for scale.
-  let urlRequest = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${query}&key=${process.env.GOOGLE_API_KEY}&components=country:na&language=en`;
+  let urlRequest = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${query}&key=${process.env.GOOGLE_API_KEY}&components=country:na&language=en&location=${cityCenter}&radius=${conventionalSearchRadius}`;
 
   requestAPI(urlRequest, function (err, response, body) {
     try {
@@ -383,7 +385,7 @@ function initializeFreshGetOfLocations(
       //   keyREDIS,
       //   queryOR,
       //   city,
-      //   bbox,
+      //   cityCenter,
       //   res,
       //   timestamp
       // );
@@ -678,12 +680,19 @@ function removeResults_duplicates(arrayResults, resolve) {
  * @param {*} queryOR
  * @param {*} city
  * @param {*} country
- * @param {*} bbox
+ * @param {*} cityCenter
  * @param {*} res
  * @param {*} timestamp
  */
 
-function getLocationList_five(queryOR, city, country, bbox, res, timestamp) {
+function getLocationList_five(
+  queryOR,
+  city,
+  country,
+  cityCenter,
+  res,
+  timestamp
+) {
   resolveDate();
   //Check if cached results are available
   let keyREDIS = `search_locations-${city.trim().toLowerCase()}-${country
@@ -702,7 +711,7 @@ function getLocationList_five(queryOR, city, country, bbox, res, timestamp) {
               keyREDIS,
               queryOR,
               city,
-              bbox,
+              cityCenter,
               resCompute,
               timestamp
             );
@@ -723,7 +732,7 @@ function getLocationList_five(queryOR, city, country, bbox, res, timestamp) {
             keyREDIS,
             queryOR,
             city,
-            bbox,
+            cityCenter,
             res,
             timestamp
           );
@@ -736,7 +745,7 @@ function getLocationList_five(queryOR, city, country, bbox, res, timestamp) {
           keyREDIS,
           queryOR,
           city,
-          bbox,
+          cityCenter,
           res,
           timestamp
         );
@@ -746,7 +755,14 @@ function getLocationList_five(queryOR, city, country, bbox, res, timestamp) {
       //Launch new search
       logger.warn(error);
       logger.info("Launch new search");
-      newLoaction_search_engine(keyREDIS, queryOR, city, bbox, res, timestamp);
+      newLoaction_search_engine(
+        keyREDIS,
+        queryOR,
+        city,
+        cityCenter,
+        res,
+        timestamp
+      );
     }
   );
 }
@@ -825,14 +841,14 @@ redisCluster.on("connect", function () {
             // let search_timestamp = request.query.length;
             let search_timestamp = new Date(chaineDateUTC).getTime();
             let redisKeyConsistencyKeeper = `${request.user_fp}-autocompleteSearchRecordTime`;
-            //1. Get the bbox
+            //1. Get the cityCenter
             request0 = new Promise((res) => {
               //Save in Cache
               redisCluster.set(redisKeyConsistencyKeeper, request.query);
-              getCityBbox(request.city, res);
+              getCityCenter(request.city, res);
             }).then(
               (result) => {
-                let bbox = result;
+                let cityCenter = result;
                 //Get the location
                 new Promise((res) => {
                   let tmpTimestamp = search_timestamp;
@@ -840,7 +856,7 @@ redisCluster.on("connect", function () {
                     request.query,
                     request.city,
                     request.country,
-                    bbox,
+                    cityCenter,
                     res,
                     tmpTimestamp
                   );
