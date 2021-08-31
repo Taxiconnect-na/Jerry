@@ -708,6 +708,8 @@ function getLocationList_five(queryOR, city, country, bbox, res, timestamp) {
             .catch();
           //...
           resp = JSON.parse(resp);
+          //!Update search record time
+          resp.search_timestamp = timestamp;
           res(resp);
         } catch (error) {
           logger.warn("HERE");
@@ -816,9 +818,13 @@ redisCluster.on("connect", function () {
             // logger.info(request);
             //Update search timestamp
             //search_timestamp = dateObject.unix();
-            let search_timestamp = request.query.length;
+            // let search_timestamp = request.query.length;
+            let search_timestamp = new Date(chaineDateUTC).getTime();
+            let redisKeyConsistencyKeeper = `${request.user_fp}-autocompleteSearchRecordTime`;
             //1. Get the bbox
-            request0 = new Promise((res, rej) => {
+            request0 = new Promise((res) => {
+              //Save in Cache
+              redisCluster.set(redisKeyConsistencyKeeper, request.query);
               getCityBbox(request.city, res);
             }).then(
               (result) => {
@@ -836,21 +842,45 @@ redisCluster.on("connect", function () {
                   );
                 }).then(
                   (result) => {
-                    logger.info(result);
-                    if (
-                      parseInt(search_timestamp) !=
-                      parseInt(result.search_timestamp)
-                    ) {
-                      //Inconsistent - do not update
-                      logger.info("Inconsistent");
-                      //res.send(false);
-                      res.send({ result: result });
-                    } //Consistent - update
-                    else {
-                      logger.info("Consistent");
-                      //logObject(result);
-                      res.send({ result: result });
-                    }
+                    //? Get the redis record time and compare
+                    redisGet(redisKeyConsistencyKeeper)
+                      .then((resp) => {
+                        if (
+                          resp !== null &&
+                          result !== false &&
+                          result.result !== undefined &&
+                          result.result[0].query !== undefined
+                        ) {
+                          logger.warn(`Redis last time record: ${resp}`);
+                          logger.warn(
+                            `Request time record: ${result.result[0].query}`
+                          );
+                          logger.warn(
+                            `Are search results consistent ? --> ${
+                              resp === result.result[0].query
+                            }`
+                          );
+                          if (resp === result.result[0].query) {
+                            //Inconsistent - do not update
+                            logger.info("Consistent");
+                            //res.send(false);
+                            res.send({ result: result });
+                          } //Consistent - update
+                          else {
+                            logger.info("Inconsistent");
+                            //logObject(result);
+                            // res.send({ result: result });
+                            res.send(false);
+                          }
+                        } //Nothing the compare to
+                        else {
+                          res.send(false);
+                        }
+                      })
+                      .catch((error) => {
+                        logger.error(error);
+                        res.send(false);
+                      });
                   },
                   (error) => {
                     logger.warn("HERE10");
