@@ -327,7 +327,7 @@ function initializeFreshGetOfLocations(
             //logger.info(val);
             //Remove all the false values
             let result = fastFilter(val, function (element) {
-              return element !== false;
+              return element !== false && element !== null;
             });
             //? Remove all the out of context cities
             result = fastFilter(val, function (element) {
@@ -338,13 +338,18 @@ function initializeFreshGetOfLocations(
             });
             //! Save in mongo search persist - Cost reduction
             new Promise((saveMongo) => {
-              collectionSearchedLocationPersist.insertMany(
-                result,
-                function (err, reslt) {
-                  saveMongo(true);
-                  logger.warn("SAVED IN MONGO PERSIST!");
-                }
-              );
+              if (result.length > 0) {
+                collectionSearchedLocationPersist.insertMany(
+                  result,
+                  function (err, reslt) {
+                    saveMongo(true);
+                    logger.warn("SAVED IN MONGO PERSIST!");
+                  }
+                );
+              } //Nothing to save
+              else {
+                saveMongo(false);
+              }
             })
               .then()
               .catch();
@@ -375,6 +380,69 @@ function initializeFreshGetOfLocations(
 }
 
 /**
+ * @func arrangeAndExtractSuburbAndStateOrMore
+ * Responsible for handling the complex regex and operations of getting the state and suburb
+ * from a raw google response and returning a dico of the wanted values.
+ * @param body: a copy of the google response.
+ * @param location_name: for suburbs exception
+ */
+function arrangeAndExtractSuburbAndStateOrMore(body, location_name) {
+  //Coords
+  let coordinates = [
+    body.result.geometry.location.lat,
+    body.result.geometry.location.lng,
+  ];
+  //State
+  let state =
+    body.result.address_components.filter((item) =>
+      item.types.includes("administrative_area_level_1")
+    )[0] !== undefined &&
+    body.result.address_components.filter((item) =>
+      item.types.includes("administrative_area_level_1")
+    )[0] !== null
+      ? body.result.address_components
+          .filter((item) =>
+            item.types.includes("administrative_area_level_1")
+          )[0]
+          .short_name.replace(" Region", "")
+      : false;
+  //Suburb
+  let suburb =
+    body.result.address_components.filter((item) =>
+      item.types.includes("sublocality_level_1", "political")
+    )[0] !== undefined &&
+    body.result.address_components.filter((item) =>
+      item.types.includes("sublocality_level_1", "political")
+    )[0] !== null
+      ? body.result.address_components
+          .filter((item) =>
+            item.types.includes("sublocality_level_1", "political")
+          )[0]
+          .short_name.trim()
+      : false;
+
+  //! Add /CBD for Windhoek Central suburb
+  suburb =
+    suburb !== false &&
+    suburb !== undefined &&
+    /^Windhoek Central$/i.test(suburb)
+      ? `${suburb} / CBD`
+      : suburb;
+
+  //!EXCEPTIONS SUBURBS
+  //! 1. Make suburb Elisenheim if anything related to it (Eg. location_name)
+  suburb = /Elisenheim/i.test(location_name) ? "Elisenheim" : suburb;
+  //! 2. Make suburb Ausspannplatz if anything related to it
+  suburb = /Ausspannplatz/i.test(location_name) ? "Ausspannplatz" : suburb;
+  //DONE
+  return {
+    coordinates: coordinates,
+    state: state,
+    suburb: suburb,
+  };
+}
+
+/**
  * @func attachCoordinatesAndRegion
  * Responsible as the name indicates of addiing the coordinates of the location and the region.
  * @param littlePack: the incomplete location to complete
@@ -391,57 +459,17 @@ function attachCoordinatesAndRegion(littlePack, resolve) {
         //? Quickly complete
         body = resp;
         //Has a previous record
-        let coordinates = [
-          body.result.geometry.location.lat,
-          body.result.geometry.location.lng,
-        ];
-        let state =
-          body.result.address_components.filter((item) =>
-            item.types.includes("administrative_area_level_1")
-          )[0] !== undefined &&
-          body.result.address_components.filter((item) =>
-            item.types.includes("administrative_area_level_1")
-          )[0] !== null
-            ? body.result.address_components
-                .filter((item) =>
-                  item.types.includes("administrative_area_level_1")
-                )[0]
-                .short_name.replace(" Region", "")
-            : false;
-        let suburb =
-          body.result.address_components.filter((item) =>
-            item.types.includes("sublocality_level_1", "political")
-          )[0] !== undefined &&
-          body.result.address_components.filter((item) =>
-            item.types.includes("sublocality_level_1", "political")
-          )[0] !== null
-            ? body.result.address_components
-                .filter((item) =>
-                  item.types.includes("sublocality_level_1", "political")
-                )[0]
-                .short_name.trim()
-            : false;
-        //! Add /CBD for Windhoek Central suburb
-        suburb =
-          suburb !== false &&
-          suburb !== undefined &&
-          /^Windhoek Central$/i.test(suburb)
-            ? `${suburb} / CBD`
-            : suburb;
+        let refinedExtractions = arrangeAndExtractSuburbAndStateOrMore(
+          body,
+          littlePack.location_name
+        );
+        let coordinates = refinedExtractions.coordinates;
+        let state = refinedExtractions.state;
+        let suburb = refinedExtractions.suburb;
         //...
         littlePack.coordinates = coordinates;
         littlePack.state = state;
         littlePack.suburb = suburb;
-
-        //!EXCEPTIONS SUBURBS
-        //! 1. Make suburb Elisenheim if anything related to it (Eg. location_name)
-        littlePack.suburb = /Elisenheim/i.test(littlePack.location_name)
-          ? "Elisenheim"
-          : littlePack.suburb;
-        //! 2. Make suburb Ausspannplatz if anything related to it
-        littlePack.suburb = /Ausspannplatz/i.test(littlePack.location_name)
-          ? "Ausspannplatz"
-          : littlePack.suburb;
         //...done
         resolve(littlePack);
       } catch (error) {
@@ -486,57 +514,17 @@ function attachCoordinatesAndRegion(littlePack, resolve) {
           ) {
             body = placeInfo[0];
             //Has a previous record
-            let coordinates = [
-              body.result.geometry.location.lat,
-              body.result.geometry.location.lng,
-            ];
-            let state =
-              body.result.address_components.filter((item) =>
-                item.types.includes("administrative_area_level_1")
-              )[0] !== undefined &&
-              body.result.address_components.filter((item) =>
-                item.types.includes("administrative_area_level_1")
-              )[0] !== null
-                ? body.result.address_components
-                    .filter((item) =>
-                      item.types.includes("administrative_area_level_1")
-                    )[0]
-                    .short_name.replace(" Region", "")
-                : false;
-            let suburb =
-              body.result.address_components.filter((item) =>
-                item.types.includes("sublocality_level_1", "political")
-              )[0] !== undefined &&
-              body.result.address_components.filter((item) =>
-                item.types.includes("sublocality_level_1", "political")
-              )[0] !== null
-                ? body.result.address_components
-                    .filter((item) =>
-                      item.types.includes("sublocality_level_1", "political")
-                    )[0]
-                    .short_name.trim()
-                : false;
-            //! Add /CBD for Windhoek Central suburb
-            suburb =
-              suburb !== false &&
-              suburb !== undefined &&
-              /^Windhoek Central$/i.test(suburb)
-                ? `${suburb} / CBD`
-                : suburb;
+            let refinedExtractions = arrangeAndExtractSuburbAndStateOrMore(
+              body,
+              littlePack.location_name
+            );
+            let coordinates = refinedExtractions.coordinates;
+            let state = refinedExtractions.state;
+            let suburb = refinedExtractions.suburb;
             //...
             littlePack.coordinates = coordinates;
             littlePack.state = state;
             littlePack.suburb = suburb;
-
-            //!EXCEPTIONS SUBURBS
-            //! 1. Make suburb Elisenheim if anything related to it (Eg. location_name)
-            littlePack.suburb = /Elisenheim/i.test(littlePack.location_name)
-              ? "Elisenheim"
-              : littlePack.suburb;
-            //! 2. Make suburb Ausspannplatz if anything related to it
-            littlePack.suburb = /Ausspannplatz/i.test(littlePack.location_name)
-              ? "Ausspannplatz"
-              : littlePack.suburb;
             //..Save the body in mongo
             body["date_updated"] = new Date(chaineDateUTC);
             new Promise((resSave) => {
@@ -598,57 +586,17 @@ function doFreshGoogleSearchAndReturn(littlePack, redisKey, resolve) {
         body.result.address_components !== undefined &&
         body.result.geometry !== undefined
       ) {
-        let coordinates = [
-          body.result.geometry.location.lat,
-          body.result.geometry.location.lng,
-        ];
-        let state =
-          body.result.address_components.filter((item) =>
-            item.types.includes("administrative_area_level_1")
-          )[0] !== undefined &&
-          body.result.address_components.filter((item) =>
-            item.types.includes("administrative_area_level_1")
-          )[0] !== null
-            ? body.result.address_components
-                .filter((item) =>
-                  item.types.includes("administrative_area_level_1")
-                )[0]
-                .long_name.replace(" Region", "")
-            : false;
-        let suburb =
-          body.result.address_components.filter((item) =>
-            item.types.includes("sublocality_level_1", "political")
-          )[0] !== undefined &&
-          body.result.address_components.filter((item) =>
-            item.types.includes("sublocality_level_1", "political")
-          )[0] !== null
-            ? body.result.address_components
-                .filter((item) =>
-                  item.types.includes("sublocality_level_1", "political")
-                )[0]
-                .short_name.trim()
-            : false;
-        //! Add /CBD for Windhoek Central suburb
-        suburb =
-          suburb !== false &&
-          suburb !== undefined &&
-          /^Windhoek Central$/i.test(suburb)
-            ? `${suburb} / CBD`
-            : suburb;
+        let refinedExtractions = arrangeAndExtractSuburbAndStateOrMore(
+          body,
+          littlePack.location_name
+        );
+        let coordinates = refinedExtractions.coordinates;
+        let state = refinedExtractions.state;
+        let suburb = refinedExtractions.suburb;
         //...
         littlePack.coordinates = coordinates;
         littlePack.state = state;
         littlePack.suburb = suburb;
-
-        //!EXCEPTIONS SUBURBS
-        //! 1. Make suburb Elisenheim if anything related to it (Eg. location_name)
-        littlePack.suburb = /Elisenheim/i.test(littlePack.location_name)
-          ? "Elisenheim"
-          : littlePack.suburb;
-        //! 2. Make suburb Ausspannplatz if anything related to it
-        littlePack.suburb = /Ausspannplatz/i.test(littlePack.location_name)
-          ? "Ausspannplatz"
-          : littlePack.suburb;
         //..Save the body in mongo
         body["date_updated"] = new Date(chaineDateUTC);
         new Promise((resSave) => {
@@ -777,7 +725,7 @@ function getLocationList_five(queryOR, city, country, bbox, res, timestamp) {
     },
     (error) => {
       //Launch new search
-      logger.info(error);
+      logger.warn(error);
       logger.info("Launch new search");
       newLoaction_search_engine(keyREDIS, queryOR, city, bbox, res, timestamp);
     }
@@ -861,7 +809,6 @@ redisCluster.on("connect", function () {
               getCityBbox(request.city, res);
             }).then(
               (result) => {
-                logger.info(result);
                 let bbox = result;
                 //Get the location
                 new Promise((res) => {
@@ -905,7 +852,7 @@ redisCluster.on("connect", function () {
                 );
               },
               (error) => {
-                logger.info(error);
+                logger.warn(error);
                 //socket.emit("getLocations-response", false);
                 res.send(false);
               }
