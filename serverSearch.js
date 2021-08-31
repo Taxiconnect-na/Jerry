@@ -184,6 +184,7 @@ function newLoaction_search_engine(
         searchedData.length > 0
       ) {
         logger.warn("FOUND SOME MONGODB RECORDS");
+        logger.info(searchedData);
         //TODO: could twik this value to allow a minimum limit of values
         let finalSearchResults = {
           search_timestamp: timestamp,
@@ -707,6 +708,7 @@ function getLocationList_five(queryOR, city, country, bbox, res, timestamp) {
             .then()
             .catch();
           //...
+          logger.error(resp);
           resp = JSON.parse(resp);
           //!Update search record time
           resp.search_timestamp = timestamp;
@@ -861,6 +863,7 @@ redisCluster.on("connect", function () {
                             }`
                           );
                           if (resp === result.result[0].query) {
+                            logger.warn(result);
                             //Inconsistent - do not update
                             logger.info("Consistent");
                             //res.send(false);
