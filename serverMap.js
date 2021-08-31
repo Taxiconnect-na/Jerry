@@ -5107,7 +5107,7 @@ redisCluster.on("connect", function () {
                 );
 
                 //Check for any existing ride
-                let pro2 = new Promise((res) => {
+                new Promise((res) => {
                   //logger.info("fetching data");
                   tripChecker_Dispatcher(
                     req.avoidCached_data !== undefined &&
@@ -5153,7 +5153,7 @@ redisCluster.on("connect", function () {
                 //Make a fresh request
                 //Check for any existing ride
                 new Promise((res) => {
-                  ////logger.info("fetching data");
+                  //logger.info("fetching data");
                   tripChecker_Dispatcher(
                     true,
                     collectionRidesDeliveries_data,

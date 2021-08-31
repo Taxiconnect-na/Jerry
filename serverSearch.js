@@ -253,6 +253,7 @@ function initializeFreshGetOfLocations(
   requestAPI(urlRequest, function (err, response, body) {
     try {
       body = JSON.parse(body);
+      logger.error(body);
 
       if (body != undefined) {
         if (
@@ -325,7 +326,7 @@ function initializeFreshGetOfLocations(
           });
           //Done with grathering result of brute API search
           Promise.all(request0).then((val) => {
-            //logger.info(val);
+            logger.info(val);
             //Remove all the false values
             let result = fastFilter(val, function (element) {
               return element !== false && element !== null;
@@ -360,6 +361,7 @@ function initializeFreshGetOfLocations(
                 search_timestamp: timestamp,
                 result: removeResults_duplicates(result).slice(0, 5),
               };
+              logger.warn(finalSearchResults);
               //populated
               res(finalSearchResults);
             } //empty
