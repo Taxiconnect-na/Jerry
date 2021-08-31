@@ -1,7 +1,7 @@
 name: CI/CD Pipeline
 on:
   push:
-    branches: [ dev ]
+    branches: [ devattend ]
 
 jobs:
   continous-integration:

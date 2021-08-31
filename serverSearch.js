@@ -375,15 +375,15 @@ function initializeFreshGetOfLocations(
     } catch (error) {
       logger.warn("HERE5");
       logger.warn(error);
-      // res(false);
-      initializeFreshGetOfLocations(
-        keyREDIS,
-        queryOR,
-        city,
-        bbox,
-        res,
-        timestamp
-      );
+      res(false);
+      // initializeFreshGetOfLocations(
+      //   keyREDIS,
+      //   queryOR,
+      //   city,
+      //   bbox,
+      //   res,
+      //   timestamp
+      // );
     }
   });
 }
@@ -640,9 +640,8 @@ function doFreshGoogleSearchAndReturn(littlePack, redisKey, resolve) {
     } catch (error) {
       logger.warn("HERE3");
       logger.warn(error);
-      logger.warn(debuggerY);
-      // resolve(false);
-      doFreshGoogleSearchAndReturn(littlePack, redisKey, resolve);
+      resolve(false);
+      //doFreshGoogleSearchAndReturn(littlePack, redisKey, resolve);
     }
   });
 }
@@ -837,7 +836,7 @@ redisCluster.on("connect", function () {
                   );
                 }).then(
                   (result) => {
-                    //logger.info(result);
+                    logger.info(result);
                     if (
                       parseInt(search_timestamp) !=
                       parseInt(result.search_timestamp)
