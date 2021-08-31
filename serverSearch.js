@@ -813,13 +813,6 @@ redisCluster.on("connect", function () {
                 //Get the location
                 new Promise((res) => {
                   let tmpTimestamp = search_timestamp;
-                  //Replace wanaheda by Samora Machel Constituency
-                  request.query = /(wanaheda|wanahe|wanahed)/i.test(
-                    request.query
-                  )
-                    ? "Samora Machel Constituency"
-                    : request.query;
-                  //...
                   getLocationList_five(
                     request.query,
                     request.city,
