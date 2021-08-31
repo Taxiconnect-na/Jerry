@@ -373,8 +373,17 @@ function initializeFreshGetOfLocations(
         res(false);
       }
     } catch (error) {
-      logger.info(error);
-      res(false);
+      logger.warn("HERE5");
+      logger.warn(error);
+      // res(false);
+      initializeFreshGetOfLocations(
+        keyREDIS,
+        queryOR,
+        city,
+        bbox,
+        res,
+        timestamp
+      );
     }
   });
 }
@@ -473,7 +482,8 @@ function attachCoordinatesAndRegion(littlePack, resolve) {
         //...done
         resolve(littlePack);
       } catch (error) {
-        logger.error(error);
+        logger.warn("HERE2");
+        logger.warn(error);
         //Do a fresh search or from mongo
         new Promise((resCompute) => {
           doFreshGoogleSearchAndReturn(littlePack, redisKey, resCompute);
@@ -628,8 +638,11 @@ function doFreshGoogleSearchAndReturn(littlePack, redisKey, resolve) {
         resolve(false);
       }
     } catch (error) {
-      logger.error(error);
-      resolve(false);
+      logger.warn("HERE3");
+      logger.warn(error);
+      logger.warn(debuggerY);
+      // resolve(false);
+      doFreshGoogleSearchAndReturn(littlePack, redisKey, resolve);
     }
   });
 }
@@ -698,7 +711,8 @@ function getLocationList_five(queryOR, city, country, bbox, res, timestamp) {
           resp = JSON.parse(resp);
           res(resp);
         } catch (error) {
-          logger.error(error);
+          logger.warn("HERE");
+          logger.warn(error);
           logger.info("Launch new search");
           newLoaction_search_engine(
             keyREDIS,
@@ -800,7 +814,7 @@ redisCluster.on("connect", function () {
             //..
             let params = urlParser.parse(request.url, true);
             request = params.query;
-            logger.info(request);
+            // logger.info(request);
             //Update search timestamp
             //search_timestamp = dateObject.unix();
             let search_timestamp = request.query.length;
@@ -823,23 +837,25 @@ redisCluster.on("connect", function () {
                   );
                 }).then(
                   (result) => {
+                    //logger.info(result);
                     if (
                       parseInt(search_timestamp) !=
                       parseInt(result.search_timestamp)
                     ) {
                       //Inconsistent - do not update
-                      //logger.info('Inconsistent');
+                      logger.info("Inconsistent");
                       //res.send(false);
                       res.send({ result: result });
                     } //Consistent - update
                     else {
-                      //logger.info('Consistent');
+                      logger.info("Consistent");
                       //logObject(result);
                       res.send({ result: result });
                     }
                   },
                   (error) => {
-                    logger.info(error);
+                    logger.warn("HERE10");
+                    logger.warn(error);
                     res.send(false);
                   }
                 );
