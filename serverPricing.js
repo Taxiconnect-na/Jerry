@@ -127,10 +127,10 @@ function checkInputIntegrity(input) {
             passenger1Infos.coordinates !== null &&
             passenger1Infos.location_name !== undefined &&
             passenger1Infos.location_name !== null &&
-            passenger1Infos.street_name !== undefined &&
-            passenger1Infos.street_name !== null &&
-            passenger1Infos.suburb !== undefined &&
-            passenger1Infos.suburb !== null &&
+            // passenger1Infos.street_name !== undefined &&
+            // passenger1Infos.street_name !== null &&
+            // passenger1Infos.suburb !== undefined &&
+            // passenger1Infos.suburb !== null &&
             passenger1Infos.city !== undefined &&
             passenger1Infos.city !== null
           ) {
@@ -1115,8 +1115,18 @@ function parsePricingInputData(resolve, inputData) {
               inputData.pickupData.street_name !== false
                 ? inputData.pickupData.street_name
                 : false,
-            suburb: false,
-            state: false,
+            suburb:
+              inputData.pickupData.suburb !== undefined &&
+              inputData.pickupData.suburb !== false &&
+              inputData.pickupData.suburb !== null
+                ? inputData.pickupData.suburb
+                : false,
+            state:
+              inputData.pickupData.state !== undefined &&
+              inputData.pickupData.state !== false &&
+              inputData.pickupData.state !== null
+                ? inputData.pickupData.state
+                : false,
             city: inputData.pickupData.city,
           };
 
