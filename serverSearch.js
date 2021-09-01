@@ -435,6 +435,31 @@ function arrangeAndExtractSuburbAndStateOrMore(body, location_name) {
           .short_name.trim()
       : false;
 
+  //Exceptions check
+  suburb = applySuburbsExceptions(location_name, suburb);
+  //DONE
+  return {
+    coordinates: coordinates,
+    state: state,
+    suburb: suburb,
+  };
+}
+
+/**
+ * @func applySuburbsExceptions
+ * Responsible for applying suburb exception to some locations only if neccessary.
+ * @param location_name: the current location name
+ * @param suburb: the current suburb
+ */
+function applySuburbsExceptions(location_name, suburb) {
+  //!EXCEPTIONS SUBURBS
+  //! 1. Make suburb Elisenheim if anything related to it (Eg. location_name)
+  suburb = /Elisenheim/i.test(location_name) ? "Elisenheim" : suburb;
+  //! 2. Make suburb Ausspannplatz if anything related to it
+  suburb = /Ausspannplatz/i.test(location_name) ? "Ausspannplatz" : suburb;
+  //! 3. Make suburb Brakwater if anything related to it
+  suburb = /Brakwater/i.test(location_name) ? "Brakwater" : suburb;
+
   //! Add /CBD for Windhoek Central suburb
   suburb =
     suburb !== false &&
@@ -443,17 +468,8 @@ function arrangeAndExtractSuburbAndStateOrMore(body, location_name) {
       ? `${suburb} / CBD`
       : suburb;
 
-  //!EXCEPTIONS SUBURBS
-  //! 1. Make suburb Elisenheim if anything related to it (Eg. location_name)
-  suburb = /Elisenheim/i.test(location_name) ? "Elisenheim" : suburb;
-  //! 2. Make suburb Ausspannplatz if anything related to it
-  suburb = /Ausspannplatz/i.test(location_name) ? "Ausspannplatz" : suburb;
   //DONE
-  return {
-    coordinates: coordinates,
-    state: state,
-    suburb: suburb,
-  };
+  return suburb;
 }
 
 /**
@@ -646,7 +662,6 @@ function doFreshGoogleSearchAndReturn(littlePack, redisKey, resolve) {
       logger.warn("HERE3");
       logger.warn(error);
       resolve(false);
-      //doFreshGoogleSearchAndReturn(littlePack, redisKey, resolve);
     }
   });
 }
@@ -719,8 +734,16 @@ function getLocationList_five(
             .then()
             .catch();
           //...
-          logger.error(resp);
           resp = JSON.parse(resp);
+          //Exceptions check
+          resp.result = resp.result.map((location) => {
+            location.suburb = applySuburbsExceptions(
+              location.location_name,
+              location.suburb
+            );
+            return location;
+          });
+          logger.error(resp);
           //!Update search record time
           resp.search_timestamp = timestamp;
           res(resp);
