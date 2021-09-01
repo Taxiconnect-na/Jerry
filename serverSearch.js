@@ -790,6 +790,99 @@ function getLocationList_five(
   );
 }
 
+/**
+ * @func brieflyCompleteEssentialsForLocations
+ * Responsible for briefly completing the essentials like the suburb and state (if any) for the given location.
+ * @param coordinates: {latitude:***, longitude:***}
+ * @param location_name: the location name
+ * @param city: the city
+ * @param resolve
+ */
+function brieflyCompleteEssentialsForLocations(
+  coordinates,
+  location_name,
+  city,
+  resolve
+) {
+  //! APPLY BLUE OCEAN BUG FIX FOR THE PICKUP LOCATION COORDINATES
+  //? 1. Destination
+  //? Get temporary vars
+  let pickLatitude1 = parseFloat(coordinates.latitude);
+  let pickLongitude1 = parseFloat(coordinates.longitude);
+  //! Coordinates order fix - major bug fix for ocean bug
+  if (
+    pickLatitude1 !== undefined &&
+    pickLatitude1 !== null &&
+    pickLatitude1 !== 0 &&
+    pickLongitude1 !== undefined &&
+    pickLongitude1 !== null &&
+    pickLongitude1 !== 0
+  ) {
+    //? Switch latitude and longitude - check the negative sign
+    if (parseFloat(pickLongitude1) < 0) {
+      //Negative - switch
+      coordinates.latitude = pickLongitude1;
+      coordinates.longitude = pickLatitude1;
+    }
+  }
+  //! -------
+
+  //1. Do a fresh google search
+  let url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${coordinates.latitude},${coordinates.longitude}&key=${process.env.GOOGLE_API_KEY}&language=en&fields=formatted_address,address_components,geometry,place_id`;
+
+  requestAPI(url, function (error, response, body) {
+    logger.info(body);
+    try {
+      body = JSON.parse(body);
+      body["result"] = body.results[0];
+      //State
+      let state =
+        body.result.address_components.filter((item) =>
+          item.types.includes("administrative_area_level_1")
+        )[0] !== undefined &&
+        body.result.address_components.filter((item) =>
+          item.types.includes("administrative_area_level_1")
+        )[0] !== null
+          ? body.result.address_components
+              .filter((item) =>
+                item.types.includes("administrative_area_level_1")
+              )[0]
+              .short_name.replace(" Region", "")
+          : false;
+      //Suburb
+      let suburb =
+        body.result.address_components.filter((item) =>
+          item.types.includes("sublocality_level_1", "political")
+        )[0] !== undefined &&
+        body.result.address_components.filter((item) =>
+          item.types.includes("sublocality_level_1", "political")
+        )[0] !== null
+          ? body.result.address_components
+              .filter((item) =>
+                item.types.includes("sublocality_level_1", "political")
+              )[0]
+              .short_name.trim()
+          : false;
+
+      //Exceptions check
+      suburb = applySuburbsExceptions(location_name, suburb);
+      //DONE
+      resolve({
+        coordinates: coordinates,
+        state: state,
+        suburb: suburb,
+      });
+    } catch (error) {
+      logger.error(error);
+      resolve({
+        coordinates: coordinates,
+        state: false,
+        suburb: false,
+      });
+    }
+  });
+}
+
 var collectionSearchedLocationPersist = null;
 var collectionAutoCompletedSuburbs = null;
 
@@ -935,10 +1028,60 @@ redisCluster.on("connect", function () {
               },
               (error) => {
                 logger.warn(error);
-                //socket.emit("getLocations-response", false);
                 res.send(false);
               }
             );
+          });
+
+          //2. BRIEFLY COMPLETE THE SUBURBS AND STATE
+          app.get("/brieflyCompleteSuburbAndState", function (request, res) {
+            new Promise((resCompute) => {
+              resolveDate();
+
+              let params = urlParser.parse(request.url, true);
+              request = params.query;
+              //...
+              if (
+                request.latitude !== undefined &&
+                request.latitude !== null &&
+                request.longitude !== undefined &&
+                request.longitude !== null
+              ) {
+                brieflyCompleteEssentialsForLocations(
+                  { latitude: request.latitude, longitude: request.longitude },
+                  request.location_name,
+                  request.city,
+                  resCompute
+                );
+              } //Invalida data received
+              else {
+                logger.warn(
+                  "Could not briefly complete the location due to invalid data received."
+                );
+                res.send({
+                  coordinates: {
+                    latitude: request.latitude,
+                    longitude: request.longitude,
+                  },
+                  state: false,
+                  suburb: false,
+                });
+              }
+            })
+              .then((result) => {
+                res.send(result);
+              })
+              .catch((error) => {
+                logger.error(error);
+                res.send({
+                  coordinates: {
+                    latitude: request.latitude,
+                    longitude: request.longitude,
+                  },
+                  state: false,
+                  suburb: false,
+                });
+              });
           });
         }
       );
