@@ -80,6 +80,7 @@ resolveDate();
  * Returns true if correct (can be proccessed) or false (failed the integrity check)
  */
 function checkInputIntegrity(input) {
+  logger.error(input);
   if (input.connect_type !== undefined && input.connect_type !== null) {
     //clean
     if (
