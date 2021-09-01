@@ -203,6 +203,8 @@ function autocompleteInputData(
   //[PICKUP LOCATION] Complete pickup location suburb infos
   let urlRequest = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${pickupInfos.coordinates.latitude},${pickupInfos.coordinates.longitude}&key=${process.env.GOOGLE_API_KEY}&location_type=GEOMETRIC_CENTER&language=en&fields=formatted_address,address_components,geometry,place_id`;
 
+  logger.warn(urlRequest);
+
   requestAPI(urlRequest, function (err, response, body) {
     try {
       body = JSON.parse(body);
