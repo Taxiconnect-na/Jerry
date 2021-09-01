@@ -927,11 +927,105 @@ function parseRequestData(inputData, resolve) {
                           }
                         }).then(
                           (reslt) => {
+                            //? Autocomplete the destination data if any of them are incomplete
+                            let parentPromises = reslt.destinationData.map(
+                              (destination) => {
+                                return new Promise((resCompute) => {
+                                  if (
+                                    destination.suburb === undefined ||
+                                    destination.suburb === null ||
+                                    destination.suburb === false ||
+                                    destination.state === undefined ||
+                                    destination.state === null ||
+                                    destination.state === false
+                                  ) {
+                                    //Found some invalid input data
+                                    logger.warn(
+                                      "Found some invalid input data, resolving them..."
+                                    );
+                                    let url =
+                                      `${
+                                        /production/i.test(
+                                          process.env.EVIRONMENT
+                                        )
+                                          ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+                                          : process.env.LOCAL_URL
+                                      }` +
+                                      ":" +
+                                      process.env.SEARCH_SERVICE_PORT +
+                                      `/brieflyCompleteSuburbAndState?latitude=${destination.coordinates.latitude}&longitude=${destination.coordinates.longitude}&city=${destination.city}&location_name=${destination.location_name}`;
+
+                                    requestAPI(
+                                      url,
+                                      function (error, response, body) {
+                                        try {
+                                          body = JSON.parse(body);
+                                          logger.warn(body);
+                                          //? Update the old record
+                                          destination.suburb = body.suburb;
+                                          destination.state = body.state;
+                                          //DONE
+                                          resCompute(destination);
+                                        } catch (error) {
+                                          logger.error(error);
+                                          resCompute(destination);
+                                        }
+                                      }
+                                    );
+                                  } //Clean data
+                                  else {
+                                    if (/ Region/i.test(destination.state)) {
+                                      destination.state =
+                                        destination.state.replace(
+                                          / Region/,
+                                          ""
+                                        );
+                                      resCompute(destination);
+                                    } //No problem
+                                    else {
+                                      resCompute(destination);
+                                    }
+                                  }
+                                });
+                              }
+                            );
                             //DONE
-                            //Update the destination data
-                            parsedData.destinationData = reslt.destinationData;
-                            //? DONE
-                            resolve(parsedData);
+                            Promise.all(parentPromises)
+                              .then((result) => {
+                                //Update the destination data based on the order
+                                result.map((updatedDestination) => {
+                                  reslt.destinationData.map(
+                                    (oldDestination, index) => {
+                                      if (
+                                        parseInt(
+                                          updatedDestination.passenger_number_id
+                                        ) ===
+                                        parseInt(
+                                          oldDestination.passenger_number_id
+                                        )
+                                      ) {
+                                        //Matched record
+                                        reslt.destinationData[index] =
+                                          updatedDestination; //? Updated source record
+                                      }
+                                    }
+                                  );
+                                });
+                                //DONE
+                                //Update the destination data
+                                parsedData.destinationData =
+                                  reslt.destinationData;
+                                //? DONE
+                                resolve(parsedData);
+                              })
+                              .catch((error) => {
+                                logger.error(error);
+                                //Update the destination data
+                                parsedData.destinationData =
+                                  reslt.destinationData;
+                                //? DONE
+                                resolve(parsedData);
+                              });
                           },
                           (error) => {
                             logger.error(error);
