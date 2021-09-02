@@ -607,47 +607,18 @@ function attachCoordinatesAndRegion(littlePack, resolve) {
  * Responsible for doing a clean google maps search, save the value in mongo, cache it and return an updated object.
  */
 function doFreshGoogleSearchAndReturn(littlePack, redisKey, resolve) {
-  //? Arrange coordinates
-  let pointsCoords = {
-    latitude: littlePack.coordinates[0],
-    longitude: littlePack.coordinates[1],
-  };
-
-  //! APPLY BLUE OCEAN BUG FIX FOR THE PICKUP LOCATION COORDINATES
-  //? 1. Destination
-  //? Get temporary vars
-  let pickLatitude1 = parseFloat(pointsCoords.latitude);
-  let pickLongitude1 = parseFloat(pointsCoords.longitude);
-  //! Coordinates order fix - major bug fix for ocean bug
-  if (
-    pickLatitude1 !== undefined &&
-    pickLatitude1 !== null &&
-    pickLatitude1 !== 0 &&
-    pickLongitude1 !== undefined &&
-    pickLongitude1 !== null &&
-    pickLongitude1 !== 0
-  ) {
-    //? Switch latitude and longitude - check the negative sign
-    if (parseFloat(pickLongitude1) < 0) {
-      //Negative - switch
-      pointsCoords.latitude = pickLongitude1;
-      pointsCoords.longitude = pickLatitude1;
-    }
-  }
-  //! -------
-
-  //let urlRequest = `https://maps.googleapis.com/maps/api/place/details/json?placeid=${littlePack.location_id}&key=${process.env.GOOGLE_API_KEY}&fields=formatted_address,address_components,geometry,place_id&language=en`;
-  let urlRequest = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${pointsCoords.latitude},${pointsCoords.longitude}&key=${process.env.GOOGLE_API_KEY}&language=en&fields=formatted_address,address_components,geometry,place_id&result_type=political|street_address`;
+  let urlRequest = `https://maps.googleapis.com/maps/api/place/details/json?placeid=${littlePack.location_id}&key=${process.env.GOOGLE_API_KEY}&fields=formatted_address,address_components,geometry,place_id&language=en`;
 
   requestAPI(urlRequest, function (err, response, body) {
+    logger.info(body);
     try {
       body = JSON.parse(body);
       if (
-        body.results !== undefined &&
-        body.results[0].address_components !== undefined &&
-        body.results[0].geometry !== undefined
+        body.result !== undefined &&
+        body.result.address_components !== undefined &&
+        body.result.geometry !== undefined
       ) {
-        body["result"] = body.results[0];
+        // body["result"] = body.results[0];
 
         let refinedExtractions = arrangeAndExtractSuburbAndStateOrMore(
           body,
