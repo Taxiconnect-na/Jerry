@@ -212,7 +212,7 @@ function autocompleteInputData(
     `/brieflyCompleteSuburbAndState?latitude=${pickupInfos.coordinates.latitude}&longitude=${pickupInfos.coordinates.longitude}&city=${pickupInfos.city}&location_name=${pickupInfos.location_name}`;
 
   requestAPI(url, function (error, response, body) {
-    //logger.info(body);
+    // logger.info(body);
     try {
       body = JSON.parse(body);
       logger.warn(body);
@@ -1102,8 +1102,8 @@ function parsePricingInputData(resolve, inputData) {
           cleanInputData.pickup_location_infos = {
             pickup_type: inputData.naturePickup,
             coordinates: {
-              latitude: inputData.pickupData.coordinates[0],
-              longitude: inputData.pickupData.coordinates[1],
+              latitude: inputData.pickupData.coordinates[0], //17.058383939871362,
+              longitude: inputData.pickupData.coordinates[1], //-22.568249165171707,
             },
             location_name:
               inputData.pickupData.location_name !== undefined &&
