@@ -799,14 +799,20 @@ function getLocationList_five(
  * @param coordinates: {latitude:***, longitude:***}
  * @param location_name: the location name
  * @param city: the city
+ * @param defaultResultType: whether the return polical/ or not to filter the suburb - default:
  * @param resolve
  */
 function brieflyCompleteEssentialsForLocations(
   coordinates,
   location_name,
   city,
-  resolve
+  resolve,
+  defaultResultType = "&result_type=political|street_address"
 ) {
+  let redisKey = `${JSON.stringify(
+    coordinates
+  )}-${location_name}-${city}-temporecord`;
+
   //! APPLY BLUE OCEAN BUG FIX FOR THE PICKUP LOCATION COORDINATES
   //? 1. Destination
   //? Get temporary vars
@@ -831,7 +837,7 @@ function brieflyCompleteEssentialsForLocations(
   //! -------
 
   //1. Do a fresh google search
-  let url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${coordinates.latitude},${coordinates.longitude}&key=${process.env.GOOGLE_API_KEY}&language=en&fields=formatted_address,address_components,geometry,place_id&result_type=political|street_address`;
+  let url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${coordinates.latitude},${coordinates.longitude}&key=${process.env.GOOGLE_API_KEY}&language=en&fields=formatted_address,address_components,geometry,place_id${defaultResultType}`;
 
   logger.info(url);
 
@@ -869,14 +875,73 @@ function brieflyCompleteEssentialsForLocations(
               .short_name.trim()
           : false;
 
-      //Exceptions check
-      suburb = applySuburbsExceptions(location_name, suburb);
-      //DONE
-      resolve({
-        coordinates: coordinates,
-        state: state,
-        suburb: suburb,
-      });
+      //! Retry the request without a result type if the suburb was not found witht he first link
+      if (suburb === false) {
+        //! Prevent recursive loop with Redis
+        //Check if there is a previous record
+        redisGet(redisKey)
+          .then((resp) => {
+            if (resp !== null) {
+              //Remove any redis record
+              new Promise((resRemoveCache) => {
+                redisCluster.del(redisKey);
+                resRemoveCache(true);
+              })
+                .then()
+                .catch();
+              //! Prevent loop hell
+              resolve({
+                coordinates: coordinates,
+                state: false,
+                suburb: false,
+              });
+            } //No record yet
+            else {
+              //! Save the record and make a fresh request
+              //? Save the key
+              redisCluster.set(redisKey, 1);
+              brieflyCompleteEssentialsForLocations(
+                coordinates,
+                location_name,
+                city,
+                resolve,
+                ""
+              );
+            }
+          })
+          .catch((error) => {
+            logger.error(error);
+            //Remove any redis record
+            new Promise((resRemoveCache) => {
+              redisCluster.del(redisKey);
+              resRemoveCache(true);
+            })
+              .then()
+              .catch();
+            resolve({
+              coordinates: coordinates,
+              state: false,
+              suburb: false,
+            });
+          });
+      } //? Everything look good
+      else {
+        //Remove any redis record
+        new Promise((resRemoveCache) => {
+          redisCluster.del(redisKey);
+          resRemoveCache(true);
+        })
+          .then()
+          .catch();
+        //Exceptions check
+        suburb = applySuburbsExceptions(location_name, suburb);
+        //DONE
+        resolve({
+          coordinates: coordinates,
+          state: state,
+          suburb: suburb,
+        });
+      }
     } catch (error) {
       logger.error(error);
       resolve({
