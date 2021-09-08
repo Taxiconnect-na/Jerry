@@ -5107,7 +5107,7 @@ redisCluster.on("connect", function () {
                 );
 
                 //Check for any existing ride
-                let pro2 = new Promise((res) => {
+                new Promise((res) => {
                   //logger.info("fetching data");
                   tripChecker_Dispatcher(
                     req.avoidCached_data !== undefined &&
@@ -5153,7 +5153,7 @@ redisCluster.on("connect", function () {
                 //Make a fresh request
                 //Check for any existing ride
                 new Promise((res) => {
-                  ////logger.info("fetching data");
+                  //logger.info("fetching data");
                   tripChecker_Dispatcher(
                     true,
                     collectionRidesDeliveries_data,
@@ -5170,6 +5170,7 @@ redisCluster.on("connect", function () {
                   );
                 }).then(
                   (result) => {
+                    logger.info("higher livel;");
                     //Update the rider
                     if (result !== false) {
                       if (result != "no_rides") {
@@ -5195,7 +5196,28 @@ redisCluster.on("connect", function () {
               }
             })
               .then((result) => {
-                res.send(result);
+                if (/driver/i.test(req.user_nature)) {
+                  //?Sort the requests
+                  if (result.length !== undefined && result.length > 1) {
+                    //Sort only when needed - last arrival on top
+                    result = result.sort((a, b) =>
+                      new Date(a.ride_basic_infos.wished_pickup_time) >
+                      new Date(b.ride_basic_infos.wished_pickup_time)
+                        ? -1
+                        : new Date(a.ride_basic_infos.wished_pickup_time) <
+                          new Date(b.ride_basic_infos.wished_pickup_time)
+                        ? 1
+                        : 0
+                    );
+                    res.send(result);
+                  } //No need to sort
+                  else {
+                    res.send(result);
+                  }
+                } //Rider send as is
+                else {
+                  res.send(result);
+                }
               })
               .catch((error) => {
                 //logger.info(error);

@@ -529,6 +529,7 @@ io.on("connection", (socket) => {
         if (error === null) {
           try {
             body = JSON.parse(body);
+            logger.warn(body);
             socket.emit("getLocations-response", body);
           } catch (error) {
             socket.emit("getLocations-response", false);

@@ -4660,7 +4660,7 @@ redisCluster.on("connect", function () {
           //-------------
           app
             .get("/", function (req, res) {
-              logger.info("Account services up");
+              res.send("Account services up");
             })
             .use(
               express.json({

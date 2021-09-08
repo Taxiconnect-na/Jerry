@@ -183,7 +183,7 @@ function generateUniqueFingerprint(str, encryption = false, resolve) {
 function parseRequestData(inputData, resolve) {
   resolveDate();
   //logger.info("INITIAL RECEIVED REQUEST");
-  ////logger.info("REQUEST DATA -> ", inputData);
+  logger.info("REQUEST DATA -> ", inputData);
   //! CHECK FOR A POTENTIAL CACHED VALUE FOR recoveredd data (from mysql)
   redisGet(
     `${
@@ -604,7 +604,7 @@ function parseRequestData(inputData, resolve) {
                               tmpSchemaArray.map((element, index) => {
                                 cleanInputData.destinationData.push({
                                   passenger_number_id: index + 1,
-                                  dropoff_type: false,
+                                  dropoff_type: "PrivateLocation",
                                   coordinates: {
                                     latitude:
                                       inputData.destinationData
@@ -632,8 +632,8 @@ function parseRequestData(inputData, resolve) {
                                       ? inputData.destinationData
                                           .passenger1Destination.street
                                       : false,
-                                  suburb: false,
-                                  state: false,
+                                  suburb: passenger1Data.suburb,
+                                  state: passenger1Data.state,
                                   city: inputData.pickupData.city,
                                 });
                               });
@@ -648,7 +648,7 @@ function parseRequestData(inputData, resolve) {
                                     .passenger1Destination;
                                 cleanInputData.destinationData.push({
                                   passenger_number_id: 1,
-                                  dropoff_type: false,
+                                  dropoff_type: "PrivateLocation",
                                   coordinates: {
                                     latitude: passenger1Data.coordinates[1],
                                     longitude: passenger1Data.coordinates[0],
@@ -664,8 +664,8 @@ function parseRequestData(inputData, resolve) {
                                     passenger1Data.street !== false
                                       ? passenger1Data.street
                                       : false,
-                                  suburb: false,
-                                  state: false,
+                                  suburb: passenger1Data.suburb,
+                                  state: passenger1Data.state,
                                   city: inputData.pickupData.city,
                                 });
                                 //Passenger2
@@ -674,7 +674,7 @@ function parseRequestData(inputData, resolve) {
                                     .passenger2Destination;
                                 cleanInputData.destinationData.push({
                                   passenger_number_id: 2,
-                                  dropoff_type: false,
+                                  dropoff_type: "PrivateLocation",
                                   coordinates: {
                                     latitude: passenger2Data.coordinates[1],
                                     longitude: passenger2Data.coordinates[0],
@@ -690,8 +690,8 @@ function parseRequestData(inputData, resolve) {
                                     passenger2Data.street !== false
                                       ? passenger2Data.street
                                       : false,
-                                  suburb: false,
-                                  state: false,
+                                  suburb: passenger2Data.suburb,
+                                  state: passenger2Data.state,
                                   city: inputData.pickupData.city,
                                 });
                                 //Done
@@ -703,7 +703,7 @@ function parseRequestData(inputData, resolve) {
                                     .passenger1Destination;
                                 cleanInputData.destinationData.push({
                                   passenger_number_id: 1,
-                                  dropoff_type: false,
+                                  dropoff_type: "PrivateLocation",
                                   coordinates: {
                                     latitude: passenger1Data.coordinates[1],
                                     longitude: passenger1Data.coordinates[0],
@@ -719,8 +719,8 @@ function parseRequestData(inputData, resolve) {
                                     passenger1Data.street !== false
                                       ? passenger1Data.street
                                       : false,
-                                  suburb: false,
-                                  state: false,
+                                  suburb: passenger1Data.suburb,
+                                  state: passenger1Data.state,
                                   city: inputData.pickupData.city,
                                 });
                                 //Passenger2
@@ -729,7 +729,7 @@ function parseRequestData(inputData, resolve) {
                                     .passenger2Destination;
                                 cleanInputData.destinationData.push({
                                   passenger_number_id: 2,
-                                  dropoff_type: false,
+                                  dropoff_type: "PrivateLocation",
                                   coordinates: {
                                     latitude: passenger2Data.coordinates[1],
                                     longitude: passenger2Data.coordinates[0],
@@ -745,8 +745,8 @@ function parseRequestData(inputData, resolve) {
                                     passenger2Data.street !== false
                                       ? passenger2Data.street
                                       : false,
-                                  suburb: false,
-                                  state: false,
+                                  suburb: passenger2Data.suburb,
+                                  state: passenger2Data.state,
                                   city: inputData.pickupData.city,
                                 });
                                 //Passenger3
@@ -755,7 +755,7 @@ function parseRequestData(inputData, resolve) {
                                     .passenger3Destination;
                                 cleanInputData.destinationData.push({
                                   passenger_number_id: 3,
-                                  dropoff_type: false,
+                                  dropoff_type: "PrivateLocation",
                                   coordinates: {
                                     latitude: passenger3Data.coordinates[1],
                                     longitude: passenger3Data.coordinates[0],
@@ -771,8 +771,8 @@ function parseRequestData(inputData, resolve) {
                                     passenger3Data.street !== false
                                       ? passenger3Data.street
                                       : false,
-                                  suburb: false,
-                                  state: false,
+                                  suburb: passenger3Data.suburb,
+                                  state: passenger3Data.state,
                                   city: inputData.pickupData.city,
                                 });
                                 //Done
@@ -784,7 +784,7 @@ function parseRequestData(inputData, resolve) {
                                     .passenger1Destination;
                                 cleanInputData.destinationData.push({
                                   passenger_number_id: 1,
-                                  dropoff_type: false,
+                                  dropoff_type: "PrivateLocation",
                                   coordinates: {
                                     latitude: passenger1Data.coordinates[1],
                                     longitude: passenger1Data.coordinates[0],
@@ -800,8 +800,8 @@ function parseRequestData(inputData, resolve) {
                                     passenger1Data.street !== false
                                       ? passenger1Data.street
                                       : false,
-                                  suburb: false,
-                                  state: false,
+                                  suburb: passenger1Data.suburb,
+                                  state: passenger1Data.state,
                                   city: inputData.pickupData.city,
                                 });
                                 //Passenger2
@@ -810,7 +810,7 @@ function parseRequestData(inputData, resolve) {
                                     .passenger2Destination;
                                 cleanInputData.destinationData.push({
                                   passenger_number_id: 2,
-                                  dropoff_type: false,
+                                  dropoff_type: "PrivateLocation",
                                   coordinates: {
                                     latitude: passenger2Data.coordinates[1],
                                     longitude: passenger2Data.coordinates[0],
@@ -826,8 +826,8 @@ function parseRequestData(inputData, resolve) {
                                     passenger2Data.street !== false
                                       ? passenger2Data.street
                                       : false,
-                                  suburb: false,
-                                  state: false,
+                                  suburb: passenger2Data.suburb,
+                                  state: passenger2Data.state,
                                   city: inputData.pickupData.city,
                                 });
                                 //Passenger3
@@ -836,7 +836,7 @@ function parseRequestData(inputData, resolve) {
                                     .passenger3Destination;
                                 cleanInputData.destinationData.push({
                                   passenger_number_id: 3,
-                                  dropoff_type: false,
+                                  dropoff_type: "PrivateLocation",
                                   coordinates: {
                                     latitude: passenger3Data.coordinates[1],
                                     longitude: passenger3Data.coordinates[0],
@@ -852,8 +852,8 @@ function parseRequestData(inputData, resolve) {
                                     passenger3Data.street !== false
                                       ? passenger3Data.street
                                       : false,
-                                  suburb: false,
-                                  state: false,
+                                  suburb: passenger3Data.suburb,
+                                  state: passenger3Data.state,
                                   city: inputData.pickupData.city,
                                 });
                                 //Passenger4
@@ -862,7 +862,7 @@ function parseRequestData(inputData, resolve) {
                                     .passenger4Destination;
                                 cleanInputData.destinationData.push({
                                   passenger_number_id: 4,
-                                  dropoff_type: false,
+                                  dropoff_type: "PrivateLocation",
                                   coordinates: {
                                     latitude: passenger4Data.coordinates[1],
                                     longitude: passenger4Data.coordinates[0],
@@ -878,8 +878,8 @@ function parseRequestData(inputData, resolve) {
                                     passenger4Data.street !== false
                                       ? passenger4Data.street
                                       : false,
-                                  suburb: false,
-                                  state: false,
+                                  suburb: passenger4Data.suburb,
+                                  state: passenger4Data.state,
                                   city: inputData.pickupData.city,
                                 });
                                 //Done
@@ -890,7 +890,7 @@ function parseRequestData(inputData, resolve) {
                           else {
                             cleanInputData.destinationData.push({
                               passenger_number_id: 1,
-                              dropoff_type: false,
+                              dropoff_type: "PrivateLocation",
                               coordinates: {
                                 latitude:
                                   inputData.destinationData
@@ -915,110 +915,120 @@ function parseRequestData(inputData, resolve) {
                                   ? inputData.destinationData
                                       .passenger1Destination.street
                                   : false,
-                              suburb: false,
-                              state: false,
+                              suburb:
+                                inputData.destinationData.passenger1Destination
+                                  .suburb,
+                              state:
+                                inputData.destinationData.passenger1Destination
+                                  .state,
                               city: inputData.pickupData.city,
                             });
                             res5(cleanInputData);
                           }
                         }).then(
                           (reslt) => {
-                            //DONE
-                            let url =
-                              `${
-                                /production/i.test(process.env.EVIRONMENT)
-                                  ? `http://${process.env.INSTANCE_PRIVATE_IP}`
-                                  : process.env.LOCAL_URL
-                              }` +
-                              ":" +
-                              process.env.PRICING_SERVICE_PORT +
-                              "/manageAutoCompleteSuburbsAndLocationTypes";
-
-                            requestAPI.post(
-                              {
-                                url,
-                                form: {
-                                  locationData: reslt.destinationData,
-                                  user_fingerprint: inputData.user_fingerprint,
-                                },
-                              },
-                              function (error, response, body) {
-                                //logger.info("here", body);
-                                if (error === null) {
-                                  try {
-                                    body = JSON.parse(body);
-                                    if (body.response !== undefined) {
-                                      //Error
-                                      resolve(false);
-                                    } //SUCCESS
-                                    else {
-                                      //Update the destination data
-                                      parsedData.destinationData = body;
-                                      //! Replace Samora Machel Constituency by Wanaheda
-                                      new Promise((resReformat) => {
-                                        parsedData.destinationData.map(
-                                          (destination, index) => {
-                                            if (
-                                              /Samora Machel Constituency/i.test(
-                                                destination.suburb
-                                              )
-                                            ) {
-                                              parsedData.destinationData[
-                                                index
-                                              ].suburb = "Wanaheda";
-                                            }
-                                          }
-                                        );
-                                        resReformat(true);
-                                      })
-                                        .then(
-                                          () => {
-                                            //! CACHE RECOVERED REQUEST
-                                            if (
-                                              inputData.recovered_request !==
-                                                undefined &&
-                                              inputData.recovered_request &&
-                                              parsedData !== false &&
-                                              parsedData !== undefined &&
-                                              parsedData !== null
-                                            ) {
-                                              new Promise((resCache) => {
-                                                redisCluster.setex(
-                                                  `${inputData.request_fp}-recoveredData`,
-                                                  process.env
-                                                    .REDIS_EXPIRATION_5MIN,
-                                                  stringify(parsedData)
-                                                );
-                                                resCache(true);
-                                              })
-                                                .then()
-                                                .catch(() => {});
-                                            }
-                                            //? DONE
-                                            resolve(parsedData);
-                                          },
-                                          (error) => {
-                                            //logger.info(error);
-                                            resolve(parsedData);
-                                          }
+                            //? Autocomplete the destination data if any of them are incomplete
+                            let parentPromises = reslt.destinationData.map(
+                              (destination) => {
+                                return new Promise((resCompute) => {
+                                  if (
+                                    destination.suburb === undefined ||
+                                    destination.suburb === null ||
+                                    destination.suburb === false ||
+                                    destination.state === undefined ||
+                                    destination.state === null ||
+                                    destination.state === false
+                                  ) {
+                                    //Found some invalid input data
+                                    logger.warn(
+                                      "Found some invalid input data, resolving them..."
+                                    );
+                                    let url =
+                                      `${
+                                        /production/i.test(
+                                          process.env.EVIRONMENT
                                         )
-                                        .catch((error) => {
-                                          //logger.info(error);
-                                          resolve(parsedData);
-                                        });
+                                          ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+                                          : process.env.LOCAL_URL
+                                      }` +
+                                      ":" +
+                                      process.env.SEARCH_SERVICE_PORT +
+                                      `/brieflyCompleteSuburbAndState?latitude=${destination.coordinates.latitude}&longitude=${destination.coordinates.longitude}&city=${destination.city}&location_name=${destination.location_name}`;
+
+                                    requestAPI(
+                                      url,
+                                      function (error, response, body) {
+                                        try {
+                                          body = JSON.parse(body);
+                                          logger.warn(body);
+                                          //? Update the old record
+                                          destination.suburb = body.suburb;
+                                          destination.state = body.state;
+                                          //DONE
+                                          resCompute(destination);
+                                        } catch (error) {
+                                          logger.error(error);
+                                          resCompute(destination);
+                                        }
+                                      }
+                                    );
+                                  } //Clean data
+                                  else {
+                                    if (/ Region/i.test(destination.state)) {
+                                      destination.state =
+                                        destination.state.replace(
+                                          / Region/,
+                                          ""
+                                        );
+                                      resCompute(destination);
+                                    } //No problem
+                                    else {
+                                      resCompute(destination);
                                     }
-                                  } catch (error) {
-                                    //logger.info(error);
-                                    resolve(false);
                                   }
-                                } else {
-                                  resolve(false);
-                                }
+                                });
                               }
                             );
+                            //DONE
+                            Promise.all(parentPromises)
+                              .then((result) => {
+                                //Update the destination data based on the order
+                                result.map((updatedDestination) => {
+                                  reslt.destinationData.map(
+                                    (oldDestination, index) => {
+                                      if (
+                                        parseInt(
+                                          updatedDestination.passenger_number_id
+                                        ) ===
+                                        parseInt(
+                                          oldDestination.passenger_number_id
+                                        )
+                                      ) {
+                                        //Matched record
+                                        reslt.destinationData[index] =
+                                          updatedDestination; //? Updated source record
+                                      }
+                                    }
+                                  );
+                                });
+                                //DONE
+                                //Update the destination data
+                                parsedData.destinationData =
+                                  reslt.destinationData;
+                                //? DONE
+                                resolve(parsedData);
+                              })
+                              .catch((error) => {
+                                logger.error(error);
+                                //Update the destination data
+                                parsedData.destinationData =
+                                  reslt.destinationData;
+                                //? DONE
+                                resolve(parsedData);
+                              });
                           },
                           (error) => {
-                            //logger.info(error);
+                            logger.error(error);
                             resolve(false);
                           }
                         );
@@ -2158,6 +2168,8 @@ function cancelRider_request(
       //...
       if (requestData.length > 0) {
         //Found something
+        //Add the cancelling reason
+        requestData[0]["rider_cancellation_reason"] = requestBundle_data.reason;
         //Add the deleted date
         requestData[0].date_deleted = new Date(chaineDateUTC);
         //Add any additional data
@@ -4122,6 +4134,7 @@ redisCluster.on("connect", function () {
                       parseRequestData(req, res);
                     }).then(
                       (result) => {
+                        logger.warn(result);
                         let parsedRequest = result;
                         if (result !== false) {
                           //! IF WALLET SELECTED - CHECK THE BALANCE, it should be >= to the trip fare, else ERROR_UNSIFFICIENT_FUNDS
