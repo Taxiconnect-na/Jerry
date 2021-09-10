@@ -274,6 +274,8 @@ function autocompleteInputData(
       //DONE
       Promise.all(parentPromises)
         .then((result) => {
+          logger.warn("POINT OF INTEREST HERE");
+          logger.info(result);
           //Update the destination data based on the order
           result.map((updatedDestination) => {
             inputData.destination_location_infos.map(
