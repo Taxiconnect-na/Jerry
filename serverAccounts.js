@@ -4593,6 +4593,77 @@ function ExecgetDriversGlobalAccountNumbers(
 }
 
 /**
+ * @func performCorporateDeliveryAccountAuthOps
+ * Responsible not only for creating but also to handle any type of authentication to the
+ * corporate delivery accounts.
+ * @param inputData: any kind of essential data need of auth (email, pass, etc)
+ * @param resolve
+ */
+function performCorporateDeliveryAccountAuthOps(inputData, resolve) {
+  resolveDate();
+
+  try {
+    if (/signup/i.test(inputData.op)) {
+      if (
+        inputData.email !== undefined &&
+        inputData.email !== null &&
+        inputData.first_name !== undefined &&
+        inputData.first_name !== null &&
+        inputData.last_name !== undefined &&
+        inputData.last_name !== null &&
+        inputData.phone !== undefined &&
+        inputData.phone !== null &&
+        inputData.company_name !== undefined &&
+        inputData.company_name !== null &&
+        inputData.selected_industry !== undefined &&
+        inputData.selected_industry !== null &&
+        inputData.country !== undefined &&
+        inputData.country !== null
+      ) {
+        //Good data received
+        //Generate fp
+        let fpString = `${inputData.email}-${inputData.first_name}-${
+          inputData.last_name
+        }-${inputData.phone}-${inputData.selected_industry}-${
+          inputData.country
+        }-${new Date(chaineDateUTC).getTime()}`;
+
+        new Promise((resFp) => {
+          generateUniqueFingerprint(fpString, false, resFp);
+        })
+          .then((corporate_fp) => {
+            let accountObj = {
+              company_name: inputData.company_name,
+              company_fp: corporate_fp,
+              email: inputData.email,
+              phone: inputData.phone,
+              user_registerer: {
+                first_name: inputData.first_name,
+                last_name: inputData.last_name,
+              },
+            };
+          })
+          .catch((error) => {
+            logger.error(error);
+            resolve({ response: "error" });
+          });
+      } //Invalid signup data provided
+      else {
+        logger.warn("Invalid signup data provided");
+        resolve({ response: "error" });
+      }
+    } //Invalid op
+    else {
+      logger.warn("Invalid op detected");
+      resolve({ response: "error" });
+    }
+  } catch (error) {
+    logger.error(error);
+    resolve({ response: "error" });
+  }
+}
+
+/**
  * MAIN
  */
 var collectionPassengers_profiles = null;
@@ -4603,6 +4674,8 @@ var collectionDrivers_profiles = null;
 var collectionGlobalEvents = null;
 var collectionWalletTransactions_logs = null;
 var collectionAdsCompanies_central = null;
+var collectionDedicatedServices_accounts = null;
+
 redisCluster.on("connect", function () {
   logger.info("[*] Redis connected");
   requestAPI(
@@ -4657,6 +4730,9 @@ redisCluster.on("connect", function () {
           collectionReferralsInfos = dbMongo.collection(
             "referrals_information_global"
           ); //Hold all the referrals infos
+          collectionDedicatedServices_accounts = dbMongo.collection(
+            "dedicated_services_accounts"
+          ); //Hold all the accounts for dedicated servics like deliveries, etc.
           //-------------
           app
             .get("/", function (req, res) {
@@ -6638,6 +6714,28 @@ redisCluster.on("connect", function () {
               } //Error
               else {
                 resolve({ response: "error_invalid_data" });
+              }
+            })
+              .then((result) => {
+                res.send(result);
+              })
+              .catch((error) => {
+                logger.error(error);
+                res.send({ response: "error_invalid_data" });
+              });
+          });
+
+          /**
+           * PERFORMA AUTHENTICATION OPS ON A CORPORATE DELIVERY A ACCOUNT
+           * ? Responsible for performing auth operations on a delivery account on the web interface.
+           */
+          app.post("/performOpsCorporateDeliveryAccount", function (req, res) {
+            new Promise((resolve) => {
+              resolveDate();
+              req = req.body;
+
+              if (req.op !== undefined && req.op !== null) {
+                performCorporateDeliveryAccountAuthOps(req, resolve);
               }
             })
               .then((result) => {
