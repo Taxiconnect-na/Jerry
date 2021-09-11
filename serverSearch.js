@@ -877,73 +877,89 @@ function brieflyCompleteEssentialsForLocations(
           : false;
 
       //! Retry the request without a result type if the suburb was not found with he first link
-      if (suburb === false) {
-        //! Prevent recursive loop with Redis
-        //Check if there is a previous record
-        redisGet(redisKey)
-          .then((resp) => {
-            if (resp !== null) {
-              //Remove any redis record
-              new Promise((resRemoveCache) => {
-                redisCluster.del(redisKey);
-                resRemoveCache(true);
-              })
-                .then()
-                .catch();
-              //! Prevent loop hell
-              resolve({
-                coordinates: coordinates,
-                state: false,
-                suburb: false,
-              });
-            } //No record yet
-            else {
-              //! Save the record and make a fresh request
-              //? Save the key
-              redisCluster.set(redisKey, 1);
-              brieflyCompleteEssentialsForLocations(
-                coordinates,
-                location_name,
-                city,
-                resolve,
-                "",
-                trailing_user_fingerprint
-              );
-            }
-          })
-          .catch((error) => {
-            logger.error(error);
-            //Remove any redis record
-            new Promise((resRemoveCache) => {
-              redisCluster.del(redisKey);
-              resRemoveCache(true);
-            })
-              .then()
-              .catch();
-            resolve({
-              coordinates: coordinates,
-              state: false,
-              suburb: false,
-            });
-          });
-      } //? Everything look good
-      else {
-        //Remove any redis record
-        new Promise((resRemoveCache) => {
-          redisCluster.del(redisKey);
-          resRemoveCache(true);
-        })
-          .then()
-          .catch();
-        //Exceptions check
-        suburb = applySuburbsExceptions(location_name, suburb);
-        //DONE
-        resolve({
-          coordinates: coordinates,
-          state: state,
-          suburb: suburb,
-        });
-      }
+      // if (suburb === false) {
+      //   //! Prevent recursive loop with Redis
+      //   //Check if there is a previous record
+      //   redisGet(redisKey)
+      //     .then((resp) => {
+      //       if (resp !== null) {
+      //         //Remove any redis record
+      //         new Promise((resRemoveCache) => {
+      //           redisCluster.del(redisKey);
+      //           resRemoveCache(true);
+      //         })
+      //           .then()
+      //           .catch();
+      //         //! Prevent loop hell
+      //         resolve({
+      //           coordinates: coordinates,
+      //           state: false,
+      //           suburb: false,
+      //         });
+      //       } //No record yet
+      //       else {
+      //         //! Save the record and make a fresh request
+      //         //? Save the key
+      //         redisCluster.set(redisKey, 1);
+      //         brieflyCompleteEssentialsForLocations(
+      //           coordinates,
+      //           location_name,
+      //           city,
+      //           resolve,
+      //           "",
+      //           trailing_user_fingerprint
+      //         );
+      //       }
+      //     })
+      //     .catch((error) => {
+      //       logger.error(error);
+      //       //Remove any redis record
+      //       new Promise((resRemoveCache) => {
+      //         redisCluster.del(redisKey);
+      //         resRemoveCache(true);
+      //       })
+      //         .then()
+      //         .catch();
+      //       resolve({
+      //         coordinates: coordinates,
+      //         state: false,
+      //         suburb: false,
+      //       });
+      //     });
+      // } //? Everything look good
+      // else {
+      //   //Remove any redis record
+      //   new Promise((resRemoveCache) => {
+      //     redisCluster.del(redisKey);
+      //     resRemoveCache(true);
+      //   })
+      //     .then()
+      //     .catch();
+      //   //Exceptions check
+      //   suburb = applySuburbsExceptions(location_name, suburb);
+      //   //DONE
+      //   resolve({
+      //     coordinates: coordinates,
+      //     state: state,
+      //     suburb: suburb,
+      //   });
+      // }
+
+      //Remove any redis record
+      new Promise((resRemoveCache) => {
+        redisCluster.del(redisKey);
+        resRemoveCache(true);
+      })
+        .then()
+        .catch();
+      //Exceptions check
+      suburb = applySuburbsExceptions(location_name, suburb);
+      //DONE
+      resolve({
+        coordinates: coordinates,
+        state: state,
+        suburb: suburb,
+      });
     } catch (error) {
       logger.error(error);
       resolve({
