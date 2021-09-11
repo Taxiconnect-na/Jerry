@@ -1405,6 +1405,47 @@ io.on("connection", (socket) => {
 
   /**
    * ACCOUNTS SERVICE, port 9696
+   * Route: performOpsCorporateDeliveryAccount
+   * event: opsOnCorpoDeliveryAccounts_io
+   * Performs auth operations on the corporate delivery accounts
+   */
+  socket.on("opsOnCorpoDeliveryAccounts_io", function (req) {
+    logger.warn(req);
+
+    if (req !== undefined && req !== null) {
+      let url = /production/i.test(process.env.EVIRONMENT)
+        ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+        : process.env.LOCAL_URL +
+          ":" +
+          process.env.ACCOUNTS_SERVICE_PORT +
+          "/performOpsCorporateDeliveryAccount";
+
+      requestAPI.post({ url, form: req }, function (error, response, body) {
+        //logger.info(body);
+        if (error === null) {
+          try {
+            body = JSON.parse(body);
+            socket.emit("performOpsCorporateDeliveryAccount-response", body);
+          } catch (error) {
+            socket.emit("performOpsCorporateDeliveryAccount-response", {
+              response: "error_invalid_data",
+            });
+          }
+        } else {
+          socket.emit("performOpsCorporateDeliveryAccount-response", {
+            response: "error_invalid_data",
+          });
+        }
+      });
+    } else {
+      socket.emit("performOpsCorporateDeliveryAccount-response", {
+        response: "error_invalid_data",
+      });
+    }
+  });
+
+  /**
+   * ACCOUNTS SERVICE, port 9696
    * Route: getAdsManagerRunningInfos
    * event: getAdsManagerRunningInfos_io
    * Get all the running Ads campaigns (usually just one at the time) in the current city.

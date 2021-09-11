@@ -4617,65 +4617,54 @@ function performCorporateDeliveryAccountAuthOps(inputData, resolve) {
         inputData.company_name !== null &&
         inputData.selected_industry !== undefined &&
         inputData.selected_industry !== null &&
-        inputData.country !== undefined &&
-        inputData.country !== null &&
         inputData.password !== undefined &&
         inputData.password !== null
       ) {
+        let companyName = inputData.company_name.trim().toUpperCase();
+        inputData.email = inputData.email.trim().toLowerCase();
         //Good data received
-        //Generate fp
-        let fpString = `${inputData.email}-${inputData.first_name}-${
-          inputData.last_name
-        }-${inputData.phone}-${inputData.selected_industry}-${
-          inputData.country
-        }-${new Date(chaineDateUTC).getTime()}`;
+        //? Check if no similar company already exists
+        collectionDedicatedServices_accounts
+          .find({
+            company_name: companyName,
+            email: inputData.email,
+          })
+          .toArray(function (err, resltCheck) {
+            if (err) {
+              logger.error(err);
+              resolve({ response: "error_creating_account" });
+            }
+            //...
+            if (resltCheck !== undefined && resltCheck.length > 0) {
+              //Account already exist
+              logger.warn("Account already exists");
+              resolve({ response: "error_creating_account_alreadyExists" });
+            } //? NEW ACCOUNT
+            else {
+              //Generate fp
+              let fpString = `${inputData.email}-${inputData.first_name}-${
+                inputData.last_name
+              }-${inputData.phone}-${inputData.selected_industry}-${new Date(
+                chaineDateUTC
+              ).getTime()}`;
 
-        new Promise((resFp) => {
-          generateUniqueFingerprint(fpString, false, resFp);
-        })
-          .then((corporate_fp) => {
-            //? Hash the password
-            new Promise((resFp) => {
-              generateUniqueFingerprint(
-                inputData.password.trim(),
-                false,
-                resFp
-              );
-            })
-              .then((passwordHash) => {
-                let companyName = inputData.company_name.trim().toUpperCase();
-
-                let accountObj = {
-                  company_name: companyName,
-                  company_fp: corporate_fp,
-                  password: passwordHash,
-                  email: inputData.email,
-                  phone: inputData.phone,
-                  user_registerer: {
-                    first_name: inputData.first_name,
-                    last_name: inputData.last_name,
-                  },
-                  plans: {
-                    subscribed_plan: false,
-                    isPlan_active: false,
-                  },
-                  date_registered: new Date(chaineDateUTC),
-                  last_updated: new Date(chaineDateUTC),
-                };
-                //...Save
-                collectionDedicatedServices_accounts.insertOne(
-                  accountObj,
-                  function (err, reslt) {
-                    if (err) {
-                      logger.error(err);
-                      resolve({ response: "error_creating_account" });
-                    }
-                    //...
-                    resolve({
-                      response: "successfully_created",
-                      metadata: {
+              new Promise((resFp) => {
+                generateUniqueFingerprint(fpString, false, resFp);
+              })
+                .then((corporate_fp) => {
+                  //? Hash the password
+                  new Promise((resFp) => {
+                    generateUniqueFingerprint(
+                      inputData.password.trim(),
+                      false,
+                      resFp
+                    );
+                  })
+                    .then((passwordHash) => {
+                      let accountObj = {
                         company_name: companyName,
                         company_fp: corporate_fp,
+                        password: passwordHash,
                         email: inputData.email,
                         phone: inputData.phone,
                         user_registerer: {
@@ -4686,19 +4675,64 @@ function performCorporateDeliveryAccountAuthOps(inputData, resolve) {
                           subscribed_plan: false,
                           isPlan_active: false,
                         },
-                      },
+                        account: {
+                          registration_state: "notFull",
+                          confirmations: {
+                            isPhoneConfirmed: false,
+                            isEmailConfirmed: false,
+                            isIDConfirmed: false,
+                          },
+                        },
+                        date_registered: new Date(chaineDateUTC),
+                        last_updated: new Date(chaineDateUTC),
+                      };
+                      //...Save
+                      collectionDedicatedServices_accounts.insertOne(
+                        accountObj,
+                        function (err, reslt) {
+                          if (err) {
+                            logger.error(err);
+                            resolve({ response: "error_creating_account" });
+                          }
+                          //...
+                          resolve({
+                            response: "successfully_created",
+                            metadata: {
+                              company_name: companyName,
+                              company_fp: corporate_fp,
+                              email: inputData.email,
+                              phone: inputData.phone,
+                              user_registerer: {
+                                first_name: inputData.first_name,
+                                last_name: inputData.last_name,
+                              },
+                              plans: {
+                                subscribed_plan: false,
+                                isPlan_active: false,
+                              },
+                              account: {
+                                registration_state: "notFull",
+                                confirmations: {
+                                  isPhoneConfirmed: false,
+                                  isEmailConfirmed: false,
+                                  isIDConfirmed: false,
+                                },
+                              },
+                            },
+                          });
+                        }
+                      );
+                    })
+                    .catch((error) => {
+                      logger.error(error);
+                      resolve({ response: "error_creating_account" });
                     });
-                  }
-                );
-              })
-              .catch((error) => {
-                logger.error(error);
-                resolve({ response: "error_creating_account" });
-              });
-          })
-          .catch((error) => {
-            logger.error(error);
-            resolve({ response: "error_creating_account" });
+                })
+                .catch((error) => {
+                  logger.error(error);
+                  resolve({ response: "error_creating_account" });
+                });
+            }
           });
       } //Invalid signup data provided
       else {
@@ -4741,6 +4775,7 @@ function performCorporateDeliveryAccountAuthOps(inputData, resolve) {
                       phone: companyData.phone,
                       user_registerer: companyData.user_registerer,
                       plans: companyData.plans,
+                      account: companyData.account,
                     },
                   });
                 } //Unknown company
