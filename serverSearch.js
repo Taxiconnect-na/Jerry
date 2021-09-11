@@ -807,11 +807,12 @@ function brieflyCompleteEssentialsForLocations(
   location_name,
   city,
   resolve,
-  defaultResultType = "&result_type=political|street_address"
+  defaultResultType = "&result_type=political|street_address",
+  trailing_user_fingerprint = ""
 ) {
   let redisKey = `${JSON.stringify(
     coordinates
-  )}-${location_name}-${city}-temporecord`;
+  )}-${location_name}-${city}-temporecord${trailing_user_fingerprint}`;
 
   //! APPLY BLUE OCEAN BUG FIX FOR THE PICKUP LOCATION COORDINATES
   //? 1. Destination
@@ -875,7 +876,7 @@ function brieflyCompleteEssentialsForLocations(
               .short_name.trim()
           : false;
 
-      //! Retry the request without a result type if the suburb was not found witht he first link
+      //! Retry the request without a result type if the suburb was not found with he first link
       if (suburb === false) {
         //! Prevent recursive loop with Redis
         //Check if there is a previous record
@@ -905,7 +906,8 @@ function brieflyCompleteEssentialsForLocations(
                 location_name,
                 city,
                 resolve,
-                ""
+                "",
+                trailing_user_fingerprint
               );
             }
           })
@@ -1121,7 +1123,11 @@ redisCluster.on("connect", function () {
                   { latitude: request.latitude, longitude: request.longitude },
                   request.location_name,
                   request.city,
-                  resCompute
+                  resCompute,
+                  "&result_type=political|street_address",
+                  request.user_fingerprint !== undefined
+                    ? request.user_fingerprint
+                    : ""
                 );
               } //Invalida data received
               else {

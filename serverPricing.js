@@ -209,7 +209,15 @@ function autocompleteInputData(
     }` +
     ":" +
     process.env.SEARCH_SERVICE_PORT +
-    `/brieflyCompleteSuburbAndState?latitude=${pickupInfos.coordinates.latitude}&longitude=${pickupInfos.coordinates.longitude}&city=${pickupInfos.city}&location_name=${pickupInfos.location_name}`;
+    `/brieflyCompleteSuburbAndState?latitude=${
+      pickupInfos.coordinates.latitude
+    }&longitude=${pickupInfos.coordinates.longitude}&city=${
+      pickupInfos.city
+    }&location_name=${pickupInfos.location_name}${
+      inputData.user_fingerprint !== undefined
+        ? `&user_fingerprint=${inputData.user_fingerprint}`
+        : ""
+    }`;
 
   requestAPI(url, function (error, response, body) {
     // logger.info(body);
@@ -242,7 +250,15 @@ function autocompleteInputData(
                 }` +
                 ":" +
                 process.env.SEARCH_SERVICE_PORT +
-                `/brieflyCompleteSuburbAndState?latitude=${destination.coordinates.latitude}&longitude=${destination.coordinates.longitude}&city=${destination.city}&location_name=${destination.location_name}`;
+                `/brieflyCompleteSuburbAndState?latitude=${
+                  destination.coordinates.latitude
+                }&longitude=${destination.coordinates.longitude}&city=${
+                  destination.city
+                }&location_name=${destination.location_name}${
+                  inputData.user_fingerprint !== undefined
+                    ? `&user_fingerprint=${inputData.user_fingerprint}`
+                    : ""
+                }`;
 
               requestAPI(url, function (error, response, body) {
                 try {
@@ -260,6 +276,8 @@ function autocompleteInputData(
               });
             } //Clean data
             else {
+              logger.error("CLEAN DATA");
+              logger.error(destination);
               if (/ Region/i.test(destination.state)) {
                 destination.state = destination.state.replace(/ Region/, "");
                 resCompute(destination);

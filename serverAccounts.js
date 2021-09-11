@@ -4618,7 +4618,9 @@ function performCorporateDeliveryAccountAuthOps(inputData, resolve) {
         inputData.selected_industry !== undefined &&
         inputData.selected_industry !== null &&
         inputData.country !== undefined &&
-        inputData.country !== null
+        inputData.country !== null &&
+        inputData.password !== undefined &&
+        inputData.password !== null
       ) {
         //Good data received
         //Generate fp
@@ -4632,27 +4634,131 @@ function performCorporateDeliveryAccountAuthOps(inputData, resolve) {
           generateUniqueFingerprint(fpString, false, resFp);
         })
           .then((corporate_fp) => {
-            let accountObj = {
-              company_name: inputData.company_name,
-              company_fp: corporate_fp,
-              email: inputData.email,
-              phone: inputData.phone,
-              user_registerer: {
-                first_name: inputData.first_name,
-                last_name: inputData.last_name,
-              },
-            };
+            //? Hash the password
+            new Promise((resFp) => {
+              generateUniqueFingerprint(
+                inputData.password.trim(),
+                false,
+                resFp
+              );
+            })
+              .then((passwordHash) => {
+                let companyName = inputData.company_name.trim().toUpperCase();
+
+                let accountObj = {
+                  company_name: companyName,
+                  company_fp: corporate_fp,
+                  password: passwordHash,
+                  email: inputData.email,
+                  phone: inputData.phone,
+                  user_registerer: {
+                    first_name: inputData.first_name,
+                    last_name: inputData.last_name,
+                  },
+                  plans: {
+                    subscribed_plan: false,
+                    isPlan_active: false,
+                  },
+                  date_registered: new Date(chaineDateUTC),
+                  last_updated: new Date(chaineDateUTC),
+                };
+                //...Save
+                collectionDedicatedServices_accounts.insertOne(
+                  accountObj,
+                  function (err, reslt) {
+                    if (err) {
+                      logger.error(err);
+                      resolve({ response: "error_creating_account" });
+                    }
+                    //...
+                    resolve({
+                      response: "successfully_created",
+                      metadata: {
+                        company_name: companyName,
+                        company_fp: corporate_fp,
+                        email: inputData.email,
+                        phone: inputData.phone,
+                        user_registerer: {
+                          first_name: inputData.first_name,
+                          last_name: inputData.last_name,
+                        },
+                        plans: {
+                          subscribed_plan: false,
+                          isPlan_active: false,
+                        },
+                      },
+                    });
+                  }
+                );
+              })
+              .catch((error) => {
+                logger.error(error);
+                resolve({ response: "error_creating_account" });
+              });
           })
           .catch((error) => {
             logger.error(error);
-            resolve({ response: "error" });
+            resolve({ response: "error_creating_account" });
           });
       } //Invalid signup data provided
       else {
         logger.warn("Invalid signup data provided");
         resolve({ response: "error" });
       }
-    } //Invalid op
+    } else if (/login/i.test(inputData.op)) {
+      if (
+        inputData.email !== undefined &&
+        inputData.email !== null &&
+        inputData.password !== undefined &&
+        inputData.password !== null
+      ) {
+        //? Hash the password
+        new Promise((resFp) => {
+          generateUniqueFingerprint(inputData.password.trim(), false, resFp);
+        })
+          .then((passwordHash) => {
+            collectionDedicatedServices_accounts
+              .find({
+                email: inputData.email.trim(),
+                password: passwordHash,
+              })
+              .toArray(function (err, companyData) {
+                if (err) {
+                  logger.error(err);
+                  resolve({ response: "error_logging_in" });
+                }
+                //...
+                if (companyData !== undefined && companyData.length > 0) {
+                  //Valid company
+                  companyData = companyData[0];
+                  //...
+                  resolve({
+                    response: "successfully_logged_in",
+                    metadata: {
+                      company_name: companyData.company_name,
+                      company_fp: companyData.corporate_fp,
+                      email: companyData.email,
+                      phone: companyData.phone,
+                      user_registerer: companyData.user_registerer,
+                      plans: companyData.plans,
+                    },
+                  });
+                } //Unknown company
+                else {
+                  resolve({ response: "error_logging_in" });
+                }
+              });
+          })
+          .catch((error) => {
+            logger.error(error);
+            resolve({ response: "error_logging_in" });
+          });
+      } //Invalid data
+      else {
+        resolve({ response: "error_logging_in" });
+      }
+    }
+    //Invalid op
     else {
       logger.warn("Invalid op detected");
       resolve({ response: "error" });
