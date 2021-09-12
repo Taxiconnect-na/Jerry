@@ -4770,7 +4770,7 @@ function performCorporateDeliveryAccountAuthOps(inputData, resolve) {
                     response: "successfully_logged_in",
                     metadata: {
                       company_name: companyData.company_name,
-                      company_fp: companyData.corporate_fp,
+                      company_fp: companyData.company_fp,
                       email: companyData.email,
                       phone: companyData.phone,
                       user_registerer: companyData.user_registerer,
@@ -4780,7 +4780,7 @@ function performCorporateDeliveryAccountAuthOps(inputData, resolve) {
                   });
                 } //Unknown company
                 else {
-                  resolve({ response: "error_logging_in" });
+                  resolve({ response: "error_logging_in_notFoundAccount" });
                 }
               });
           })
@@ -4791,6 +4791,83 @@ function performCorporateDeliveryAccountAuthOps(inputData, resolve) {
       } //Invalid data
       else {
         resolve({ response: "error_logging_in" });
+      }
+    } else if (/resendConfirmationSMS/i.test(inputData.op)) {
+      if (inputData.company_fp !== undefined && inputData.phone !== undefined) {
+        //Check if the company exists
+        collectionDedicatedServices_accounts
+          .find({
+            company_fp: inputData.company_fp,
+            phone: inputData.phone,
+          })
+          .toArray(function (err, companyData) {
+            if (err) {
+              logger.error(err);
+              resolve({ response: "error" });
+            }
+            //...
+            if (companyData !== undefined && companyData.length > 0) {
+              //Company exists
+              let onlyDigitsPhone = inputData.phone.replace("+", "").trim(); //Critical, should only contain digits
+              //Ok
+              //! ADD DEBUG TEST DATA -> CODE 88766
+              //Send the message then check the passenger's status
+              let otp = /856997167/i.test(onlyDigitsPhone)
+                ? 88766
+                : otpGenerator.generate(6, {
+                    upperCase: false,
+                    specialChars: false,
+                    alphabets: false,
+                  });
+              //! --------------
+              //let otp = 55576;
+              otp = String(otp).length < 6 ? parseInt(otp) * 10 : otp;
+              new Promise((res0) => {
+                let message = otp + ` is your TaxiConnect Verification Code.`;
+                SendSMSTo(onlyDigitsPhone, message);
+                res0(true);
+                //SMS
+              }).then(
+                () => {},
+                (error) => {
+                  logger.info(error);
+                }
+              );
+              //? SAve the OTP in the user's profile
+              collectionDedicatedServices_accounts.updateOne(
+                {
+                  company_fp: inputData.company_fp,
+                  phone: inputData.phone,
+                },
+                {
+                  $set: {
+                    "account.smsVerifications": {
+                      otp: {
+                        otp: otp,
+                        date_created: new Date(chaineDateUTC),
+                      },
+                    },
+                  },
+                },
+                function (err, reslt) {
+                  if (err) {
+                    logger.error(err);
+                    resolve({ response: "error" });
+                  }
+                  //...
+                  //DONE
+                  resolve({ response: "successfully_sent" });
+                }
+              );
+            } //Unknown company
+            else {
+              resolve({ response: "error" });
+            }
+          });
+      } //Invalid data
+      else {
+        logger.warn("Invalid data for resending the confirmation SMS detected");
+        resolve({ response: "error" });
       }
     }
     //Invalid op

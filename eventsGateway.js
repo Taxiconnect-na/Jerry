@@ -1420,25 +1420,31 @@ io.on("connection", (socket) => {
           process.env.ACCOUNTS_SERVICE_PORT +
           "/performOpsCorporateDeliveryAccount";
 
+      //!Deduce the event name response based on the op
+      let eventResponseName = /resendConfirmationSMS/i.test(req.op)
+        ? "resetConfirmationSMSDeliveryWeb_io-response"
+        : "opsOnCorpoDeliveryAccounts_io-response";
+      //!---
+
       requestAPI.post({ url, form: req }, function (error, response, body) {
         //logger.info(body);
         if (error === null) {
           try {
             body = JSON.parse(body);
-            socket.emit("performOpsCorporateDeliveryAccount-response", body);
+            socket.emit(eventResponseName, body);
           } catch (error) {
-            socket.emit("performOpsCorporateDeliveryAccount-response", {
+            socket.emit(eventResponseName, {
               response: "error_invalid_data",
             });
           }
         } else {
-          socket.emit("performOpsCorporateDeliveryAccount-response", {
+          socket.emit(eventResponseName, {
             response: "error_invalid_data",
           });
         }
       });
     } else {
-      socket.emit("performOpsCorporateDeliveryAccount-response", {
+      socket.emit(eventResponseName, {
         response: "error_invalid_data",
       });
     }
