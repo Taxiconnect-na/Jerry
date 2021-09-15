@@ -1516,7 +1516,7 @@ redisCluster.on("connect", function () {
                 logger.warn(
                   "Could not briefly complete the location due to invalid data received."
                 );
-                res.send({
+                resCompute({
                   coordinates: {
                     latitude: request.latitude,
                     longitude: request.longitude,
