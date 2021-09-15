@@ -1412,7 +1412,12 @@ io.on("connection", (socket) => {
   socket.on("opsOnCorpoDeliveryAccounts_io", function (req) {
     logger.warn(req);
 
-    if (req !== undefined && req !== null) {
+    if (
+      req !== undefined &&
+      req !== null &&
+      req.op !== undefined &&
+      req.op !== null
+    ) {
       let url = /production/i.test(process.env.EVIRONMENT)
         ? `http://${process.env.INSTANCE_PRIVATE_IP}`
         : process.env.LOCAL_URL +
@@ -1421,10 +1426,18 @@ io.on("connection", (socket) => {
           "/performOpsCorporateDeliveryAccount";
 
       //!Deduce the event name response based on the op
+      //? 1. op: resendConfirmationSMS
+      //? 2. op: updatePhoneNumber
+      //? 3. op: validatePhoneNumber
       let eventResponseName = /resendConfirmationSMS/i.test(req.op)
         ? "resetConfirmationSMSDeliveryWeb_io-response"
+        : /updatePhoneNumber/i.test(req.op)
+        ? "updatePhoneNumberDeliveryWeb_io-response"
+        : /validatePhoneNumber/i.test(req.op)
+        ? "validatePhoneNumberDeliveryWeb_io-response"
         : "opsOnCorpoDeliveryAccounts_io-response";
-      //!---
+
+      //!-----
 
       requestAPI.post({ url, form: req }, function (error, response, body) {
         //logger.info(body);

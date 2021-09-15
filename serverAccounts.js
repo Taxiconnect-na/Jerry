@@ -4841,9 +4841,10 @@ function performCorporateDeliveryAccountAuthOps(inputData, resolve) {
                 },
                 {
                   $set: {
+                    last_updated: new Date(chaineDateUTC),
                     "account.smsVerifications": {
                       otp: {
-                        otp: otp,
+                        otp: parseInt(otp),
                         date_created: new Date(chaineDateUTC),
                       },
                     },
@@ -4867,6 +4868,138 @@ function performCorporateDeliveryAccountAuthOps(inputData, resolve) {
       } //Invalid data
       else {
         logger.warn("Invalid data for resending the confirmation SMS detected");
+        resolve({ response: "error" });
+      }
+    } else if (/updatePhoneNumber/i.test(inputData.op)) {
+      //Change the phone number
+      if (
+        inputData.company_fp !== undefined &&
+        inputData.company_fp !== null &&
+        inputData.phone !== undefined &&
+        inputData.phone !== null
+      ) {
+        //Proceed
+        //Check if the company exists
+        collectionDedicatedServices_accounts
+          .find({
+            company_fp: inputData.company_fp,
+          })
+          .toArray(function (err, companyData) {
+            if (err) {
+              logger.error(err);
+              resolve({ response: "error" });
+            }
+            //...
+            if (companyData !== undefined && companyData.length > 0) {
+              companyData = companyData[0];
+              //Company exists
+              //? Update the comapny's phone
+              collectionDedicatedServices_accounts.updateOne(
+                {
+                  company_fp: inputData.company_fp,
+                },
+                {
+                  $set: {
+                    phone: inputData.phone,
+                    last_updated: new Date(chaineDateUTC),
+                  },
+                },
+                function (err, reslt) {
+                  if (err) {
+                    logger.error(err);
+                    resolve({ response: "error" });
+                  }
+                  //...
+                  //DONE
+                  resolve({
+                    response: "successfully_updated",
+                    metadata: {
+                      company_name: companyData.company_name,
+                      company_fp: companyData.company_fp,
+                      email: companyData.email,
+                      phone: companyData.phone,
+                      user_registerer: companyData.user_registerer,
+                      plans: companyData.plans,
+                      account: companyData.account,
+                    },
+                  });
+                }
+              );
+            } //Unknown company
+            else {
+              resolve({ response: "error" });
+            }
+          });
+      } //Invalid data
+      else {
+        logger.warn("Invalid data for updating the phone detected");
+        resolve({ response: "error" });
+      }
+    } else if (/validatePhoneNumber/i.test(inputData.op)) {
+      //Validate the phone number via SMS OTP
+      if (
+        inputData.company_fp !== undefined &&
+        inputData.company_fp !== null &&
+        inputData.phone !== undefined &&
+        inputData.phone !== null &&
+        inputData.otp !== undefined &&
+        inputData.otp !== null
+      ) {
+        collectionDedicatedServices_accounts
+          .find({
+            company_fp: inputData.company_fp,
+            phone: inputData.phone,
+            "account.smsVerifications.otp.otp": parseInt(inputData.otp),
+          })
+          .toArray(function (err, checkData) {
+            if (err) {
+              logger.error(err);
+              resolve({ response: "error" });
+            }
+            //...
+            if (checkData !== undefined && checkData.length > 0) {
+              let companyData = checkData[0];
+              //Valid number
+              //? Update the account vars
+              collectionDedicatedServices_accounts.updateOne(
+                {
+                  company_fp: inputData.company_fp,
+                },
+                {
+                  $set: {
+                    "account.confirmations.isPhoneConfirmed": true,
+                    last_updated: new Date(chaineDateUTC),
+                  },
+                },
+                function (err, reslt) {
+                  if (err) {
+                    logger.error(err);
+                    resolve({ response: "error" });
+                  }
+                  //...
+                  //DONE
+                  resolve({
+                    response: "successfully_validated",
+                    metadata: {
+                      company_name: companyData.company_name,
+                      company_fp: companyData.company_fp,
+                      email: companyData.email,
+                      phone: companyData.phone,
+                      user_registerer: companyData.user_registerer,
+                      plans: companyData.plans,
+                      account: companyData.account,
+                    },
+                  });
+                }
+              );
+            } //Invalid code
+            else {
+              resolve({ response: "invalid_code" });
+            }
+          });
+      } //Invalid data
+      else {
+        logger.warn("Invalid data for validating the phone detected");
         resolve({ response: "error" });
       }
     }
