@@ -1080,7 +1080,10 @@ function parsePricingInputData(resolve, inputData) {
             if (cleanInputData.passengers_number > 1) {
               //Many passengers
               //Check if all going to the same destination
-              if (inputData.isAllGoingToSameDestination) {
+              if (
+                inputData.isAllGoingToSameDestination &&
+                inputData.isAllGoingToSameDestination !== "false"
+              ) {
                 //yes
                 tmpSchemaArray.map((element, index) => {
                   cleanInputData.destination_location_infos.push({
