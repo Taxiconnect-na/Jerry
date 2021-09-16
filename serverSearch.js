@@ -39,6 +39,7 @@ const redisGet = promisify(redisCluster.get).bind(redisCluster);
 //....
 var fastFilter = require("fast-filter");
 const escapeStringRegexp = require("escape-string-regexp");
+var otpGenerator = require("otp-generator");
 const urlParser = require("url");
 const moment = require("moment");
 
@@ -815,6 +816,7 @@ function brieflyCompleteEssentialsForLocations(
   //? Check if there are any cached result
   redisGet(redisKey)
     .then((resp) => {
+      logger.error(resp);
       if (resp !== null) {
         //Has some results
         try {
@@ -1044,7 +1046,13 @@ function execBrieflyCompleteEssentialsForLocations(
     coordinates.latitude +
     "&longitude=" +
     coordinates.longitude +
-    "&user_fingerprint=internal";
+    `&user_fingerprint=internal_${new Date(
+      chaineDateUTC
+    ).getTime()}${otpGenerator.generate(14, {
+      upperCase: false,
+      specialChars: false,
+      alphabets: false,
+    })}`;
 
   requestAPI(url, function (error, response, body) {
     logger.info(url);
