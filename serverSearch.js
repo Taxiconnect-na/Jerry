@@ -824,9 +824,11 @@ function brieflyCompleteEssentialsForLocations(
 
           if (
             resp.suburb !== false &&
+            resp.suburb !== "false" &&
             resp.suburb !== undefined &&
             resp.suburb !== null &&
             resp.state !== false &&
+            resp.state !== "false" &&
             resp.state !== undefined &&
             resp.state !== null
           ) {
@@ -853,9 +855,11 @@ function brieflyCompleteEssentialsForLocations(
                 new Promise((resCache) => {
                   if (
                     result.suburb !== false &&
+                    result.suburb !== "false" &&
                     result.suburb !== undefined &&
                     result.suburb !== null &&
                     result.state !== false &&
+                    result.state !== "false" &&
                     result.state !== undefined &&
                     result.state !== null
                   ) {
@@ -899,9 +903,11 @@ function brieflyCompleteEssentialsForLocations(
               new Promise((resCache) => {
                 if (
                   result.suburb !== false &&
+                  result.suburb !== "false" &&
                   result.suburb !== undefined &&
                   result.suburb !== null &&
                   result.state !== false &&
+                  result.state !== "false" &&
                   result.state !== undefined &&
                   result.state !== null
                 ) {
@@ -945,9 +951,11 @@ function brieflyCompleteEssentialsForLocations(
             new Promise((resCache) => {
               if (
                 result.suburb !== false &&
+                result.suburb !== "false" &&
                 result.suburb !== undefined &&
                 result.suburb !== null &&
                 result.state !== false &&
+                result.state !== "false" &&
                 result.state !== undefined &&
                 result.state !== null
               ) {
@@ -991,9 +999,11 @@ function brieflyCompleteEssentialsForLocations(
           new Promise((resCache) => {
             if (
               result.suburb !== false &&
+              result.suburb !== "false" &&
               result.suburb !== undefined &&
               result.suburb !== null &&
               result.state !== false &&
+              result.state !== "false" &&
               result.state !== undefined &&
               result.state !== null
             ) {
@@ -1166,8 +1176,10 @@ function doFreshBrieflyCompleteEssentialsForLocations(
           if (
             resp.results[0].components.suburb !== false &&
             resp.results[0].components.suburb !== undefined &&
+            resp.results[0].components.suburb !== "false" &&
             resp.results[0].components.suburb !== null &&
             resp.results[0].components.state !== false &&
+            resp.results[0].components.state !== "false" &&
             resp.results[0].components.state !== undefined &&
             resp.results[0].components.state !== null
           ) {

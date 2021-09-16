@@ -215,7 +215,7 @@ function autocompleteInputData(
     // logger.info(body);
     try {
       body = JSON.parse(body);
-      logger.warn(body);
+      // logger.warn(body);
       //? Write at the input data level - not the isolated pickup data
       inputData.pickup_location_infos.state = body.state;
       inputData.pickup_location_infos.suburb = body.suburb;
@@ -223,14 +223,17 @@ function autocompleteInputData(
       //? Autocomplete the destination data if any of them are incomplete
       let parentPromises = inputData.destination_location_infos.map(
         (destination) => {
+          logger.info(destination);
           return new Promise((resCompute) => {
             if (
               destination.suburb === undefined ||
               destination.suburb === null ||
               destination.suburb === false ||
+              destination.suburb === "false" ||
               destination.state === undefined ||
               destination.state === null ||
-              destination.state === false
+              destination.state === false ||
+              destination.state === "false"
             ) {
               //Found some invalid input data
               logger.warn("Found some invalid input data, resolving them...");
@@ -307,71 +310,6 @@ function autocompleteInputData(
       resolve(inputData);
     }
   });
-
-  // let urlRequest = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${pickupInfos.coordinates.latitude},${pickupInfos.coordinates.longitude}&key=${process.env.GOOGLE_API_KEY}&location_type=GEOMETRIC_CENTER&language=en&fields=formatted_address,address_components,geometry,place_id`;
-
-  // logger.warn(urlRequest);
-
-  // requestAPI(urlRequest, function (err, response, body) {
-  //   try {
-  //     body = JSON.parse(body);
-  //     if (
-  //       body.results !== undefined &&
-  //       body.results[0].address_components !== undefined &&
-  //       body.results[0].geometry !== undefined
-  //     ) {
-  //       let state = body.results[0].address_components
-  //         .filter((item) =>
-  //           item.types.includes("administrative_area_level_1")
-  //         )[0]
-  //         .long_name.replace(" Region", "");
-  //       let suburb = body.results[0].address_components
-  //         .filter((item) =>
-  //           item.types.includes("sublocality_level_1", "political")
-  //         )[0]
-  //         .short_name.trim();
-  //       //! Add /CBD for Windhoek Central suburb
-  //       suburb = /^Windhoek Central$/i.test(suburb)
-  //         ? `${suburb} / CBD`
-  //         : suburb;
-  //       //...
-  //       let street = body.results[0].address_components
-  //         .filter((item) => item.types.includes("route"))[0]
-  //         .short_name.trim();
-  //       //...
-  //       //? Write at the input data level - not the isolated pickup data
-  //       inputData.pickup_location_infos.state = state;
-  //       inputData.pickup_location_infos.suburb = suburb;
-  //       inputData.pickup_location_infos.street = street; //Update the street
-
-  //       //!EXCEPTIONS SUBURBS
-  //       //! 1. Make suburb Elisenheim if anything related to it (Eg. location_name)
-  //       inputData.pickup_location_infos.suburb = /Elisenheim/i.test(
-  //         inputData.pickup_location_infos.location_name
-  //       )
-  //         ? "Elisenheim"
-  //         : inputData.pickup_location_infos.suburb;
-  //       //! 2. Make suburb Ausspannplatz if anything related to it
-  //       inputData.pickup_location_infos.suburb = /Ausspannplatz/i.test(
-  //         inputData.pickup_location_infos.location_name
-  //       )
-  //         ? "Ausspannplatz"
-  //         : inputData.pickup_location_infos.suburb;
-  //       //DONE
-  //       resolve(inputData);
-  //     } //Couldn't complete the data
-  //     else {
-  //       //? Send the same data
-  //       logger.warn("Could not complete the input data");
-  //       resolve(inputData);
-  //     }
-  //   } catch (error) {
-  //     logger.error(error);
-  //     //? Send the same data
-  //     logger.warn("Could not complete the input data");
-  //     resolve(inputData);
-  //   }
-  // });
 }
 
 /**
