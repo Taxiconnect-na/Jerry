@@ -1297,8 +1297,13 @@ function makeFreshOpenCageRequests(coordinates, osm_id, redisKey, resolve) {
 
         if (
           body.results[0].components !== undefined &&
-          body.results[0].components.suburb !== undefined
+          (body.results[0].components.suburb !== undefined ||
+            body.results[0].components.neighbourhood !== undefined)
         ) {
+          body.results[0].components["suburb"] =
+            body.results[0].components.suburb !== undefined
+              ? body.results[0].components.suburb
+              : body.results[0].components.neighbourhood; //Ge the accurate suburb
           //Has valid data
           //?Save in Mongo
           new Promise((resSaveMongo) => {
