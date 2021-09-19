@@ -5031,6 +5031,7 @@ function getWalletSummaryForDeliveryCorps(
   redisGet(redisKey)
     .then((resp) => {
       if (resp !== null && avoidCache === false) {
+        logger.warn("Found cached data for the corporate wallets.");
         //Check in cache first
         try {
           //Rehydrate
@@ -5080,6 +5081,7 @@ function getWalletSummaryForDeliveryCorps(
         }
       } //Get fresh record
       else {
+        logger.warn("AVOID CACHED DATA FOR the corporate wallets");
         new Promise((resCompute) => {
           execGetWalletSummaryForDeliveryCorps(company_fp, resCompute);
         })
@@ -5157,7 +5159,7 @@ function execGetWalletSummaryForDeliveryCorps(company_fp, resolve) {
         let total_usage = 0; //! USAGE
         //Compute the total topups
         transactionData.map((transaction) => {
-          total_topups += parseFloat(transaction.net_amount);
+          total_topups += parseFloat(transaction.amount);
         });
         //...
         //Get the total usage amount
@@ -7302,7 +7304,7 @@ redisCluster.on("connect", function () {
                 //! Resolve the avoidCache param
                 req["avoidCache"] =
                   req.avoidCache !== undefined && req.avoidCache !== null
-                    ? /true/i.test(avoidCache)
+                    ? /true/i.test(req.avoidCache)
                       ? true
                       : false
                     : false; //False by default

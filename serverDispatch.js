@@ -213,6 +213,12 @@ function parseRequestData(inputData, resolve) {
         //Complete unnested data
         //? Add the dispatch strategy used
         parsedData.dispatch_strategy = process.env.RIDES_DISPATCH_STRATEGY;
+        //? Add the request globality - normal (default) or corporate
+        parsedData.request_globality =
+          inputData.request_globality !== undefined &&
+          inputData.request_globality !== null
+            ? inputData.request_globality
+            : "normal";
         //...
         parsedData.client_id = inputData.user_fingerprint;
         parsedData.request_fp = dateObject.unix();
@@ -4144,26 +4150,47 @@ redisCluster.on("connect", function () {
                           //! IF WALLET SELECTED - CHECK THE BALANCE, it should be >= to the trip fare, else ERROR_UNSIFFICIENT_FUNDS
                           if (/wallet/i.test(result.payment_method)) {
                             //? WALLET PAYMENT METHOD
-                            let url = `
+                            let url = /normal/i.test(
+                              parsedRequest.request_globality
+                            )
+                              ? `
                       ${
                         /production/i.test(process.env.EVIRONMENT)
                           ? `http://${process.env.INSTANCE_PRIVATE_IP}`
                           : process.env.LOCAL_URL
                       }:${
-                              process.env.ACCOUNTS_SERVICE_PORT
-                            }/getRiders_walletInfos?user_fingerprint=${
-                              req.user_fingerprint
-                            }&mode=total&avoidCached_data=true
+                                  process.env.ACCOUNTS_SERVICE_PORT
+                                }/getRiders_walletInfos?user_fingerprint=${
+                                  req.user_fingerprint
+                                }&mode=total&avoidCached_data=true
+                      `
+                              : `
+                      ${
+                        /production/i.test(process.env.EVIRONMENT)
+                          ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+                          : process.env.LOCAL_URL
+                      }:${
+                                  process.env.ACCOUNTS_SERVICE_PORT
+                                }/getWalletSummaryForCorps?company_fp=${
+                                  req.user_fingerprint
+                                }&avoidCache=true
                       `;
+                            //!----
                             requestAPI(url, function (error, response, body) {
+                              logger.info(body);
+                              logger.error(error);
                               if (error === null) {
                                 try {
                                   body = JSON.parse(body);
+                                  body["total"] =
+                                    body.total !== undefined &&
+                                    body.total !== null
+                                      ? body.total
+                                      : body.balance; //Balance for the corporate accounts and total for the normal accounts.
+                                  //...
                                   if (body.total !== undefined) {
-                                    // logger.info(
-                                    //   parseFloat(result.fare),
-                                    //   parseFloat(body.total)
-                                    // );
+                                    logger.info(body);
+
                                     if (
                                       parseFloat(result.fare) <=
                                       parseFloat(body.total)
