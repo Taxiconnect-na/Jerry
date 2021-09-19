@@ -604,7 +604,7 @@ io.on("connection", (socket) => {
    * Make a ride or delivery request for a rider.
    */
   socket.on("requestRideOrDeliveryForThis", function (req) {
-    //logger.info(req);
+    // logger.info(req);
     if (req.user_fingerprint !== undefined && req.user_fingerprint !== null) {
       let url =
         `${
@@ -617,7 +617,7 @@ io.on("connection", (socket) => {
         "/dispatchRidesOrDeliveryRequests";
 
       requestAPI.post({ url, form: req }, function (error, response, body) {
-        //logger.info(body);
+        logger.info(error, body);
         if (error === null) {
           try {
             body = JSON.parse(body);

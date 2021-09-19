@@ -5015,6 +5015,196 @@ function performCorporateDeliveryAccountAuthOps(inputData, resolve) {
 }
 
 /**
+ * @func getWalletSummaryForDeliveryCorps
+ * Responsible for getting the wallet summary for the delivery corporation accounts.
+ * @param company_fp: the company fingerprint
+ * @param avoidCache: if to get fresh records (false) or cached one (true) - default: false
+ * @param resolve
+ */
+function getWalletSummaryForDeliveryCorps(
+  company_fp,
+  avoidCache = false,
+  resolve
+) {
+  let redisKey = `${company_fp}-walletSummary`;
+  //Check in redis first
+  redisGet(redisKey)
+    .then((resp) => {
+      if (resp !== null && avoidCache === false) {
+        //Check in cache first
+        try {
+          //Rehydrate
+          new Promise((resCompute) => {
+            execGetWalletSummaryForDeliveryCorps(company_fp, resCompute);
+          })
+            .then((result) => {
+              //! Cache
+              new Promise((resCache) => {
+                redisCluster.set(redisKey, JSON.stringify(result));
+                resCache(true);
+              })
+                .then()
+                .catch();
+              //! -------------------
+            })
+            .catch((error) => {
+              logger.error(error);
+            });
+          //? Quickly response
+          resp = JSON.parse(resp);
+          resolve(resp);
+        } catch (error) {
+          logger.error(error);
+          //Make a fresh request
+          new Promise((resCompute) => {
+            execGetWalletSummaryForDeliveryCorps(company_fp, resCompute);
+          })
+            .then((result) => {
+              //! Cache
+              new Promise((resCache) => {
+                redisCluster.set(redisKey, JSON.stringify(result));
+                resCache(true);
+              })
+                .then()
+                .catch();
+              //! -------------------
+              resolve(result);
+            })
+            .catch((error) => {
+              logger.error(error);
+              resolve({
+                balance: 0,
+                usage: 0,
+              });
+            });
+        }
+      } //Get fresh record
+      else {
+        new Promise((resCompute) => {
+          execGetWalletSummaryForDeliveryCorps(company_fp, resCompute);
+        })
+          .then((result) => {
+            //! Cache
+            new Promise((resCache) => {
+              redisCluster.set(redisKey, JSON.stringify(result));
+              resCache(true);
+            })
+              .then()
+              .catch();
+            //! -------------------
+            resolve(result);
+          })
+          .catch((error) => {
+            logger.error(error);
+            resolve({
+              balance: 0,
+              usage: 0,
+            });
+          });
+      }
+    })
+    .catch((error) => {
+      logger.error(error);
+      new Promise((resCompute) => {
+        execGetWalletSummaryForDeliveryCorps(company_fp, resCompute);
+      })
+        .then((result) => {
+          //! Cache
+          new Promise((resCache) => {
+            redisCluster.set(redisKey, JSON.stringify(result));
+            resCache(true);
+          })
+            .then()
+            .catch();
+          //! -------------------
+          resolve(result);
+        })
+        .catch((error) => {
+          logger.error(error);
+          resolve({
+            balance: 0,
+            usage: 0,
+          });
+        });
+    });
+}
+
+/**
+ * @func execGetWalletSummaryForDeliveryCorps
+ * Actively get the wallet summary
+ * @param company_fp
+ * @param resolve
+ */
+function execGetWalletSummaryForDeliveryCorps(company_fp, resolve) {
+  //Get all the topups first
+  //! transaction_nature: topups-corporate
+  collectionWalletTransactions_logs
+    .find({
+      company_fp: company_fp,
+    })
+    .toArray(function (err, transactionData) {
+      if (err) {
+        logger.error(err);
+        resolve({
+          balance: 0,
+          usage: 0,
+        });
+      }
+      //...
+      if (transactionData !== undefined && transactionData.length > 0) {
+        //Found some transactions data
+        let total_topups = 0; //! TOPUPS
+        let total_usage = 0; //! USAGE
+        //Compute the total topups
+        transactionData.map((transaction) => {
+          total_topups += parseFloat(transaction.net_amount);
+        });
+        //...
+        //Get the total usage amount
+        collectionRidesDeliveryData
+          .find({
+            user_fingerprint: company_fp,
+          })
+          .toArray(function (err, tripData) {
+            if (err) {
+              logger.error(err);
+              resolve({
+                balance: 0,
+                usage: 0,
+              });
+            }
+            ///...
+            if (tripData !== undefined && tripData.length > 0) {
+              //Found some trip data
+              //Compute all the usage
+              tripData.map((trip) => {
+                total_usage += parseFloat(trip.fare);
+              });
+              //....
+              //? DONE
+              resolve({
+                balance: Math.floor(total_topups - total_usage),
+                usage: Math.floor(total_usage),
+              });
+            } //No trip data - return the balance - No usage
+            else {
+              resolve({
+                balance: Math.floor(total_topups),
+                usage: 0,
+              });
+            }
+          });
+      } //No transactions data - so zero balance
+      else {
+        resolve({
+          balance: 0,
+          usage: 0,
+        });
+      }
+    });
+}
+
+/**
  * MAIN
  */
 var collectionPassengers_profiles = null;
@@ -7095,6 +7285,50 @@ redisCluster.on("connect", function () {
               .catch((error) => {
                 logger.error(error);
                 res.send({ response: "error_invalid_data" });
+              });
+          });
+
+          /**
+           * GET WALLET DELIVERY FOR CORPORATIONS
+           * ? Responsible for getting the wallet delivery for the corporations
+           */
+          app.get("/getWalletSummaryForCorps", function (req, res) {
+            new Promise((resolve) => {
+              resolveDate();
+              let params = urlParser.parse(req.url, true);
+              req = params.query;
+
+              if (req.company_fp !== undefined && req.company_fp !== null) {
+                //! Resolve the avoidCache param
+                req["avoidCache"] =
+                  req.avoidCache !== undefined && req.avoidCache !== null
+                    ? /true/i.test(avoidCache)
+                      ? true
+                      : false
+                    : false; //False by default
+
+                getWalletSummaryForDeliveryCorps(
+                  req.company_fp,
+                  req.avoidCache,
+                  resolve
+                );
+              } //Error
+              else {
+                resolve({
+                  balance: 0,
+                  usage: 0,
+                });
+              }
+            })
+              .then((result) => {
+                res.send(result);
+              })
+              .catch((error) => {
+                logger.error(error);
+                res.send({
+                  balance: 0,
+                  usage: 0,
+                });
               });
           });
         }

@@ -183,7 +183,7 @@ function generateUniqueFingerprint(str, encryption = false, resolve) {
 function parseRequestData(inputData, resolve) {
   resolveDate();
   //logger.info("INITIAL RECEIVED REQUEST");
-  logger.info("REQUEST DATA -> ", inputData);
+  // logger.info("REQUEST DATA -> ", inputData);
   //! CHECK FOR A POTENTIAL CACHED VALUE FOR recoveredd data (from mysql)
   redisGet(
     `${
@@ -193,6 +193,7 @@ function parseRequestData(inputData, resolve) {
     }-recoveredData`
   ).then((resp) => {
     if (resp !== null) {
+      logger.info("Found some cached data");
       //Has a cached value
       resolve(parse(resp));
     } //GO FRESH
@@ -935,9 +936,11 @@ function parseRequestData(inputData, resolve) {
                                     destination.suburb === undefined ||
                                     destination.suburb === null ||
                                     destination.suburb === false ||
+                                    destination.suburb === "false" ||
                                     destination.state === undefined ||
                                     destination.state === null ||
-                                    destination.state === false
+                                    destination.state === false ||
+                                    destination.state === "false"
                                   ) {
                                     //Found some invalid input data
                                     logger.warn(
@@ -1038,6 +1041,7 @@ function parseRequestData(inputData, resolve) {
           });
       } //Invalid data
       else {
+        logger.warn("Invalid data detected!");
         resolve(false);
       }
     }
@@ -4156,10 +4160,10 @@ redisCluster.on("connect", function () {
                                 try {
                                   body = JSON.parse(body);
                                   if (body.total !== undefined) {
-                                    /*logger.info(
-                                    parseFloat(result.fare),
-                                    parseFloat(body.total)
-                                  );*/
+                                    // logger.info(
+                                    //   parseFloat(result.fare),
+                                    //   parseFloat(body.total)
+                                    // );
                                     if (
                                       parseFloat(result.fare) <=
                                       parseFloat(body.total)
