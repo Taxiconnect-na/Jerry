@@ -5163,7 +5163,7 @@ function execGetWalletSummaryForDeliveryCorps(company_fp, resolve) {
         //Get the total usage amount
         collectionRidesDeliveryData
           .find({
-            user_fingerprint: company_fp,
+            client_id: company_fp,
           })
           .toArray(function (err, tripData) {
             if (err) {
