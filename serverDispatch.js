@@ -2,6 +2,7 @@ require("dotenv").config();
 //require("newrelic");
 var express = require("express");
 const http = require("http");
+const https = require("https");
 const fs = require("fs");
 const MongoClient = require("mongodb").MongoClient;
 const certFile = fs.readFileSync("./rds-combined-ca-bundle.pem");
@@ -4132,10 +4133,19 @@ redisCluster.on("connect", function () {
               collectionRidesDeliveryData
                 .find(checkPrevRequest)
                 .toArray(function (err, prevRequest) {
+                  //! Set a dynamic limit to the number of simulataneaous requests
+                  //? normal :0
+                  //? corporate: 5
+                  let simulataneaousRequestsLimit = /normal/i.test(
+                    req.request_globality
+                  )
+                    ? 0
+                    : 0;
+                  //! ----
                   if (
                     prevRequest === undefined ||
                     prevRequest === null ||
-                    prevRequest.length <= 0 ||
+                    prevRequest.length <= simulataneaousRequestsLimit ||
                     prevRequest[0] === undefined
                   ) {
                     //No previous pending request - MAKE REQUEST VALID

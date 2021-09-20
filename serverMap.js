@@ -2862,6 +2862,15 @@ function computeRouteDetails_skeleton(
             request_fp: rideHistory.request_fp,
             requester_fp: rideHistory.client_id,
             request_status: "pending",
+            birdview_infos: /DELIVERY/i.test(rideHistory.ride_mode)
+              ? {
+                  number_of_packages: rideHistory.passengers_number,
+                  fare: rideHistory.fare,
+                  date_requested: rideHistory.date_requested,
+                  dropoff_details: rideHistory.destinationData,
+                  pickup_details: rideHistory.pickup_location_infos,
+                }
+              : null,
           })
         );
         //! ----------------------------------------------
@@ -2881,6 +2890,15 @@ function computeRouteDetails_skeleton(
                   ],
                   requester_fp: rideHistory.client_id,
                   request_status: "pending",
+                  birdview_infos: /DELIVERY/i.test(rideHistory.ride_mode)
+                    ? {
+                        number_of_packages: rideHistory.passengers_number,
+                        fare: rideHistory.fare,
+                        date_requested: rideHistory.date_requested,
+                        dropoff_details: rideHistory.destinationData,
+                        pickup_details: rideHistory.pickup_location_infos,
+                      }
+                    : null,
                 };
                 //..
                 redisCluster.setex(
@@ -2908,6 +2926,15 @@ function computeRouteDetails_skeleton(
                     ],
                     requester_fp: rideHistory.client_id,
                     request_status: "pending",
+                    birdview_infos: /DELIVERY/i.test(rideHistory.ride_mode)
+                      ? {
+                          number_of_packages: rideHistory.passengers_number,
+                          fare: rideHistory.fare,
+                          date_requested: rideHistory.date_requested,
+                          dropoff_details: rideHistory.destinationData,
+                          pickup_details: rideHistory.pickup_location_infos,
+                        }
+                      : null,
                   },
                 })
               );
@@ -2933,6 +2960,15 @@ function computeRouteDetails_skeleton(
         request_fp: rideHistory.request_fp,
         requester_fp: rideHistory.client_id,
         request_status: "pending",
+        birdview_infos: /DELIVERY/i.test(rideHistory.ride_mode)
+          ? {
+              number_of_packages: rideHistory.passengers_number,
+              fare: rideHistory.fare,
+              date_requested: rideHistory.date_requested,
+              dropoff_details: rideHistory.destinationData,
+              pickup_details: rideHistory.pickup_location_infos,
+            }
+          : null,
       });
     }
   } //No ride present
