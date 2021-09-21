@@ -1002,8 +1002,8 @@ function parseRequestData(inputData, resolve) {
                                 /normal/i.test(inputData.request_globality) ||
                                 inputData.request_globality === undefined
                                   ? null
-                                  : inputData.passenger1Destination
-                                      .receiver_infos,
+                                  : inputData.destinationData
+                                      .passenger1Destination.receiver_infos,
                               suburb:
                                 inputData.destinationData.passenger1Destination
                                   .suburb,
