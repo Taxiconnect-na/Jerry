@@ -1925,228 +1925,201 @@ function execDriver_requests_parsing(
   };
   //...
   //Start the individual parsing
+  //? Request dynamically based on the request globality - normal or corporate
+  let dynamicRequesterFetcher = /normal/i.test(request.request_globality)
+    ? collectionPassengers_profiles.find({
+        user_fingerprint: request.client_id,
+      })
+    : collectionDedicatedServices_accounts.find({
+        company_fp: request.client_id,
+      });
   //1. Add the passenger infos
-  collectionPassengers_profiles
-    .find({ user_fingerprint: request.client_id })
-    //!.collation({ locale: "en", strength: 2 })
-    .toArray(function (err, passengerData) {
-      if (err) {
-        //logger.info(err);
-        res(false);
-      }
+  dynamicRequesterFetcher.toArray(function (err, passengerData) {
+    if (err) {
+      //logger.info(err);
+      res(false);
+    }
 
-      if (passengerData !== undefined && passengerData.length > 0) {
-        //Found some data
-        //...
-        passengerData = passengerData[0];
-        //...
-        parsedRequestsArray.passenger_infos.name = request.ride_state_vars
-          .isAccepted
+    if (passengerData !== undefined && passengerData.length > 0) {
+      //Found some data
+      //...
+      passengerData = passengerData[0];
+      //...
+      parsedRequestsArray.passenger_infos.name = request.ride_state_vars
+        .isAccepted
+        ? /normal/i.test(request.request_globality)
           ? passengerData.name
-          : null;
-        parsedRequestsArray.passenger_infos.phone_number = request
-          .ride_state_vars.isAccepted
+          : passengerData.user_registerer.first_name
+        : null;
+      parsedRequestsArray.passenger_infos.phone_number = request.ride_state_vars
+        .isAccepted
+        ? /normal/i.test(request.request_globality)
           ? passengerData.phone_number
-          : null;
-        //2. Add the basic trip infos
-        parsedRequestsArray.ride_basic_infos.payment_method =
-          request.payment_method;
-        parsedRequestsArray.ride_basic_infos.wished_pickup_time =
-          request.wished_pickup_time;
-        //? Check if Today or Tomorrow Only for scheduled requests
-        if (/scheduled/i.test(request.request_type)) {
-          //Scheduled request
-          parsedRequestsArray.ride_basic_infos.date_state_wishedPickup_time =
-            new Date(request.wished_pickup_time).getDate() ===
-            new Date(chaineDateUTC).getDate()
-              ? "Today"
-              : new Date(request.wished_pickup_time).getDate() >
-                new Date(chaineDateUTC).getDate()
-              ? "Tomorrow"
-              : "Yesterday";
-        } //Immediate request
-        else {
-          parsedRequestsArray.ride_basic_infos.date_state_wishedPickup_time =
-            null;
-        }
-        //?---
-        parsedRequestsArray.ride_basic_infos.fare_amount = parseFloat(
-          request.fare
-        );
-        parsedRequestsArray.ride_basic_infos.passengers_number = parseInt(
-          request.passengers_number
-        );
-        parsedRequestsArray.ride_basic_infos.request_type =
-          request.request_type;
-        parsedRequestsArray.ride_basic_infos.ride_mode = request.ride_mode;
-        parsedRequestsArray.ride_basic_infos.connect_type =
-          request.connect_type;
-        parsedRequestsArray.ride_basic_infos.isAccepted =
-          request.ride_state_vars.isAccepted;
-        parsedRequestsArray.ride_basic_infos.inRideToDestination =
-          request.ride_state_vars.inRideToDestination;
-        parsedRequestsArray.ride_basic_infos.isRideCompleted_driverSide =
-          request.ride_state_vars.isRideCompleted_driverSide;
-        //...
-        parsedRequestsArray.ride_basic_infos.rider_infos = request.rider_infos;
-        parsedRequestsArray.ride_basic_infos.pickup_note =
-          /false/i.test(request.pickup_location_infos.pickup_note) ||
-          request.pickup_location_infos.pickup_note === "false" ||
-          request.pickup_location_infos.pickup_note === false
-            ? null
-            : request.pickup_location_infos.pickup_note;
-        //...
-        parsedRequestsArray.ride_basic_infos.receiver_infos =
-          request.delivery_infos;
-        //3. Compute the ETA to passenger
-        new Promise((res0) => {
-          getRouteInfosDestination(
-            {
-              destination: {
-                latitude: parseFloat(
-                  driverData.operational_state.last_location.coordinates
-                    .latitude
-                ),
-                longitude: parseFloat(
-                  driverData.operational_state.last_location.coordinates
-                    .longitude
-                ),
-              },
-              passenger: {
-                latitude: parseFloat(
-                  request.pickup_location_infos.coordinates.latitude
-                ),
-                longitude: parseFloat(
-                  request.pickup_location_infos.coordinates.longitude
-                ),
-              },
+          : passengerData.phone
+        : null;
+      //2. Add the basic trip infos
+      parsedRequestsArray.ride_basic_infos.payment_method =
+        request.payment_method;
+      parsedRequestsArray.ride_basic_infos.wished_pickup_time =
+        request.wished_pickup_time;
+      //? Check if Today or Tomorrow Only for scheduled requests
+      if (/scheduled/i.test(request.request_type)) {
+        //Scheduled request
+        parsedRequestsArray.ride_basic_infos.date_state_wishedPickup_time =
+          new Date(request.wished_pickup_time).getDate() ===
+          new Date(chaineDateUTC).getDate()
+            ? "Today"
+            : new Date(request.wished_pickup_time).getDate() >
+              new Date(chaineDateUTC).getDate()
+            ? "Tomorrow"
+            : "Yesterday";
+      } //Immediate request
+      else {
+        parsedRequestsArray.ride_basic_infos.date_state_wishedPickup_time =
+          null;
+      }
+      //?---
+      parsedRequestsArray.ride_basic_infos.fare_amount = parseFloat(
+        request.fare
+      );
+      parsedRequestsArray.ride_basic_infos.passengers_number = parseInt(
+        request.passengers_number
+      );
+      parsedRequestsArray.ride_basic_infos.request_type = request.request_type;
+      parsedRequestsArray.ride_basic_infos.ride_mode = request.ride_mode;
+      parsedRequestsArray.ride_basic_infos.connect_type = request.connect_type;
+      parsedRequestsArray.ride_basic_infos.isAccepted =
+        request.ride_state_vars.isAccepted;
+      parsedRequestsArray.ride_basic_infos.inRideToDestination =
+        request.ride_state_vars.inRideToDestination;
+      parsedRequestsArray.ride_basic_infos.isRideCompleted_driverSide =
+        request.ride_state_vars.isRideCompleted_driverSide;
+      //...
+      parsedRequestsArray.ride_basic_infos.rider_infos = request.rider_infos;
+      parsedRequestsArray.ride_basic_infos.pickup_note =
+        /false/i.test(request.pickup_location_infos.pickup_note) ||
+        request.pickup_location_infos.pickup_note === "false" ||
+        request.pickup_location_infos.pickup_note === false
+          ? null
+          : request.pickup_location_infos.pickup_note;
+      //...
+      parsedRequestsArray.ride_basic_infos.receiver_infos =
+        request.delivery_infos;
+      //3. Compute the ETA to passenger
+      new Promise((res0) => {
+        getRouteInfosDestination(
+          {
+            destination: {
+              latitude: parseFloat(
+                driverData.operational_state.last_location.coordinates.latitude
+              ),
+              longitude: parseFloat(
+                driverData.operational_state.last_location.coordinates.longitude
+              ),
             },
-            res0,
-            true,
-            request.request_fp + "-cached-etaToPassenger-requests"
-          );
-        })
-          .then(
-            (resultEtaToPassenger) => {
-              //Save the eta and distancee
-              parsedRequestsArray.eta_to_passenger_infos.eta =
-                resultEtaToPassenger !== false
-                  ? resultEtaToPassenger.eta
-                  : "Awaiting";
-              parsedRequestsArray.eta_to_passenger_infos.distance =
-                resultEtaToPassenger !== false
-                  ? resultEtaToPassenger.distance
-                  : "Awaiting";
-              //4. Add the destination informations
-              parsedRequestsArray.origin_destination_infos.pickup_infos.location_name =
-                request.pickup_location_infos.location_name !== undefined &&
-                request.pickup_location_infos.location_name !== false
-                  ? request.pickup_location_infos.location_name
-                  : request.pickup_location_infos.street_name;
-              parsedRequestsArray.origin_destination_infos.pickup_infos.street_name =
-                request.pickup_location_infos.street_name;
-              parsedRequestsArray.origin_destination_infos.pickup_infos.suburb =
-                request.pickup_location_infos.suburb;
-              parsedRequestsArray.origin_destination_infos.pickup_infos.coordinates =
-                request.pickup_location_infos.coordinates;
+            passenger: {
+              latitude: parseFloat(
+                request.pickup_location_infos.coordinates.latitude
+              ),
+              longitude: parseFloat(
+                request.pickup_location_infos.coordinates.longitude
+              ),
+            },
+          },
+          res0,
+          true,
+          request.request_fp + "-cached-etaToPassenger-requests"
+        );
+      })
+        .then(
+          (resultEtaToPassenger) => {
+            //Save the eta and distancee
+            parsedRequestsArray.eta_to_passenger_infos.eta =
+              resultEtaToPassenger !== false
+                ? resultEtaToPassenger.eta
+                : "Awaiting";
+            parsedRequestsArray.eta_to_passenger_infos.distance =
+              resultEtaToPassenger !== false
+                ? resultEtaToPassenger.distance
+                : "Awaiting";
+            //4. Add the destination informations
+            parsedRequestsArray.origin_destination_infos.pickup_infos.location_name =
+              request.pickup_location_infos.location_name !== undefined &&
+              request.pickup_location_infos.location_name !== false
+                ? request.pickup_location_infos.location_name
+                : request.pickup_location_infos.street_name;
+            parsedRequestsArray.origin_destination_infos.pickup_infos.street_name =
+              request.pickup_location_infos.street_name;
+            parsedRequestsArray.origin_destination_infos.pickup_infos.suburb =
+              request.pickup_location_infos.suburb;
+            parsedRequestsArray.origin_destination_infos.pickup_infos.coordinates =
+              request.pickup_location_infos.coordinates;
 
-              //ADD THE REQUEST TYPE
-              parsedRequestsArray.request_type = /(now|immediate)/i.test(
-                request.request_type
-              )
-                ? request.ride_mode
-                : "scheduled";
+            //ADD THE REQUEST TYPE
+            parsedRequestsArray.request_type = /(now|immediate)/i.test(
+              request.request_type
+            )
+              ? request.ride_mode
+              : "scheduled";
 
-              //Compute the ETA to destination details
-              new Promise((res1) => {
-                getRouteInfosDestination(
-                  {
-                    destination: {
-                      latitude: parseFloat(
-                        request.destinationData[0].coordinates.longitude
-                      ),
-                      longitude: parseFloat(
-                        request.destinationData[0].coordinates.latitude
-                      ),
-                    },
-                    passenger: {
-                      latitude: parseFloat(
-                        request.pickup_location_infos.coordinates.latitude
-                      ),
-                      longitude: parseFloat(
-                        request.pickup_location_infos.coordinates.longitude
-                      ),
-                    },
+            //Compute the ETA to destination details
+            new Promise((res1) => {
+              getRouteInfosDestination(
+                {
+                  destination: {
+                    latitude: parseFloat(
+                      request.destinationData[0].coordinates.longitude
+                    ),
+                    longitude: parseFloat(
+                      request.destinationData[0].coordinates.latitude
+                    ),
                   },
-                  res1,
-                  true,
-                  request.request_fp + "-cached-etaToDestination-requests"
-                );
-              })
-                .then(
-                  (resultETAToDestination) => {
-                    if (resultETAToDestination !== false) {
-                      //Save the ETA to destination data
-                      parsedRequestsArray.origin_destination_infos.eta_to_destination_infos.eta =
-                        resultETAToDestination.eta;
-                      parsedRequestsArray.origin_destination_infos.eta_to_destination_infos.distance =
-                        resultETAToDestination.distance;
-                      //4. Save the destination data
-                      parsedRequestsArray.origin_destination_infos.destination_infos =
-                        request.destinationData;
-                      //Add the request fingerprint
-                      parsedRequestsArray.request_fp = request.request_fp;
-                      //DONE
-                      //CACHE
-                      new Promise((resCache) => {
-                        redisCluster.setex(
-                          redisKey,
-                          process.env.REDIS_EXPIRATION_5MIN,
-                          JSON.stringify(parsedRequestsArray)
-                        );
-                        resCache(true);
-                      }).then(
-                        () => {
-                          //logger.info("Single processing cached!");
-                        },
-                        () => {}
-                      );
-                      //Return the answer
-                      res(parsedRequestsArray);
-                    } //! Error - Salvage anyway
-                    else {
-                      //Save the ETA to destination data
-                      parsedRequestsArray.origin_destination_infos.eta_to_destination_infos.eta =
-                        "Awaiting";
-                      parsedRequestsArray.origin_destination_infos.eta_to_destination_infos.distance =
-                        "Awaiting";
-                      //4. Save the destination data
-                      parsedRequestsArray.origin_destination_infos.destination_infos =
-                        request.destinationData;
-                      //Add the request fingerprint
-                      parsedRequestsArray.request_fp = request.request_fp;
-                      //DONE
-                      //CACHE
-                      new Promise((resCache) => {
-                        redisCluster.setex(
-                          redisKey,
-                          process.env.REDIS_EXPIRATION_5MIN,
-                          JSON.stringify(parsedRequestsArray)
-                        );
-                        resCache(true);
-                      }).then(
-                        () => {
-                          //logger.info("Single processing cached!");
-                        },
-                        () => {}
-                      );
-                      //Return the answer
-                      res(parsedRequestsArray);
-                    }
+                  passenger: {
+                    latitude: parseFloat(
+                      request.pickup_location_infos.coordinates.latitude
+                    ),
+                    longitude: parseFloat(
+                      request.pickup_location_infos.coordinates.longitude
+                    ),
                   },
-                  (error) => {
-                    //logger.warn(error);
-                    //! Salvage anyway
+                },
+                res1,
+                true,
+                request.request_fp + "-cached-etaToDestination-requests"
+              );
+            })
+              .then(
+                (resultETAToDestination) => {
+                  if (resultETAToDestination !== false) {
+                    //Save the ETA to destination data
+                    parsedRequestsArray.origin_destination_infos.eta_to_destination_infos.eta =
+                      resultETAToDestination.eta;
+                    parsedRequestsArray.origin_destination_infos.eta_to_destination_infos.distance =
+                      resultETAToDestination.distance;
+                    //4. Save the destination data
+                    parsedRequestsArray.origin_destination_infos.destination_infos =
+                      request.destinationData;
+                    //Add the request fingerprint
+                    parsedRequestsArray.request_fp = request.request_fp;
+                    //DONE
+                    //CACHE
+                    new Promise((resCache) => {
+                      redisCluster.setex(
+                        redisKey,
+                        process.env.REDIS_EXPIRATION_5MIN,
+                        JSON.stringify(parsedRequestsArray)
+                      );
+                      resCache(true);
+                    }).then(
+                      () => {
+                        //logger.info("Single processing cached!");
+                      },
+                      () => {}
+                    );
+                    //Return the answer
+                    res(parsedRequestsArray);
+                  } //! Error - Salvage anyway
+                  else {
                     //Save the ETA to destination data
                     parsedRequestsArray.origin_destination_infos.eta_to_destination_infos.eta =
                       "Awaiting";
@@ -2175,8 +2148,8 @@ function execDriver_requests_parsing(
                     //Return the answer
                     res(parsedRequestsArray);
                   }
-                )
-                .catch((error) => {
+                },
+                (error) => {
                   //logger.warn(error);
                   //! Salvage anyway
                   //Save the ETA to destination data
@@ -2206,22 +2179,54 @@ function execDriver_requests_parsing(
                   );
                   //Return the answer
                   res(parsedRequestsArray);
-                });
-            },
-            (error) => {
-              //logger.info(error);
-              res(false);
-            }
-          )
-          .catch((error) => {
+                }
+              )
+              .catch((error) => {
+                //logger.warn(error);
+                //! Salvage anyway
+                //Save the ETA to destination data
+                parsedRequestsArray.origin_destination_infos.eta_to_destination_infos.eta =
+                  "Awaiting";
+                parsedRequestsArray.origin_destination_infos.eta_to_destination_infos.distance =
+                  "Awaiting";
+                //4. Save the destination data
+                parsedRequestsArray.origin_destination_infos.destination_infos =
+                  request.destinationData;
+                //Add the request fingerprint
+                parsedRequestsArray.request_fp = request.request_fp;
+                //DONE
+                //CACHE
+                new Promise((resCache) => {
+                  redisCluster.setex(
+                    redisKey,
+                    process.env.REDIS_EXPIRATION_5MIN,
+                    JSON.stringify(parsedRequestsArray)
+                  );
+                  resCache(true);
+                }).then(
+                  () => {
+                    //logger.info("Single processing cached!");
+                  },
+                  () => {}
+                );
+                //Return the answer
+                res(parsedRequestsArray);
+              });
+          },
+          (error) => {
             //logger.info(error);
-            resolve(false);
-          });
-      } //No data found - strange
-      else {
-        resolve(false);
-      }
-    });
+            res(false);
+          }
+        )
+        .catch((error) => {
+          //logger.info(error);
+          resolve(false);
+        });
+    } //No data found - strange
+    else {
+      resolve(false);
+    }
+  });
 }
 
 /**
@@ -4845,6 +4850,7 @@ var collectionRidersLocation_log = null;
 var collectionDrivers_profiles = null;
 var collectionGlobalEvents = null;
 var collectionWalletTransactions_logs = null;
+var collectionDedicatedServices_accounts = null;
 
 redisCluster.on("connect", function () {
   //logger.info("[*] Redis connected");
@@ -4901,6 +4907,9 @@ redisCluster.on("connect", function () {
           collectionWalletTransactions_logs = dbMongo.collection(
             "wallet_transactions_logs"
           ); //Hold the latest information about the riders topups
+          collectionDedicatedServices_accounts = dbMongo.collection(
+            "dedicated_services_accounts"
+          ); //Hold all the accounts for dedicated servics like deliveries, etc.
           //-------------
           app
             .get("/", function (req, res) {
