@@ -1926,7 +1926,11 @@ function execDriver_requests_parsing(
   //...
   //Start the individual parsing
   //? Request dynamically based on the request globality - normal or corporate
-  let dynamicRequesterFetcher = /normal/i.test(request.request_globality)
+  let isNormalrequestScope =
+    /normal/i.test(request.request_globality) ||
+    request.request_globality === undefined;
+  //...
+  let dynamicRequesterFetcher = isNormalrequestScope
     ? collectionPassengers_profiles.find({
         user_fingerprint: request.client_id,
       })
@@ -1947,13 +1951,13 @@ function execDriver_requests_parsing(
       //...
       parsedRequestsArray.passenger_infos.name = request.ride_state_vars
         .isAccepted
-        ? /normal/i.test(request.request_globality)
+        ? isNormalrequestScope
           ? passengerData.name
-          : passengerData.user_registerer.first_name
+          : passengerData.company_name
         : null;
       parsedRequestsArray.passenger_infos.phone_number = request.ride_state_vars
         .isAccepted
-        ? /normal/i.test(request.request_globality)
+        ? isNormalrequestScope
           ? passengerData.phone_number
           : passengerData.phone
         : null;
@@ -2227,43 +2231,6 @@ function execDriver_requests_parsing(
       resolve(false);
     }
   });
-}
-
-/**
- * @func getRideCachedData_andComputeRoute()
- * Responsible for checking if there are any cached requests for a rider, or get from mongo and launch the computation of the trip details
- * and cache them.
- */
-
-function getUserRideCachedData_andComputeRoute(
-  collectionRidesDeliveries_data,
-  user_fingerprint,
-  user_nature,
-  respUser,
-  resolve
-) {
-  //Check if there are any cached user data
-  //1. Pre compute and cache next record for later use
-  new Promise((reslv) => {
-    getMongoRecordTrip_cacheLater(
-      collectionRidesDeliveries_data,
-      user_fingerprint,
-      user_nature,
-      respUser.request_fp,
-      reslv
-    );
-  }).then(
-    (reslt) => {
-      ////logger.info("precomputed for later use done.");
-    },
-    (error) => {
-      ////logger.info(error);
-    }
-  );
-  //........Return cached data
-  ////logger.info("found cached user trip infos");
-  //Compute route via compute skeleton
-  computeRouteDetails_skeleton([respUser], resolve);
 }
 
 /**
@@ -3149,6 +3116,15 @@ function computeAndCacheRouteDestination(
               ? rideHistory.isGoingUntilHome
               : false, //To know whether or not the rider is going until home
         },
+        birdview_infos: /DELIVERY/i.test(rideHistory.ride_mode)
+          ? {
+              number_of_packages: rideHistory.passengers_number,
+              fare: rideHistory.fare,
+              date_requested: rideHistory.date_requested,
+              dropoff_details: rideHistory.destinationData,
+              pickup_details: rideHistory.pickup_location_infos,
+            }
+          : null,
       }; //Will contain all the additional informations needed
       //Add the driver's basic information (name, profile picture, taxi number-if any, car brand, car image, general rating, plate number, phone number)
       additionalInfos.driverDetails.name = driverProfile.name;
@@ -3245,92 +3221,97 @@ function computeAndCacheRouteDestination(
       //! Add the requester fingerprint
       additionalInfos.requester_fp = rideHistory.client_id;
       //! Get the requester details
-      collectionPassengers_profiles
-        .find({ user_fingerprint: rideHistory.client_id })
-        .toArray(function (err, requesterData) {
-          if (requesterData !== undefined && requesterData.length > 0) {
-            //? Add the requester's name and phone
-            additionalInfos["requester_infos"] = {};
-            additionalInfos.requester_infos.requester_name =
-              requesterData[0].name;
-            additionalInfos.requester_infos.requester_surname =
-              requesterData[0].surname;
-            additionalInfos.requester_infos.phone =
-              requesterData[0].phone_number;
-            //? --------
-            //? Add the delivery details
-            additionalInfos["delivery_information"] = {};
-            additionalInfos["delivery_information"]["packageSize"] =
-              rideHistory.delivery_infos.packageSize !== undefined &&
-              rideHistory.delivery_infos.packageSize !== null
-                ? rideHistory.delivery_infos.packageSize
-                : null;
-            additionalInfos.delivery_information.receiver_infos =
-              rideHistory.delivery_infos;
-            //Found the requester data
-            //Get the estimated time TO the destination (from the current's user position)
-            new Promise((res4) => {
-              let url =
-                `${
-                  /production/i.test(process.env.EVIRONMENT)
-                    ? `http://${process.env.INSTANCE_PRIVATE_IP}`
-                    : process.env.LOCAL_URL
-                }` +
-                ":" +
-                process.env.MAP_SERVICE_PORT +
-                "/getRouteToDestinationSnapshot?org_latitude=" +
-                rideHistory.pickup_location_infos.coordinates.latitude +
-                "&org_longitude=" +
-                rideHistory.pickup_location_infos.coordinates.longitude +
-                "&dest_latitude=" +
-                rideHistory.destinationData[0].coordinates.longitude +
-                "&dest_longitude=" +
-                rideHistory.destinationData[0].coordinates.latitude +
-                "&user_fingerprint=" +
-                rideHistory.client_id;
-              requestAPI(url, function (error, response, body) {
-                if (error === null) {
-                  try {
-                    body = JSON.parse(body);
-                    res4(body.eta);
-                  } catch (error) {
-                    res4(false);
-                  }
-                } else {
+      //? Get dynamically the requester details based on the scope of the request - normal or corporate
+      let isNormalrequestScope =
+        /normal/i.test(rideHistory.request_globality) ||
+        rideHistory.request_globality === undefined;
+      //...
+      let dynamicRequesterFetcher = isNormalrequestScope
+        ? collectionPassengers_profiles.find({
+            user_fingerprint: rideHistory.client_id,
+          })
+        : collectionDedicatedServices_accounts.find({
+            company_fp: rideHistory.client_id,
+          });
+
+      dynamicRequesterFetcher.toArray(function (err, requesterData) {
+        if (requesterData !== undefined && requesterData.length > 0) {
+          //? Add the requester's name and phone
+          additionalInfos["requester_infos"] = {};
+          additionalInfos.requester_infos.requester_name = isNormalrequestScope
+            ? requesterData[0].name
+            : requesterData[0].company_name;
+          additionalInfos.requester_infos.requester_surname =
+            isNormalrequestScope
+              ? requesterData[0].surname
+              : requesterData[0].user_registerer.last_name;
+          additionalInfos.requester_infos.phone = isNormalrequestScope
+            ? requesterData[0].phone_number
+            : requesterData[0].phone;
+          //? --------
+          //? Add the delivery details
+          additionalInfos["delivery_information"] = {};
+          additionalInfos["delivery_information"]["packageSize"] =
+            rideHistory.delivery_infos.packageSize !== undefined &&
+            rideHistory.delivery_infos.packageSize !== null
+              ? rideHistory.delivery_infos.packageSize
+              : null;
+          additionalInfos.delivery_information.receiver_infos =
+            rideHistory.delivery_infos;
+          //Found the requester data
+          //Get the estimated time TO the destination (from the current's user position)
+          new Promise((res4) => {
+            let url =
+              `${
+                /production/i.test(process.env.EVIRONMENT)
+                  ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+                  : process.env.LOCAL_URL
+              }` +
+              ":" +
+              process.env.MAP_SERVICE_PORT +
+              "/getRouteToDestinationSnapshot?org_latitude=" +
+              rideHistory.pickup_location_infos.coordinates.latitude +
+              "&org_longitude=" +
+              rideHistory.pickup_location_infos.coordinates.longitude +
+              "&dest_latitude=" +
+              rideHistory.destinationData[0].coordinates.longitude +
+              "&dest_longitude=" +
+              rideHistory.destinationData[0].coordinates.latitude +
+              "&user_fingerprint=" +
+              rideHistory.client_id;
+            requestAPI(url, function (error, response, body) {
+              if (error === null) {
+                try {
+                  body = JSON.parse(body);
+                  res4(body.eta);
+                } catch (error) {
                   res4(false);
                 }
-              });
-            })
-              .then(
-                (estimated_travel_time) => {
-                  //Add the eta to destination
-                  additionalInfos.ETA_toDestination = estimated_travel_time;
-                  additionalInfos.request_status = request_status;
-                  result = { ...result, ...additionalInfos }; //Merge all the data
-                  //Cache-
-                  //Cache computed result
-                  new Promise((resPromiseresult) => {
-                    redisGet(rideHistory.request_fp).then(
-                      (cachedTripData) => {
-                        if (cachedTripData !== null) {
-                          redisCluster.setex(
-                            rideHistory.request_fp,
-                            process.env.REDIS_EXPIRATION_5MIN,
-                            JSON.stringify(result)
-                          );
-                          resPromiseresult(true);
-                        } //Update cache anyways
-                        else {
-                          ////logger.info("Update cache");
-                          redisCluster.setex(
-                            rideHistory.request_fp,
-                            process.env.REDIS_EXPIRATION_5MIN,
-                            JSON.stringify(result)
-                          );
-                          resPromiseresult(true);
-                        }
-                      },
-                      (errorGet) => {
+              } else {
+                res4(false);
+              }
+            });
+          })
+            .then(
+              (estimated_travel_time) => {
+                //Add the eta to destination
+                additionalInfos.ETA_toDestination = estimated_travel_time;
+                additionalInfos.request_status = request_status;
+                result = { ...result, ...additionalInfos }; //Merge all the data
+                //Cache-
+                //Cache computed result
+                new Promise((resPromiseresult) => {
+                  redisGet(rideHistory.request_fp).then(
+                    (cachedTripData) => {
+                      if (cachedTripData !== null) {
+                        redisCluster.setex(
+                          rideHistory.request_fp,
+                          process.env.REDIS_EXPIRATION_5MIN,
+                          JSON.stringify(result)
+                        );
+                        resPromiseresult(true);
+                      } //Update cache anyways
+                      else {
                         ////logger.info("Update cache");
                         redisCluster.setex(
                           rideHistory.request_fp,
@@ -3339,83 +3320,93 @@ function computeAndCacheRouteDestination(
                         );
                         resPromiseresult(true);
                       }
-                    );
-                  }).then(
-                    () => {},
-                    () => {}
+                    },
+                    (errorGet) => {
+                      ////logger.info("Update cache");
+                      redisCluster.setex(
+                        rideHistory.request_fp,
+                        process.env.REDIS_EXPIRATION_5MIN,
+                        JSON.stringify(result)
+                      );
+                      resPromiseresult(true);
+                    }
                   );
-                  //...
-                  //! SAVE THE FINAL FULL RESULT - for 15 min ------
-                  redisCluster.setex(
-                    RIDE_REDIS_KEY,
-                    parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
-                    JSON.stringify(result)
-                  );
-                  //! ----------------------------------------------
-                  ///DONE
-                  resolve(result);
-                },
-                (error) => {
-                  //logger.warn(error);
-                  //If couldn't get the ETA to destination - just leave it as null
-                  result = { ...result, ...additionalInfos }; //Merge all the data
-                  //Cache-
-                  //Cache computed result
-                  new Promise((resPromiseresult) => {
-                    redisGet(rideHistory.request_fp).then(
-                      (cachedTripData) => {
-                        if (cachedTripData !== null) {
-                          redisCluster.setex(
-                            rideHistory.request_fp,
-                            process.env.REDIS_EXPIRATION_5MIN,
-                            JSON.stringify(result)
-                          );
-                          resPromiseresult(true);
-                        } //Update cache anyways
-                        else {
-                          ////logger.info("Update cache");
-                          redisCluster.setex(
-                            rideHistory.request_fp,
-                            process.env.REDIS_EXPIRATION_5MIN,
-                            JSON.stringify(result)
-                          );
-                          resPromiseresult(true);
-                        }
-                      },
-                      (errorGet) => {
-                        ////logger.info("Update cache");
-                        redisCluster.setex(
-                          rideHistory.request_fp,
-                          process.env.REDIS_EXPIRATION_5MIN,
-                          JSON.stringify(result)
-                        );
-                        resPromiseresult(true);
-                      }
-                    );
-                  }).then(
-                    () => {},
-                    () => {}
-                  );
-                  //...
-                  //! SAVE THE FINAL FULL RESULT - for 15 min ------
-                  redisCluster.setex(
-                    RIDE_REDIS_KEY,
-                    parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
-                    JSON.stringify(result)
-                  );
-                  //! ----------------------------------------------
-                  ///DONE
-                  resolve(result);
-                }
-              )
-              .catch((error) => {
+                }).then(
+                  () => {},
+                  () => {}
+                );
+                //...
+                //! SAVE THE FINAL FULL RESULT - for 15 min ------
+                redisCluster.setex(
+                  RIDE_REDIS_KEY,
+                  parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
+                  JSON.stringify(result)
+                );
+                //! ----------------------------------------------
+                ///DONE
+                resolve(result);
+              },
+              (error) => {
                 //logger.warn(error);
-              });
-          } //No requester data found
-          else {
-            resolve(false);
-          }
-        });
+                //If couldn't get the ETA to destination - just leave it as null
+                result = { ...result, ...additionalInfos }; //Merge all the data
+                //Cache-
+                //Cache computed result
+                new Promise((resPromiseresult) => {
+                  redisGet(rideHistory.request_fp).then(
+                    (cachedTripData) => {
+                      if (cachedTripData !== null) {
+                        redisCluster.setex(
+                          rideHistory.request_fp,
+                          process.env.REDIS_EXPIRATION_5MIN,
+                          JSON.stringify(result)
+                        );
+                        resPromiseresult(true);
+                      } //Update cache anyways
+                      else {
+                        ////logger.info("Update cache");
+                        redisCluster.setex(
+                          rideHistory.request_fp,
+                          process.env.REDIS_EXPIRATION_5MIN,
+                          JSON.stringify(result)
+                        );
+                        resPromiseresult(true);
+                      }
+                    },
+                    (errorGet) => {
+                      ////logger.info("Update cache");
+                      redisCluster.setex(
+                        rideHistory.request_fp,
+                        process.env.REDIS_EXPIRATION_5MIN,
+                        JSON.stringify(result)
+                      );
+                      resPromiseresult(true);
+                    }
+                  );
+                }).then(
+                  () => {},
+                  () => {}
+                );
+                //...
+                //! SAVE THE FINAL FULL RESULT - for 15 min ------
+                redisCluster.setex(
+                  RIDE_REDIS_KEY,
+                  parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
+                  JSON.stringify(result)
+                );
+                //! ----------------------------------------------
+                ///DONE
+                resolve(result);
+              }
+            )
+            .catch((error) => {
+              //logger.warn(error);
+            });
+        } //No requester data found
+        else {
+          resolve(false);
+        }
+      });
     },
     (error) => {
       //logger.warn(error);
