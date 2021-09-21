@@ -640,8 +640,20 @@ function parseRequestData(inputData, resolve) {
                                       ? inputData.destinationData
                                           .passenger1Destination.street
                                       : false,
-                                  suburb: passenger1Data.suburb,
-                                  state: passenger1Data.state,
+                                  receiver_infos:
+                                    /normal/i.test(
+                                      inputData.request_globality
+                                    ) ||
+                                    inputData.request_globality === undefined
+                                      ? null
+                                      : inputData.destinationData
+                                          .passenger1Destination.receiver_infos,
+                                  suburb:
+                                    inputData.destinationData
+                                      .passenger1Destination.suburb,
+                                  state:
+                                    inputData.destinationData
+                                      .passenger1Destination.state,
                                   city: inputData.pickupData.city,
                                 });
                               });
@@ -672,6 +684,13 @@ function parseRequestData(inputData, resolve) {
                                     passenger1Data.street !== false
                                       ? passenger1Data.street
                                       : false,
+                                  receiver_infos:
+                                    /normal/i.test(
+                                      inputData.request_globality
+                                    ) ||
+                                    inputData.request_globality === undefined
+                                      ? null
+                                      : passenger1Data.receiver_infos,
                                   suburb: passenger1Data.suburb,
                                   state: passenger1Data.state,
                                   city: inputData.pickupData.city,
@@ -698,6 +717,13 @@ function parseRequestData(inputData, resolve) {
                                     passenger2Data.street !== false
                                       ? passenger2Data.street
                                       : false,
+                                  receiver_infos:
+                                    /normal/i.test(
+                                      inputData.request_globality
+                                    ) ||
+                                    inputData.request_globality === undefined
+                                      ? null
+                                      : passenger2Data.receiver_infos,
                                   suburb: passenger2Data.suburb,
                                   state: passenger2Data.state,
                                   city: inputData.pickupData.city,
@@ -727,6 +753,13 @@ function parseRequestData(inputData, resolve) {
                                     passenger1Data.street !== false
                                       ? passenger1Data.street
                                       : false,
+                                  receiver_infos:
+                                    /normal/i.test(
+                                      inputData.request_globality
+                                    ) ||
+                                    inputData.request_globality === undefined
+                                      ? null
+                                      : passenger1Data.receiver_infos,
                                   suburb: passenger1Data.suburb,
                                   state: passenger1Data.state,
                                   city: inputData.pickupData.city,
@@ -753,6 +786,13 @@ function parseRequestData(inputData, resolve) {
                                     passenger2Data.street !== false
                                       ? passenger2Data.street
                                       : false,
+                                  receiver_infos:
+                                    /normal/i.test(
+                                      inputData.request_globality
+                                    ) ||
+                                    inputData.request_globality === undefined
+                                      ? null
+                                      : passenger2Data.receiver_infos,
                                   suburb: passenger2Data.suburb,
                                   state: passenger2Data.state,
                                   city: inputData.pickupData.city,
@@ -779,6 +819,13 @@ function parseRequestData(inputData, resolve) {
                                     passenger3Data.street !== false
                                       ? passenger3Data.street
                                       : false,
+                                  receiver_infos:
+                                    /normal/i.test(
+                                      inputData.request_globality
+                                    ) ||
+                                    inputData.request_globality === undefined
+                                      ? null
+                                      : passenger3Data.receiver_infos,
                                   suburb: passenger3Data.suburb,
                                   state: passenger3Data.state,
                                   city: inputData.pickupData.city,
@@ -808,6 +855,13 @@ function parseRequestData(inputData, resolve) {
                                     passenger1Data.street !== false
                                       ? passenger1Data.street
                                       : false,
+                                  receiver_infos:
+                                    /normal/i.test(
+                                      inputData.request_globality
+                                    ) ||
+                                    inputData.request_globality === undefined
+                                      ? null
+                                      : passenger1Data.receiver_infos,
                                   suburb: passenger1Data.suburb,
                                   state: passenger1Data.state,
                                   city: inputData.pickupData.city,
@@ -834,6 +888,13 @@ function parseRequestData(inputData, resolve) {
                                     passenger2Data.street !== false
                                       ? passenger2Data.street
                                       : false,
+                                  receiver_infos:
+                                    /normal/i.test(
+                                      inputData.request_globality
+                                    ) ||
+                                    inputData.request_globality === undefined
+                                      ? null
+                                      : passenger2Data.receiver_infos,
                                   suburb: passenger2Data.suburb,
                                   state: passenger2Data.state,
                                   city: inputData.pickupData.city,
@@ -860,6 +921,13 @@ function parseRequestData(inputData, resolve) {
                                     passenger3Data.street !== false
                                       ? passenger3Data.street
                                       : false,
+                                  receiver_infos:
+                                    /normal/i.test(
+                                      inputData.request_globality
+                                    ) ||
+                                    inputData.request_globality === undefined
+                                      ? null
+                                      : passenger3Data.receiver_infos,
                                   suburb: passenger3Data.suburb,
                                   state: passenger3Data.state,
                                   city: inputData.pickupData.city,
@@ -886,6 +954,13 @@ function parseRequestData(inputData, resolve) {
                                     passenger4Data.street !== false
                                       ? passenger4Data.street
                                       : false,
+                                  receiver_infos:
+                                    /normal/i.test(
+                                      inputData.request_globality
+                                    ) ||
+                                    inputData.request_globality === undefined
+                                      ? null
+                                      : passenger4Data.receiver_infos,
                                   suburb: passenger4Data.suburb,
                                   state: passenger4Data.state,
                                   city: inputData.pickupData.city,
@@ -923,6 +998,12 @@ function parseRequestData(inputData, resolve) {
                                   ? inputData.destinationData
                                       .passenger1Destination.street
                                   : false,
+                              receiver_infos:
+                                /normal/i.test(inputData.request_globality) ||
+                                inputData.request_globality === undefined
+                                  ? null
+                                  : inputData.passenger1Destination
+                                      .receiver_infos,
                               suburb:
                                 inputData.destinationData.passenger1Destination
                                   .suburb,
