@@ -1062,15 +1062,88 @@ function execTripChecker_Dispatcher(
           throw err;
         }
         if (userDataRepr.length <= 0) {
-          //Get the rider's inos
-          //! SAVE THE FINAL FULL RESULT - for 15 min ------
-          redisCluster.setex(
-            RIDE_REDIS_KEY,
-            parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
-            JSON.stringify(false)
-          );
-          //! ----------------------------------------------
-          resolve(false);
+          //Get the user's data First
+          collectionPassengers_profiles
+            .find({
+              user_fingerprint: user_fingerprint,
+            })
+            .toArray(function (err, riderData) {
+              if (err) {
+                logger.error(err);
+                //! SAVE THE FINAL FULL RESULT - for 15 min ------
+                redisCluster.setex(
+                  RIDE_REDIS_KEY,
+                  parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
+                  JSON.stringify(false)
+                );
+                resolve(false);
+                //! ----------------------------------------------
+              }
+              //...
+              if (riderData !== undefined && riderData.length > 0) {
+                //Valid rider
+                //!Check for the deliveries
+                let deliveryChecker = {
+                  "destinationData.receiver_infos.receiver_phone":
+                    riderData[0].phone_number,
+                  "ride_state_vars.isRideCompleted_riderSide": false,
+                };
+                collectionRidesDeliveries_data
+                  .find(deliveryChecker)
+                  .toArray(function (err, userDataRepr) {
+                    if (err) {
+                      resolve(false);
+                      throw err;
+                    }
+                    //...
+                    if (userDataRepr.length <= 0) {
+                      redisCluster.setex(
+                        RIDE_REDIS_KEY,
+                        parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
+                        JSON.stringify(false)
+                      );
+                      resolve(false);
+                    } else {
+                      if (
+                        userDataRepr[0].ride_state_vars
+                          .isRideCompleted_riderSide === false
+                      ) {
+                        //REQUEST FP
+                        let request_fp = userDataRepr[0].request_fp;
+                        //Check if there are any requests cached
+                        getMongoRecordTrip_cacheLater(
+                          collectionRidesDeliveries_data,
+                          collectionDrivers_profiles,
+                          userDataRepr[0].client_id,
+                          user_nature,
+                          request_fp,
+                          RIDE_REDIS_KEY,
+                          resolve
+                        );
+                      } //No rides recorded
+                      else {
+                        //! SAVE THE FINAL FULL RESULT - for 15 min ------
+                        redisCluster.setex(
+                          RIDE_REDIS_KEY,
+                          parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
+                          JSON.stringify("no_rides")
+                        );
+                        //! ----------------------------------------------
+                        resolve("no_rides");
+                      }
+                    }
+                  });
+                resolve(false);
+              } else {
+                //Invalid user
+                redisCluster.setex(
+                  RIDE_REDIS_KEY,
+                  parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
+                  JSON.stringify(false)
+                );
+                resolve(false);
+              }
+            });
         } //Found a user record
         else {
           //...
@@ -2313,7 +2386,6 @@ function computeRouteDetails_skeleton(
             ) {
               //logger.info("IN ROUTE TO PICKUP -- HERE");
               //In route to pickup
-              ////logger.info("In  route to pickup");
               let requestStatusMain = "inRouteToPickup";
               //Get driver's coordinates
               //Get driver coords from cache, it non existant, get from mongo
@@ -2676,7 +2748,19 @@ function computeRouteDetails_skeleton(
                 driver_details: {
                   name: null,
                   profile_picture: null,
+                  phone_number: null,
+                  car_brand: null,
+                  plate_number: null,
                 },
+                birdview_infos: /DELIVERY/i.test(rideHistory.ride_mode)
+                  ? {
+                      number_of_packages: rideHistory.passengers_number,
+                      fare: rideHistory.fare,
+                      date_requested: rideHistory.date_requested,
+                      dropoff_details: rideHistory.destinationData,
+                      pickup_details: rideHistory.pickup_location_infos,
+                    }
+                  : null,
               };
               //logger.info("Riders confirmation of drop off");
 
@@ -2755,6 +2839,13 @@ function computeRouteDetails_skeleton(
               confirmation_request_schema.driver_details.name =
                 driverProfile.name;
               confirmation_request_schema.driver_details.profile_picture = `${process.env.AWS_S3_DRIVERS_PROFILE_PICTURES_PATH}/${driverProfile.identification_data.profile_picture}`;
+              confirmation_request_schema.driver_details.phone_number =
+                driverProfile.phone_number;
+              confirmation_request_schema.driver_details.car_brand =
+                driverProfile.cars_data[0].car_brand;
+              confirmation_request_schema.driver_details.plate_number =
+                driverProfile.cars_data[0].plate_number;
+
               //! Add the requester fingerprint
               confirmation_request_schema.requester_fp = rideHistory.client_id;
               //!----
@@ -2985,7 +3076,6 @@ function computeAndCacheRouteDestination(
   new Promise((reslv) => {
     let redisKey = rideHistory.client_id + "-" + rideHistory.taxi_id;
     if (request_status === "inRouteToPickup") {
-      ////logger.info("In route to pickup quick!");
       //For to pickup only
       bundle = {
         driver: {
