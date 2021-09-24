@@ -1435,6 +1435,8 @@ io.on("connection", (socket) => {
         ? "updatePhoneNumberDeliveryWeb_io-response"
         : /validatePhoneNumber/i.test(req.op)
         ? "validatePhoneNumberDeliveryWeb_io-response"
+        : /getAccountData/i.test(req.op)
+        ? "getAccountDataDeliveryWeb_io-response"
         : "opsOnCorpoDeliveryAccounts_io-response";
 
       //!-----

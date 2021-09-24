@@ -5002,6 +5002,82 @@ function performCorporateDeliveryAccountAuthOps(inputData, resolve) {
         logger.warn("Invalid data for validating the phone detected");
         resolve({ response: "error" });
       }
+    } else if (/getAccountData/i.test(inputData.op)) {
+      //Get the account details
+      if (inputData.company_fp !== undefined && inputData.company_fp !== null) {
+        let redisKey = `${inputData.company_fp}-accountDataPersisted`;
+        //Check in redis first
+        redisGet(redisKey).then((resp) => {
+          if (resp !== null) {
+            //Has some cached data
+            try {
+              //Rehydrate
+              new Promise((resCompute) => {
+                execCorporateAccountData(inputData, resCompute);
+              })
+                .then((result) => {
+                  //?Cache the data
+                  new Promise((resCache) => {
+                    redisCluster.set(redisKey, JSON.stringify(result));
+                    resCache(true);
+                  })
+                    .then()
+                    .catch();
+                })
+                .catch((error) => {
+                  logger.error(error);
+                });
+              //Return quickly
+              resp = JSON.parse(resp);
+              resolve(resp);
+            } catch (error) {
+              logger.error(error);
+              //Make fresh request
+              new Promise((resCompute) => {
+                execCorporateAccountData(inputData, resCompute);
+              })
+                .then((result) => {
+                  //?Cache the data
+                  new Promise((resCache) => {
+                    redisCluster.set(redisKey, JSON.stringify(result));
+                    resCache(true);
+                  })
+                    .then()
+                    .catch();
+                  //...
+                  resolve(result);
+                })
+                .catch((error) => {
+                  logger.error(error);
+                  resolve({ response: "error" });
+                });
+            }
+          } //Get fresh data
+          else {
+            new Promise((resCompute) => {
+              execCorporateAccountData(inputData, resCompute);
+            })
+              .then((result) => {
+                //?Cache the data
+                new Promise((resCache) => {
+                  redisCluster.set(redisKey, JSON.stringify(result));
+                  resCache(true);
+                })
+                  .then()
+                  .catch();
+                //...
+                resolve(result);
+              })
+              .catch((error) => {
+                logger.error(error);
+                resolve({ response: "error" });
+              });
+          }
+        });
+      } else {
+        logger.warn("Invalid data for getting the account data.");
+        resolve({ response: "error" });
+      }
     }
     //Invalid op
     else {
@@ -5012,6 +5088,45 @@ function performCorporateDeliveryAccountAuthOps(inputData, resolve) {
     logger.error(error);
     resolve({ response: "error" });
   }
+}
+
+/**
+ * @func execCorporateAccountData
+ * Responsible for actively getting the corporate account information persistently.
+ * @param inputData: any kind of essential data need of auth (email, pass, etc)
+ * @param resolve
+ */
+function execCorporateAccountData(inputData, resolve) {
+  collectionDedicatedServices_accounts
+    .find({ company_fp: inputData.company_fp })
+    .toArray(function (err, companyData) {
+      if (err) {
+        logger.error(err);
+        resolve({ response: "error" });
+      }
+      //...
+
+      if (companyData !== undefined && companyData.length > 0) {
+        //Valid account
+        companyData = companyData[0];
+        //DONE
+        resolve({
+          response: "authed",
+          metadata: {
+            company_name: companyData.company_name,
+            company_fp: companyData.company_fp,
+            email: companyData.email,
+            phone: companyData.phone,
+            user_registerer: companyData.user_registerer,
+            plans: companyData.plans,
+            account: companyData.account,
+          },
+        });
+      } //Invalid account
+      else {
+        resolve({ response: "error" });
+      }
+    });
 }
 
 /**

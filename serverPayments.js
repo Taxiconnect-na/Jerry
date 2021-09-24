@@ -397,6 +397,7 @@ function saveLogForTopups(
  * @param transactionRef: the company's reference for this transaction: check the .env for more.
  * @param payment_currency: the currency considered for this transation.
  * @param collectionWalletTransactions_logs: the colletion of all the wallet transactions.
+ * @param trailingData: any other additional data needed
  * ! EXTREMELY IMMPORTANT.
  */
 function saveLogForTopupsSuccess(
@@ -406,7 +407,8 @@ function saveLogForTopupsSuccess(
   transactionRef,
   payment_currency,
   collectionWalletTransactions_logs,
-  resolve
+  resolve,
+  trailingData = false
 ) {
   resolveDate();
   let tmpDate = new Date();
@@ -418,27 +420,89 @@ function saveLogForTopupsSuccess(
   let amountRecomputed =
     parseFloat(amount) - dpo_gateway_deduction_fees - taxiconnect_service_fees; //! VERY IMPORTANT - REMOVE DPO AND TAXICONNECT DEDUCTIONS
   //...
-  let dataBundle = {
-    user_fingerprint: user_fp,
-    initial_paid_amount: parseFloat(amount),
-    dpo_gateway_deduction_fees: dpo_gateway_deduction_fees,
-    taxiconnect_service_fees: taxiconnect_service_fees,
-    amount: Math.floor((amountRecomputed + Number.EPSILON) * 100) / 100,
-    payment_currency: payment_currency,
-    transaction_nature: "topup",
-    transactionToken: transactionToken,
-    transactionRef: transactionRef,
-    date_captured: new Date(chaineDateUTC),
-    timestamp: tmpDate.getTime(),
-  };
-  //...
-  collectionWalletTransactions_logs.insertOne(dataBundle, function (err, res) {
-    if (err) {
-      logger.info("error");
-      resolve(false);
-    }
-    resolve(true);
-  });
+
+  if (
+    /normal/i.test(trailingData.request_globality) ||
+    trailingData.request_globality === undefined
+  ) {
+    let dataBundle = {
+      user_fingerprint: user_fp,
+      initial_paid_amount: parseFloat(amount),
+      dpo_gateway_deduction_fees: dpo_gateway_deduction_fees,
+      taxiconnect_service_fees: taxiconnect_service_fees,
+      amount: Math.floor((amountRecomputed + Number.EPSILON) * 100) / 100,
+      payment_currency: payment_currency,
+      transaction_nature: "topup",
+      transactionToken: transactionToken,
+      transactionRef: transactionRef,
+      date_captured: new Date(chaineDateUTC),
+      timestamp: tmpDate.getTime(),
+    };
+    //...
+    collectionWalletTransactions_logs.insertOne(
+      dataBundle,
+      function (err, res) {
+        if (err) {
+          logger.info("error");
+          resolve(false);
+        }
+        resolve(true);
+      }
+    );
+  } //!Corporate globality
+  else {
+    const PLAN_CODES = {
+      Starter: "STR",
+      Intermediate: "ITMD",
+      Pro: "PR",
+      Personalised: "PRSNLD",
+    };
+    //...
+    let dataBundle = {
+      company_fp: user_fp,
+      plan_name: trailingData.plan_name,
+      plan_code: PLAN_CODES[trailingData.plan_name],
+      initial_paid_amount: parseFloat(amount),
+      dpo_gateway_deduction_fees: dpo_gateway_deduction_fees,
+      taxiconnect_service_fees: taxiconnect_service_fees,
+      amount: Math.floor((amountRecomputed + Number.EPSILON) * 100) / 100,
+      payment_currency: payment_currency,
+      transaction_nature: "topups-corporate",
+      transactionToken: transactionToken,
+      transaction_fp: transactionToken,
+      transactionRef: transactionRef,
+      date_captured: new Date(chaineDateUTC),
+      timestamp: tmpDate.getTime(),
+    };
+    //...
+    collectionWalletTransactions_logs.insertOne(
+      dataBundle,
+      function (err, res) {
+        if (err) {
+          logger.info("error");
+          resolve(false);
+        }
+        //!Update the the corporate profile with the new plan details
+        //! ONLY USE THE PLAN CODE
+        collectionDedicatedServices_accounts.updateOne(
+          { company_fp: user_fp },
+          {
+            $set: {
+              "plans.subscribed_plan": PLAN_CODES[trailingData.plan_name],
+              "plans.isPlan_active": true,
+            },
+          },
+          function (err, res) {
+            if (err) {
+              logger.info("error");
+              resolve(false);
+            }
+            resolve(true);
+          }
+        );
+      }
+    );
+  }
 }
 
 /**
@@ -568,7 +632,8 @@ function processExecute_paymentCardWallet_topup(
                                     transRef,
                                     process.env.PAYMENT_CURRENCY,
                                     collectionWalletTransactions_logs,
-                                    res2
+                                    res2,
+                                    dataBundle
                                   );
                                 }).then(
                                   () => {},
@@ -1026,6 +1091,8 @@ function checkNonSelf_sendingFunds_user(
  * MAIN
  */
 
+var collectionDedicatedServices_accounts = null;
+
 requestAPI(
   /development/i.test(process.env.EVIRONMENT)
     ? `${process.env.AUTHENTICATOR_URL}get_API_CRED_DATA?environment=dev_local` //? Development localhost url
@@ -1072,7 +1139,7 @@ requestAPI(
           "rides_deliveries_requests"
         ); //Hold all the requests made (rides and deliveries)
         const collectionGlobalEvents = dbMongo.collection("global_events"); //Hold all the random events that happened somewhere.
-        const collectionDedicatedServices_accounts = dbMongo.collection(
+        collectionDedicatedServices_accounts = dbMongo.collection(
           "dedicated_services_accounts"
         ); //Hold all the accounts for dedicated servics like deliveries, etc.
         //-------------
