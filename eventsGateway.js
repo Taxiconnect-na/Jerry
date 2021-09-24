@@ -1956,26 +1956,9 @@ io.on("connection", (socket) => {
         }` +
         ":" +
         process.env.PAYMENT_SERVICE_PORT +
-        "/topUPThisWalletTaxiconnect?user_fp=" +
-        req.user_fp +
-        "&amount=" +
-        req.amount +
-        "&expiry=" +
-        req.expiry +
-        "&cvv=" +
-        req.cvv +
-        "&type=" +
-        req.type +
-        "&number=" +
-        req.number +
-        "&name=" +
-        req.name +
-        "&city=" +
-        req.city +
-        "&country=" +
-        req.country;
+        "/topUPThisWalletTaxiconnect";
 
-      requestAPI(url, function (error, response, body) {
+      requestAPI({ url, form: req }, function (error, response, body) {
         if (error === null) {
           try {
             body = JSON.parse(body);
