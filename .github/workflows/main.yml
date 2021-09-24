@@ -1,7 +1,7 @@
 name: CI/CD Pipeline
 on:
   push:
-    branches: [ master ]
+    branches: [ dev ]
 
 jobs:
   continous-integration:
@@ -36,7 +36,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
      # Step 2
-      - name: Create CodeDeploy Deployment for Jerry development
+      - name: Create CodeDeploy Deployment for Jerry Development
         id: deploy
         run: |
           aws deploy create-deployment \
