@@ -1425,6 +1425,8 @@ io.on("connection", (socket) => {
           process.env.ACCOUNTS_SERVICE_PORT +
           "/performOpsCorporateDeliveryAccount";
 
+      logger.warn(url);
+
       //!Deduce the event name response based on the op
       //? 1. op: resendConfirmationSMS
       //? 2. op: updatePhoneNumber
