@@ -1418,12 +1418,13 @@ io.on("connection", (socket) => {
       req.op !== undefined &&
       req.op !== null
     ) {
-      let url = /production/i.test(process.env.EVIRONMENT)
-        ? `http://${process.env.INSTANCE_PRIVATE_IP}`
-        : process.env.LOCAL_URL +
-          ":" +
-          process.env.ACCOUNTS_SERVICE_PORT +
-          "/performOpsCorporateDeliveryAccount";
+      let url = `${
+        /production/i.test(process.env.EVIRONMENT)
+          ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+          : process.env.LOCAL_URL
+      }:${
+        process.env.ACCOUNTS_SERVICE_PORT
+      }/performOpsCorporateDeliveryAccount`;
 
       logger.warn(url);
 
