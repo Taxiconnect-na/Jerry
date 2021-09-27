@@ -587,7 +587,7 @@ function computeInDepthPricesMap(
   let connectType = completedInputData.connect_type;
   let pickup_suburb = completedInputData.pickup_location_infos.suburb;
 
-  let pickup_hour = (completedInputData.pickup_time / 1000) * 60 * 60;
+  let pickup_hour = new Date(completedInputData.pickup_time).getHours();
   let pickup_minutes = pickup_hour * 60;
   let pickup_type = completedInputData.pickup_location_infos.pickup_type; //PrivateLocation, TaxiRank or Airport.
   let passengers_number = completedInputData.passengers_number; //Number of passengers for this ride.
@@ -598,6 +598,7 @@ function computeInDepthPricesMap(
   let timeDayMultiplier = 1;
   let passengersMultiplier = passengers_number;
   new Promise((res) => {
+    logger.warn(`Pickup hour : ${pickup_hour}`);
     if (pickup_hour >= 0 && pickup_hour <= 4) {
       //X2 multiplier 0AM-4AM
       timeDayMultiplier = 2;
@@ -655,11 +656,12 @@ function computeInDepthPricesMap(
               basePrice = 0;
             } //Economy
             else {
-              //Apply passengers multiplier to fixed NAD45
+              //Apply passengers multiplier to fixed NAD50
               basePrice =
-                45 +
+                50 +
                 parseFloat(process.env.CONNECTME_ADDITION_PASSENGER_FEE) *
                   (passengersMultiplier - 1);
+              logger.warn(`BASE PRICE : ${basePrice}`);
             }
           } //ConnectUs
           else {
@@ -712,7 +714,7 @@ function computeInDepthPricesMap(
                     //Do nothing
                   } //Economy
                   else {
-                    //Apply passengers multiplier to fixed NAD45
+                    //Apply passengers multiplier to fixed NAD50
                     basePrice -=
                       parseFloat(process.env.CONNECTME_ADDITION_PASSENGER_FEE) *
                       (passengersMultiplier - 1);
@@ -898,6 +900,23 @@ function computeInDepthPricesMap(
                   ) {
                     //Add base fare for one person
                     basePrice += vehicle.base_fare;
+                  } //Economy
+                  else {
+                    //! ConnectMe exception for far locations
+                    if (
+                      /Elisenheim/i.test(tmpPickupPickup) ||
+                      /Elisenheim/i.test(tmpDestinationSuburb) ||
+                      /Elisenheim/i.test(destination.location_name) ||
+                      /Elisenheim/i.test(
+                        completedInputData.pickup_location_infos.location_name
+                      )
+                    ) {
+                      logger.warn("INSIDE Elisenheim");
+                      //? Rectify price  to 70 if less
+                      if (basePrice < 70) {
+                        basePrice = 70;
+                      }
+                    }
                   }
                 } else if (/DELIVERY/i.test(vehicle.ride_type)) {
                   //DELIVERIES
@@ -920,7 +939,17 @@ function computeInDepthPricesMap(
           // }
           //...
           basePrice *= timeDayMultiplier;
-          basePrice += headerPrice; //Add header price LAST
+          if (/ConnectUs/i.test(connectType)) {
+            //? Going until home
+            if (completedInputData.isGoingUntilHome) {
+              logger.warn(
+                `Is going until home: ${completedInputData.isGoingUntilHome}`
+              );
+              basePrice *= 2;
+            }
+            //? NAD5 pickup fee
+            basePrice += headerPrice; //Add header price LAST
+          }
         }
         //DONE update base price...
         logger.info("ESTIMATED BASE PRICE (car type:");
@@ -993,9 +1022,9 @@ function parsePricingInputData(resolve, inputData) {
       cleanInputData.isGoingUntilHome =
         inputData.isGoingUntilHome !== undefined &&
         inputData.isGoingUntilHome !== null
-          ? /false/i.test(inputData.isGoingUntilHome)
+          ? /false/i.test(String(inputData.isGoingUntilHome))
             ? false
-            : /true/i.test(inputData.isGoingUntilHome)
+            : /true/i.test(String(inputData.isGoingUntilHome))
             ? true
             : inputData.isGoingUntilHome
           : false; //! Careful: Will double the fares for the Economy type
@@ -1028,12 +1057,12 @@ function parsePricingInputData(resolve, inputData) {
             ":" +
             minutesExtracted +
             ":00";
-          cleanInputData.pickup_time = dateTMP.millisecond() / 1000;
+          cleanInputData.pickup_time = dateTMP.millisecond();
           res(true);
         } //Immediate request
         else {
           let tmpDate = new Date();
-          cleanInputData.pickup_time = tmpDate.getTime() / 1000;
+          cleanInputData.pickup_time = tmpDate.getTime();
           res(true);
         }
         //...
