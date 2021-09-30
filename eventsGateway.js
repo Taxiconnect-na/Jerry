@@ -1470,6 +1470,54 @@ io.on("connection", (socket) => {
 
   /**
    * ACCOUNTS SERVICE, port 9696
+   * Route: getNotifications_ops
+   * event: getNotifications_infos_io
+   * Responsible for getting the notifications data bulkly
+   */
+  socket.on("getNotifications_infos_io", function (req) {
+    logger.warn(req);
+
+    if (
+      req !== undefined &&
+      req !== null &&
+      req.op !== undefined &&
+      req.op !== null
+    ) {
+      let url = `${
+        /production/i.test(process.env.EVIRONMENT)
+          ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+          : process.env.LOCAL_URL
+      }:${process.env.ACCOUNTS_SERVICE_PORT}/getNotifications_ops`;
+
+      logger.warn(url);
+      let eventResponseName = "getNotifications_infos_io-response";
+
+      requestAPI.post({ url, form: req }, function (error, response, body) {
+        //logger.info(body);
+        if (error === null) {
+          try {
+            body = JSON.parse(body);
+            socket.emit(eventResponseName, body);
+          } catch (error) {
+            socket.emit(eventResponseName, {
+              response: "error",
+            });
+          }
+        } else {
+          socket.emit(eventResponseName, {
+            response: "error",
+          });
+        }
+      });
+    } else {
+      socket.emit(eventResponseName, {
+        response: "error",
+      });
+    }
+  });
+
+  /**
+   * ACCOUNTS SERVICE, port 9696
    * Route: getAdsManagerRunningInfos
    * event: getAdsManagerRunningInfos_io
    * Get all the running Ads campaigns (usually just one at the time) in the current city.

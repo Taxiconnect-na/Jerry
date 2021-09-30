@@ -5321,6 +5321,167 @@ function execGetWalletSummaryForDeliveryCorps(company_fp, resolve) {
     });
 }
 
+/**`
+ * @func getTargetedNotificationsOps
+ * Responsible for getting the notifications relative to each user.
+ * @param requestData: hold the user_fingerprint and the op ()
+ * @param resolve
+ */
+function getTargetedNotificationsOps(requestData, resolve) {
+  if (/notifications/i.test(requestData.op)) {
+    let redisKey = `${requestData.user_fingerprint}-cachedNotificationsData`;
+    //Get the notifications metadata
+    //Check in the cache first
+    redisGet(redisKey)
+      .then((resp) => {
+        logger.warn(resp);
+        if (resp !== null) {
+          //Found some cached data
+          try {
+            //Rehydrate
+            new Promise((resCompute) => {
+              execGetTargetedNotificationsOps(
+                requestData,
+                redisKey,
+                resCompute
+              );
+            })
+              .then()
+              .catch((error) => {
+                logger.error(error);
+              });
+            //...
+            resp = JSON.parse(resp);
+            resolve(resp);
+          } catch (error) {
+            logger.error(error);
+            new Promise((resCompute) => {
+              execGetTargetedNotificationsOps(
+                requestData,
+                redisKey,
+                resCompute
+              );
+            })
+              .then((result) => {
+                resolve(result);
+              })
+              .catch((error) => {
+                logger.error(error);
+                resolve({ response: "error" });
+              });
+          }
+        } //No cached data - get fresh result
+        else {
+          new Promise((resCompute) => {
+            execGetTargetedNotificationsOps(requestData, redisKey, resCompute);
+          })
+            .then((result) => {
+              resolve(result);
+            })
+            .catch((error) => {
+              logger.error(error);
+              resolve({ response: "error" });
+            });
+        }
+      })
+      .catch((error) => {
+        logger.error(error);
+        new Promise((resCompute) => {
+          execGetTargetedNotificationsOps(requestData, redisKey, resCompute);
+        })
+          .then((result) => {
+            resolve(result);
+          })
+          .catch((error) => {
+            logger.error(error);
+            resolve({ response: "error" });
+          });
+      });
+  } //Invalid request
+  else {
+    resolve({ response: "error" });
+  }
+}
+
+/**
+ * @param execGetTargetedNotificationsOps
+ * Actively get the notifications data
+ * @param requestData: hold the user_fingerprint and the op ()
+ * @param redisKey: the key to cache the results to
+ * @param resolve
+ */
+function execGetTargetedNotificationsOps(requestData, redisKey, resolve) {
+  collectionNotificationsComm_central
+    .find({
+      allowed_users_see: requestData.user_fingerprint,
+    })
+    .toArray(function (err, notifData) {
+      if (err) {
+        logger.warn(err);
+        //...
+        resolve({ response: "error" });
+      }
+      //...
+      if (notifData !== undefined && notifData.length > 0) {
+        //Found some notifications
+        //? Find the unseen notifications number
+        let unseenNumber = 0;
+        //...
+        notifData = notifData.map((el, index) => {
+          el["_id"] = index;
+          el["allowed_users_see"] = null;
+          el["sender_fp"] = null;
+          el["isUnseen"] = el.seen_users_log.includes(
+            requestData.user_fingerprint
+          )
+            ? false
+            : true;
+          //...
+          unseenNumber += el.seen_users_log.includes(
+            requestData.user_fingerprint
+          )
+            ? 0
+            : 1;
+          //...
+          el["seen_users_log"] = null;
+          //...
+          return el;
+        });
+        //DONE
+        let response = { response: { unseen: unseenNumber, data: notifData } };
+        //? Cache
+        new Promise((resCache) => {
+          redisCluster.setex(
+            redisKey,
+            parseInt(process.env.REDIS_EXPIRATION_5MIN) * 1440,
+            JSON.stringify(response)
+          );
+          resCache(true);
+        })
+          .then()
+          .catch();
+        //...
+        resolve(response);
+      } //No notifications found
+      else {
+        let response = { response: "no_notifications" };
+        //? Cache
+        new Promise((resCache) => {
+          redisCluster.setex(
+            redisKey,
+            parseInt(process.env.REDIS_EXPIRATION_5MIN) * 1440,
+            JSON.stringify(response)
+          );
+          resCache(true);
+        })
+          .then()
+          .catch();
+        //...
+        resolve(response);
+      }
+    });
+}
+
 /**
  * MAIN
  */
@@ -5333,6 +5494,7 @@ var collectionGlobalEvents = null;
 var collectionWalletTransactions_logs = null;
 var collectionAdsCompanies_central = null;
 var collectionDedicatedServices_accounts = null;
+var collectionNotificationsComm_central = null;
 
 redisCluster.on("connect", function () {
   logger.info("[*] Redis connected");
@@ -5391,6 +5553,9 @@ redisCluster.on("connect", function () {
           collectionDedicatedServices_accounts = dbMongo.collection(
             "dedicated_services_accounts"
           ); //Hold all the accounts for dedicated servics like deliveries, etc.
+          collectionNotificationsComm_central = dbMongo.collection(
+            "notifications_communications_central"
+          ); //Hold all the notifications accounts data
           //-------------
           app
             .get("/", function (req, res) {
@@ -7446,6 +7611,44 @@ redisCluster.on("connect", function () {
                   balance: 0,
                   usage: 0,
                 });
+              });
+          });
+
+          /**
+           * GET NOTIFICATIONS
+           * ? Responsible for getting the notifications infos specific to a user
+           */
+          app.post("/getNotifications_ops", function (req, res) {
+            new Promise((resolve) => {
+              resolveDate();
+              req = req.body;
+
+              if (
+                req.user_fingerprint !== undefined &&
+                req.user_fingerprint !== null
+              ) {
+                //! Resolve the avoidCache param
+                req["avoidCache"] =
+                  req.avoidCache !== undefined && req.avoidCache !== null
+                    ? /true/i.test(req.avoidCache)
+                      ? true
+                      : false
+                    : false; //False by default
+
+                getTargetedNotificationsOps(req, resolve);
+              } //Error
+              else {
+                resolve({
+                  response: "error",
+                });
+              }
+            })
+              .then((result) => {
+                res.send(result);
+              })
+              .catch((error) => {
+                logger.error(error);
+                res.send({ response: "error" });
               });
           });
         }

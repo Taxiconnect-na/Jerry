@@ -941,7 +941,7 @@ function computeInDepthPricesMap(
           basePrice *= timeDayMultiplier;
           if (/ConnectUs/i.test(connectType)) {
             //? Going until home
-            if (completedInputData.isGoingUntilHome) {
+            if (completedInputData.isGoingUntilHome && basePrice <= 14) {
               logger.warn(
                 `Is going until home: ${completedInputData.isGoingUntilHome}`
               );
