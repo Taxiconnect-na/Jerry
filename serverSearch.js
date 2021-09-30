@@ -1286,7 +1286,7 @@ function doFreshBrieflyCompleteEssentialsForLocations(
  */
 function makeFreshOpenCageRequests(coordinates, osm_id, redisKey, resolve) {
   //request
-  let url = `https://api.opencagedata.com/geocode/v1/json?q=${coordinates.latitude}%2C${coordinates.longitude}&key=5b772f57a60b4e7b89c00782ed545af8&language=en&pretty=1&limit=1`;
+  let url = `https://api.opencagedata.com/geocode/v1/json?q=${coordinates.latitude}%2C${coordinates.longitude}&key=${process.env.OPENCAGE_API}&language=en&pretty=1&limit=1`;
 
   requestAPI(url, function (error, response, body) {
     logger.info(url);
