@@ -5415,6 +5415,7 @@ function execGetTargetedNotificationsOps(requestData, redisKey, resolve) {
     .find({
       allowed_users_see: requestData.user_fingerprint,
     })
+    .sort({ date_sent: -1 })
     .toArray(function (err, notifData) {
       if (err) {
         logger.warn(err);
