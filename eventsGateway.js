@@ -604,7 +604,7 @@ io.on("connection", (socket) => {
    * Make a ride or delivery request for a rider.
    */
   socket.on("requestRideOrDeliveryForThis", function (req) {
-    //logger.info(req);
+    // logger.info(req);
     if (req.user_fingerprint !== undefined && req.user_fingerprint !== null) {
       let url =
         `${
@@ -617,7 +617,7 @@ io.on("connection", (socket) => {
         "/dispatchRidesOrDeliveryRequests";
 
       requestAPI.post({ url, form: req }, function (error, response, body) {
-        //logger.info(body);
+        logger.info(error, body);
         if (error === null) {
           try {
             body = JSON.parse(body);
@@ -1405,6 +1405,119 @@ io.on("connection", (socket) => {
 
   /**
    * ACCOUNTS SERVICE, port 9696
+   * Route: performOpsCorporateDeliveryAccount
+   * event: opsOnCorpoDeliveryAccounts_io
+   * Performs auth operations on the corporate delivery accounts
+   */
+  socket.on("opsOnCorpoDeliveryAccounts_io", function (req) {
+    logger.warn(req);
+
+    if (
+      req !== undefined &&
+      req !== null &&
+      req.op !== undefined &&
+      req.op !== null
+    ) {
+      let url = `${
+        /production/i.test(process.env.EVIRONMENT)
+          ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+          : process.env.LOCAL_URL
+      }:${
+        process.env.ACCOUNTS_SERVICE_PORT
+      }/performOpsCorporateDeliveryAccount`;
+
+      logger.warn(url);
+
+      //!Deduce the event name response based on the op
+      //? 1. op: resendConfirmationSMS
+      //? 2. op: updatePhoneNumber
+      //? 3. op: validatePhoneNumber
+      let eventResponseName = /resendConfirmationSMS/i.test(req.op)
+        ? "resetConfirmationSMSDeliveryWeb_io-response"
+        : /updatePhoneNumber/i.test(req.op)
+        ? "updatePhoneNumberDeliveryWeb_io-response"
+        : /validatePhoneNumber/i.test(req.op)
+        ? "validatePhoneNumberDeliveryWeb_io-response"
+        : /getAccountData/i.test(req.op)
+        ? "getAccountDataDeliveryWeb_io-response"
+        : "opsOnCorpoDeliveryAccounts_io-response";
+
+      //!-----
+
+      requestAPI.post({ url, form: req }, function (error, response, body) {
+        //logger.info(body);
+        if (error === null) {
+          try {
+            body = JSON.parse(body);
+            socket.emit(eventResponseName, body);
+          } catch (error) {
+            socket.emit(eventResponseName, {
+              response: "error_invalid_data",
+            });
+          }
+        } else {
+          socket.emit(eventResponseName, {
+            response: "error_invalid_data",
+          });
+        }
+      });
+    } else {
+      socket.emit(eventResponseName, {
+        response: "error_invalid_data",
+      });
+    }
+  });
+
+  /**
+   * ACCOUNTS SERVICE, port 9696
+   * Route: getNotifications_ops
+   * event: getNotifications_infos_io
+   * Responsible for getting the notifications data bulkly
+   */
+  socket.on("getNotifications_infos_io", function (req) {
+    logger.warn(req);
+
+    if (
+      req !== undefined &&
+      req !== null &&
+      req.op !== undefined &&
+      req.op !== null
+    ) {
+      let url = `${
+        /production/i.test(process.env.EVIRONMENT)
+          ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+          : process.env.LOCAL_URL
+      }:${process.env.ACCOUNTS_SERVICE_PORT}/getNotifications_ops`;
+
+      logger.warn(url);
+      let eventResponseName = "getNotifications_infos_io-response";
+
+      requestAPI.post({ url, form: req }, function (error, response, body) {
+        //logger.info(body);
+        if (error === null) {
+          try {
+            body = JSON.parse(body);
+            socket.emit(eventResponseName, body);
+          } catch (error) {
+            socket.emit(eventResponseName, {
+              response: "error",
+            });
+          }
+        } else {
+          socket.emit(eventResponseName, {
+            response: "error",
+          });
+        }
+      });
+    } else {
+      socket.emit(eventResponseName, {
+        response: "error",
+      });
+    }
+  });
+
+  /**
+   * ACCOUNTS SERVICE, port 9696
    * Route: getAdsManagerRunningInfos
    * event: getAdsManagerRunningInfos_io
    * Get all the running Ads campaigns (usually just one at the time) in the current city.
@@ -1896,26 +2009,9 @@ io.on("connection", (socket) => {
         }` +
         ":" +
         process.env.PAYMENT_SERVICE_PORT +
-        "/topUPThisWalletTaxiconnect?user_fp=" +
-        req.user_fp +
-        "&amount=" +
-        req.amount +
-        "&expiry=" +
-        req.expiry +
-        "&cvv=" +
-        req.cvv +
-        "&type=" +
-        req.type +
-        "&number=" +
-        req.number +
-        "&name=" +
-        req.name +
-        "&city=" +
-        req.city +
-        "&country=" +
-        req.country;
+        "/topUPThisWalletTaxiconnect";
 
-      requestAPI(url, function (error, response, body) {
+      requestAPI({ url, form: req }, function (error, response, body) {
         if (error === null) {
           try {
             body = JSON.parse(body);

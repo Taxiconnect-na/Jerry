@@ -215,7 +215,7 @@ function autocompleteInputData(
     // logger.info(body);
     try {
       body = JSON.parse(body);
-      logger.warn(body);
+      // logger.warn(body);
       //? Write at the input data level - not the isolated pickup data
       inputData.pickup_location_infos.state = body.state;
       inputData.pickup_location_infos.suburb = body.suburb;
@@ -223,14 +223,17 @@ function autocompleteInputData(
       //? Autocomplete the destination data if any of them are incomplete
       let parentPromises = inputData.destination_location_infos.map(
         (destination) => {
+          logger.info(destination);
           return new Promise((resCompute) => {
             if (
               destination.suburb === undefined ||
               destination.suburb === null ||
               destination.suburb === false ||
+              destination.suburb === "false" ||
               destination.state === undefined ||
               destination.state === null ||
-              destination.state === false
+              destination.state === false ||
+              destination.state === "false"
             ) {
               //Found some invalid input data
               logger.warn("Found some invalid input data, resolving them...");
@@ -260,6 +263,8 @@ function autocompleteInputData(
               });
             } //Clean data
             else {
+              logger.error("CLEAN DATA");
+              logger.error(destination);
               if (/ Region/i.test(destination.state)) {
                 destination.state = destination.state.replace(/ Region/, "");
                 resCompute(destination);
@@ -305,71 +310,6 @@ function autocompleteInputData(
       resolve(inputData);
     }
   });
-
-  // let urlRequest = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${pickupInfos.coordinates.latitude},${pickupInfos.coordinates.longitude}&key=${process.env.GOOGLE_API_KEY}&location_type=GEOMETRIC_CENTER&language=en&fields=formatted_address,address_components,geometry,place_id`;
-
-  // logger.warn(urlRequest);
-
-  // requestAPI(urlRequest, function (err, response, body) {
-  //   try {
-  //     body = JSON.parse(body);
-  //     if (
-  //       body.results !== undefined &&
-  //       body.results[0].address_components !== undefined &&
-  //       body.results[0].geometry !== undefined
-  //     ) {
-  //       let state = body.results[0].address_components
-  //         .filter((item) =>
-  //           item.types.includes("administrative_area_level_1")
-  //         )[0]
-  //         .long_name.replace(" Region", "");
-  //       let suburb = body.results[0].address_components
-  //         .filter((item) =>
-  //           item.types.includes("sublocality_level_1", "political")
-  //         )[0]
-  //         .short_name.trim();
-  //       //! Add /CBD for Windhoek Central suburb
-  //       suburb = /^Windhoek Central$/i.test(suburb)
-  //         ? `${suburb} / CBD`
-  //         : suburb;
-  //       //...
-  //       let street = body.results[0].address_components
-  //         .filter((item) => item.types.includes("route"))[0]
-  //         .short_name.trim();
-  //       //...
-  //       //? Write at the input data level - not the isolated pickup data
-  //       inputData.pickup_location_infos.state = state;
-  //       inputData.pickup_location_infos.suburb = suburb;
-  //       inputData.pickup_location_infos.street = street; //Update the street
-
-  //       //!EXCEPTIONS SUBURBS
-  //       //! 1. Make suburb Elisenheim if anything related to it (Eg. location_name)
-  //       inputData.pickup_location_infos.suburb = /Elisenheim/i.test(
-  //         inputData.pickup_location_infos.location_name
-  //       )
-  //         ? "Elisenheim"
-  //         : inputData.pickup_location_infos.suburb;
-  //       //! 2. Make suburb Ausspannplatz if anything related to it
-  //       inputData.pickup_location_infos.suburb = /Ausspannplatz/i.test(
-  //         inputData.pickup_location_infos.location_name
-  //       )
-  //         ? "Ausspannplatz"
-  //         : inputData.pickup_location_infos.suburb;
-  //       //DONE
-  //       resolve(inputData);
-  //     } //Couldn't complete the data
-  //     else {
-  //       //? Send the same data
-  //       logger.warn("Could not complete the input data");
-  //       resolve(inputData);
-  //     }
-  //   } catch (error) {
-  //     logger.error(error);
-  //     //? Send the same data
-  //     logger.warn("Could not complete the input data");
-  //     resolve(inputData);
-  //   }
-  // });
 }
 
 /**
@@ -647,7 +587,7 @@ function computeInDepthPricesMap(
   let connectType = completedInputData.connect_type;
   let pickup_suburb = completedInputData.pickup_location_infos.suburb;
 
-  let pickup_hour = (completedInputData.pickup_time / 1000) * 60 * 60;
+  let pickup_hour = new Date(completedInputData.pickup_time).getHours();
   let pickup_minutes = pickup_hour * 60;
   let pickup_type = completedInputData.pickup_location_infos.pickup_type; //PrivateLocation, TaxiRank or Airport.
   let passengers_number = completedInputData.passengers_number; //Number of passengers for this ride.
@@ -658,6 +598,7 @@ function computeInDepthPricesMap(
   let timeDayMultiplier = 1;
   let passengersMultiplier = passengers_number;
   new Promise((res) => {
+    logger.warn(`Pickup hour : ${pickup_hour}`);
     if (pickup_hour >= 0 && pickup_hour <= 4) {
       //X2 multiplier 0AM-4AM
       timeDayMultiplier = 2;
@@ -715,11 +656,12 @@ function computeInDepthPricesMap(
               basePrice = 0;
             } //Economy
             else {
-              //Apply passengers multiplier to fixed NAD45
+              //Apply passengers multiplier to fixed NAD50
               basePrice =
-                45 +
+                50 +
                 parseFloat(process.env.CONNECTME_ADDITION_PASSENGER_FEE) *
                   (passengersMultiplier - 1);
+              logger.warn(`BASE PRICE : ${basePrice}`);
             }
           } //ConnectUs
           else {
@@ -772,7 +714,7 @@ function computeInDepthPricesMap(
                     //Do nothing
                   } //Economy
                   else {
-                    //Apply passengers multiplier to fixed NAD45
+                    //Apply passengers multiplier to fixed NAD50
                     basePrice -=
                       parseFloat(process.env.CONNECTME_ADDITION_PASSENGER_FEE) *
                       (passengersMultiplier - 1);
@@ -958,6 +900,23 @@ function computeInDepthPricesMap(
                   ) {
                     //Add base fare for one person
                     basePrice += vehicle.base_fare;
+                  } //Economy
+                  else {
+                    //! ConnectMe exception for far locations
+                    if (
+                      /Elisenheim/i.test(tmpPickupPickup) ||
+                      /Elisenheim/i.test(tmpDestinationSuburb) ||
+                      /Elisenheim/i.test(destination.location_name) ||
+                      /Elisenheim/i.test(
+                        completedInputData.pickup_location_infos.location_name
+                      )
+                    ) {
+                      logger.warn("INSIDE Elisenheim");
+                      //? Rectify price  to 70 if less
+                      if (basePrice < 70) {
+                        basePrice = 70;
+                      }
+                    }
                   }
                 } else if (/DELIVERY/i.test(vehicle.ride_type)) {
                   //DELIVERIES
@@ -980,7 +939,17 @@ function computeInDepthPricesMap(
           // }
           //...
           basePrice *= timeDayMultiplier;
-          basePrice += headerPrice; //Add header price LAST
+          if (/ConnectUs/i.test(connectType)) {
+            //? Going until home
+            if (completedInputData.isGoingUntilHome && basePrice <= 14) {
+              logger.warn(
+                `Is going until home: ${completedInputData.isGoingUntilHome}`
+              );
+              basePrice *= 2;
+            }
+            //? NAD5 pickup fee
+            basePrice += headerPrice; //Add header price LAST
+          }
         }
         //DONE update base price...
         logger.info("ESTIMATED BASE PRICE (car type:");
@@ -1053,9 +1022,9 @@ function parsePricingInputData(resolve, inputData) {
       cleanInputData.isGoingUntilHome =
         inputData.isGoingUntilHome !== undefined &&
         inputData.isGoingUntilHome !== null
-          ? /false/i.test(inputData.isGoingUntilHome)
+          ? /false/i.test(String(inputData.isGoingUntilHome))
             ? false
-            : /true/i.test(inputData.isGoingUntilHome)
+            : /true/i.test(String(inputData.isGoingUntilHome))
             ? true
             : inputData.isGoingUntilHome
           : false; //! Careful: Will double the fares for the Economy type
@@ -1088,12 +1057,12 @@ function parsePricingInputData(resolve, inputData) {
             ":" +
             minutesExtracted +
             ":00";
-          cleanInputData.pickup_time = dateTMP.millisecond() / 1000;
+          cleanInputData.pickup_time = dateTMP.millisecond();
           res(true);
         } //Immediate request
         else {
           let tmpDate = new Date();
-          cleanInputData.pickup_time = tmpDate.getTime() / 1000;
+          cleanInputData.pickup_time = tmpDate.getTime();
           res(true);
         }
         //...
@@ -1140,7 +1109,10 @@ function parsePricingInputData(resolve, inputData) {
             if (cleanInputData.passengers_number > 1) {
               //Many passengers
               //Check if all going to the same destination
-              if (inputData.isAllGoingToSameDestination) {
+              if (
+                inputData.isAllGoingToSameDestination &&
+                inputData.isAllGoingToSameDestination !== "false"
+              ) {
                 //yes
                 tmpSchemaArray.map((element, index) => {
                   cleanInputData.destination_location_infos.push({

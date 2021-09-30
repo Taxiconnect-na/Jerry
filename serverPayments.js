@@ -397,6 +397,7 @@ function saveLogForTopups(
  * @param transactionRef: the company's reference for this transaction: check the .env for more.
  * @param payment_currency: the currency considered for this transation.
  * @param collectionWalletTransactions_logs: the colletion of all the wallet transactions.
+ * @param trailingData: any other additional data needed
  * ! EXTREMELY IMMPORTANT.
  */
 function saveLogForTopupsSuccess(
@@ -406,7 +407,8 @@ function saveLogForTopupsSuccess(
   transactionRef,
   payment_currency,
   collectionWalletTransactions_logs,
-  resolve
+  resolve,
+  trailingData = false
 ) {
   resolveDate();
   let tmpDate = new Date();
@@ -418,27 +420,89 @@ function saveLogForTopupsSuccess(
   let amountRecomputed =
     parseFloat(amount) - dpo_gateway_deduction_fees - taxiconnect_service_fees; //! VERY IMPORTANT - REMOVE DPO AND TAXICONNECT DEDUCTIONS
   //...
-  let dataBundle = {
-    user_fingerprint: user_fp,
-    initial_paid_amount: parseFloat(amount),
-    dpo_gateway_deduction_fees: dpo_gateway_deduction_fees,
-    taxiconnect_service_fees: taxiconnect_service_fees,
-    amount: Math.floor((amountRecomputed + Number.EPSILON) * 100) / 100,
-    payment_currency: payment_currency,
-    transaction_nature: "topup",
-    transactionToken: transactionToken,
-    transactionRef: transactionRef,
-    date_captured: new Date(chaineDateUTC),
-    timestamp: tmpDate.getTime(),
-  };
-  //...
-  collectionWalletTransactions_logs.insertOne(dataBundle, function (err, res) {
-    if (err) {
-      logger.info("error");
-      resolve(false);
-    }
-    resolve(true);
-  });
+
+  if (
+    /normal/i.test(trailingData.request_globality) ||
+    trailingData.request_globality === undefined
+  ) {
+    let dataBundle = {
+      user_fingerprint: user_fp,
+      initial_paid_amount: parseFloat(amount),
+      dpo_gateway_deduction_fees: dpo_gateway_deduction_fees,
+      taxiconnect_service_fees: taxiconnect_service_fees,
+      amount: Math.floor((amountRecomputed + Number.EPSILON) * 100) / 100,
+      payment_currency: payment_currency,
+      transaction_nature: "topup",
+      transactionToken: transactionToken,
+      transactionRef: transactionRef,
+      date_captured: new Date(chaineDateUTC),
+      timestamp: tmpDate.getTime(),
+    };
+    //...
+    collectionWalletTransactions_logs.insertOne(
+      dataBundle,
+      function (err, res) {
+        if (err) {
+          logger.info("error");
+          resolve(false);
+        }
+        resolve(true);
+      }
+    );
+  } //!Corporate globality
+  else {
+    const PLAN_CODES = {
+      Starter: "STR",
+      Intermediate: "ITMD",
+      Pro: "PR",
+      Personalised: "PRSNLD",
+    };
+    //...
+    let dataBundle = {
+      company_fp: user_fp,
+      plan_name: trailingData.plan_name,
+      plan_code: PLAN_CODES[trailingData.plan_name],
+      initial_paid_amount: parseFloat(amount),
+      dpo_gateway_deduction_fees: dpo_gateway_deduction_fees,
+      taxiconnect_service_fees: taxiconnect_service_fees,
+      amount: Math.floor((amountRecomputed + Number.EPSILON) * 100) / 100,
+      payment_currency: payment_currency,
+      transaction_nature: "topups-corporate",
+      transactionToken: transactionToken,
+      transaction_fp: transactionToken,
+      transactionRef: transactionRef,
+      date_captured: new Date(chaineDateUTC),
+      timestamp: tmpDate.getTime(),
+    };
+    //...
+    collectionWalletTransactions_logs.insertOne(
+      dataBundle,
+      function (err, res) {
+        if (err) {
+          logger.info("error");
+          resolve(false);
+        }
+        //!Update the the corporate profile with the new plan details
+        //! ONLY USE THE PLAN CODE
+        collectionDedicatedServices_accounts.updateOne(
+          { company_fp: user_fp },
+          {
+            $set: {
+              "plans.subscribed_plan": PLAN_CODES[trailingData.plan_name],
+              "plans.isPlan_active": true,
+            },
+          },
+          function (err, res) {
+            if (err) {
+              logger.info("error");
+              resolve(false);
+            }
+            resolve(true);
+          }
+        );
+      }
+    );
+  }
 }
 
 /**
@@ -471,9 +535,9 @@ function processExecute_paymentCardWallet_topup(
       dataBundle.number = String(dataBundle.number).replace(/ /g, "");
       dataBundle.expiry = String(dataBundle.expiry).replace("/", "");
       //DEBUG CARD -------------------------------------------------------------------------------
-      //dataBundle.number = "5436886269848367";
-      //dataBundle.expiry = "1222";
-      //dataBundle.cvv = "123";
+      dataBundle.number = "5436886269848367";
+      dataBundle.expiry = "1222";
+      dataBundle.cvv = "123";
       // -----------------------------------------------------------------------------------------
 
       //...
@@ -568,7 +632,8 @@ function processExecute_paymentCardWallet_topup(
                                     transRef,
                                     process.env.PAYMENT_CURRENCY,
                                     collectionWalletTransactions_logs,
-                                    res2
+                                    res2,
+                                    dataBundle
                                   );
                                 }).then(
                                   () => {},
@@ -1026,6 +1091,8 @@ function checkNonSelf_sendingFunds_user(
  * MAIN
  */
 
+var collectionDedicatedServices_accounts = null;
+
 requestAPI(
   /development/i.test(process.env.EVIRONMENT)
     ? `${process.env.AUTHENTICATOR_URL}get_API_CRED_DATA?environment=dev_local` //? Development localhost url
@@ -1072,6 +1139,9 @@ requestAPI(
           "rides_deliveries_requests"
         ); //Hold all the requests made (rides and deliveries)
         const collectionGlobalEvents = dbMongo.collection("global_events"); //Hold all the random events that happened somewhere.
+        collectionDedicatedServices_accounts = dbMongo.collection(
+          "dedicated_services_accounts"
+        ); //Hold all the accounts for dedicated servics like deliveries, etc.
         //-------------
         app
           .get("/", function (req, res) {
@@ -1107,8 +1177,8 @@ requestAPI(
             name: "Dominique", //? Optional
             type: "VISA",
           };*/
-          let params = urlParser.parse(req.url, true);
-          req = params.query;
+          // let params = urlParser.parse(req.url, true);
+          req = req.body;
           //? Make sure that the city and country are provided or - defaults them to Windhoek Namibia
           req.city =
             req.city !== undefined && req.city !== null && req.city !== false
@@ -1147,32 +1217,48 @@ requestAPI(
           ) {
             //?PASSED
             //Get user's details
-            collectionPassengers_profiles
-              .find({ user_fingerprint: dataBundle.user_fp })
-              .toArray(function (error, usersDetails) {
-                if (error) {
-                  logger.info(error);
-                  res.send({ response: false, message: "transaction_error" });
-                }
+            //! Use dynamic user finding based on the scope of the user (normal/corporate) [request_globality]
+            let dynamicRequesterFetcher =
+              /normal/i.test(dataBundle.request_globality) ||
+              dataBundle.request_globality === undefined
+                ? collectionPassengers_profiles.find({
+                    user_fingerprint: dataBundle.user_fp,
+                  })
+                : collectionDedicatedServices_accounts.find({
+                    company_fp: dataBundle.user_fp,
+                  });
+            //...
+            logger.warn(dataBundle);
+            dynamicRequesterFetcher.toArray(function (error, usersDetails) {
+              if (error) {
+                logger.info(error);
+                res.send({ response: false, message: "transaction_error" });
+              }
+              //...
+              let dynamicConds =
+                /normal/i.test(dataBundle.request_globality) ||
+                dataBundle.request_globality === undefined
+                  ? usersDetails.length > 0 &&
+                    usersDetails[0].user_fingerprint !== undefined &&
+                    usersDetails[0].user_fingerprint !== null
+                  : usersDetails.length > 0 &&
+                    usersDetails[0].company_fp !== undefined &&
+                    usersDetails[0].company_fp !== null;
+              //...
+              if (dynamicConds) {
+                //?Found some valid details
                 //...
+                //! LIMIT THE TRANSACTION AMOUNT TO N$1000 (N$50-N$1000)
                 if (
-                  usersDetails.length > 0 &&
-                  usersDetails[0].user_fingerprint !== undefined &&
-                  usersDetails[0].user_fingerprint !== null
+                  parseFloat(dataBundle.amount) >= 50 &&
+                  parseFloat(dataBundle.amount) <= 1000
                 ) {
-                  //?Found some valid details
-                  //...
-                  //! LIMIT THE TRANSACTION AMOUNT TO N$1000 (N$50-N$1000)
-                  if (
-                    parseFloat(dataBundle.amount) >= 50 &&
-                    parseFloat(dataBundle.amount) <= 1000
-                  ) {
-                    //? Remove _ from the name
-                    dataBundle.name = dataBundle.name.replace(/_/g, " ");
-                    //CREATE TOKEN
-                    new Promise((resolve) => {
-                      //? XML TOKEN responsible for creating a transaction token before any payment.
-                      let xmlCreateToken = `
+                  //? Remove _ from the name
+                  dataBundle.name = dataBundle.name.replace(/_/g, " ");
+                  //CREATE TOKEN
+                  new Promise((resolve) => {
+                    //? XML TOKEN responsible for creating a transaction token before any payment.
+                    let xmlCreateToken = `
                       <?xml version="1.0" encoding="utf-8"?>
                       <API3G>
                       <CompanyToken>${
@@ -1221,97 +1307,97 @@ requestAPI(
                       </API3G>
                       `;
 
-                      createPaymentTransaction(
-                        xmlCreateToken,
-                        dataBundle.user_fp,
-                        collectionWalletTransactions_logs,
-                        resolve
-                      );
-                    }).then(
-                      (reslt) => {
-                        //Deduct XML response
-                        new Promise((resolve) => {
-                          deductXML_responses(reslt, "createToken", resolve);
-                        }).then(
-                          (result_createTokenDeducted) => {
-                            if (result_createTokenDeducted !== false) {
-                              //? Continue the top-up process
-                              new Promise((resFollower) => {
-                                processExecute_paymentCardWallet_topup(
-                                  dataBundle,
-                                  result_createTokenDeducted,
-                                  collectionWalletTransactions_logs,
-                                  collectionPassengers_profiles,
-                                  collectionGlobalEvents,
-                                  resFollower
-                                );
-                              }).then(
-                                (result_final) => {
-                                  res.send(result_final); //!Remove dpoFinal object and remove object bracket form!
-                                },
-                                (error) => {
-                                  logger.info(error);
-                                  res.send({
-                                    response: false,
-                                    message: "transaction_error",
-                                  });
-                                }
-                              );
-                            } //Error
-                            else {
-                              res.send({
-                                response: false,
-                                message: "transaction_error",
-                              });
-                            }
-                          },
-                          (error) => {
-                            logger.info(error);
-                            res.send({
-                              response: false,
-                              message: "token_error",
-                            });
-                          }
-                        );
-                      },
-                      (error) => {
-                        logger.info(error);
-                        res.send({ response: false, message: "token_error" });
-                      }
-                    );
-                  } //! AMOUNT TOO LARGE - DECLINE
-                  else {
-                    res.send({
-                      response: false,
-                      message: "transaction_error_exceeded_limit",
-                    });
-                  }
-                } //?Strange - did not find a rider account linked to this request
-                else {
-                  logger.info("Not found users");
-                  //Save error event log
-                  new Promise((resFailedTransaction) => {
-                    let faildTransObj = {
-                      event_name: "unlinked_rider_account_topup_failed_trial",
-                      user_fingerprint: dataBundle.user_fp,
-                      inputData: dataBundle,
-                      date_captured: new Date(chaineDateUTC),
-                    };
-                    //...
-                    collectionGlobalEvents.insertOne(
-                      faildTransObj,
-                      function (err, reslt) {
-                        resFailedTransaction(true);
-                      }
+                    createPaymentTransaction(
+                      xmlCreateToken,
+                      dataBundle.user_fp,
+                      collectionWalletTransactions_logs,
+                      resolve
                     );
                   }).then(
-                    () => {},
-                    () => {}
+                    (reslt) => {
+                      //Deduct XML response
+                      new Promise((resolve) => {
+                        deductXML_responses(reslt, "createToken", resolve);
+                      }).then(
+                        (result_createTokenDeducted) => {
+                          if (result_createTokenDeducted !== false) {
+                            //? Continue the top-up process
+                            new Promise((resFollower) => {
+                              processExecute_paymentCardWallet_topup(
+                                dataBundle,
+                                result_createTokenDeducted,
+                                collectionWalletTransactions_logs,
+                                collectionPassengers_profiles,
+                                collectionGlobalEvents,
+                                resFollower
+                              );
+                            }).then(
+                              (result_final) => {
+                                res.send(result_final); //!Remove dpoFinal object and remove object bracket form!
+                              },
+                              (error) => {
+                                logger.info(error);
+                                res.send({
+                                  response: false,
+                                  message: "transaction_error",
+                                });
+                              }
+                            );
+                          } //Error
+                          else {
+                            res.send({
+                              response: false,
+                              message: "transaction_error",
+                            });
+                          }
+                        },
+                        (error) => {
+                          logger.info(error);
+                          res.send({
+                            response: false,
+                            message: "token_error",
+                          });
+                        }
+                      );
+                    },
+                    (error) => {
+                      logger.info(error);
+                      res.send({ response: false, message: "token_error" });
+                    }
                   );
-                  //...
-                  res.send({ response: false, message: "transaction_error" });
+                } //! AMOUNT TOO LARGE - DECLINE
+                else {
+                  res.send({
+                    response: false,
+                    message: "transaction_error_exceeded_limit",
+                  });
                 }
-              });
+              } //?Strange - did not find a rider account linked to this request
+              else {
+                logger.info("Not found users");
+                //Save error event log
+                new Promise((resFailedTransaction) => {
+                  let faildTransObj = {
+                    event_name: "unlinked_rider_account_topup_failed_trial",
+                    user_fingerprint: dataBundle.user_fp,
+                    inputData: dataBundle,
+                    date_captured: new Date(chaineDateUTC),
+                  };
+                  //...
+                  collectionGlobalEvents.insertOne(
+                    faildTransObj,
+                    function (err, reslt) {
+                      resFailedTransaction(true);
+                    }
+                  );
+                }).then(
+                  () => {},
+                  () => {}
+                );
+                //...
+                res.send({ response: false, message: "transaction_error" });
+              }
+            });
           } //Invalid input data
           else {
             res.send({

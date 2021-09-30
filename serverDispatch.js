@@ -2,6 +2,7 @@ require("dotenv").config();
 //require("newrelic");
 var express = require("express");
 const http = require("http");
+const https = require("https");
 const fs = require("fs");
 const MongoClient = require("mongodb").MongoClient;
 const certFile = fs.readFileSync("./rds-combined-ca-bundle.pem");
@@ -66,45 +67,71 @@ function resolveDate() {
 }
 resolveDate();
 
+var AWS_SMS = require("aws-sdk");
 function SendSMSTo(phone_number, message) {
-  let username = "taxiconnect";
-  let password = "Taxiconnect*1";
+  if (phone_number !== false && phone_number !== "false") {
+    // Load the AWS SDK for Node.js
+    // Set region
+    AWS_SMS.config.update({ region: "us-east-1" });
 
-  let postData = JSON.stringify({
-    to: phone_number,
-    body: message,
-  });
+    // Create publish parameters
+    var params = {
+      Message: message /* required */,
+      PhoneNumber: phone_number,
+    };
 
-  let options = {
-    hostname: "api.bulksms.com",
-    port: 443,
-    path: "/v1/messages",
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Content-Length": postData.length,
-      Authorization:
-        "Basic " + Buffer.from(username + ":" + password).toString("base64"),
-    },
-  };
+    // Create promise and SNS service object
+    var publishTextPromise = new AWS_SMS.SNS({ apiVersion: "2010-03-31" })
+      .publish(params)
+      .promise();
 
-  let req = https.request(options, (resp) => {
-    //logger.info("statusCode:", resp.statusCode);
-    let data = "";
-    resp.on("data", (chunk) => {
-      data += chunk;
-    });
-    resp.on("end", () => {
-      //logger.info("Response:", data);
-    });
-  });
+    // Handle promise's fulfilled/rejected states
+    publishTextPromise
+      .then(function (data) {
+        logger.info("MessageID is " + data.MessageId);
+      })
+      .catch(function (err) {
+        console.error(err, err.stack);
+      });
+  }
+  // let username = "taxiconnect";
+  // let password = "Taxiconnect*1";
 
-  req.on("error", (e) => {
-    //console.error(e);
-  });
+  // let postData = JSON.stringify({
+  //   to: phone_number,
+  //   body: message,
+  // });
 
-  req.write(postData);
-  req.end();
+  // let options = {
+  //   hostname: "api.bulksms.com",
+  //   port: 443,
+  //   path: "/v1/messages",
+  //   method: "POST",
+  //   headers: {
+  //     "Content-Type": "application/json",
+  //     "Content-Length": postData.length,
+  //     Authorization:
+  //       "Basic " + Buffer.from(username + ":" + password).toString("base64"),
+  //   },
+  // };
+
+  // let req = https.request(options, (resp) => {
+  //   logger.info("statusCode:", resp.statusCode);
+  //   let data = "";
+  //   resp.on("data", (chunk) => {
+  //     data += chunk;
+  //   });
+  //   resp.on("end", () => {
+  //     logger.info("Response:", data);
+  //   });
+  // });
+
+  // req.on("error", (e) => {
+  //   logger.warn(e);
+  // });
+
+  // req.write(postData);
+  // req.end();
 }
 
 /**
@@ -183,7 +210,7 @@ function generateUniqueFingerprint(str, encryption = false, resolve) {
 function parseRequestData(inputData, resolve) {
   resolveDate();
   //logger.info("INITIAL RECEIVED REQUEST");
-  logger.info("REQUEST DATA -> ", inputData);
+  // logger.info("REQUEST DATA -> ", inputData);
   //! CHECK FOR A POTENTIAL CACHED VALUE FOR recoveredd data (from mysql)
   redisGet(
     `${
@@ -193,6 +220,7 @@ function parseRequestData(inputData, resolve) {
     }-recoveredData`
   ).then((resp) => {
     if (resp !== null) {
+      logger.info("Found some cached data");
       //Has a cached value
       resolve(parse(resp));
     } //GO FRESH
@@ -212,6 +240,12 @@ function parseRequestData(inputData, resolve) {
         //Complete unnested data
         //? Add the dispatch strategy used
         parsedData.dispatch_strategy = process.env.RIDES_DISPATCH_STRATEGY;
+        //? Add the request globality - normal (default) or corporate
+        parsedData.request_globality =
+          inputData.request_globality !== undefined &&
+          inputData.request_globality !== null
+            ? inputData.request_globality
+            : "normal";
         //...
         parsedData.client_id = inputData.user_fingerprint;
         parsedData.request_fp = dateObject.unix();
@@ -632,8 +666,20 @@ function parseRequestData(inputData, resolve) {
                                       ? inputData.destinationData
                                           .passenger1Destination.street
                                       : false,
-                                  suburb: passenger1Data.suburb,
-                                  state: passenger1Data.state,
+                                  receiver_infos:
+                                    /normal/i.test(
+                                      inputData.request_globality
+                                    ) ||
+                                    inputData.request_globality === undefined
+                                      ? null
+                                      : inputData.destinationData
+                                          .passenger1Destination.receiver_infos,
+                                  suburb:
+                                    inputData.destinationData
+                                      .passenger1Destination.suburb,
+                                  state:
+                                    inputData.destinationData
+                                      .passenger1Destination.state,
                                   city: inputData.pickupData.city,
                                 });
                               });
@@ -664,6 +710,13 @@ function parseRequestData(inputData, resolve) {
                                     passenger1Data.street !== false
                                       ? passenger1Data.street
                                       : false,
+                                  receiver_infos:
+                                    /normal/i.test(
+                                      inputData.request_globality
+                                    ) ||
+                                    inputData.request_globality === undefined
+                                      ? null
+                                      : passenger1Data.receiver_infos,
                                   suburb: passenger1Data.suburb,
                                   state: passenger1Data.state,
                                   city: inputData.pickupData.city,
@@ -690,6 +743,13 @@ function parseRequestData(inputData, resolve) {
                                     passenger2Data.street !== false
                                       ? passenger2Data.street
                                       : false,
+                                  receiver_infos:
+                                    /normal/i.test(
+                                      inputData.request_globality
+                                    ) ||
+                                    inputData.request_globality === undefined
+                                      ? null
+                                      : passenger2Data.receiver_infos,
                                   suburb: passenger2Data.suburb,
                                   state: passenger2Data.state,
                                   city: inputData.pickupData.city,
@@ -719,6 +779,13 @@ function parseRequestData(inputData, resolve) {
                                     passenger1Data.street !== false
                                       ? passenger1Data.street
                                       : false,
+                                  receiver_infos:
+                                    /normal/i.test(
+                                      inputData.request_globality
+                                    ) ||
+                                    inputData.request_globality === undefined
+                                      ? null
+                                      : passenger1Data.receiver_infos,
                                   suburb: passenger1Data.suburb,
                                   state: passenger1Data.state,
                                   city: inputData.pickupData.city,
@@ -745,6 +812,13 @@ function parseRequestData(inputData, resolve) {
                                     passenger2Data.street !== false
                                       ? passenger2Data.street
                                       : false,
+                                  receiver_infos:
+                                    /normal/i.test(
+                                      inputData.request_globality
+                                    ) ||
+                                    inputData.request_globality === undefined
+                                      ? null
+                                      : passenger2Data.receiver_infos,
                                   suburb: passenger2Data.suburb,
                                   state: passenger2Data.state,
                                   city: inputData.pickupData.city,
@@ -771,6 +845,13 @@ function parseRequestData(inputData, resolve) {
                                     passenger3Data.street !== false
                                       ? passenger3Data.street
                                       : false,
+                                  receiver_infos:
+                                    /normal/i.test(
+                                      inputData.request_globality
+                                    ) ||
+                                    inputData.request_globality === undefined
+                                      ? null
+                                      : passenger3Data.receiver_infos,
                                   suburb: passenger3Data.suburb,
                                   state: passenger3Data.state,
                                   city: inputData.pickupData.city,
@@ -800,6 +881,13 @@ function parseRequestData(inputData, resolve) {
                                     passenger1Data.street !== false
                                       ? passenger1Data.street
                                       : false,
+                                  receiver_infos:
+                                    /normal/i.test(
+                                      inputData.request_globality
+                                    ) ||
+                                    inputData.request_globality === undefined
+                                      ? null
+                                      : passenger1Data.receiver_infos,
                                   suburb: passenger1Data.suburb,
                                   state: passenger1Data.state,
                                   city: inputData.pickupData.city,
@@ -826,6 +914,13 @@ function parseRequestData(inputData, resolve) {
                                     passenger2Data.street !== false
                                       ? passenger2Data.street
                                       : false,
+                                  receiver_infos:
+                                    /normal/i.test(
+                                      inputData.request_globality
+                                    ) ||
+                                    inputData.request_globality === undefined
+                                      ? null
+                                      : passenger2Data.receiver_infos,
                                   suburb: passenger2Data.suburb,
                                   state: passenger2Data.state,
                                   city: inputData.pickupData.city,
@@ -852,6 +947,13 @@ function parseRequestData(inputData, resolve) {
                                     passenger3Data.street !== false
                                       ? passenger3Data.street
                                       : false,
+                                  receiver_infos:
+                                    /normal/i.test(
+                                      inputData.request_globality
+                                    ) ||
+                                    inputData.request_globality === undefined
+                                      ? null
+                                      : passenger3Data.receiver_infos,
                                   suburb: passenger3Data.suburb,
                                   state: passenger3Data.state,
                                   city: inputData.pickupData.city,
@@ -878,6 +980,13 @@ function parseRequestData(inputData, resolve) {
                                     passenger4Data.street !== false
                                       ? passenger4Data.street
                                       : false,
+                                  receiver_infos:
+                                    /normal/i.test(
+                                      inputData.request_globality
+                                    ) ||
+                                    inputData.request_globality === undefined
+                                      ? null
+                                      : passenger4Data.receiver_infos,
                                   suburb: passenger4Data.suburb,
                                   state: passenger4Data.state,
                                   city: inputData.pickupData.city,
@@ -915,6 +1024,12 @@ function parseRequestData(inputData, resolve) {
                                   ? inputData.destinationData
                                       .passenger1Destination.street
                                   : false,
+                              receiver_infos:
+                                /normal/i.test(inputData.request_globality) ||
+                                inputData.request_globality === undefined
+                                  ? null
+                                  : inputData.destinationData
+                                      .passenger1Destination.receiver_infos,
                               suburb:
                                 inputData.destinationData.passenger1Destination
                                   .suburb,
@@ -935,9 +1050,11 @@ function parseRequestData(inputData, resolve) {
                                     destination.suburb === undefined ||
                                     destination.suburb === null ||
                                     destination.suburb === false ||
+                                    destination.suburb === "false" ||
                                     destination.state === undefined ||
                                     destination.state === null ||
-                                    destination.state === false
+                                    destination.state === false ||
+                                    destination.state === "false"
                                   ) {
                                     //Found some invalid input data
                                     logger.warn(
@@ -1038,6 +1155,7 @@ function parseRequestData(inputData, resolve) {
           });
       } //Invalid data
       else {
+        logger.warn("Invalid data detected!");
         resolve(false);
       }
     }
@@ -3674,6 +3792,9 @@ redisCluster.on("connect", function () {
           const collectionWalletTransactions_logs = dbMongo.collection(
             "wallet_transactions_logs"
           ); //Hold the latest information about the riders topups
+          const collectionDedicatedServices_accounts = dbMongo.collection(
+            "dedicated_services_accounts"
+          ); //Hold all the accounts for dedicated servics like deliveries, etc.
           //-------------
           app
             .get("/", function (req, res) {
@@ -4122,10 +4243,19 @@ redisCluster.on("connect", function () {
               collectionRidesDeliveryData
                 .find(checkPrevRequest)
                 .toArray(function (err, prevRequest) {
+                  //! Set a dynamic limit to the number of simulataneaous requests
+                  //? normal :0
+                  //? corporate: 5
+                  let simulataneaousRequestsLimit = /normal/i.test(
+                    req.request_globality
+                  )
+                    ? 0
+                    : 0;
+                  //! ----
                   if (
                     prevRequest === undefined ||
                     prevRequest === null ||
-                    prevRequest.length <= 0 ||
+                    prevRequest.length <= simulataneaousRequestsLimit ||
                     prevRequest[0] === undefined
                   ) {
                     //No previous pending request - MAKE REQUEST VALID
@@ -4140,26 +4270,47 @@ redisCluster.on("connect", function () {
                           //! IF WALLET SELECTED - CHECK THE BALANCE, it should be >= to the trip fare, else ERROR_UNSIFFICIENT_FUNDS
                           if (/wallet/i.test(result.payment_method)) {
                             //? WALLET PAYMENT METHOD
-                            let url = `
+                            let url = /normal/i.test(
+                              parsedRequest.request_globality
+                            )
+                              ? `
                       ${
                         /production/i.test(process.env.EVIRONMENT)
                           ? `http://${process.env.INSTANCE_PRIVATE_IP}`
                           : process.env.LOCAL_URL
                       }:${
-                              process.env.ACCOUNTS_SERVICE_PORT
-                            }/getRiders_walletInfos?user_fingerprint=${
-                              req.user_fingerprint
-                            }&mode=total&avoidCached_data=true
+                                  process.env.ACCOUNTS_SERVICE_PORT
+                                }/getRiders_walletInfos?user_fingerprint=${
+                                  req.user_fingerprint
+                                }&mode=total&avoidCached_data=true
+                      `
+                              : `
+                      ${
+                        /production/i.test(process.env.EVIRONMENT)
+                          ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+                          : process.env.LOCAL_URL
+                      }:${
+                                  process.env.ACCOUNTS_SERVICE_PORT
+                                }/getWalletSummaryForCorps?company_fp=${
+                                  req.user_fingerprint
+                                }&avoidCache=true
                       `;
+                            //!----
                             requestAPI(url, function (error, response, body) {
+                              logger.info(body);
+                              logger.error(error);
                               if (error === null) {
                                 try {
                                   body = JSON.parse(body);
+                                  body["total"] =
+                                    body.total !== undefined &&
+                                    body.total !== null
+                                      ? body.total
+                                      : body.balance; //Balance for the corporate accounts and total for the normal accounts.
+                                  //...
                                   if (body.total !== undefined) {
-                                    /*logger.info(
-                                    parseFloat(result.fare),
-                                    parseFloat(body.total)
-                                  );*/
+                                    logger.info(body);
+
                                     if (
                                       parseFloat(result.fare) <=
                                       parseFloat(body.total)
@@ -4188,6 +4339,82 @@ redisCluster.on("connect", function () {
                                                 parsedRequest.ride_mode
                                               )
                                             ) {
+                                              //! Send SMS just for corporate globality
+                                              if (
+                                                parsedRequest.request_globality !==
+                                                  undefined &&
+                                                /corporate/i.test(
+                                                  parsedRequest.request_globality
+                                                )
+                                              ) {
+                                                new Promise((resSub) => {
+                                                  collectionDedicatedServices_accounts
+                                                    .find({
+                                                      company_fp:
+                                                        parsedRequest.client_id,
+                                                    })
+                                                    .toArray(function (
+                                                      err,
+                                                      companyData
+                                                    ) {
+                                                      if (err) {
+                                                        logger.error(err);
+                                                        resSub(false);
+                                                      }
+                                                      //...
+                                                      if (
+                                                        companyData !==
+                                                          undefined &&
+                                                        companyData.length > 0
+                                                      ) {
+                                                        companyData =
+                                                          companyData[0];
+                                                        //Valid company
+                                                        parsedRequest.destinationData.map(
+                                                          (destination) => {
+                                                            if (
+                                                              destination
+                                                                .receiver_infos
+                                                                .receiver_name !==
+                                                                false &&
+                                                              destination
+                                                                .receiver_infos
+                                                                .receiver_name !==
+                                                                undefined &&
+                                                              destination
+                                                                .receiver_infos
+                                                                .receiver_phone !==
+                                                                false &&
+                                                              destination
+                                                                .receiver_infos
+                                                                .receiver_phone !==
+                                                                undefined
+                                                            ) {
+                                                              logger.error(
+                                                                destination
+                                                              );
+                                                              SendSMSTo(
+                                                                destination.receiver_infos.receiver_phone.replace(
+                                                                  "+",
+                                                                  ""
+                                                                ),
+                                                                `Hi ${destination.receiver_infos.receiver_name}, you have a new package delivered from ${companyData.company_name}. You can track it using the TaxiConnect app. Thanks.`
+                                                              );
+                                                            }
+                                                          }
+                                                        );
+                                                        //...
+                                                        resSub(true);
+                                                      } //Unknown company?
+                                                      else {
+                                                        resSub(false);
+                                                      }
+                                                    });
+                                                })
+                                                  .then()
+                                                  .catch();
+                                              }
+
                                               //Delivery
                                               new Promise(
                                                 (resNotifyReceiver) => {

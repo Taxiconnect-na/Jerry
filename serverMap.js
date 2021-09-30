@@ -1062,15 +1062,88 @@ function execTripChecker_Dispatcher(
           throw err;
         }
         if (userDataRepr.length <= 0) {
-          //Get the rider's inos
-          //! SAVE THE FINAL FULL RESULT - for 15 min ------
-          redisCluster.setex(
-            RIDE_REDIS_KEY,
-            parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
-            JSON.stringify(false)
-          );
-          //! ----------------------------------------------
-          resolve(false);
+          //Get the user's data First
+          collectionPassengers_profiles
+            .find({
+              user_fingerprint: user_fingerprint,
+            })
+            .toArray(function (err, riderData) {
+              if (err) {
+                logger.error(err);
+                //! SAVE THE FINAL FULL RESULT - for 15 min ------
+                redisCluster.setex(
+                  RIDE_REDIS_KEY,
+                  parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
+                  JSON.stringify(false)
+                );
+                resolve(false);
+                //! ----------------------------------------------
+              }
+              //...
+              if (riderData !== undefined && riderData.length > 0) {
+                //Valid rider
+                //!Check for the deliveries
+                let deliveryChecker = {
+                  "destinationData.receiver_infos.receiver_phone":
+                    riderData[0].phone_number,
+                  "ride_state_vars.isRideCompleted_riderSide": false,
+                };
+                collectionRidesDeliveries_data
+                  .find(deliveryChecker)
+                  .toArray(function (err, userDataRepr) {
+                    if (err) {
+                      resolve(false);
+                      throw err;
+                    }
+                    //...
+                    if (userDataRepr.length <= 0) {
+                      redisCluster.setex(
+                        RIDE_REDIS_KEY,
+                        parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
+                        JSON.stringify(false)
+                      );
+                      resolve(false);
+                    } else {
+                      if (
+                        userDataRepr[0].ride_state_vars
+                          .isRideCompleted_riderSide === false
+                      ) {
+                        //REQUEST FP
+                        let request_fp = userDataRepr[0].request_fp;
+                        //Check if there are any requests cached
+                        getMongoRecordTrip_cacheLater(
+                          collectionRidesDeliveries_data,
+                          collectionDrivers_profiles,
+                          userDataRepr[0].client_id,
+                          user_nature,
+                          request_fp,
+                          RIDE_REDIS_KEY,
+                          resolve
+                        );
+                      } //No rides recorded
+                      else {
+                        //! SAVE THE FINAL FULL RESULT - for 15 min ------
+                        redisCluster.setex(
+                          RIDE_REDIS_KEY,
+                          parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
+                          JSON.stringify("no_rides")
+                        );
+                        //! ----------------------------------------------
+                        resolve("no_rides");
+                      }
+                    }
+                  });
+                resolve(false);
+              } else {
+                //Invalid user
+                redisCluster.setex(
+                  RIDE_REDIS_KEY,
+                  parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
+                  JSON.stringify(false)
+                );
+                resolve(false);
+              }
+            });
         } //Found a user record
         else {
           //...
@@ -1925,228 +1998,205 @@ function execDriver_requests_parsing(
   };
   //...
   //Start the individual parsing
+  //? Request dynamically based on the request globality - normal or corporate
+  let isNormalrequestScope =
+    /normal/i.test(request.request_globality) ||
+    request.request_globality === undefined;
+  //...
+  let dynamicRequesterFetcher = isNormalrequestScope
+    ? collectionPassengers_profiles.find({
+        user_fingerprint: request.client_id,
+      })
+    : collectionDedicatedServices_accounts.find({
+        company_fp: request.client_id,
+      });
   //1. Add the passenger infos
-  collectionPassengers_profiles
-    .find({ user_fingerprint: request.client_id })
-    //!.collation({ locale: "en", strength: 2 })
-    .toArray(function (err, passengerData) {
-      if (err) {
-        //logger.info(err);
-        res(false);
-      }
+  dynamicRequesterFetcher.toArray(function (err, passengerData) {
+    if (err) {
+      //logger.info(err);
+      res(false);
+    }
 
-      if (passengerData !== undefined && passengerData.length > 0) {
-        //Found some data
-        //...
-        passengerData = passengerData[0];
-        //...
-        parsedRequestsArray.passenger_infos.name = request.ride_state_vars
-          .isAccepted
+    if (passengerData !== undefined && passengerData.length > 0) {
+      //Found some data
+      //...
+      passengerData = passengerData[0];
+      //...
+      parsedRequestsArray.passenger_infos.name = request.ride_state_vars
+        .isAccepted
+        ? isNormalrequestScope
           ? passengerData.name
-          : null;
-        parsedRequestsArray.passenger_infos.phone_number = request
-          .ride_state_vars.isAccepted
+          : passengerData.company_name
+        : null;
+      parsedRequestsArray.passenger_infos.phone_number = request.ride_state_vars
+        .isAccepted
+        ? isNormalrequestScope
           ? passengerData.phone_number
-          : null;
-        //2. Add the basic trip infos
-        parsedRequestsArray.ride_basic_infos.payment_method =
-          request.payment_method;
-        parsedRequestsArray.ride_basic_infos.wished_pickup_time =
-          request.wished_pickup_time;
-        //? Check if Today or Tomorrow Only for scheduled requests
-        if (/scheduled/i.test(request.request_type)) {
-          //Scheduled request
-          parsedRequestsArray.ride_basic_infos.date_state_wishedPickup_time =
-            new Date(request.wished_pickup_time).getDate() ===
-            new Date(chaineDateUTC).getDate()
-              ? "Today"
-              : new Date(request.wished_pickup_time).getDate() >
-                new Date(chaineDateUTC).getDate()
-              ? "Tomorrow"
-              : "Yesterday";
-        } //Immediate request
-        else {
-          parsedRequestsArray.ride_basic_infos.date_state_wishedPickup_time =
-            null;
-        }
-        //?---
-        parsedRequestsArray.ride_basic_infos.fare_amount = parseFloat(
-          request.fare
-        );
-        parsedRequestsArray.ride_basic_infos.passengers_number = parseInt(
-          request.passengers_number
-        );
-        parsedRequestsArray.ride_basic_infos.request_type =
-          request.request_type;
-        parsedRequestsArray.ride_basic_infos.ride_mode = request.ride_mode;
-        parsedRequestsArray.ride_basic_infos.connect_type =
-          request.connect_type;
-        parsedRequestsArray.ride_basic_infos.isAccepted =
-          request.ride_state_vars.isAccepted;
-        parsedRequestsArray.ride_basic_infos.inRideToDestination =
-          request.ride_state_vars.inRideToDestination;
-        parsedRequestsArray.ride_basic_infos.isRideCompleted_driverSide =
-          request.ride_state_vars.isRideCompleted_driverSide;
-        //...
-        parsedRequestsArray.ride_basic_infos.rider_infos = request.rider_infos;
-        parsedRequestsArray.ride_basic_infos.pickup_note =
-          /false/i.test(request.pickup_location_infos.pickup_note) ||
-          request.pickup_location_infos.pickup_note === "false" ||
-          request.pickup_location_infos.pickup_note === false
-            ? null
-            : request.pickup_location_infos.pickup_note;
-        //...
-        parsedRequestsArray.ride_basic_infos.receiver_infos =
-          request.delivery_infos;
-        //3. Compute the ETA to passenger
-        new Promise((res0) => {
-          getRouteInfosDestination(
-            {
-              destination: {
-                latitude: parseFloat(
-                  driverData.operational_state.last_location.coordinates
-                    .latitude
-                ),
-                longitude: parseFloat(
-                  driverData.operational_state.last_location.coordinates
-                    .longitude
-                ),
-              },
-              passenger: {
-                latitude: parseFloat(
-                  request.pickup_location_infos.coordinates.latitude
-                ),
-                longitude: parseFloat(
-                  request.pickup_location_infos.coordinates.longitude
-                ),
-              },
+          : passengerData.phone
+        : null;
+      //2. Add the basic trip infos
+      parsedRequestsArray.ride_basic_infos.payment_method =
+        request.payment_method;
+      parsedRequestsArray.ride_basic_infos.wished_pickup_time =
+        request.wished_pickup_time;
+      //? Check if Today or Tomorrow Only for scheduled requests
+      if (/scheduled/i.test(request.request_type)) {
+        //Scheduled request
+        parsedRequestsArray.ride_basic_infos.date_state_wishedPickup_time =
+          new Date(request.wished_pickup_time).getDate() ===
+          new Date(chaineDateUTC).getDate()
+            ? "Today"
+            : new Date(request.wished_pickup_time).getDate() >
+              new Date(chaineDateUTC).getDate()
+            ? "Tomorrow"
+            : "Yesterday";
+      } //Immediate request
+      else {
+        parsedRequestsArray.ride_basic_infos.date_state_wishedPickup_time =
+          null;
+      }
+      //?---
+      parsedRequestsArray.ride_basic_infos.fare_amount = parseFloat(
+        request.fare
+      );
+      parsedRequestsArray.ride_basic_infos.passengers_number = parseInt(
+        request.passengers_number
+      );
+      parsedRequestsArray.ride_basic_infos.request_type = request.request_type;
+      parsedRequestsArray.ride_basic_infos.ride_mode = request.ride_mode;
+      parsedRequestsArray.ride_basic_infos.connect_type = request.connect_type;
+      parsedRequestsArray.ride_basic_infos.isAccepted =
+        request.ride_state_vars.isAccepted;
+      parsedRequestsArray.ride_basic_infos.inRideToDestination =
+        request.ride_state_vars.inRideToDestination;
+      parsedRequestsArray.ride_basic_infos.isRideCompleted_driverSide =
+        request.ride_state_vars.isRideCompleted_driverSide;
+      //...
+      parsedRequestsArray.ride_basic_infos.rider_infos = request.rider_infos;
+      parsedRequestsArray.ride_basic_infos.pickup_note =
+        /false/i.test(request.pickup_location_infos.pickup_note) ||
+        request.pickup_location_infos.pickup_note === "false" ||
+        request.pickup_location_infos.pickup_note === false
+          ? null
+          : request.pickup_location_infos.pickup_note;
+      //...
+      parsedRequestsArray.ride_basic_infos.receiver_infos =
+        request.delivery_infos;
+      //3. Compute the ETA to passenger
+      new Promise((res0) => {
+        getRouteInfosDestination(
+          {
+            destination: {
+              latitude: parseFloat(
+                driverData.operational_state.last_location.coordinates.latitude
+              ),
+              longitude: parseFloat(
+                driverData.operational_state.last_location.coordinates.longitude
+              ),
             },
-            res0,
-            true,
-            request.request_fp + "-cached-etaToPassenger-requests"
-          );
-        })
-          .then(
-            (resultEtaToPassenger) => {
-              //Save the eta and distancee
-              parsedRequestsArray.eta_to_passenger_infos.eta =
-                resultEtaToPassenger !== false
-                  ? resultEtaToPassenger.eta
-                  : "Awaiting";
-              parsedRequestsArray.eta_to_passenger_infos.distance =
-                resultEtaToPassenger !== false
-                  ? resultEtaToPassenger.distance
-                  : "Awaiting";
-              //4. Add the destination informations
-              parsedRequestsArray.origin_destination_infos.pickup_infos.location_name =
-                request.pickup_location_infos.location_name !== undefined &&
-                request.pickup_location_infos.location_name !== false
-                  ? request.pickup_location_infos.location_name
-                  : request.pickup_location_infos.street_name;
-              parsedRequestsArray.origin_destination_infos.pickup_infos.street_name =
-                request.pickup_location_infos.street_name;
-              parsedRequestsArray.origin_destination_infos.pickup_infos.suburb =
-                request.pickup_location_infos.suburb;
-              parsedRequestsArray.origin_destination_infos.pickup_infos.coordinates =
-                request.pickup_location_infos.coordinates;
+            passenger: {
+              latitude: parseFloat(
+                request.pickup_location_infos.coordinates.latitude
+              ),
+              longitude: parseFloat(
+                request.pickup_location_infos.coordinates.longitude
+              ),
+            },
+          },
+          res0,
+          true,
+          request.request_fp + "-cached-etaToPassenger-requests"
+        );
+      })
+        .then(
+          (resultEtaToPassenger) => {
+            //Save the eta and distancee
+            parsedRequestsArray.eta_to_passenger_infos.eta =
+              resultEtaToPassenger !== false
+                ? resultEtaToPassenger.eta
+                : "Awaiting";
+            parsedRequestsArray.eta_to_passenger_infos.distance =
+              resultEtaToPassenger !== false
+                ? resultEtaToPassenger.distance
+                : "Awaiting";
+            //4. Add the destination informations
+            parsedRequestsArray.origin_destination_infos.pickup_infos.location_name =
+              request.pickup_location_infos.location_name !== undefined &&
+              request.pickup_location_infos.location_name !== false
+                ? request.pickup_location_infos.location_name
+                : request.pickup_location_infos.street_name;
+            parsedRequestsArray.origin_destination_infos.pickup_infos.street_name =
+              request.pickup_location_infos.street_name;
+            parsedRequestsArray.origin_destination_infos.pickup_infos.suburb =
+              request.pickup_location_infos.suburb;
+            parsedRequestsArray.origin_destination_infos.pickup_infos.coordinates =
+              request.pickup_location_infos.coordinates;
 
-              //ADD THE REQUEST TYPE
-              parsedRequestsArray.request_type = /(now|immediate)/i.test(
-                request.request_type
-              )
-                ? request.ride_mode
-                : "scheduled";
+            //ADD THE REQUEST TYPE
+            parsedRequestsArray.request_type = /(now|immediate)/i.test(
+              request.request_type
+            )
+              ? request.ride_mode
+              : "scheduled";
 
-              //Compute the ETA to destination details
-              new Promise((res1) => {
-                getRouteInfosDestination(
-                  {
-                    destination: {
-                      latitude: parseFloat(
-                        request.destinationData[0].coordinates.longitude
-                      ),
-                      longitude: parseFloat(
-                        request.destinationData[0].coordinates.latitude
-                      ),
-                    },
-                    passenger: {
-                      latitude: parseFloat(
-                        request.pickup_location_infos.coordinates.latitude
-                      ),
-                      longitude: parseFloat(
-                        request.pickup_location_infos.coordinates.longitude
-                      ),
-                    },
+            //Compute the ETA to destination details
+            new Promise((res1) => {
+              getRouteInfosDestination(
+                {
+                  destination: {
+                    latitude: parseFloat(
+                      request.destinationData[0].coordinates.longitude
+                    ),
+                    longitude: parseFloat(
+                      request.destinationData[0].coordinates.latitude
+                    ),
                   },
-                  res1,
-                  true,
-                  request.request_fp + "-cached-etaToDestination-requests"
-                );
-              })
-                .then(
-                  (resultETAToDestination) => {
-                    if (resultETAToDestination !== false) {
-                      //Save the ETA to destination data
-                      parsedRequestsArray.origin_destination_infos.eta_to_destination_infos.eta =
-                        resultETAToDestination.eta;
-                      parsedRequestsArray.origin_destination_infos.eta_to_destination_infos.distance =
-                        resultETAToDestination.distance;
-                      //4. Save the destination data
-                      parsedRequestsArray.origin_destination_infos.destination_infos =
-                        request.destinationData;
-                      //Add the request fingerprint
-                      parsedRequestsArray.request_fp = request.request_fp;
-                      //DONE
-                      //CACHE
-                      new Promise((resCache) => {
-                        redisCluster.setex(
-                          redisKey,
-                          process.env.REDIS_EXPIRATION_5MIN,
-                          JSON.stringify(parsedRequestsArray)
-                        );
-                        resCache(true);
-                      }).then(
-                        () => {
-                          //logger.info("Single processing cached!");
-                        },
-                        () => {}
-                      );
-                      //Return the answer
-                      res(parsedRequestsArray);
-                    } //! Error - Salvage anyway
-                    else {
-                      //Save the ETA to destination data
-                      parsedRequestsArray.origin_destination_infos.eta_to_destination_infos.eta =
-                        "Awaiting";
-                      parsedRequestsArray.origin_destination_infos.eta_to_destination_infos.distance =
-                        "Awaiting";
-                      //4. Save the destination data
-                      parsedRequestsArray.origin_destination_infos.destination_infos =
-                        request.destinationData;
-                      //Add the request fingerprint
-                      parsedRequestsArray.request_fp = request.request_fp;
-                      //DONE
-                      //CACHE
-                      new Promise((resCache) => {
-                        redisCluster.setex(
-                          redisKey,
-                          process.env.REDIS_EXPIRATION_5MIN,
-                          JSON.stringify(parsedRequestsArray)
-                        );
-                        resCache(true);
-                      }).then(
-                        () => {
-                          //logger.info("Single processing cached!");
-                        },
-                        () => {}
-                      );
-                      //Return the answer
-                      res(parsedRequestsArray);
-                    }
+                  passenger: {
+                    latitude: parseFloat(
+                      request.pickup_location_infos.coordinates.latitude
+                    ),
+                    longitude: parseFloat(
+                      request.pickup_location_infos.coordinates.longitude
+                    ),
                   },
-                  (error) => {
-                    //logger.warn(error);
-                    //! Salvage anyway
+                },
+                res1,
+                true,
+                request.request_fp + "-cached-etaToDestination-requests"
+              );
+            })
+              .then(
+                (resultETAToDestination) => {
+                  if (resultETAToDestination !== false) {
+                    //Save the ETA to destination data
+                    parsedRequestsArray.origin_destination_infos.eta_to_destination_infos.eta =
+                      resultETAToDestination.eta;
+                    parsedRequestsArray.origin_destination_infos.eta_to_destination_infos.distance =
+                      resultETAToDestination.distance;
+                    //4. Save the destination data
+                    parsedRequestsArray.origin_destination_infos.destination_infos =
+                      request.destinationData;
+                    //Add the request fingerprint
+                    parsedRequestsArray.request_fp = request.request_fp;
+                    //DONE
+                    //CACHE
+                    new Promise((resCache) => {
+                      redisCluster.setex(
+                        redisKey,
+                        process.env.REDIS_EXPIRATION_5MIN,
+                        JSON.stringify(parsedRequestsArray)
+                      );
+                      resCache(true);
+                    }).then(
+                      () => {
+                        //logger.info("Single processing cached!");
+                      },
+                      () => {}
+                    );
+                    //Return the answer
+                    res(parsedRequestsArray);
+                  } //! Error - Salvage anyway
+                  else {
                     //Save the ETA to destination data
                     parsedRequestsArray.origin_destination_infos.eta_to_destination_infos.eta =
                       "Awaiting";
@@ -2175,8 +2225,8 @@ function execDriver_requests_parsing(
                     //Return the answer
                     res(parsedRequestsArray);
                   }
-                )
-                .catch((error) => {
+                },
+                (error) => {
                   //logger.warn(error);
                   //! Salvage anyway
                   //Save the ETA to destination data
@@ -2206,59 +2256,54 @@ function execDriver_requests_parsing(
                   );
                   //Return the answer
                   res(parsedRequestsArray);
-                });
-            },
-            (error) => {
-              //logger.info(error);
-              res(false);
-            }
-          )
-          .catch((error) => {
+                }
+              )
+              .catch((error) => {
+                //logger.warn(error);
+                //! Salvage anyway
+                //Save the ETA to destination data
+                parsedRequestsArray.origin_destination_infos.eta_to_destination_infos.eta =
+                  "Awaiting";
+                parsedRequestsArray.origin_destination_infos.eta_to_destination_infos.distance =
+                  "Awaiting";
+                //4. Save the destination data
+                parsedRequestsArray.origin_destination_infos.destination_infos =
+                  request.destinationData;
+                //Add the request fingerprint
+                parsedRequestsArray.request_fp = request.request_fp;
+                //DONE
+                //CACHE
+                new Promise((resCache) => {
+                  redisCluster.setex(
+                    redisKey,
+                    process.env.REDIS_EXPIRATION_5MIN,
+                    JSON.stringify(parsedRequestsArray)
+                  );
+                  resCache(true);
+                }).then(
+                  () => {
+                    //logger.info("Single processing cached!");
+                  },
+                  () => {}
+                );
+                //Return the answer
+                res(parsedRequestsArray);
+              });
+          },
+          (error) => {
             //logger.info(error);
-            resolve(false);
-          });
-      } //No data found - strange
-      else {
-        resolve(false);
-      }
-    });
-}
-
-/**
- * @func getRideCachedData_andComputeRoute()
- * Responsible for checking if there are any cached requests for a rider, or get from mongo and launch the computation of the trip details
- * and cache them.
- */
-
-function getUserRideCachedData_andComputeRoute(
-  collectionRidesDeliveries_data,
-  user_fingerprint,
-  user_nature,
-  respUser,
-  resolve
-) {
-  //Check if there are any cached user data
-  //1. Pre compute and cache next record for later use
-  new Promise((reslv) => {
-    getMongoRecordTrip_cacheLater(
-      collectionRidesDeliveries_data,
-      user_fingerprint,
-      user_nature,
-      respUser.request_fp,
-      reslv
-    );
-  }).then(
-    (reslt) => {
-      ////logger.info("precomputed for later use done.");
-    },
-    (error) => {
-      ////logger.info(error);
+            res(false);
+          }
+        )
+        .catch((error) => {
+          //logger.info(error);
+          resolve(false);
+        });
+    } //No data found - strange
+    else {
+      resolve(false);
     }
-  );
-  //........Return cached data
-  ////logger.info("found cached user trip infos");
-  //Compute route via compute skeleton
-  computeRouteDetails_skeleton([respUser], resolve);
+  });
 }
 
 /**
@@ -2341,7 +2386,6 @@ function computeRouteDetails_skeleton(
             ) {
               //logger.info("IN ROUTE TO PICKUP -- HERE");
               //In route to pickup
-              ////logger.info("In  route to pickup");
               let requestStatusMain = "inRouteToPickup";
               //Get driver's coordinates
               //Get driver coords from cache, it non existant, get from mongo
@@ -2704,7 +2748,19 @@ function computeRouteDetails_skeleton(
                 driver_details: {
                   name: null,
                   profile_picture: null,
+                  phone_number: null,
+                  car_brand: null,
+                  plate_number: null,
                 },
+                birdview_infos: /DELIVERY/i.test(rideHistory.ride_mode)
+                  ? {
+                      number_of_packages: rideHistory.passengers_number,
+                      fare: rideHistory.fare,
+                      date_requested: rideHistory.date_requested,
+                      dropoff_details: rideHistory.destinationData,
+                      pickup_details: rideHistory.pickup_location_infos,
+                    }
+                  : null,
               };
               //logger.info("Riders confirmation of drop off");
 
@@ -2783,6 +2839,13 @@ function computeRouteDetails_skeleton(
               confirmation_request_schema.driver_details.name =
                 driverProfile.name;
               confirmation_request_schema.driver_details.profile_picture = `${process.env.AWS_S3_DRIVERS_PROFILE_PICTURES_PATH}/${driverProfile.identification_data.profile_picture}`;
+              confirmation_request_schema.driver_details.phone_number =
+                driverProfile.phone_number;
+              confirmation_request_schema.driver_details.car_brand =
+                driverProfile.cars_data[0].car_brand;
+              confirmation_request_schema.driver_details.plate_number =
+                driverProfile.cars_data[0].plate_number;
+
               //! Add the requester fingerprint
               confirmation_request_schema.requester_fp = rideHistory.client_id;
               //!----
@@ -2862,6 +2925,15 @@ function computeRouteDetails_skeleton(
             request_fp: rideHistory.request_fp,
             requester_fp: rideHistory.client_id,
             request_status: "pending",
+            birdview_infos: /DELIVERY/i.test(rideHistory.ride_mode)
+              ? {
+                  number_of_packages: rideHistory.passengers_number,
+                  fare: rideHistory.fare,
+                  date_requested: rideHistory.date_requested,
+                  dropoff_details: rideHistory.destinationData,
+                  pickup_details: rideHistory.pickup_location_infos,
+                }
+              : null,
           })
         );
         //! ----------------------------------------------
@@ -2881,6 +2953,15 @@ function computeRouteDetails_skeleton(
                   ],
                   requester_fp: rideHistory.client_id,
                   request_status: "pending",
+                  birdview_infos: /DELIVERY/i.test(rideHistory.ride_mode)
+                    ? {
+                        number_of_packages: rideHistory.passengers_number,
+                        fare: rideHistory.fare,
+                        date_requested: rideHistory.date_requested,
+                        dropoff_details: rideHistory.destinationData,
+                        pickup_details: rideHistory.pickup_location_infos,
+                      }
+                    : null,
                 };
                 //..
                 redisCluster.setex(
@@ -2908,6 +2989,15 @@ function computeRouteDetails_skeleton(
                     ],
                     requester_fp: rideHistory.client_id,
                     request_status: "pending",
+                    birdview_infos: /DELIVERY/i.test(rideHistory.ride_mode)
+                      ? {
+                          number_of_packages: rideHistory.passengers_number,
+                          fare: rideHistory.fare,
+                          date_requested: rideHistory.date_requested,
+                          dropoff_details: rideHistory.destinationData,
+                          pickup_details: rideHistory.pickup_location_infos,
+                        }
+                      : null,
                   },
                 })
               );
@@ -2933,6 +3023,15 @@ function computeRouteDetails_skeleton(
         request_fp: rideHistory.request_fp,
         requester_fp: rideHistory.client_id,
         request_status: "pending",
+        birdview_infos: /DELIVERY/i.test(rideHistory.ride_mode)
+          ? {
+              number_of_packages: rideHistory.passengers_number,
+              fare: rideHistory.fare,
+              date_requested: rideHistory.date_requested,
+              dropoff_details: rideHistory.destinationData,
+              pickup_details: rideHistory.pickup_location_infos,
+            }
+          : null,
       });
     }
   } //No ride present
@@ -2977,7 +3076,6 @@ function computeAndCacheRouteDestination(
   new Promise((reslv) => {
     let redisKey = rideHistory.client_id + "-" + rideHistory.taxi_id;
     if (request_status === "inRouteToPickup") {
-      ////logger.info("In route to pickup quick!");
       //For to pickup only
       bundle = {
         driver: {
@@ -3108,6 +3206,15 @@ function computeAndCacheRouteDestination(
               ? rideHistory.isGoingUntilHome
               : false, //To know whether or not the rider is going until home
         },
+        birdview_infos: /DELIVERY/i.test(rideHistory.ride_mode)
+          ? {
+              number_of_packages: rideHistory.passengers_number,
+              fare: rideHistory.fare,
+              date_requested: rideHistory.date_requested,
+              dropoff_details: rideHistory.destinationData,
+              pickup_details: rideHistory.pickup_location_infos,
+            }
+          : null,
       }; //Will contain all the additional informations needed
       //Add the driver's basic information (name, profile picture, taxi number-if any, car brand, car image, general rating, plate number, phone number)
       additionalInfos.driverDetails.name = driverProfile.name;
@@ -3204,92 +3311,97 @@ function computeAndCacheRouteDestination(
       //! Add the requester fingerprint
       additionalInfos.requester_fp = rideHistory.client_id;
       //! Get the requester details
-      collectionPassengers_profiles
-        .find({ user_fingerprint: rideHistory.client_id })
-        .toArray(function (err, requesterData) {
-          if (requesterData !== undefined && requesterData.length > 0) {
-            //? Add the requester's name and phone
-            additionalInfos["requester_infos"] = {};
-            additionalInfos.requester_infos.requester_name =
-              requesterData[0].name;
-            additionalInfos.requester_infos.requester_surname =
-              requesterData[0].surname;
-            additionalInfos.requester_infos.phone =
-              requesterData[0].phone_number;
-            //? --------
-            //? Add the delivery details
-            additionalInfos["delivery_information"] = {};
-            additionalInfos["delivery_information"]["packageSize"] =
-              rideHistory.delivery_infos.packageSize !== undefined &&
-              rideHistory.delivery_infos.packageSize !== null
-                ? rideHistory.delivery_infos.packageSize
-                : null;
-            additionalInfos.delivery_information.receiver_infos =
-              rideHistory.delivery_infos;
-            //Found the requester data
-            //Get the estimated time TO the destination (from the current's user position)
-            new Promise((res4) => {
-              let url =
-                `${
-                  /production/i.test(process.env.EVIRONMENT)
-                    ? `http://${process.env.INSTANCE_PRIVATE_IP}`
-                    : process.env.LOCAL_URL
-                }` +
-                ":" +
-                process.env.MAP_SERVICE_PORT +
-                "/getRouteToDestinationSnapshot?org_latitude=" +
-                rideHistory.pickup_location_infos.coordinates.latitude +
-                "&org_longitude=" +
-                rideHistory.pickup_location_infos.coordinates.longitude +
-                "&dest_latitude=" +
-                rideHistory.destinationData[0].coordinates.longitude +
-                "&dest_longitude=" +
-                rideHistory.destinationData[0].coordinates.latitude +
-                "&user_fingerprint=" +
-                rideHistory.client_id;
-              requestAPI(url, function (error, response, body) {
-                if (error === null) {
-                  try {
-                    body = JSON.parse(body);
-                    res4(body.eta);
-                  } catch (error) {
-                    res4(false);
-                  }
-                } else {
+      //? Get dynamically the requester details based on the scope of the request - normal or corporate
+      let isNormalrequestScope =
+        /normal/i.test(rideHistory.request_globality) ||
+        rideHistory.request_globality === undefined;
+      //...
+      let dynamicRequesterFetcher = isNormalrequestScope
+        ? collectionPassengers_profiles.find({
+            user_fingerprint: rideHistory.client_id,
+          })
+        : collectionDedicatedServices_accounts.find({
+            company_fp: rideHistory.client_id,
+          });
+
+      dynamicRequesterFetcher.toArray(function (err, requesterData) {
+        if (requesterData !== undefined && requesterData.length > 0) {
+          //? Add the requester's name and phone
+          additionalInfos["requester_infos"] = {};
+          additionalInfos.requester_infos.requester_name = isNormalrequestScope
+            ? requesterData[0].name
+            : requesterData[0].company_name;
+          additionalInfos.requester_infos.requester_surname =
+            isNormalrequestScope
+              ? requesterData[0].surname
+              : requesterData[0].user_registerer.last_name;
+          additionalInfos.requester_infos.phone = isNormalrequestScope
+            ? requesterData[0].phone_number
+            : requesterData[0].phone;
+          //? --------
+          //? Add the delivery details
+          additionalInfos["delivery_information"] = {};
+          additionalInfos["delivery_information"]["packageSize"] =
+            rideHistory.delivery_infos.packageSize !== undefined &&
+            rideHistory.delivery_infos.packageSize !== null
+              ? rideHistory.delivery_infos.packageSize
+              : null;
+          additionalInfos.delivery_information.receiver_infos =
+            rideHistory.delivery_infos;
+          //Found the requester data
+          //Get the estimated time TO the destination (from the current's user position)
+          new Promise((res4) => {
+            let url =
+              `${
+                /production/i.test(process.env.EVIRONMENT)
+                  ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+                  : process.env.LOCAL_URL
+              }` +
+              ":" +
+              process.env.MAP_SERVICE_PORT +
+              "/getRouteToDestinationSnapshot?org_latitude=" +
+              rideHistory.pickup_location_infos.coordinates.latitude +
+              "&org_longitude=" +
+              rideHistory.pickup_location_infos.coordinates.longitude +
+              "&dest_latitude=" +
+              rideHistory.destinationData[0].coordinates.longitude +
+              "&dest_longitude=" +
+              rideHistory.destinationData[0].coordinates.latitude +
+              "&user_fingerprint=" +
+              rideHistory.client_id;
+            requestAPI(url, function (error, response, body) {
+              if (error === null) {
+                try {
+                  body = JSON.parse(body);
+                  res4(body.eta);
+                } catch (error) {
                   res4(false);
                 }
-              });
-            })
-              .then(
-                (estimated_travel_time) => {
-                  //Add the eta to destination
-                  additionalInfos.ETA_toDestination = estimated_travel_time;
-                  additionalInfos.request_status = request_status;
-                  result = { ...result, ...additionalInfos }; //Merge all the data
-                  //Cache-
-                  //Cache computed result
-                  new Promise((resPromiseresult) => {
-                    redisGet(rideHistory.request_fp).then(
-                      (cachedTripData) => {
-                        if (cachedTripData !== null) {
-                          redisCluster.setex(
-                            rideHistory.request_fp,
-                            process.env.REDIS_EXPIRATION_5MIN,
-                            JSON.stringify(result)
-                          );
-                          resPromiseresult(true);
-                        } //Update cache anyways
-                        else {
-                          ////logger.info("Update cache");
-                          redisCluster.setex(
-                            rideHistory.request_fp,
-                            process.env.REDIS_EXPIRATION_5MIN,
-                            JSON.stringify(result)
-                          );
-                          resPromiseresult(true);
-                        }
-                      },
-                      (errorGet) => {
+              } else {
+                res4(false);
+              }
+            });
+          })
+            .then(
+              (estimated_travel_time) => {
+                //Add the eta to destination
+                additionalInfos.ETA_toDestination = estimated_travel_time;
+                additionalInfos.request_status = request_status;
+                result = { ...result, ...additionalInfos }; //Merge all the data
+                //Cache-
+                //Cache computed result
+                new Promise((resPromiseresult) => {
+                  redisGet(rideHistory.request_fp).then(
+                    (cachedTripData) => {
+                      if (cachedTripData !== null) {
+                        redisCluster.setex(
+                          rideHistory.request_fp,
+                          process.env.REDIS_EXPIRATION_5MIN,
+                          JSON.stringify(result)
+                        );
+                        resPromiseresult(true);
+                      } //Update cache anyways
+                      else {
                         ////logger.info("Update cache");
                         redisCluster.setex(
                           rideHistory.request_fp,
@@ -3298,83 +3410,93 @@ function computeAndCacheRouteDestination(
                         );
                         resPromiseresult(true);
                       }
-                    );
-                  }).then(
-                    () => {},
-                    () => {}
+                    },
+                    (errorGet) => {
+                      ////logger.info("Update cache");
+                      redisCluster.setex(
+                        rideHistory.request_fp,
+                        process.env.REDIS_EXPIRATION_5MIN,
+                        JSON.stringify(result)
+                      );
+                      resPromiseresult(true);
+                    }
                   );
-                  //...
-                  //! SAVE THE FINAL FULL RESULT - for 15 min ------
-                  redisCluster.setex(
-                    RIDE_REDIS_KEY,
-                    parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
-                    JSON.stringify(result)
-                  );
-                  //! ----------------------------------------------
-                  ///DONE
-                  resolve(result);
-                },
-                (error) => {
-                  //logger.warn(error);
-                  //If couldn't get the ETA to destination - just leave it as null
-                  result = { ...result, ...additionalInfos }; //Merge all the data
-                  //Cache-
-                  //Cache computed result
-                  new Promise((resPromiseresult) => {
-                    redisGet(rideHistory.request_fp).then(
-                      (cachedTripData) => {
-                        if (cachedTripData !== null) {
-                          redisCluster.setex(
-                            rideHistory.request_fp,
-                            process.env.REDIS_EXPIRATION_5MIN,
-                            JSON.stringify(result)
-                          );
-                          resPromiseresult(true);
-                        } //Update cache anyways
-                        else {
-                          ////logger.info("Update cache");
-                          redisCluster.setex(
-                            rideHistory.request_fp,
-                            process.env.REDIS_EXPIRATION_5MIN,
-                            JSON.stringify(result)
-                          );
-                          resPromiseresult(true);
-                        }
-                      },
-                      (errorGet) => {
-                        ////logger.info("Update cache");
-                        redisCluster.setex(
-                          rideHistory.request_fp,
-                          process.env.REDIS_EXPIRATION_5MIN,
-                          JSON.stringify(result)
-                        );
-                        resPromiseresult(true);
-                      }
-                    );
-                  }).then(
-                    () => {},
-                    () => {}
-                  );
-                  //...
-                  //! SAVE THE FINAL FULL RESULT - for 15 min ------
-                  redisCluster.setex(
-                    RIDE_REDIS_KEY,
-                    parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
-                    JSON.stringify(result)
-                  );
-                  //! ----------------------------------------------
-                  ///DONE
-                  resolve(result);
-                }
-              )
-              .catch((error) => {
+                }).then(
+                  () => {},
+                  () => {}
+                );
+                //...
+                //! SAVE THE FINAL FULL RESULT - for 15 min ------
+                redisCluster.setex(
+                  RIDE_REDIS_KEY,
+                  parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
+                  JSON.stringify(result)
+                );
+                //! ----------------------------------------------
+                ///DONE
+                resolve(result);
+              },
+              (error) => {
                 //logger.warn(error);
-              });
-          } //No requester data found
-          else {
-            resolve(false);
-          }
-        });
+                //If couldn't get the ETA to destination - just leave it as null
+                result = { ...result, ...additionalInfos }; //Merge all the data
+                //Cache-
+                //Cache computed result
+                new Promise((resPromiseresult) => {
+                  redisGet(rideHistory.request_fp).then(
+                    (cachedTripData) => {
+                      if (cachedTripData !== null) {
+                        redisCluster.setex(
+                          rideHistory.request_fp,
+                          process.env.REDIS_EXPIRATION_5MIN,
+                          JSON.stringify(result)
+                        );
+                        resPromiseresult(true);
+                      } //Update cache anyways
+                      else {
+                        ////logger.info("Update cache");
+                        redisCluster.setex(
+                          rideHistory.request_fp,
+                          process.env.REDIS_EXPIRATION_5MIN,
+                          JSON.stringify(result)
+                        );
+                        resPromiseresult(true);
+                      }
+                    },
+                    (errorGet) => {
+                      ////logger.info("Update cache");
+                      redisCluster.setex(
+                        rideHistory.request_fp,
+                        process.env.REDIS_EXPIRATION_5MIN,
+                        JSON.stringify(result)
+                      );
+                      resPromiseresult(true);
+                    }
+                  );
+                }).then(
+                  () => {},
+                  () => {}
+                );
+                //...
+                //! SAVE THE FINAL FULL RESULT - for 15 min ------
+                redisCluster.setex(
+                  RIDE_REDIS_KEY,
+                  parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
+                  JSON.stringify(result)
+                );
+                //! ----------------------------------------------
+                ///DONE
+                resolve(result);
+              }
+            )
+            .catch((error) => {
+              //logger.warn(error);
+            });
+        } //No requester data found
+        else {
+          resolve(false);
+        }
+      });
     },
     (error) => {
       //logger.warn(error);
@@ -4809,6 +4931,7 @@ var collectionRidersLocation_log = null;
 var collectionDrivers_profiles = null;
 var collectionGlobalEvents = null;
 var collectionWalletTransactions_logs = null;
+var collectionDedicatedServices_accounts = null;
 
 redisCluster.on("connect", function () {
   //logger.info("[*] Redis connected");
@@ -4865,6 +4988,9 @@ redisCluster.on("connect", function () {
           collectionWalletTransactions_logs = dbMongo.collection(
             "wallet_transactions_logs"
           ); //Hold the latest information about the riders topups
+          collectionDedicatedServices_accounts = dbMongo.collection(
+            "dedicated_services_accounts"
+          ); //Hold all the accounts for dedicated servics like deliveries, etc.
           //-------------
           app
             .get("/", function (req, res) {

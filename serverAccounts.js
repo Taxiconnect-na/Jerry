@@ -4617,42 +4617,469 @@ function performCorporateDeliveryAccountAuthOps(inputData, resolve) {
         inputData.company_name !== null &&
         inputData.selected_industry !== undefined &&
         inputData.selected_industry !== null &&
-        inputData.country !== undefined &&
-        inputData.country !== null
+        inputData.password !== undefined &&
+        inputData.password !== null
       ) {
+        let companyName = inputData.company_name.trim().toUpperCase();
+        inputData.email = inputData.email.trim().toLowerCase();
         //Good data received
-        //Generate fp
-        let fpString = `${inputData.email}-${inputData.first_name}-${
-          inputData.last_name
-        }-${inputData.phone}-${inputData.selected_industry}-${
-          inputData.country
-        }-${new Date(chaineDateUTC).getTime()}`;
-
-        new Promise((resFp) => {
-          generateUniqueFingerprint(fpString, false, resFp);
-        })
-          .then((corporate_fp) => {
-            let accountObj = {
-              company_name: inputData.company_name,
-              company_fp: corporate_fp,
-              email: inputData.email,
-              phone: inputData.phone,
-              user_registerer: {
-                first_name: inputData.first_name,
-                last_name: inputData.last_name,
-              },
-            };
+        //? Check if no similar company already exists
+        collectionDedicatedServices_accounts
+          .find({
+            company_name: companyName,
+            email: inputData.email,
           })
-          .catch((error) => {
-            logger.error(error);
-            resolve({ response: "error" });
+          .toArray(function (err, resltCheck) {
+            if (err) {
+              logger.error(err);
+              resolve({ response: "error_creating_account" });
+            }
+            //...
+            if (resltCheck !== undefined && resltCheck.length > 0) {
+              //Account already exist
+              logger.warn("Account already exists");
+              resolve({ response: "error_creating_account_alreadyExists" });
+            } //? NEW ACCOUNT
+            else {
+              //Generate fp
+              let fpString = `${inputData.email}-${inputData.first_name}-${
+                inputData.last_name
+              }-${inputData.phone}-${inputData.selected_industry}-${new Date(
+                chaineDateUTC
+              ).getTime()}`;
+
+              new Promise((resFp) => {
+                generateUniqueFingerprint(fpString, false, resFp);
+              })
+                .then((corporate_fp) => {
+                  //? Hash the password
+                  new Promise((resFp) => {
+                    generateUniqueFingerprint(
+                      inputData.password.trim(),
+                      false,
+                      resFp
+                    );
+                  })
+                    .then((passwordHash) => {
+                      let accountObj = {
+                        company_name: companyName,
+                        company_fp: corporate_fp,
+                        password: passwordHash,
+                        email: inputData.email,
+                        phone: inputData.phone,
+                        user_registerer: {
+                          first_name: inputData.first_name,
+                          last_name: inputData.last_name,
+                        },
+                        plans: {
+                          subscribed_plan: false,
+                          isPlan_active: false,
+                        },
+                        account: {
+                          registration_state: "notFull",
+                          confirmations: {
+                            isPhoneConfirmed: false,
+                            isEmailConfirmed: false,
+                            isIDConfirmed: false,
+                          },
+                        },
+                        date_registered: new Date(chaineDateUTC),
+                        last_updated: new Date(chaineDateUTC),
+                      };
+                      //...Save
+                      collectionDedicatedServices_accounts.insertOne(
+                        accountObj,
+                        function (err, reslt) {
+                          if (err) {
+                            logger.error(err);
+                            resolve({ response: "error_creating_account" });
+                          }
+                          //...
+                          resolve({
+                            response: "successfully_created",
+                            metadata: {
+                              company_name: companyName,
+                              company_fp: corporate_fp,
+                              email: inputData.email,
+                              phone: inputData.phone,
+                              user_registerer: {
+                                first_name: inputData.first_name,
+                                last_name: inputData.last_name,
+                              },
+                              plans: {
+                                subscribed_plan: false,
+                                isPlan_active: false,
+                              },
+                              account: {
+                                registration_state: "notFull",
+                                confirmations: {
+                                  isPhoneConfirmed: false,
+                                  isEmailConfirmed: false,
+                                  isIDConfirmed: false,
+                                },
+                              },
+                            },
+                          });
+                        }
+                      );
+                    })
+                    .catch((error) => {
+                      logger.error(error);
+                      resolve({ response: "error_creating_account" });
+                    });
+                })
+                .catch((error) => {
+                  logger.error(error);
+                  resolve({ response: "error_creating_account" });
+                });
+            }
           });
       } //Invalid signup data provided
       else {
         logger.warn("Invalid signup data provided");
         resolve({ response: "error" });
       }
-    } //Invalid op
+    } else if (/login/i.test(inputData.op)) {
+      if (
+        inputData.email !== undefined &&
+        inputData.email !== null &&
+        inputData.password !== undefined &&
+        inputData.password !== null
+      ) {
+        //? Hash the password
+        new Promise((resFp) => {
+          generateUniqueFingerprint(inputData.password.trim(), false, resFp);
+        })
+          .then((passwordHash) => {
+            collectionDedicatedServices_accounts
+              .find({
+                email: inputData.email.trim(),
+                password: passwordHash,
+              })
+              .toArray(function (err, companyData) {
+                if (err) {
+                  logger.error(err);
+                  resolve({ response: "error_logging_in" });
+                }
+                //...
+                if (companyData !== undefined && companyData.length > 0) {
+                  //Valid company
+                  companyData = companyData[0];
+                  //...
+                  resolve({
+                    response: "successfully_logged_in",
+                    metadata: {
+                      company_name: companyData.company_name,
+                      company_fp: companyData.company_fp,
+                      email: companyData.email,
+                      phone: companyData.phone,
+                      user_registerer: companyData.user_registerer,
+                      plans: companyData.plans,
+                      account: companyData.account,
+                    },
+                  });
+                } //Unknown company
+                else {
+                  resolve({ response: "error_logging_in_notFoundAccount" });
+                }
+              });
+          })
+          .catch((error) => {
+            logger.error(error);
+            resolve({ response: "error_logging_in" });
+          });
+      } //Invalid data
+      else {
+        resolve({ response: "error_logging_in" });
+      }
+    } else if (/resendConfirmationSMS/i.test(inputData.op)) {
+      if (inputData.company_fp !== undefined && inputData.phone !== undefined) {
+        //Check if the company exists
+        collectionDedicatedServices_accounts
+          .find({
+            company_fp: inputData.company_fp,
+            phone: inputData.phone,
+          })
+          .toArray(function (err, companyData) {
+            if (err) {
+              logger.error(err);
+              resolve({ response: "error" });
+            }
+            //...
+            if (companyData !== undefined && companyData.length > 0) {
+              //Company exists
+              let onlyDigitsPhone = inputData.phone.replace("+", "").trim(); //Critical, should only contain digits
+              //Ok
+              //! ADD DEBUG TEST DATA -> CODE 88766
+              //Send the message then check the passenger's status
+              let otp = /856997167/i.test(onlyDigitsPhone)
+                ? 88766
+                : otpGenerator.generate(6, {
+                    upperCase: false,
+                    specialChars: false,
+                    alphabets: false,
+                  });
+              //! --------------
+              //let otp = 55576;
+              otp = String(otp).length < 6 ? parseInt(otp) * 10 : otp;
+              new Promise((res0) => {
+                let message = otp + ` is your TaxiConnect Verification Code.`;
+                SendSMSTo(onlyDigitsPhone, message);
+                res0(true);
+                //SMS
+              }).then(
+                () => {},
+                (error) => {
+                  logger.info(error);
+                }
+              );
+              //? SAve the OTP in the user's profile
+              collectionDedicatedServices_accounts.updateOne(
+                {
+                  company_fp: inputData.company_fp,
+                  phone: inputData.phone,
+                },
+                {
+                  $set: {
+                    last_updated: new Date(chaineDateUTC),
+                    "account.smsVerifications": {
+                      otp: {
+                        otp: parseInt(otp),
+                        date_created: new Date(chaineDateUTC),
+                      },
+                    },
+                  },
+                },
+                function (err, reslt) {
+                  if (err) {
+                    logger.error(err);
+                    resolve({ response: "error" });
+                  }
+                  //...
+                  //DONE
+                  resolve({ response: "successfully_sent" });
+                }
+              );
+            } //Unknown company
+            else {
+              resolve({ response: "error" });
+            }
+          });
+      } //Invalid data
+      else {
+        logger.warn("Invalid data for resending the confirmation SMS detected");
+        resolve({ response: "error" });
+      }
+    } else if (/updatePhoneNumber/i.test(inputData.op)) {
+      //Change the phone number
+      if (
+        inputData.company_fp !== undefined &&
+        inputData.company_fp !== null &&
+        inputData.phone !== undefined &&
+        inputData.phone !== null
+      ) {
+        //Proceed
+        //Check if the company exists
+        collectionDedicatedServices_accounts
+          .find({
+            company_fp: inputData.company_fp,
+          })
+          .toArray(function (err, companyData) {
+            if (err) {
+              logger.error(err);
+              resolve({ response: "error" });
+            }
+            //...
+            if (companyData !== undefined && companyData.length > 0) {
+              companyData = companyData[0];
+              //Company exists
+              //? Update the comapny's phone
+              collectionDedicatedServices_accounts.updateOne(
+                {
+                  company_fp: inputData.company_fp,
+                },
+                {
+                  $set: {
+                    phone: inputData.phone,
+                    last_updated: new Date(chaineDateUTC),
+                  },
+                },
+                function (err, reslt) {
+                  if (err) {
+                    logger.error(err);
+                    resolve({ response: "error" });
+                  }
+                  //...
+                  //DONE
+                  resolve({
+                    response: "successfully_updated",
+                    metadata: {
+                      company_name: companyData.company_name,
+                      company_fp: companyData.company_fp,
+                      email: companyData.email,
+                      phone: companyData.phone,
+                      user_registerer: companyData.user_registerer,
+                      plans: companyData.plans,
+                      account: companyData.account,
+                    },
+                  });
+                }
+              );
+            } //Unknown company
+            else {
+              resolve({ response: "error" });
+            }
+          });
+      } //Invalid data
+      else {
+        logger.warn("Invalid data for updating the phone detected");
+        resolve({ response: "error" });
+      }
+    } else if (/validatePhoneNumber/i.test(inputData.op)) {
+      //Validate the phone number via SMS OTP
+      if (
+        inputData.company_fp !== undefined &&
+        inputData.company_fp !== null &&
+        inputData.phone !== undefined &&
+        inputData.phone !== null &&
+        inputData.otp !== undefined &&
+        inputData.otp !== null
+      ) {
+        collectionDedicatedServices_accounts
+          .find({
+            company_fp: inputData.company_fp,
+            phone: inputData.phone,
+            "account.smsVerifications.otp.otp": parseInt(inputData.otp),
+          })
+          .toArray(function (err, checkData) {
+            if (err) {
+              logger.error(err);
+              resolve({ response: "error" });
+            }
+            //...
+            if (checkData !== undefined && checkData.length > 0) {
+              let companyData = checkData[0];
+              //Valid number
+              //? Update the account vars
+              collectionDedicatedServices_accounts.updateOne(
+                {
+                  company_fp: inputData.company_fp,
+                },
+                {
+                  $set: {
+                    "account.confirmations.isPhoneConfirmed": true,
+                    last_updated: new Date(chaineDateUTC),
+                  },
+                },
+                function (err, reslt) {
+                  if (err) {
+                    logger.error(err);
+                    resolve({ response: "error" });
+                  }
+                  //...
+                  //DONE
+                  resolve({
+                    response: "successfully_validated",
+                    metadata: {
+                      company_name: companyData.company_name,
+                      company_fp: companyData.company_fp,
+                      email: companyData.email,
+                      phone: companyData.phone,
+                      user_registerer: companyData.user_registerer,
+                      plans: companyData.plans,
+                      account: companyData.account,
+                    },
+                  });
+                }
+              );
+            } //Invalid code
+            else {
+              resolve({ response: "invalid_code" });
+            }
+          });
+      } //Invalid data
+      else {
+        logger.warn("Invalid data for validating the phone detected");
+        resolve({ response: "error" });
+      }
+    } else if (/getAccountData/i.test(inputData.op)) {
+      //Get the account details
+      if (inputData.company_fp !== undefined && inputData.company_fp !== null) {
+        let redisKey = `${inputData.company_fp}-accountDataPersisted`;
+        //Check in redis first
+        redisGet(redisKey).then((resp) => {
+          if (resp !== null) {
+            //Has some cached data
+            try {
+              //Rehydrate
+              new Promise((resCompute) => {
+                execCorporateAccountData(inputData, resCompute);
+              })
+                .then((result) => {
+                  //?Cache the data
+                  new Promise((resCache) => {
+                    redisCluster.set(redisKey, JSON.stringify(result));
+                    resCache(true);
+                  })
+                    .then()
+                    .catch();
+                })
+                .catch((error) => {
+                  logger.error(error);
+                });
+              //Return quickly
+              resp = JSON.parse(resp);
+              resolve(resp);
+            } catch (error) {
+              logger.error(error);
+              //Make fresh request
+              new Promise((resCompute) => {
+                execCorporateAccountData(inputData, resCompute);
+              })
+                .then((result) => {
+                  //?Cache the data
+                  new Promise((resCache) => {
+                    redisCluster.set(redisKey, JSON.stringify(result));
+                    resCache(true);
+                  })
+                    .then()
+                    .catch();
+                  //...
+                  resolve(result);
+                })
+                .catch((error) => {
+                  logger.error(error);
+                  resolve({ response: "error" });
+                });
+            }
+          } //Get fresh data
+          else {
+            new Promise((resCompute) => {
+              execCorporateAccountData(inputData, resCompute);
+            })
+              .then((result) => {
+                //?Cache the data
+                new Promise((resCache) => {
+                  redisCluster.set(redisKey, JSON.stringify(result));
+                  resCache(true);
+                })
+                  .then()
+                  .catch();
+                //...
+                resolve(result);
+              })
+              .catch((error) => {
+                logger.error(error);
+                resolve({ response: "error" });
+              });
+          }
+        });
+      } else {
+        logger.warn("Invalid data for getting the account data.");
+        resolve({ response: "error" });
+      }
+    }
+    //Invalid op
     else {
       logger.warn("Invalid op detected");
       resolve({ response: "error" });
@@ -4661,6 +5088,399 @@ function performCorporateDeliveryAccountAuthOps(inputData, resolve) {
     logger.error(error);
     resolve({ response: "error" });
   }
+}
+
+/**
+ * @func execCorporateAccountData
+ * Responsible for actively getting the corporate account information persistently.
+ * @param inputData: any kind of essential data need of auth (email, pass, etc)
+ * @param resolve
+ */
+function execCorporateAccountData(inputData, resolve) {
+  collectionDedicatedServices_accounts
+    .find({ company_fp: inputData.company_fp })
+    .toArray(function (err, companyData) {
+      if (err) {
+        logger.error(err);
+        resolve({ response: "error" });
+      }
+      //...
+
+      if (companyData !== undefined && companyData.length > 0) {
+        //Valid account
+        companyData = companyData[0];
+        //DONE
+        resolve({
+          response: "authed",
+          metadata: {
+            company_name: companyData.company_name,
+            company_fp: companyData.company_fp,
+            email: companyData.email,
+            phone: companyData.phone,
+            user_registerer: companyData.user_registerer,
+            plans: companyData.plans,
+            account: companyData.account,
+          },
+        });
+      } //Invalid account
+      else {
+        resolve({ response: "error" });
+      }
+    });
+}
+
+/**
+ * @func getWalletSummaryForDeliveryCorps
+ * Responsible for getting the wallet summary for the delivery corporation accounts.
+ * @param company_fp: the company fingerprint
+ * @param avoidCache: if to get fresh records (false) or cached one (true) - default: false
+ * @param resolve
+ */
+function getWalletSummaryForDeliveryCorps(
+  company_fp,
+  avoidCache = false,
+  resolve
+) {
+  let redisKey = `${company_fp}-walletSummary`;
+  //Check in redis first
+  redisGet(redisKey)
+    .then((resp) => {
+      if (resp !== null && avoidCache === false) {
+        logger.warn("Found cached data for the corporate wallets.");
+        //Check in cache first
+        try {
+          //Rehydrate
+          new Promise((resCompute) => {
+            execGetWalletSummaryForDeliveryCorps(company_fp, resCompute);
+          })
+            .then((result) => {
+              //! Cache
+              new Promise((resCache) => {
+                redisCluster.set(redisKey, JSON.stringify(result));
+                resCache(true);
+              })
+                .then()
+                .catch();
+              //! -------------------
+            })
+            .catch((error) => {
+              logger.error(error);
+            });
+          //? Quickly response
+          resp = JSON.parse(resp);
+          resolve(resp);
+        } catch (error) {
+          logger.error(error);
+          //Make a fresh request
+          new Promise((resCompute) => {
+            execGetWalletSummaryForDeliveryCorps(company_fp, resCompute);
+          })
+            .then((result) => {
+              //! Cache
+              new Promise((resCache) => {
+                redisCluster.set(redisKey, JSON.stringify(result));
+                resCache(true);
+              })
+                .then()
+                .catch();
+              //! -------------------
+              resolve(result);
+            })
+            .catch((error) => {
+              logger.error(error);
+              resolve({
+                balance: 0,
+                usage: 0,
+              });
+            });
+        }
+      } //Get fresh record
+      else {
+        logger.warn("AVOID CACHED DATA FOR the corporate wallets");
+        new Promise((resCompute) => {
+          execGetWalletSummaryForDeliveryCorps(company_fp, resCompute);
+        })
+          .then((result) => {
+            //! Cache
+            new Promise((resCache) => {
+              redisCluster.set(redisKey, JSON.stringify(result));
+              resCache(true);
+            })
+              .then()
+              .catch();
+            //! -------------------
+            resolve(result);
+          })
+          .catch((error) => {
+            logger.error(error);
+            resolve({
+              balance: 0,
+              usage: 0,
+            });
+          });
+      }
+    })
+    .catch((error) => {
+      logger.error(error);
+      new Promise((resCompute) => {
+        execGetWalletSummaryForDeliveryCorps(company_fp, resCompute);
+      })
+        .then((result) => {
+          //! Cache
+          new Promise((resCache) => {
+            redisCluster.set(redisKey, JSON.stringify(result));
+            resCache(true);
+          })
+            .then()
+            .catch();
+          //! -------------------
+          resolve(result);
+        })
+        .catch((error) => {
+          logger.error(error);
+          resolve({
+            balance: 0,
+            usage: 0,
+          });
+        });
+    });
+}
+
+/**
+ * @func execGetWalletSummaryForDeliveryCorps
+ * Actively get the wallet summary
+ * @param company_fp
+ * @param resolve
+ */
+function execGetWalletSummaryForDeliveryCorps(company_fp, resolve) {
+  //Get all the topups first
+  //! transaction_nature: topups-corporate
+  collectionWalletTransactions_logs
+    .find({
+      company_fp: company_fp,
+    })
+    .toArray(function (err, transactionData) {
+      if (err) {
+        logger.error(err);
+        resolve({
+          balance: 0,
+          usage: 0,
+        });
+      }
+      //...
+      if (transactionData !== undefined && transactionData.length > 0) {
+        //Found some transactions data
+        let total_topups = 0; //! TOPUPS
+        let total_usage = 0; //! USAGE
+        //Compute the total topups
+        transactionData.map((transaction) => {
+          total_topups += parseFloat(transaction.amount);
+        });
+        //...
+        //Get the total usage amount
+        collectionRidesDeliveryData
+          .find({
+            client_id: company_fp,
+          })
+          .toArray(function (err, tripData) {
+            if (err) {
+              logger.error(err);
+              resolve({
+                balance: 0,
+                usage: 0,
+              });
+            }
+            ///...
+            if (tripData !== undefined && tripData.length > 0) {
+              //Found some trip data
+              //Compute all the usage
+              tripData.map((trip) => {
+                total_usage += parseFloat(trip.fare);
+              });
+              //....
+              //? DONE
+              resolve({
+                balance: Math.floor(total_topups - total_usage),
+                usage: Math.floor(total_usage),
+              });
+            } //No trip data - return the balance - No usage
+            else {
+              resolve({
+                balance: Math.floor(total_topups),
+                usage: 0,
+              });
+            }
+          });
+      } //No transactions data - so zero balance
+      else {
+        resolve({
+          balance: 0,
+          usage: 0,
+        });
+      }
+    });
+}
+
+/**`
+ * @func getTargetedNotificationsOps
+ * Responsible for getting the notifications relative to each user.
+ * @param requestData: hold the user_fingerprint and the op ()
+ * @param resolve
+ */
+function getTargetedNotificationsOps(requestData, resolve) {
+  if (/notifications/i.test(requestData.op)) {
+    let redisKey = `${requestData.user_fingerprint}-cachedNotificationsData`;
+    //Get the notifications metadata
+    //Check in the cache first
+    redisGet(redisKey)
+      .then((resp) => {
+        logger.warn(resp);
+        if (resp !== null) {
+          //Found some cached data
+          try {
+            //Rehydrate
+            new Promise((resCompute) => {
+              execGetTargetedNotificationsOps(
+                requestData,
+                redisKey,
+                resCompute
+              );
+            })
+              .then()
+              .catch((error) => {
+                logger.error(error);
+              });
+            //...
+            resp = JSON.parse(resp);
+            resolve(resp);
+          } catch (error) {
+            logger.error(error);
+            new Promise((resCompute) => {
+              execGetTargetedNotificationsOps(
+                requestData,
+                redisKey,
+                resCompute
+              );
+            })
+              .then((result) => {
+                resolve(result);
+              })
+              .catch((error) => {
+                logger.error(error);
+                resolve({ response: "error" });
+              });
+          }
+        } //No cached data - get fresh result
+        else {
+          new Promise((resCompute) => {
+            execGetTargetedNotificationsOps(requestData, redisKey, resCompute);
+          })
+            .then((result) => {
+              resolve(result);
+            })
+            .catch((error) => {
+              logger.error(error);
+              resolve({ response: "error" });
+            });
+        }
+      })
+      .catch((error) => {
+        logger.error(error);
+        new Promise((resCompute) => {
+          execGetTargetedNotificationsOps(requestData, redisKey, resCompute);
+        })
+          .then((result) => {
+            resolve(result);
+          })
+          .catch((error) => {
+            logger.error(error);
+            resolve({ response: "error" });
+          });
+      });
+  } //Invalid request
+  else {
+    resolve({ response: "error" });
+  }
+}
+
+/**
+ * @param execGetTargetedNotificationsOps
+ * Actively get the notifications data
+ * @param requestData: hold the user_fingerprint and the op ()
+ * @param redisKey: the key to cache the results to
+ * @param resolve
+ */
+function execGetTargetedNotificationsOps(requestData, redisKey, resolve) {
+  collectionNotificationsComm_central
+    .find({
+      allowed_users_see: requestData.user_fingerprint,
+    })
+    .sort({ date_sent: -1 })
+    .toArray(function (err, notifData) {
+      if (err) {
+        logger.warn(err);
+        //...
+        resolve({ response: "error" });
+      }
+      //...
+      if (notifData !== undefined && notifData.length > 0) {
+        //Found some notifications
+        //? Find the unseen notifications number
+        let unseenNumber = 0;
+        //...
+        notifData = notifData.map((el, index) => {
+          el["_id"] = index;
+          el["allowed_users_see"] = null;
+          el["sender_fp"] = null;
+          el["isUnseen"] = el.seen_users_log.includes(
+            requestData.user_fingerprint
+          )
+            ? false
+            : true;
+          //...
+          unseenNumber += el.seen_users_log.includes(
+            requestData.user_fingerprint
+          )
+            ? 0
+            : 1;
+          //...
+          el["seen_users_log"] = null;
+          //...
+          return el;
+        });
+        //DONE
+        let response = { response: { unseen: unseenNumber, data: notifData } };
+        //? Cache
+        new Promise((resCache) => {
+          redisCluster.setex(
+            redisKey,
+            parseInt(process.env.REDIS_EXPIRATION_5MIN) * 1440,
+            JSON.stringify(response)
+          );
+          resCache(true);
+        })
+          .then()
+          .catch();
+        //...
+        resolve(response);
+      } //No notifications found
+      else {
+        let response = { response: "no_notifications" };
+        //? Cache
+        new Promise((resCache) => {
+          redisCluster.setex(
+            redisKey,
+            parseInt(process.env.REDIS_EXPIRATION_5MIN) * 1440,
+            JSON.stringify(response)
+          );
+          resCache(true);
+        })
+          .then()
+          .catch();
+        //...
+        resolve(response);
+      }
+    });
 }
 
 /**
@@ -4675,6 +5495,7 @@ var collectionGlobalEvents = null;
 var collectionWalletTransactions_logs = null;
 var collectionAdsCompanies_central = null;
 var collectionDedicatedServices_accounts = null;
+var collectionNotificationsComm_central = null;
 
 redisCluster.on("connect", function () {
   logger.info("[*] Redis connected");
@@ -4733,6 +5554,9 @@ redisCluster.on("connect", function () {
           collectionDedicatedServices_accounts = dbMongo.collection(
             "dedicated_services_accounts"
           ); //Hold all the accounts for dedicated servics like deliveries, etc.
+          collectionNotificationsComm_central = dbMongo.collection(
+            "notifications_communications_central"
+          ); //Hold all the notifications accounts data
           //-------------
           app
             .get("/", function (req, res) {
@@ -6744,6 +7568,88 @@ redisCluster.on("connect", function () {
               .catch((error) => {
                 logger.error(error);
                 res.send({ response: "error_invalid_data" });
+              });
+          });
+
+          /**
+           * GET WALLET DELIVERY FOR CORPORATIONS
+           * ? Responsible for getting the wallet delivery for the corporations
+           */
+          app.get("/getWalletSummaryForCorps", function (req, res) {
+            new Promise((resolve) => {
+              resolveDate();
+              let params = urlParser.parse(req.url, true);
+              req = params.query;
+
+              if (req.company_fp !== undefined && req.company_fp !== null) {
+                //! Resolve the avoidCache param
+                req["avoidCache"] =
+                  req.avoidCache !== undefined && req.avoidCache !== null
+                    ? /true/i.test(req.avoidCache)
+                      ? true
+                      : false
+                    : false; //False by default
+
+                getWalletSummaryForDeliveryCorps(
+                  req.company_fp,
+                  req.avoidCache,
+                  resolve
+                );
+              } //Error
+              else {
+                resolve({
+                  balance: 0,
+                  usage: 0,
+                });
+              }
+            })
+              .then((result) => {
+                res.send(result);
+              })
+              .catch((error) => {
+                logger.error(error);
+                res.send({
+                  balance: 0,
+                  usage: 0,
+                });
+              });
+          });
+
+          /**
+           * GET NOTIFICATIONS
+           * ? Responsible for getting the notifications infos specific to a user
+           */
+          app.post("/getNotifications_ops", function (req, res) {
+            new Promise((resolve) => {
+              resolveDate();
+              req = req.body;
+
+              if (
+                req.user_fingerprint !== undefined &&
+                req.user_fingerprint !== null
+              ) {
+                //! Resolve the avoidCache param
+                req["avoidCache"] =
+                  req.avoidCache !== undefined && req.avoidCache !== null
+                    ? /true/i.test(req.avoidCache)
+                      ? true
+                      : false
+                    : false; //False by default
+
+                getTargetedNotificationsOps(req, resolve);
+              } //Error
+              else {
+                resolve({
+                  response: "error",
+                });
+              }
+            })
+              .then((result) => {
+                res.send(result);
+              })
+              .catch((error) => {
+                logger.error(error);
+                res.send({ response: "error" });
               });
           });
         }
