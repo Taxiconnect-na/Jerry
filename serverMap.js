@@ -2767,15 +2767,18 @@ function computeRouteDetails_skeleton(
               //1. Resolve pickup location name
               confirmation_request_schema.trip_details.pickup_name =
                 rideHistory.pickup_location_infos.location_name !== false &&
+                rideHistory.pickup_location_infos.location_name !== "false" &&
                 rideHistory.pickup_location_infos.location_name !== undefined
                   ? rideHistory.pickup_location_infos.location_name
                   : rideHistory.pickup_location_infos.street_name !== false &&
+                    rideHistory.pickup_location_infos.street_name !== "false" &&
                     rideHistory.pickup_location_infos.street_name !== undefined
                   ? rideHistory.pickup_location_infos.street_name
                   : rideHistory.pickup_location_infos.suburb !== false &&
+                    rideHistory.pickup_location_infos.suburb !== "false" &&
                     rideHistory.pickup_location_infos.suburb !== undefined
                   ? rideHistory.pickup_location_infos.suburb
-                  : "unclear location.";
+                  : "Your location.";
               //2. Resolve the destinations
               rideHistory.destinationData.map((location) => {
                 if (
@@ -2785,6 +2788,7 @@ function computeRouteDetails_skeleton(
                   //Still empty
                   confirmation_request_schema.trip_details.destination_name =
                     location.location_name !== false &&
+                    location.location_name !== "false" &&
                     location.location_name !== undefined
                       ? location.location_name
                       : location.suburb !== false &&
@@ -2796,6 +2800,7 @@ function computeRouteDetails_skeleton(
                   confirmation_request_schema.trip_details.destination_name +=
                     ", " +
                     (location.location_name !== false &&
+                    location.location_name !== "false" &&
                     location.location_name !== undefined
                       ? location.location_name
                       : location.suburb !== false &&
