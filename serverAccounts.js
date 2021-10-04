@@ -5633,8 +5633,28 @@ redisCluster.on("connect", function () {
                     }
                     //....
                     if (eventData !== undefined && eventData.length > 0) {
+                      //Check the time of the last sent sms
+                      let smsDayCount = 0;
+                      eventData.map((sms) => {
+                        let today = new Date(chaineDateUTC);
+                        let smsDate = new Date(sms.date);
+                        //...
+                        if (
+                          today.getDate() === smsDate.getDate() &&
+                          today.getMonth() === smsDate.getMonth() &&
+                          today.getFullYear() === smsDate.getFullYear()
+                        ) {
+                          //TODAY
+                          smsDayCount += 1;
+                        }
+                      });
+
+                      logger.warn(
+                        `CURRENT SMS COUNT (TODAY) ---> ${smsDayCount}`
+                      );
+
                       //Found some record
-                      if (eventData.length < 15) {
+                      if (smsDayCount < 15) {
                         resolveDate();
                         //Check the time of the last sent sms
                         let lastSMS = eventData[0];
@@ -5646,7 +5666,7 @@ redisCluster.on("connect", function () {
                         let diffHour = timeDiff;
                         //Check if more that 2 hours
                         // logger.warn(diffSec);
-                        if (diffSec >= 60 && eventData.length <= 15) {
+                        if (diffSec >= 60 && smsDayCount <= 15) {
                           //More than 2 hours wait and less than 10SMS sent
                           if (
                             /^264/i.test(onlyDigitsPhone) &&
