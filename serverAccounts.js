@@ -5670,7 +5670,7 @@ redisCluster.on("connect", function () {
                               .then()
                               .catch();
                             //...
-                            // SendSMSTo(onlyDigitsPhone, message);
+                            SendSMSTo(onlyDigitsPhone, message);
                           }
                           res0(true);
                         }
@@ -5739,7 +5739,7 @@ redisCluster.on("connect", function () {
                           .then()
                           .catch();
                         //...
-                        // SendSMSTo(onlyDigitsPhone, message);
+                        SendSMSTo(onlyDigitsPhone, message);
                       }
                       res0(true);
                     }
