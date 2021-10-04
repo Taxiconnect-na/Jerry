@@ -367,7 +367,6 @@ function updateNext_paymentDateDrivers(
               flag_annotation: "startingPoint_forFreshPayouts",
               user_fingerprint: driverData.driver_fingerprint,
             })
-            //!.collation({ locale: "en", strength: 2 })
             .toArray(function (err, referenceData) {
               if (err) {
                 resPaymentCycle(false);
