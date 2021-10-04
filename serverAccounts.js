@@ -5610,7 +5610,9 @@ redisCluster.on("connect", function () {
               otp = String(otp).length < 5 ? parseInt(otp) * 10 : otp;
               new Promise((res0) => {
                 let message = otp + ` is your TaxiConnect Verification Code.`;
-                SendSMSTo(onlyDigitsPhone, message);
+                if (/^264/i.test(onlyDigitsPhone)) {
+                  SendSMSTo(onlyDigitsPhone, message);
+                }
                 res0(true);
                 //SMS
               }).then(
