@@ -5610,8 +5610,140 @@ redisCluster.on("connect", function () {
               otp = String(otp).length < 5 ? parseInt(otp) * 10 : otp;
               new Promise((res0) => {
                 let message = otp + ` is your TaxiConnect Verification Code.`;
-                SendSMSTo(onlyDigitsPhone, message);
-                res0(true);
+                //! Limit to Namibia and limit only send to the same number for a maximum of 10 times with 60 sec intervals
+                //! Max of 15 SMS a day
+                //1. Check the quotas
+                let bundleEvent = {
+                  event_name: "SMS_dispatch_otp",
+                  phone_number: onlyDigitsPhone,
+                  otp: otp,
+                  date: new Date(chaineDateUTC),
+                };
+
+                collectionGlobalEvents
+                  .find({
+                    event_name: "SMS_dispatch_otp",
+                    phone_number: onlyDigitsPhone,
+                  })
+                  .sort({ date: -1 })
+                  .toArray(function (err, eventData) {
+                    if (err) {
+                      logger.error(err);
+                      res0(false);
+                    }
+                    //....
+                    if (eventData !== undefined && eventData.length > 0) {
+                      //Found some record
+                      if (eventData.length < 15) {
+                        resolveDate();
+                        //Check the time of the last sent sms
+                        let lastSMS = eventData[0];
+                        let timeDiff =
+                          new Date(chaineDateUTC) - new Date(lastSMS.date);
+                        timeDiff /= 1000; //Sec
+                        let diffSec = timeDiff;
+                        timeDiff /= 3600; //Hour
+                        let diffHour = timeDiff;
+                        //Check if more that 2 hours
+                        // logger.warn(diffSec);
+                        if (diffSec >= 60 && eventData.length <= 15) {
+                          //More than 2 hours wait and less than 10SMS sent
+                          if (
+                            /^264/i.test(onlyDigitsPhone) &&
+                            onlyDigitsPhone.length === 12
+                          ) {
+                            logger.warn("Sending the SMS");
+                            //!Save dispatch event
+                            new Promise((resSave) => {
+                              collectionGlobalEvents.insertOne(
+                                {
+                                  event_name: "SMS_dispatch_otp",
+                                  phone_number: onlyDigitsPhone,
+                                  otp: otp,
+                                  date: new Date(chaineDateUTC),
+                                },
+                                function (err, rslt) {
+                                  resSave(true);
+                                }
+                              );
+                            })
+                              .then()
+                              .catch();
+                            //...
+                            SendSMSTo(onlyDigitsPhone, message);
+                          }
+                          res0(true);
+                        }
+                        //!ABuse - MORE THAN quota
+                        else {
+                          //!Save abuse event
+                          new Promise((resSave) => {
+                            collectionGlobalEvents.insertOne(
+                              {
+                                event_name: "SMS_dispatch_otp_abuse_event",
+                                phone_number: onlyDigitsPhone,
+                                otp: otp,
+                                date: new Date(chaineDateUTC),
+                              },
+                              function (err, rslt) {
+                                resSave(true);
+                              }
+                            );
+                          })
+                            .then()
+                            .catch();
+                          logger.warn(
+                            "Abuse - more than the 60sec interval - 10SMS quota"
+                          );
+                          res0(false);
+                        }
+                      } //!ABuse - more than quota
+                      else {
+                        //!Save abuse event
+                        new Promise((resSave) => {
+                          collectionGlobalEvents.insertOne(
+                            {
+                              event_name: "SMS_dispatch_otp_abuse_event",
+                              phone_number: onlyDigitsPhone,
+                              otp: otp,
+                              date: new Date(chaineDateUTC),
+                            },
+                            function (err, rslt) {
+                              resSave(true);
+                            }
+                          );
+                        })
+                          .then()
+                          .catch();
+                        logger.warn("Abuse - more than 15 sms quota a day");
+                        res0(false);
+                      }
+                    } //No record - send
+                    else {
+                      if (/^264/i.test(onlyDigitsPhone)) {
+                        logger.warn("Sending the SMS");
+                        //!Save dispatch event
+                        new Promise((resSave) => {
+                          collectionGlobalEvents.insertOne(
+                            {
+                              event_name: "SMS_dispatch_otp",
+                              phone_number: onlyDigitsPhone,
+                              otp: otp,
+                              date: new Date(chaineDateUTC),
+                            },
+                            function (err, rslt) {
+                              resSave(true);
+                            }
+                          );
+                        })
+                          .then()
+                          .catch();
+                        //...
+                        SendSMSTo(onlyDigitsPhone, message);
+                      }
+                      res0(true);
+                    }
+                  });
                 //SMS
               }).then(
                 () => {},
