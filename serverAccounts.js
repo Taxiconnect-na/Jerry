@@ -5766,110 +5766,99 @@ redisCluster.on("connect", function () {
                   });
                 //SMS
               }).then(
-                () => {},
-                (error) => {
-                  logger.info(error);
-                }
-              );
-
-              //1. Check the user's status
-              new Promise((res1) => {
-                checkUserStatus(
-                  req,
-                  otp,
-                  collection_OTP_dispatch_map,
-                  collectionPassengers_profiles,
-                  collectionDrivers_profiles,
-                  res1
-                );
-              }).then(
-                (result) => {
-                  //if (!/driver/i.test(req.user_nature)) {
-                  //! Only send SMS to users or registered drivers
-                  //2. Generate and SMS the OTP
-                  /*new Promise((res0) => {
-                  let message =
-                    `<#> ` + otp + ` is your TaxiConnect Verification Code.`;
-                  SendSMSTo(onlyDigitsPhone, message);
-                  res0(true);
-                  //SMS
-                }).then(
-                  () => {},
-                  (error) => {
-                    logger.info(error);
-                  }
-                );*/
-                  //}
-                  //!---------
-
-                  //Save otp in profile if the user was already registered
-                  logger.warn(req.user_fp);
-                  if (
-                    result.response !== undefined &&
-                    result.user_fp !== undefined &&
-                    result.user_fp !== null
-                  ) {
-                    //Registered user
-                    new Promise((res2) => {
-                      let secretData = {
-                        $set: {
-                          "account_verifications.phone_verification_secrets": {
-                            otp: parseInt(otp),
-                            date_sent: new Date(chaineDateUTC),
-                          },
-                        },
-                      };
-                      //.
-                      //1. Passengers
+                (shouldUpdateProfileOTP) => {
+                  //1. Check the user's status
+                  new Promise((res1) => {
+                    checkUserStatus(
+                      req,
+                      otp,
+                      collection_OTP_dispatch_map,
+                      collectionPassengers_profiles,
+                      collectionDrivers_profiles,
+                      res1
+                    );
+                  }).then(
+                    (result) => {
+                      logger.warn(
+                        `Should update profile OTP ---> ${shouldUpdateProfileOTP}`
+                      );
+                      //Save otp in profile if the user was already registered
+                      logger.warn(req.user_fp);
                       if (
-                        req.user_nature === undefined ||
-                        req.user_nature === null ||
-                        /passenger/i.test(req.user_nature)
+                        result.response !== undefined &&
+                        result.user_fp !== undefined &&
+                        result.user_fp !== null &&
+                        shouldUpdateProfileOTP
                       ) {
-                        collectionPassengers_profiles.updateOne(
-                          { user_fingerprint: result.user_fp },
-                          secretData,
-                          function (err, reslt) {
-                            logger.info(err);
-                            res2(true);
+                        //Registered user
+                        new Promise((res2) => {
+                          let secretData = {
+                            $set: {
+                              "account_verifications.phone_verification_secrets":
+                                {
+                                  otp: parseInt(otp),
+                                  date_sent: new Date(chaineDateUTC),
+                                },
+                            },
+                          };
+                          //.
+                          //1. Passengers
+                          if (
+                            req.user_nature === undefined ||
+                            req.user_nature === null ||
+                            /passenger/i.test(req.user_nature)
+                          ) {
+                            collectionPassengers_profiles.updateOne(
+                              { user_fingerprint: result.user_fp },
+                              secretData,
+                              function (err, reslt) {
+                                logger.info(err);
+                                res2(true);
+                              }
+                            );
+                          } else if (
+                            req.user_nature !== undefined &&
+                            req.user_nature !== null &&
+                            /driver/i.test(req.user_nature)
+                          ) {
+                            logger.info("DRIVER HERE DETECCTEDD");
+                            //2. Drivers
+                            collectionDrivers_profiles.updateOne(
+                              { driver_fingerprint: result.user_fp },
+                              secretData,
+                              function (err, reslt) {
+                                logger.info(err);
+                                res2(true);
+                              }
+                            );
                           }
-                        );
-                      } else if (
-                        req.user_nature !== undefined &&
-                        req.user_nature !== null &&
-                        /driver/i.test(req.user_nature)
-                      ) {
-                        logger.info("DRIVER HERE DETECCTEDD");
-                        //2. Drivers
-                        collectionDrivers_profiles.updateOne(
-                          { driver_fingerprint: result.user_fp },
-                          secretData,
-                          function (err, reslt) {
-                            logger.info(err);
-                            res2(true);
-                          }
-                        );
-                      }
-                    })
-                      .then(
-                        () => {
-                          //...
-                          res.send(result);
-                        },
-                        () => {
-                          ///....
-                          res.send(result);
-                        }
-                      )
-                      .catch((error) => {
+                        })
+                          .then(
+                            () => {
+                              //...
+                              res.send(result);
+                            },
+                            () => {
+                              ///....
+                              res.send(result);
+                            }
+                          )
+                          .catch((error) => {
+                            ///....
+                            res.send(result);
+                          });
+                      } else {
+                        logger.warn("Skip the profile OTP update");
                         ///....
                         res.send(result);
-                      });
-                  } else {
-                    ///....
-                    res.send(result);
-                  }
-                  //...
+                      }
+                      //...
+                    },
+                    (error) => {
+                      logger.info(error);
+                      res.send({ response: "error_checking_user" });
+                    }
+                  );
                 },
                 (error) => {
                   logger.info(error);
