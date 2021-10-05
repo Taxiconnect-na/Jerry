@@ -4398,7 +4398,11 @@ redisCluster.on("connect", function () {
                                                                   "+",
                                                                   ""
                                                                 ),
-                                                                `Hi ${destination.receiver_infos.receiver_name}, you have a new package delivered from ${companyData.company_name}. You can track it using the TaxiConnect app. Thanks.`
+                                                                `Hi ${
+                                                                  destination
+                                                                    .receiver_infos
+                                                                    .receiver_name
+                                                                }, you have an incoming delivery from ${companyData.company_name.toUpperCase()}. You can track it using the TaxiConnect app. Thanks.`
                                                               );
                                                             }
                                                           }

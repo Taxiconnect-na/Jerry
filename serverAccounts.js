@@ -446,7 +446,6 @@ function getBachRidesHistory(
         //Get the mongodb data
         collectionRidesDeliveryData
           .find(result)
-          //!.collation({ locale: "en", strength: 2 })
           .toArray(function (error, ridesData) {
             if (error) {
               resolve({ response: "error_authentication_failed" });
@@ -514,7 +513,6 @@ function getBachRidesHistory(
                     //...
                     collectionRidesDeliveryData
                       .find(rideChecker)
-                      //!.collation({ locale: "en", strength: 2 })
                       .toArray(function (err, tripData) {
                         if (err) {
                           resolve(false);

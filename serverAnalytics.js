@@ -240,6 +240,22 @@ function execGetGlobalObservabilityData(city = "Windhoek", redisKey, resolve) {
 }
 
 /**
+ * @func getObservabilityDataForDeliveryWeb
+ * responsible for getting the observability data for the web delivery interface.
+ * @param requestData: the bundle containing all the requested information
+ * @param resolve
+ */
+function getObservabilityDataForDeliveryWeb(requestData, resolve) {}
+
+/**
+ * @func execGetObservabilityDataForDeliveryWeb
+ * Responsible for actively getting the observability data for the web delivery interface
+ * @param requestData: the bundle containing all the requested information
+ * @param resolve
+ */
+function execGetObservabilityDataForDeliveryWeb(requestData, resolve) {}
+
+/**
  * MAIN
  */
 var collectionRidesDeliveries_data = null;
@@ -248,6 +264,7 @@ var collectionRidersLocation_log = null;
 var collectionDrivers_profiles = null;
 var collectionGlobalEvents = null;
 var collectionWalletTransactions_logs = null;
+var collectionDedicatedServices_accounts = null;
 
 redisCluster.on("connect", function () {
   //logger.info("[*] Redis connected");
@@ -304,6 +321,9 @@ redisCluster.on("connect", function () {
           collectionWalletTransactions_logs = dbMongo.collection(
             "wallet_transactions_logs"
           ); //Hold the latest information about the riders topups
+          collectionDedicatedServices_accounts = dbMongo.collection(
+            "dedicated_services_accounts"
+          ); //Hold all the accounts for dedicated servics like deliveries, etc.
           //-------------
           app
             .get("/", function (req, res) {
