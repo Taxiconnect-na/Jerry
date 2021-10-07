@@ -446,7 +446,6 @@ function getBachRidesHistory(
         //Get the mongodb data
         collectionRidesDeliveryData
           .find(result)
-          //!.collation({ locale: "en", strength: 2 })
           .toArray(function (error, ridesData) {
             if (error) {
               resolve({ response: "error_authentication_failed" });
@@ -514,7 +513,6 @@ function getBachRidesHistory(
                     //...
                     collectionRidesDeliveryData
                       .find(rideChecker)
-                      //!.collation({ locale: "en", strength: 2 })
                       .toArray(function (err, tripData) {
                         if (err) {
                           resolve(false);
@@ -5097,6 +5095,15 @@ function performCorporateDeliveryAccountAuthOps(inputData, resolve) {
  * @param resolve
  */
 function execCorporateAccountData(inputData, resolve) {
+  //! PLANS QUOTAS
+  //! Destinations
+  let QUOTAS_DESTINATIONS = {
+    STR: 5,
+    ITMD: 10,
+    PR: 15,
+    PRSNLD: 15,
+  };
+
   collectionDedicatedServices_accounts
     .find({ company_fp: inputData.company_fp })
     .toArray(function (err, companyData) {
@@ -5109,8 +5116,7 @@ function execCorporateAccountData(inputData, resolve) {
       if (companyData !== undefined && companyData.length > 0) {
         //Valid account
         companyData = companyData[0];
-        //DONE
-        resolve({
+        let responseFinal = {
           response: "authed",
           metadata: {
             company_name: companyData.company_name,
@@ -5120,7 +5126,46 @@ function execCorporateAccountData(inputData, resolve) {
             user_registerer: companyData.user_registerer,
             plans: companyData.plans,
             account: companyData.account,
+            wallet: {},
           },
+        };
+        //! Attach the destination quotas
+        responseFinal.metadata.plans["delivery_limit"] =
+          QUOTAS_DESTINATIONS[companyData.plans.subscribed_plan];
+
+        //? Get the wallet balance
+        let url = `${
+          /production/i.test(process.env.EVIRONMENT)
+            ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+            : process.env.LOCAL_URL
+        }:${
+          process.env.ACCOUNTS_SERVICE_PORT
+        }/getWalletSummaryForCorps?company_fp=${companyData.company_fp}
+                      `;
+        //!----
+        requestAPI(url, function (error, response, body) {
+          logger.error(error);
+          if (error === null) {
+            try {
+              body = JSON.parse(body);
+              //...
+              if (body.balance !== undefined) {
+                logger.info(body);
+                //? Attach the balance data
+                responseFinal.metadata["wallet"] = body;
+                //DONE
+                resolve(responseFinal);
+              }
+            } catch (error) {
+              logger.error(error);
+              //DONE
+              resolve(responseFinal);
+            }
+          } else {
+            //Error
+            //DONE
+            resolve(responseFinal);
+          }
         });
       } //Invalid account
       else {
@@ -5598,13 +5643,18 @@ redisCluster.on("connect", function () {
               //Ok
               //! ADD DEBUG TEST DATA -> CODE 88766
               //Send the message then check the passenger's status
-              let otp = /856997167/i.test(onlyDigitsPhone)
-                ? 88766
-                : otpGenerator.generate(5, {
-                    upperCase: false,
-                    specialChars: false,
-                    alphabets: false,
-                  });
+              // let otp = /856997167/i.test(onlyDigitsPhone)
+              //   ? 88766
+              //   : otpGenerator.generate(5, {
+              //       upperCase: false,
+              //       specialChars: false,
+              //       alphabets: false,
+              //     });
+              let otp = otpGenerator.generate(5, {
+                upperCase: false,
+                specialChars: false,
+                alphabets: false,
+              });
               //! --------------
               //let otp = 55576;
               otp = String(otp).length < 5 ? parseInt(otp) * 10 : otp;
@@ -5666,7 +5716,7 @@ redisCluster.on("connect", function () {
                         let diffHour = timeDiff;
                         //Check if more that 2 hours
                         // logger.warn(diffSec);
-                        if (diffSec >= 60 && smsDayCount <= 15) {
+                        if (diffSec >= 20 && smsDayCount <= 15) {
                           //More than 2 hours wait and less than 10SMS sent
                           if (
                             /^264/i.test(onlyDigitsPhone) &&
@@ -5813,6 +5863,7 @@ redisCluster.on("connect", function () {
                               secretData,
                               function (err, reslt) {
                                 logger.info(err);
+                                logger.warn(`OTP -> ${otp}`);
                                 res2(true);
                               }
                             );
@@ -6037,7 +6088,7 @@ redisCluster.on("connect", function () {
                         date: new Date(chaineDateUTC),
                       },
                     };
-                    logger.info(minimalAccount);
+                    // logger.info(minimalAccount);
                     //..
                     collectionPassengers_profiles.insertOne(
                       minimalAccount,

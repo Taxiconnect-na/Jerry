@@ -1249,9 +1249,16 @@ requestAPI(
                 //?Found some valid details
                 //...
                 //! LIMIT THE TRANSACTION AMOUNT TO N$1000 (N$50-N$1000)
+                //? Make dynamic limit based on the request globality
+                let maxAmountLimit =
+                  /normal/i.test(dataBundle.request_globality) ||
+                  dataBundle.request_globality === undefined
+                    ? 1000
+                    : 15000;
+                //...
                 if (
                   parseFloat(dataBundle.amount) >= 50 &&
-                  parseFloat(dataBundle.amount) <= 1000
+                  parseFloat(dataBundle.amount) <= maxAmountLimit
                 ) {
                   //? Remove _ from the name
                   dataBundle.name = dataBundle.name.replace(/_/g, " ");
