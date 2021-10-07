@@ -530,14 +530,20 @@ function processExecute_paymentCardWallet_topup(
       createToken_deductedResponse.API3G.Result == "000"
     ) {
       logger.info("Executing payment");
+      logger.warn(dataBundle);
       let transactionToken = createToken_deductedResponse.API3G.TransToken;
       let transRef = createToken_deductedResponse.API3G.TransRef;
       dataBundle.number = String(dataBundle.number).replace(/ /g, "");
       dataBundle.expiry = String(dataBundle.expiry).replace("/", "");
       //DEBUG CARD -------------------------------------------------------------------------------
-      dataBundle.number = "5436886269848367";
-      dataBundle.expiry = "1222";
-      dataBundle.cvv = "123";
+      if (
+        /^enabled/i.test(process.env.DEV_DELIVERY_STATE) &&
+        /corporate/i.test(dataBundle.request_globality)
+      ) {
+        dataBundle.number = "5436886269848367";
+        dataBundle.expiry = "1222";
+        dataBundle.cvv = "123";
+      }
       // -----------------------------------------------------------------------------------------
 
       //...
@@ -546,7 +552,12 @@ function processExecute_paymentCardWallet_topup(
       let xmlMakePayment = `
           <?xml version="1.0" encoding="utf-8"?>
           <API3G>
-            <CompanyToken>${process.env.TOKEN_PAYMENT_CP}</CompanyToken>
+            <CompanyToken>${
+              /^enabled/i.test(process.env.DEV_DELIVERY_STATE) &&
+              /corporate/i.test(dataBundle.request_globality)
+                ? process.env.TOKEN_PAYMENT_CP
+                : process.env.DEV_TOKEN_PAYMENT_CP
+            }</CompanyToken>
             <Request>chargeTokenCreditCard</Request>
             <TransactionToken>${transactionToken}</TransactionToken>
             <CreditCardNumber>${dataBundle.number}</CreditCardNumber>
@@ -590,7 +601,12 @@ function processExecute_paymentCardWallet_topup(
                       let xmlVerifyTransaction = `
                         <?xml version="1.0" encoding="utf-8"?>
                         <API3G>
-                          <CompanyToken>${process.env.TOKEN_PAYMENT_CP}</CompanyToken>
+                          <CompanyToken>${
+                            /^enabled/i.test(process.env.DEV_DELIVERY_STATE) &&
+                            /corporate/i.test(dataBundle.request_globality)
+                              ? process.env.TOKEN_PAYMENT_CP
+                              : process.env.DEV_TOKEN_PAYMENT_CP
+                          }</CompanyToken>
                           <Request>verifyToken</Request>
                           <TransactionToken>${transactionToken}</TransactionToken>
                         </API3G>
@@ -1269,7 +1285,10 @@ requestAPI(
                       <?xml version="1.0" encoding="utf-8"?>
                       <API3G>
                       <CompanyToken>${
-                        process.env.TOKEN_PAYMENT_CP
+                        /^enabled/i.test(process.env.DEV_DELIVERY_STATE) &&
+                        /corporate/i.test(dataBundle.request_globality)
+                          ? process.env.TOKEN_PAYMENT_CP
+                          : process.env.DEV_TOKEN_PAYMENT_CP
                       }</CompanyToken>
                       <Request>createToken</Request>
                       <Transaction>
@@ -1292,7 +1311,12 @@ requestAPI(
                       <PaymentCurrency>${
                         process.env.PAYMENT_CURRENCY
                       }</PaymentCurrency>
-                      <CompanyRef>${process.env.COMPANY_DPO_REF}</CompanyRef>
+                      <CompanyRef>${
+                        /^enabled/i.test(process.env.DEV_DELIVERY_STATE) &&
+                        /corporate/i.test(dataBundle.request_globality)
+                          ? process.env.COMPANY_DPO_REF
+                          : process.env.DEV_COMPANY_DPO_REF
+                      }</CompanyRef>
                       <RedirectURL>${
                         process.env.REDIRECT_URL_AFTER_PROCESSES
                       }</RedirectURL>
@@ -1305,7 +1329,10 @@ requestAPI(
                       <Services>
                         <Service>
                           <ServiceType>${
-                            process.env.DPO_CREATETOKEN_SERVICE_TYPE
+                            /^enabled/i.test(process.env.DEV_DELIVERY_STATE) &&
+                            /corporate/i.test(dataBundle.request_globality)
+                              ? process.env.DPO_CREATETOKEN_SERVICE_TYPE
+                              : process.env.DEV_DPO_CREATETOKEN_SERVICE_TYPE
                           }</ServiceType>
                           <ServiceDescription>TaxiConnect wallet top-up</ServiceDescription>
                           <ServiceDate>${dateObjectImute}</ServiceDate>
