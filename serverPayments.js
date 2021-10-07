@@ -555,8 +555,8 @@ function processExecute_paymentCardWallet_topup(
             <CompanyToken>${
               /^enabled/i.test(process.env.DEV_DELIVERY_STATE) &&
               /corporate/i.test(dataBundle.request_globality)
-                ? process.env.TOKEN_PAYMENT_CP
-                : process.env.DEV_TOKEN_PAYMENT_CP
+                ? process.env.DEV_TOKEN_PAYMENT_CP
+                : process.env.TOKEN_PAYMENT_CP
             }</CompanyToken>
             <Request>chargeTokenCreditCard</Request>
             <TransactionToken>${transactionToken}</TransactionToken>
@@ -607,8 +607,8 @@ function processExecute_paymentCardWallet_topup(
                           <CompanyToken>${
                             /^enabled/i.test(process.env.DEV_DELIVERY_STATE) &&
                             /corporate/i.test(dataBundle.request_globality)
-                              ? process.env.TOKEN_PAYMENT_CP
-                              : process.env.DEV_TOKEN_PAYMENT_CP
+                              ? process.env.DEV_TOKEN_PAYMENT_CP
+                              : process.env.TOKEN_PAYMENT_CP
                           }</CompanyToken>
                           <Request>verifyToken</Request>
                           <TransactionToken>${transactionToken}</TransactionToken>
@@ -1290,8 +1290,8 @@ requestAPI(
                       <CompanyToken>${
                         /^enabled/i.test(process.env.DEV_DELIVERY_STATE) &&
                         /corporate/i.test(dataBundle.request_globality)
-                          ? process.env.TOKEN_PAYMENT_CP
-                          : process.env.DEV_TOKEN_PAYMENT_CP
+                          ? process.env.DEV_TOKEN_PAYMENT_CP
+                          : process.env.TOKEN_PAYMENT_CP
                       }</CompanyToken>
                       <Request>createToken</Request>
                       <Transaction>
@@ -1317,8 +1317,8 @@ requestAPI(
                       <CompanyRef>${
                         /^enabled/i.test(process.env.DEV_DELIVERY_STATE) &&
                         /corporate/i.test(dataBundle.request_globality)
-                          ? process.env.COMPANY_DPO_REF
-                          : process.env.DEV_COMPANY_DPO_REF
+                          ? process.env.DEV_COMPANY_DPO_REF
+                          : process.env.COMPANY_DPO_REF
                       }</CompanyRef>
                       <RedirectURL>${
                         process.env.REDIRECT_URL_AFTER_PROCESSES
@@ -1334,8 +1334,8 @@ requestAPI(
                           <ServiceType>${
                             /^enabled/i.test(process.env.DEV_DELIVERY_STATE) &&
                             /corporate/i.test(dataBundle.request_globality)
-                              ? process.env.DPO_CREATETOKEN_SERVICE_TYPE
-                              : process.env.DEV_DPO_CREATETOKEN_SERVICE_TYPE
+                              ? process.env.DEV_DPO_CREATETOKEN_SERVICE_TYPE
+                              : process.env.DPO_CREATETOKEN_SERVICE_TYPE
                           }</ServiceType>
                           <ServiceDescription>TaxiConnect wallet top-up</ServiceDescription>
                           <ServiceDate>${dateObjectImute}</ServiceDate>
