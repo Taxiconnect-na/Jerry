@@ -1252,121 +1252,126 @@ redisCluster.on("connect", function () {
                       .then((dataStateHash) => {
                         logger.warn(result);
                         result = result.data;
-                        //? Use generic_view by default
-                        req.isolation_factor =
-                          req.isolation_factor !== undefined &&
-                          req.isolation_factor !== null
-                            ? req.isolation_factor
-                            : "generic_view";
-                        //?...
-                        if (req.isolation_factor === "req.isolation_factor") {
-                          res.send({
-                            stateHash: dataStateHash,
-                            response: result.genericGlobalStats,
-                          });
-                        } else if (req.isolation_factor === "generic_view") {
-                          res.send({
-                            stateHash: dataStateHash,
-                            response: {
-                              genericGlobalStats: result.genericGlobalStats,
-                            },
-                          });
-                        } else if (
-                          req.isolation_factor === "generic_view|weekly_view"
-                        ) {
-                          res.send({
-                            stateHash: dataStateHash,
-                            response: {
-                              genericGlobalStats: result.genericGlobalStats,
-                              weekly_view: req.make_graphReady
-                                ? makegraphReady(result.weekly_view)
-                                : result.weekly_view,
-                            },
-                          });
-                        } else if (req.isolation_factor === "weekly_view") {
-                          res.send({
-                            stateHash: dataStateHash,
-                            response: {
-                              weekly_view: req.make_graphReady
-                                ? makegraphReady(result.weekly_view)
-                                : result.weekly_view,
-                            },
-                          });
-                        } else if (
-                          req.isolation_factor === "generic_view|daily_view"
-                        ) {
-                          res.send({
-                            stateHash: dataStateHash,
-                            response: {
-                              genericGlobalStats: result.genericGlobalStats,
-                              daily_view: req.make_graphReady
-                                ? makegraphReady(result.daily_view)
-                                : result.daily_view,
-                            },
-                          });
-                        } else if (req.isolation_factor === "daily_view") {
-                          res.send({
-                            stateHash: dataStateHash,
-                            response: {
-                              daily_view: req.make_graphReady
-                                ? makegraphReady(result.daily_view)
-                                : result.daily_view,
-                            },
-                          });
-                        } else if (
-                          req.isolation_factor === "generic_view|monthly_view"
-                        ) {
-                          res.send({
-                            stateHash: dataStateHash,
-                            response: {
-                              genericGlobalStats: result.genericGlobalStats,
-                              monthly_view: req.make_graphReady
-                                ? makegraphReady(result.monthly_view)
-                                : result.monthly_view,
-                            },
-                          });
-                        } else if (req.isolation_factor === "monthly_view") {
-                          res.send({
-                            stateHash: dataStateHash,
-                            response: {
-                              monthly_view: req.make_graphReady
-                                ? makegraphReady(result.monthly_view)
-                                : result.monthly_view,
-                            },
-                          });
-                        } else if (
-                          req.isolation_factor === "generic_view|yearly_view"
-                        ) {
-                          res.send({
-                            stateHash: dataStateHash,
-                            response: {
-                              genericGlobalStats: result.genericGlobalStats,
-                              yearly_view: req.make_graphReady
-                                ? makegraphReady(result.yearly_view)
-                                : result.yearly_view,
-                            },
-                          });
-                        } else if (req.isolation_factor === "yearly_view") {
-                          res.send({
-                            stateHash: dataStateHash,
-                            response: {
-                              yearly_view: req.make_graphReady
-                                ? makegraphReady(result.yearly_view)
-                                : result.yearly_view,
-                            },
-                          });
-                        } else if (req.isolation_factor === "all") {
-                          //! Too heavy!
-                          res.send({
-                            stateHash: dataStateHash,
-                            response: result,
-                          });
-                        } else {
-                          //Generic view
-                          res.send({
-                            stateHash: dataStateHash,
-                            response: result.genericGlobalStats,
-                          });
+                        if (result !== undefined && result !== null) {
+                          //? Use generic_view by default
+                          req.isolation_factor =
+                            req.isolation_factor !== undefined &&
+                            req.isolation_factor !== null
+                              ? req.isolation_factor
+                              : "generic_view";
+                          //?...
+                          if (req.isolation_factor === "req.isolation_factor") {
+                            res.send({
+                              stateHash: dataStateHash,
+                              response: result.genericGlobalStats,
+                            });
+                          } else if (req.isolation_factor === "generic_view") {
+                            res.send({
+                              stateHash: dataStateHash,
+                              response: {
+                                genericGlobalStats: result.genericGlobalStats,
+                              },
+                            });
+                          } else if (
+                            req.isolation_factor === "generic_view|weekly_view"
+                          ) {
+                            res.send({
+                              stateHash: dataStateHash,
+                              response: {
+                                genericGlobalStats: result.genericGlobalStats,
+                                weekly_view: req.make_graphReady
+                                  ? makegraphReady(result.weekly_view)
+                                  : result.weekly_view,
+                              },
+                            });
+                          } else if (req.isolation_factor === "weekly_view") {
+                            res.send({
+                              stateHash: dataStateHash,
+                              response: {
+                                weekly_view: req.make_graphReady
+                                  ? makegraphReady(result.weekly_view)
+                                  : result.weekly_view,
+                              },
+                            });
+                          } else if (
+                            req.isolation_factor === "generic_view|daily_view"
+                          ) {
+                            res.send({
+                              stateHash: dataStateHash,
+                              response: {
+                                genericGlobalStats: result.genericGlobalStats,
+                                daily_view: req.make_graphReady
+                                  ? makegraphReady(result.daily_view)
+                                  : result.daily_view,
+                              },
+                            });
+                          } else if (req.isolation_factor === "daily_view") {
+                            res.send({
+                              stateHash: dataStateHash,
+                              response: {
+                                daily_view: req.make_graphReady
+                                  ? makegraphReady(result.daily_view)
+                                  : result.daily_view,
+                              },
+                            });
+                          } else if (
+                            req.isolation_factor === "generic_view|monthly_view"
+                          ) {
+                            res.send({
+                              stateHash: dataStateHash,
+                              response: {
+                                genericGlobalStats: result.genericGlobalStats,
+                                monthly_view: req.make_graphReady
+                                  ? makegraphReady(result.monthly_view)
+                                  : result.monthly_view,
+                              },
+                            });
+                          } else if (req.isolation_factor === "monthly_view") {
+                            res.send({
+                              stateHash: dataStateHash,
+                              response: {
+                                monthly_view: req.make_graphReady
+                                  ? makegraphReady(result.monthly_view)
+                                  : result.monthly_view,
+                              },
+                            });
+                          } else if (
+                            req.isolation_factor === "generic_view|yearly_view"
+                          ) {
+                            res.send({
+                              stateHash: dataStateHash,
+                              response: {
+                                genericGlobalStats: result.genericGlobalStats,
+                                yearly_view: req.make_graphReady
+                                  ? makegraphReady(result.yearly_view)
+                                  : result.yearly_view,
+                              },
+                            });
+                          } else if (req.isolation_factor === "yearly_view") {
+                            res.send({
+                              stateHash: dataStateHash,
+                              response: {
+                                yearly_view: req.make_graphReady
+                                  ? makegraphReady(result.yearly_view)
+                                  : result.yearly_view,
+                              },
+                            });
+                          } else if (req.isolation_factor === "all") {
+                            //! Too heavy!
+                            res.send({
+                              stateHash: dataStateHash,
+                              response: result,
+                            });
+                          } else {
+                            //Generic view
+                            res.send({
+                              stateHash: dataStateHash,
+                              response: result.genericGlobalStats,
+                            });
+                          }
+                        } //No data
+                        else {
+                          res.send(result);
                         }
                       })
                       .catch((error) => {
