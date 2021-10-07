@@ -5716,7 +5716,7 @@ redisCluster.on("connect", function () {
                         let diffHour = timeDiff;
                         //Check if more that 2 hours
                         // logger.warn(diffSec);
-                        if (diffSec >= 60 && smsDayCount <= 15) {
+                        if (diffSec >= 20 && smsDayCount <= 15) {
                           //More than 2 hours wait and less than 10SMS sent
                           if (
                             /^264/i.test(onlyDigitsPhone) &&
