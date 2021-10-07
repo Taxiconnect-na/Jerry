@@ -246,6 +246,12 @@ function parseRequestData(inputData, resolve) {
           inputData.request_globality !== null
             ? inputData.request_globality
             : "normal";
+        //? Add the subscribed plan
+        parsedData.subscribed_plan =
+          inputData.subscribed_plan !== undefined &&
+          inputData.subscribed_plan !== null
+            ? inputData.subscribed_plan
+            : false;
         //...
         parsedData.client_id = inputData.user_fingerprint;
         parsedData.request_fp = dateObject.unix();
@@ -3396,9 +3402,27 @@ function INIT_RIDE_DELIVERY_DISPATCH_ENTRY(
     isArrivedToDestination: false,
   };
 
+  //! PLANS QUOTAS
+  //! Batches
+  let QUOTAS_BATCHES = {
+    STR: 1,
+    ITMD: 15,
+    PR: 50,
+    PRSNLD: 100,
+  };
+
+  //! Set a dynamic limit to the number of simulataneaous requests - BATCH
+  //? normal :0
+  //? corporate: 5
+  let simulataneaousRequestsLimit = /normal/i.test(
+    parsedReqest_data.request_globality
+  )
+    ? 0
+    : QUOTAS_BATCHES[parsedReqest_data.subscribed_plan];
+  //! ----
+
   collectionRidesDeliveryData
     .find(checkPrevRequest)
-    //!.collation({ locale: "en", strength: 2 })
     .toArray(function (err, prevRequest) {
       if (err) {
         //logger.info(err);
@@ -3408,19 +3432,20 @@ function INIT_RIDE_DELIVERY_DISPATCH_ENTRY(
       if (
         prevRequest === undefined ||
         prevRequest === null ||
-        prevRequest.length <= 0 ||
+        prevRequest.length <= simulataneaousRequestsLimit - 1 ||
         prevRequest[0] === undefined
       ) {
-        collectionRidesDeliveryData.updateOne(
-          {
-            client_id: parsedReqest_data.client_id,
-            "ride_state_vars.isRideCompleted_riderSide": false,
-            isArrivedToDestination: false,
-          },
-          { $set: parsedReqest_data },
-          {
-            upsert: true,
-          },
+        collectionRidesDeliveryData.insertOne(
+          parsedReqest_data,
+          // {
+          //   client_id: parsedReqest_data.client_id,
+          //   "ride_state_vars.isRideCompleted_riderSide": false,
+          //   isArrivedToDestination: false,
+          // },
+          // { $set: parsedReqest_data },
+          // {
+          //   upsert: true,
+          // },
           function (err, requestDt) {
             if (err) {
               //logger.info(err);
@@ -4243,19 +4268,28 @@ redisCluster.on("connect", function () {
               collectionRidesDeliveryData
                 .find(checkPrevRequest)
                 .toArray(function (err, prevRequest) {
-                  //! Set a dynamic limit to the number of simulataneaous requests
+                  //! PLANS QUOTAS
+                  //! Batches
+                  let QUOTAS_BATCHES = {
+                    STR: 1,
+                    ITMD: 15,
+                    PR: 50,
+                    PRSNLD: 100,
+                  };
+
+                  //! Set a dynamic limit to the number of simulataneaous requests - BATCH
                   //? normal :0
                   //? corporate: 5
                   let simulataneaousRequestsLimit = /normal/i.test(
                     req.request_globality
                   )
                     ? 0
-                    : 0;
+                    : QUOTAS_BATCHES[req.subscribed_plan];
                   //! ----
                   if (
                     prevRequest === undefined ||
                     prevRequest === null ||
-                    prevRequest.length <= simulataneaousRequestsLimit ||
+                    prevRequest.length <= simulataneaousRequestsLimit - 1 ||
                     prevRequest[0] === undefined
                   ) {
                     //No previous pending request - MAKE REQUEST VALID
@@ -4388,7 +4422,15 @@ redisCluster.on("connect", function () {
                                                               destination
                                                                 .receiver_infos
                                                                 .receiver_phone !==
-                                                                undefined
+                                                                undefined &&
+                                                              destination
+                                                                .receiver_infos
+                                                                .receiver_phone !==
+                                                                null &&
+                                                              destination
+                                                                .receiver_infos
+                                                                .receiver_phone
+                                                                .length > 0
                                                             ) {
                                                               logger.error(
                                                                 destination

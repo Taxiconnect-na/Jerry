@@ -934,7 +934,7 @@ function tripChecker_Dispatcher(
   redisGet(RIDE_REDIS_KEY)
     .then((resp) => {
       if (resp !== null && avoidCached_data === false) {
-        // logger.error("CACHED");
+        logger.error("CACHED");
         //Has a record
         try {
           //Make a rehydrate request
@@ -956,12 +956,14 @@ function tripChecker_Dispatcher(
               () => {},
               () => {}
             )
-            .catch((error) => {});
+            .catch((error) => {
+              logger.error(error);
+            });
           resp = JSON.parse(resp);
           //....
           resolve(resp);
         } catch (error) {
-          logger.warn(error);
+          logger.error(error);
           //Make a fresh request
           new Promise((resCompute) => {
             execTripChecker_Dispatcher(
@@ -1146,32 +1148,91 @@ function execTripChecker_Dispatcher(
             });
         } //Found a user record
         else {
-          //...
+          //? Segregate based on the request globality
           if (
-            userDataRepr[0].ride_state_vars.isRideCompleted_riderSide === false
+            userDataRepr[0].request_globality === undefined ||
+            userDataRepr[0].request_globality === "normal"
           ) {
-            //REQUEST FP
-            let request_fp = userDataRepr[0].request_fp;
-            //Check if there are any requests cached
-            getMongoRecordTrip_cacheLater(
-              collectionRidesDeliveries_data,
-              collectionDrivers_profiles,
-              user_fingerprint,
-              user_nature,
-              request_fp,
-              RIDE_REDIS_KEY,
-              resolve
-            );
-          } //No rides recorded
+            //...
+            if (
+              userDataRepr[0].ride_state_vars.isRideCompleted_riderSide ===
+              false
+            ) {
+              //REQUEST FP
+              let request_fp = userDataRepr[0].request_fp;
+              //Check if there are any requests cached
+              getMongoRecordTrip_cacheLater(
+                collectionRidesDeliveries_data,
+                collectionDrivers_profiles,
+                user_fingerprint,
+                user_nature,
+                request_fp,
+                RIDE_REDIS_KEY,
+                resolve
+              );
+            } //No rides recorded
+            else {
+              //! SAVE THE FINAL FULL RESULT - for 15 min ------
+              redisCluster.setex(
+                RIDE_REDIS_KEY,
+                parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
+                JSON.stringify("no_rides")
+              );
+              //! ----------------------------------------------
+              resolve("no_rides");
+            }
+          } //!CORPORATE REQUESTS
           else {
-            //! SAVE THE FINAL FULL RESULT - for 15 min ------
-            redisCluster.setex(
-              RIDE_REDIS_KEY,
-              parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
-              JSON.stringify("no_rides")
-            );
-            //! ----------------------------------------------
-            resolve("no_rides");
+            logger.warn("CORPORATE REQUESTS");
+            let parentPromises = userDataRepr.map((trip) => {
+              return new Promise((resCompute) => {
+                getMongoRecordTrip_cacheLater(
+                  collectionRidesDeliveries_data,
+                  collectionDrivers_profiles,
+                  user_fingerprint,
+                  user_nature,
+                  trip.request_fp,
+                  RIDE_REDIS_KEY,
+                  resCompute
+                );
+              });
+            });
+
+            //.....
+            Promise.all(parentPromises)
+              .then((result) => {
+                //? Parse string objects
+                result = result.map((tripFiltered) => {
+                  if (typeof tripFiltered === "string") {
+                    //Convert to object
+                    return JSON.parse(tripFiltered);
+                  } //Do nothing
+                  else {
+                    return tripFiltered;
+                  }
+                });
+                // logger.warn(result);
+
+                //! SAVE THE FINAL FULL RESULT - for 15 min ------
+                redisCluster.setex(
+                  RIDE_REDIS_KEY,
+                  parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
+                  JSON.stringify(result)
+                );
+                //! ----------------------------------------------
+                resolve(result);
+              })
+              .catch((error) => {
+                logger.error(error);
+                //! SAVE THE FINAL FULL RESULT - for 15 min ------
+                redisCluster.setex(
+                  RIDE_REDIS_KEY,
+                  parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
+                  JSON.stringify("no_rides")
+                );
+                //! ----------------------------------------------
+                resolve("no_rides");
+              });
           }
         }
       });
@@ -2419,11 +2480,16 @@ function computeRouteDetails_skeleton(
                             ////logger.info("Trip data cached found!");
                             //logger.info(tripData);
                             //! SAVE THE FINAL FULL RESULT - for 15 min ------
-                            redisCluster.setex(
-                              RIDE_REDIS_KEY,
-                              parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
-                              JSON.stringify(tripData)
-                            );
+                            if (
+                              rideHistory.request_globality === undefined ||
+                              rideHistory.request_globality === "normal"
+                            ) {
+                              redisCluster.setex(
+                                RIDE_REDIS_KEY,
+                                parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
+                                JSON.stringify(tripData)
+                              );
+                            }
                             //! ----------------------------------------------
                             resolve(tripData);
                           } catch (error) {
@@ -2856,11 +2922,16 @@ function computeRouteDetails_skeleton(
               //!----
               //Done
               //! SAVE THE FINAL FULL RESULT - for 15 min ------
-              redisCluster.setex(
-                RIDE_REDIS_KEY,
-                parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
-                JSON.stringify(confirmation_request_schema)
-              );
+              if (
+                rideHistory.request_globality === undefined ||
+                rideHistory.request_globality === "normal"
+              ) {
+                redisCluster.setex(
+                  RIDE_REDIS_KEY,
+                  parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
+                  JSON.stringify(confirmation_request_schema)
+                );
+              }
               //! ----------------------------------------------
               resolve(confirmation_request_schema);
             } //No action needed
@@ -3432,11 +3503,16 @@ function computeAndCacheRouteDestination(
                 );
                 //...
                 //! SAVE THE FINAL FULL RESULT - for 15 min ------
-                redisCluster.setex(
-                  RIDE_REDIS_KEY,
-                  parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
-                  JSON.stringify(result)
-                );
+                if (
+                  rideHistory.request_globality === undefined ||
+                  rideHistory.request_globality === "normal"
+                ) {
+                  redisCluster.setex(
+                    RIDE_REDIS_KEY,
+                    parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
+                    JSON.stringify(result)
+                  );
+                }
                 //! ----------------------------------------------
                 ///DONE
                 resolve(result);
@@ -3484,11 +3560,16 @@ function computeAndCacheRouteDestination(
                 );
                 //...
                 //! SAVE THE FINAL FULL RESULT - for 15 min ------
-                redisCluster.setex(
-                  RIDE_REDIS_KEY,
-                  parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
-                  JSON.stringify(result)
-                );
+                if (
+                  rideHistory.request_globality === undefined ||
+                  rideHistory.request_globality === "normal"
+                ) {
+                  redisCluster.setex(
+                    RIDE_REDIS_KEY,
+                    parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
+                    JSON.stringify(result)
+                  );
+                }
                 //! ----------------------------------------------
                 ///DONE
                 resolve(result);
@@ -5347,6 +5428,7 @@ redisCluster.on("connect", function () {
                   }
                 } //Rider send as is
                 else {
+                  logger.warn(result.length);
                   res.send(result);
                 }
               })
