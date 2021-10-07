@@ -530,7 +530,6 @@ function processExecute_paymentCardWallet_topup(
       createToken_deductedResponse.API3G.Result == "000"
     ) {
       logger.info("Executing payment");
-      logger.warn(dataBundle);
       let transactionToken = createToken_deductedResponse.API3G.TransToken;
       let transRef = createToken_deductedResponse.API3G.TransRef;
       dataBundle.number = String(dataBundle.number).replace(/ /g, "");
@@ -545,6 +544,7 @@ function processExecute_paymentCardWallet_topup(
         dataBundle.cvv = "123";
       }
       // -----------------------------------------------------------------------------------------
+      logger.warn(dataBundle);
 
       //...
       //MAKE PAYMENT
@@ -567,6 +567,8 @@ function processExecute_paymentCardWallet_topup(
             <ChargeType></ChargeType>
           </API3G>
           `;
+
+      logger.info(xmlMakePayment);
       //Execute payment
       new Promise((res0) => {
         executePaymentTransaction(
@@ -578,6 +580,7 @@ function processExecute_paymentCardWallet_topup(
         );
       }).then(
         (result_paymentExec) => {
+          logger.warn(result_paymentExec);
           new Promise((res1) => {
             deductXML_responses(
               result_paymentExec,
