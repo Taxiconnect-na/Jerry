@@ -5303,6 +5303,7 @@ function execGetWalletSummaryForDeliveryCorps(company_fp, resolve) {
   collectionWalletTransactions_logs
     .find({
       company_fp: company_fp,
+      transaction_nature: "topups-corporate",
     })
     .toArray(function (err, transactionData) {
       if (err) {
