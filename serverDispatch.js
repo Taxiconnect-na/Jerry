@@ -3142,7 +3142,6 @@ function confirmPickupRequest_driver(
       request_fp: bundleWorkingData.request_fp,
       taxi_id: bundleWorkingData.driver_fingerprint,
     })
-    //!.collation({ locale: "en", strength: 2 })
     .toArray(function (err, result) {
       if (err) {
         resolve({ response: "unable_to_confirm_pickup_request_error" });
@@ -3180,6 +3179,74 @@ function confirmPickupRequest_driver(
           function (err, res) {
             if (err) {
               resolve({ response: "unable_to_confirm_pickup_request_error" });
+            }
+
+            //? If corporate delivery, notify the receiver by SMS
+            //! Send SMS just for corporate globality
+            let parsedRequest = result[0];
+            if (
+              parsedRequest.request_globality !== undefined &&
+              /corporate/i.test(parsedRequest.request_globality) &&
+              /DELIVERY/i.test(parsedRequest.ride_mode)
+            ) {
+              logger.warn("CORPORATE DELIVERY");
+              new Promise((resSub) => {
+                collectionDedicatedServices_accounts
+                  .find({
+                    company_fp: parsedRequest.client_id,
+                  })
+                  .toArray(function (err, companyData) {
+                    if (err) {
+                      logger.error(err);
+                      resSub(false);
+                    }
+                    //...
+                    if (companyData !== undefined && companyData.length > 0) {
+                      parsedRequest = parsedRequest.destinationData.map(
+                        (el) => {
+                          return {
+                            receiver_infos: el.receiver_infos,
+                          };
+                        }
+                      );
+                      parsedRequest = [
+                        ...new Set(parsedRequest.map(JSON.stringify)),
+                      ].map(JSON.parse);
+                      logger.info(parsedRequest);
+                      //Valid company
+                      parsedRequest.map((destination) => {
+                        if (
+                          destination.receiver_infos.receiver_name !== false &&
+                          destination.receiver_infos.receiver_name !==
+                            undefined &&
+                          destination.receiver_infos.receiver_phone !== false &&
+                          destination.receiver_infos.receiver_phone !==
+                            undefined &&
+                          destination.receiver_infos.receiver_phone !== null &&
+                          destination.receiver_infos.receiver_phone.length > 0
+                        ) {
+                          logger.error(destination);
+                          SendSMSTo(
+                            destination.receiver_infos.receiver_phone.replace(
+                              "+",
+                              ""
+                            ),
+                            `Hi ${
+                              destination.receiver_infos.receiver_name
+                            }, you have an incoming delivery from ${companyData[0].company_name.toUpperCase()}. You can track it using the TaxiConnect app. Thanks.`
+                          );
+                        }
+                      });
+                      //...
+                      resSub(true);
+                    } //Unknown company?
+                    else {
+                      resSub(false);
+                    }
+                  });
+              })
+                .then()
+                .catch();
             }
 
             //DONE
@@ -3803,6 +3870,16 @@ function diff_hours(dt1, dt2) {
   }
 }
 
+var collectionPassengers_profiles = null;
+var collectionRidesDeliveryData = null;
+var collection_cancelledRidesDeliveryData = null;
+var collectionRelativeDistances = null;
+var collectionRidersDriversLocation_log = null;
+var collectionDrivers_profiles = null;
+var collectionGlobalEvents = null;
+var collectionWalletTransactions_logs = null;
+var collectionDedicatedServices_accounts = null;
+
 /**
  * MAIN
  */
@@ -3842,28 +3919,27 @@ redisCluster.on("connect", function () {
           if (err) throw err;
           logger.info("[+] Dispatch services active.");
           const dbMongo = clientMongo.db(process.env.DB_NAME_MONGODDB);
-          const collectionPassengers_profiles = dbMongo.collection(
+          collectionPassengers_profiles = dbMongo.collection(
             "passengers_profiles"
           ); //Hold the information about the riders
-          const collectionRidesDeliveryData = dbMongo.collection(
+          collectionRidesDeliveryData = dbMongo.collection(
             "rides_deliveries_requests"
           ); //Hold all the requests made (rides and deliveries)
-          const collection_cancelledRidesDeliveryData = dbMongo.collection(
+          collection_cancelledRidesDeliveryData = dbMongo.collection(
             "cancelled_rides_deliveries_requests"
           ); //Hold all the cancelled requests made (rides and deliveries)
-          const collectionRelativeDistances = dbMongo.collection(
+          collectionRelativeDistances = dbMongo.collection(
             "relative_distances_riders_drivers"
           ); //Hold the relative distances between rider and the drivers (online, same city, same country) at any given time
-          const collectionRidersDriversLocation_log = dbMongo.collection(
+          collectionRidersDriversLocation_log = dbMongo.collection(
             "historical_positioning_logs"
           ); //Hold all the location updated from the rider
-          const collectionDrivers_profiles =
-            dbMongo.collection("drivers_profiles"); //Hold all the drivers profiles
-          const collectionGlobalEvents = dbMongo.collection("global_events"); //Hold all the random events that happened somewhere.
-          const collectionWalletTransactions_logs = dbMongo.collection(
+          collectionDrivers_profiles = dbMongo.collection("drivers_profiles"); //Hold all the drivers profiles
+          collectionGlobalEvents = dbMongo.collection("global_events"); //Hold all the random events that happened somewhere.
+          collectionWalletTransactions_logs = dbMongo.collection(
             "wallet_transactions_logs"
           ); //Hold the latest information about the riders topups
-          const collectionDedicatedServices_accounts = dbMongo.collection(
+          collectionDedicatedServices_accounts = dbMongo.collection(
             "dedicated_services_accounts"
           ); //Hold all the accounts for dedicated servics like deliveries, etc.
           //-------------
@@ -4419,94 +4495,6 @@ redisCluster.on("connect", function () {
                                                 parsedRequest.ride_mode
                                               )
                                             ) {
-                                              //! Send SMS just for corporate globality
-                                              if (
-                                                parsedRequest.request_globality !==
-                                                  undefined &&
-                                                /corporate/i.test(
-                                                  parsedRequest.request_globality
-                                                )
-                                              ) {
-                                                new Promise((resSub) => {
-                                                  collectionDedicatedServices_accounts
-                                                    .find({
-                                                      company_fp:
-                                                        parsedRequest.client_id,
-                                                    })
-                                                    .toArray(function (
-                                                      err,
-                                                      companyData
-                                                    ) {
-                                                      if (err) {
-                                                        logger.error(err);
-                                                        resSub(false);
-                                                      }
-                                                      //...
-                                                      if (
-                                                        companyData !==
-                                                          undefined &&
-                                                        companyData.length > 0
-                                                      ) {
-                                                        companyData =
-                                                          companyData[0];
-                                                        //Valid company
-                                                        parsedRequest.destinationData.map(
-                                                          (destination) => {
-                                                            if (
-                                                              destination
-                                                                .receiver_infos
-                                                                .receiver_name !==
-                                                                false &&
-                                                              destination
-                                                                .receiver_infos
-                                                                .receiver_name !==
-                                                                undefined &&
-                                                              destination
-                                                                .receiver_infos
-                                                                .receiver_phone !==
-                                                                false &&
-                                                              destination
-                                                                .receiver_infos
-                                                                .receiver_phone !==
-                                                                undefined &&
-                                                              destination
-                                                                .receiver_infos
-                                                                .receiver_phone !==
-                                                                null &&
-                                                              destination
-                                                                .receiver_infos
-                                                                .receiver_phone
-                                                                .length > 0
-                                                            ) {
-                                                              logger.error(
-                                                                destination
-                                                              );
-                                                              SendSMSTo(
-                                                                destination.receiver_infos.receiver_phone.replace(
-                                                                  "+",
-                                                                  ""
-                                                                ),
-                                                                `Hi ${
-                                                                  destination
-                                                                    .receiver_infos
-                                                                    .receiver_name
-                                                                }, you have an incoming delivery from ${companyData.company_name.toUpperCase()}. You can track it using the TaxiConnect app. Thanks.`
-                                                              );
-                                                            }
-                                                          }
-                                                        );
-                                                        //...
-                                                        resSub(true);
-                                                      } //Unknown company?
-                                                      else {
-                                                        resSub(false);
-                                                      }
-                                                    });
-                                                })
-                                                  .then()
-                                                  .catch();
-                                              }
-
                                               //Delivery
                                               new Promise(
                                                 (resNotifyReceiver) => {
