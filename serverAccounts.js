@@ -5651,11 +5651,11 @@ redisCluster.on("connect", function () {
                     specialChars: false,
                     alphabets: false,
                   });
-              let otp = otpGenerator.generate(5, {
-                upperCase: false,
-                specialChars: false,
-                alphabets: false,
-              });
+              // let otp = otpGenerator.generate(5, {
+              //   upperCase: false,
+              //   specialChars: false,
+              //   alphabets: false,
+              // });
               //! --------------
               otp = String(otp).length < 5 ? parseInt(otp) * 10 : otp;
               new Promise((res0) => {
