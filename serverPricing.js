@@ -887,8 +887,23 @@ function computeInDepthPricesMap(
                   }
                 } else if (/DELIVERY/i.test(vehicle.ride_type)) {
                   //DELIVERIES
+                  logger.warn("Delivery detected!");
+                  //DELIVERIES
                   //Add base fare for one person
-                  basePrice += vehicle.base_fare;
+                  if (
+                    /Elisenheim/i.test(tmpPickupPickup) ||
+                    /Elisenheim/i.test(tmpDestinationSuburb) ||
+                    /Elisenheim/i.test(destination.location_name) ||
+                    /Elisenheim/i.test(
+                      completedInputData.pickup_location_infos.location_name
+                    )
+                  ) {
+                    logger.info("Elisenheim detected!");
+                    basePrice += 70;
+                  } //Normal price computation
+                  else {
+                    basePrice += vehicle.base_fare;
+                  }
                 }
               } //? ConnectMe - for comfort and luxury only
               else {
@@ -919,9 +934,23 @@ function computeInDepthPricesMap(
                     }
                   }
                 } else if (/DELIVERY/i.test(vehicle.ride_type)) {
+                  logger.warn("Delivery detected!");
                   //DELIVERIES
                   //Add base fare for one person
-                  basePrice += vehicle.base_fare;
+                  if (
+                    /Elisenheim/i.test(tmpPickupPickup) ||
+                    /Elisenheim/i.test(tmpDestinationSuburb) ||
+                    /Elisenheim/i.test(destination.location_name) ||
+                    /Elisenheim/i.test(
+                      completedInputData.pickup_location_infos.location_name
+                    )
+                  ) {
+                    logger.info("Elisenheim detected!");
+                    basePrice += 70;
+                  } //Normal price computation
+                  else {
+                    basePrice += vehicle.base_fare;
+                  }
                 }
               }
             }
