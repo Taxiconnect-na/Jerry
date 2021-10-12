@@ -2396,8 +2396,9 @@ redisCluster.on("connect", function () {
               });
           });
 
-          //! FOR SUPER HEAVY PROCESSES - 5min
-          cron.schedule("*/5 * * * *", function () {
+          //! FOR SUPER HEAVY PROCESSES - 1min - HIGH CONSISTENCY REQUIRED
+          cron.schedule("*/1 * * * *", function () {
+            logger.warn("Preparing for wallet computation...");
             //? 1. Refresh every driver's wallet
             new Promise((res1) => {
               updateDrivers_walletCachedData(collectionDrivers_profiles, res1);
