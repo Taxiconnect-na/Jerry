@@ -1402,12 +1402,31 @@ function getRiders_wallet_summary(
       if (resp !== null && avoidCached_data == false) {
         //Has a previous record - reply with it and rehydrate the data
         try {
-          //! USE MESSAGE QUEUES TO UPDATE THE WALLET
+          //!Rehydrate
+          new Promise((res) => {
+            execGet_ridersDrivers_walletSummary(
+              requestObj,
+              collectionRidesDeliveryData,
+              collectionWalletTransactions_logs,
+              collectionDrivers_profiles,
+              collectionPassengers_profiles,
+              redisKey,
+              res,
+              userType,
+              avoidCached_data
+            );
+          }).then(
+            (result) => {
+              //? Cache
+              redisCluster.set(redisKey, stringify(result));
+            },
+            (error) => {
+              logger.info(error);
+            }
+          );
           //...Immediatly reply
-          if (avoidCached_data === false || avoidCached_data === undefined) {
-            resp = parse(resp);
-            resolve(resp);
-          }
+          resp = parse(resp);
+          resolve(resp);
         } catch (error) {
           logger.info(error);
           //Error - make a fresh request
@@ -2497,6 +2516,21 @@ function computeDriver_walletDeepInsights(
         if (resp !== null && avoidCached_data == false) {
           //Send cached data
           try {
+            //! Rehydrate the data
+            new Promise((resNewData) => {
+              execGet_driversDeepInsights_fromWalletData(
+                walletBasicData,
+                collectionWalletTransactions_logs,
+                driver_fingerprint,
+                redisKey,
+                resNewData
+              );
+            })
+              .then()
+              .catch((error) => {
+                logger.info(error);
+              });
+            //!-----
             resp = parse(resp);
             resolve(resp);
           } catch (error) {
@@ -2511,19 +2545,9 @@ function computeDriver_walletDeepInsights(
                 resNewData
               );
             })
-              .then(
-                (result) => {
-                  resolve(result);
-                },
-                (error) => {
-                  logger.info(error);
-                  resolve({
-                    header: null,
-                    weeks_view: null,
-                    response: "error",
-                  });
-                }
-              )
+              .then((result) => {
+                resolve(result);
+              })
               .catch((error) => {
                 logger.info(error);
                 resolve({
@@ -2544,19 +2568,10 @@ function computeDriver_walletDeepInsights(
               resNewData
             );
           })
-            .then(
-              (result) => {
-                resolve(result);
-              },
-              (error) => {
-                logger.info(error);
-                resolve({
-                  header: null,
-                  weeks_view: null,
-                  response: "error",
-                });
-              }
-            )
+            .then((result) => {
+              logger.warn(result);
+              resolve(result);
+            })
             .catch((error) => {
               logger.info(error);
               resolve({
@@ -2579,19 +2594,9 @@ function computeDriver_walletDeepInsights(
             resNewData
           );
         })
-          .then(
-            (result) => {
-              resolve(result);
-            },
-            (error) => {
-              logger.info(error);
-              resolve({
-                header: null,
-                weeks_view: null,
-                response: "error",
-              });
-            }
-          )
+          .then((result) => {
+            resolve(result);
+          })
           .catch((error) => {
             logger.info(error);
             resolve({
@@ -2614,19 +2619,9 @@ function computeDriver_walletDeepInsights(
           resNewData
         );
       })
-        .then(
-          (result) => {
-            resolve(result);
-          },
-          (error) => {
-            logger.info(error);
-            resolve({
-              header: null,
-              weeks_view: null,
-              response: "error",
-            });
-          }
-        )
+        .then((result) => {
+          resolve(result);
+        })
         .catch((error) => {
           logger.info(error);
           resolve({
@@ -6937,7 +6932,19 @@ redisCluster.on("connect", function () {
                     process.env.ACCOUNTS_SERVICE_PORT +
                     "/getRiders_walletInfos?user_fingerprint=" +
                     req.user_fingerprint +
-                    "&mode=detailed&userType=driver";
+                    "&userType=driver";
+
+                  //Add the mode - default: detailed
+                  if (
+                    req.mode == undefined ||
+                    req.mode === null ||
+                    /detailed/i.test(req.mode)
+                  ) {
+                    url += `&mode=detailed`;
+                  } //total mode
+                  else {
+                    url += `&mode=total`;
+                  }
 
                   //Add caching strategy if any
                   if (
@@ -7011,7 +7018,6 @@ redisCluster.on("connect", function () {
                 })
                   .then(
                     (resultWalletdata) => {
-                      logger.info(resultWalletdata);
                       //? Final data
                       new Promise((resGetDeepInsights) => {
                         let redisKey = `${req.user_fingerprint}-deepWalletData-driver`;
