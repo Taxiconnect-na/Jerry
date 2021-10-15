@@ -1402,12 +1402,31 @@ function getRiders_wallet_summary(
       if (resp !== null && avoidCached_data == false) {
         //Has a previous record - reply with it and rehydrate the data
         try {
-          //! USE MESSAGE QUEUES TO UPDATE THE WALLET
+          //!Rehydrate
+          new Promise((res) => {
+            execGet_ridersDrivers_walletSummary(
+              requestObj,
+              collectionRidesDeliveryData,
+              collectionWalletTransactions_logs,
+              collectionDrivers_profiles,
+              collectionPassengers_profiles,
+              redisKey,
+              res,
+              userType,
+              avoidCached_data
+            );
+          }).then(
+            (result) => {
+              //? Cache
+              redisCluster.set(redisKey, stringify(result));
+            },
+            (error) => {
+              logger.info(error);
+            }
+          );
           //...Immediatly reply
-          if (avoidCached_data === false || avoidCached_data === undefined) {
-            resp = parse(resp);
-            resolve(resp);
-          }
+          resp = parse(resp);
+          resolve(resp);
         } catch (error) {
           logger.info(error);
           //Error - make a fresh request
@@ -1507,12 +1526,10 @@ function provideDateFromUnISOString(dateString) {
   //.get the hour minute and seconds
   let hours = parseInt(dateString[1].split(":")[0]);
   let minutes = parseInt(dateString[1].split(":")[1]);
+  // logger.warn(`${day}-${month}-${year}, ${hours}:${minutes}`);
   //?Form the date ISO format
-  let date = new Date();
-  date.setFullYear = year;
-  date.setMonth = month;
-  date.setDate = day;
-  date.setHours(hours, minutes, 0);
+  let date = new Date(year, month - 1, day, hours, minutes);
+  // logger.warn(`The parsed date is -> ${date}`);
   ///...
   return date;
 }
@@ -1879,7 +1896,6 @@ function truelyExec_ridersDrivers_walletSummary(
     //...
     collectionWalletTransactions_logs
       .find(filterReceived)
-      //!.collation({ locale: "en", strength: 2 })
       .toArray(function (err, resultTransactionsReceived) {
         if (err) {
           logger.info(err);
@@ -1904,7 +1920,7 @@ function truelyExec_ridersDrivers_walletSummary(
               ) === false
             ) {
               receivedDataShot.total += parseFloat(transaction.amount);
-            } //! Substract the commission
+            } //! Substract the commission already paid
             else {
               receivedDataShot.total -= parseFloat(transaction.amount);
             }
@@ -1939,7 +1955,6 @@ function truelyExec_ridersDrivers_walletSummary(
           //...
           collectionWalletTransactions_logs
             .find(filterTopups)
-            //!.collation({ locale: "en", strength: 2 })
             .toArray(function (err, resultTransactions) {
               if (err) {
                 logger.info(err);
@@ -2012,7 +2027,6 @@ function truelyExec_ridersDrivers_walletSummary(
                 //...Only consider the completed requests
                 collectionRidesDeliveryData
                   .find(filterPaidRequests)
-                  //!.collation({ locale: "en", strength: 2 })
                   .toArray(function (err, resultPaidRequests) {
                     if (err) {
                       logger.info(err);
@@ -2211,7 +2225,6 @@ function truelyExec_ridersDrivers_walletSummary(
                 //...Only consider the completed requests
                 collectionRidesDeliveryData
                   .find(filterPaidRequests)
-                  //!.collation({ locale: "en", strength: 2 })
                   .toArray(function (err, resultPaidRequests) {
                     if (err) {
                       logger.info(err);
@@ -2467,12 +2480,12 @@ function truelyExec_ridersDrivers_walletSummary(
       },
       (error) => {
         logger.info(error);
-        res({ total: 0, transactions_data: null });
+        resolve({ total: 0, transactions_data: null });
       }
     )
     .catch((error) => {
       logger.info(error);
-      res({ total: 0, transactions_data: null });
+      resolve({ total: 0, transactions_data: null });
     });
 }
 
@@ -2503,6 +2516,21 @@ function computeDriver_walletDeepInsights(
         if (resp !== null && avoidCached_data == false) {
           //Send cached data
           try {
+            //! Rehydrate the data
+            new Promise((resNewData) => {
+              execGet_driversDeepInsights_fromWalletData(
+                walletBasicData,
+                collectionWalletTransactions_logs,
+                driver_fingerprint,
+                redisKey,
+                resNewData
+              );
+            })
+              .then()
+              .catch((error) => {
+                logger.info(error);
+              });
+            //!-----
             resp = parse(resp);
             resolve(resp);
           } catch (error) {
@@ -2517,19 +2545,9 @@ function computeDriver_walletDeepInsights(
                 resNewData
               );
             })
-              .then(
-                (result) => {
-                  resolve(result);
-                },
-                (error) => {
-                  logger.info(error);
-                  resolve({
-                    header: null,
-                    weeks_view: null,
-                    response: "error",
-                  });
-                }
-              )
+              .then((result) => {
+                resolve(result);
+              })
               .catch((error) => {
                 logger.info(error);
                 resolve({
@@ -2550,19 +2568,10 @@ function computeDriver_walletDeepInsights(
               resNewData
             );
           })
-            .then(
-              (result) => {
-                resolve(result);
-              },
-              (error) => {
-                logger.info(error);
-                resolve({
-                  header: null,
-                  weeks_view: null,
-                  response: "error",
-                });
-              }
-            )
+            .then((result) => {
+              logger.warn(result);
+              resolve(result);
+            })
             .catch((error) => {
               logger.info(error);
               resolve({
@@ -2585,19 +2594,9 @@ function computeDriver_walletDeepInsights(
             resNewData
           );
         })
-          .then(
-            (result) => {
-              resolve(result);
-            },
-            (error) => {
-              logger.info(error);
-              resolve({
-                header: null,
-                weeks_view: null,
-                response: "error",
-              });
-            }
-          )
+          .then((result) => {
+            resolve(result);
+          })
           .catch((error) => {
             logger.info(error);
             resolve({
@@ -2620,19 +2619,9 @@ function computeDriver_walletDeepInsights(
           resNewData
         );
       })
-        .then(
-          (result) => {
-            resolve(result);
-          },
-          (error) => {
-            logger.info(error);
-            resolve({
-              header: null,
-              weeks_view: null,
-              response: "error",
-            });
-          }
-        )
+        .then((result) => {
+          resolve(result);
+        })
         .catch((error) => {
           logger.info(error);
           resolve({
@@ -6794,7 +6783,8 @@ redisCluster.on("connect", function () {
                   collectionPassengers_profiles,
                   resolve,
                   req.avoidCached_data !== undefined &&
-                    req.avoidCached_data !== null
+                    req.avoidCached_data !== null &&
+                    /true/i.test(req.avoidCached_data)
                     ? true
                     : false,
                   req.userType !== undefined && req.userType !== null
@@ -6942,10 +6932,25 @@ redisCluster.on("connect", function () {
                     process.env.ACCOUNTS_SERVICE_PORT +
                     "/getRiders_walletInfos?user_fingerprint=" +
                     req.user_fingerprint +
-                    "&mode=detailed&userType=driver";
+                    "&userType=driver";
+
+                  //Add the mode - default: detailed
+                  if (
+                    req.mode == undefined ||
+                    req.mode === null ||
+                    /detailed/i.test(req.mode)
+                  ) {
+                    url += `&mode=detailed`;
+                  } //total mode
+                  else {
+                    url += `&mode=total`;
+                  }
 
                   //Add caching strategy if any
-                  if (req.avoidCached_data !== undefined) {
+                  if (
+                    req.avoidCached_data !== undefined &&
+                    /true/i.test(req.avoidCached_data)
+                  ) {
                     url += "&avoidCached_data=" + req.avoidCached_data;
                   }
 
