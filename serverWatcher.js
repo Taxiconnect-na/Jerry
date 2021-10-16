@@ -2400,20 +2400,20 @@ redisCluster.on("connect", function () {
           cron.schedule("*/3 * * * *", function () {
             logger.warn("Preparing for wallet computation...");
             //? 1. Refresh every driver's wallet
-            new Promise((res1) => {
-              updateDrivers_walletCachedData(collectionDrivers_profiles, res1);
-            })
-              .then(
-                (result) => {
-                  logger.info(result);
-                },
-                (error) => {
-                  logger.info(error);
-                }
-              )
-              .catch((error) => {
-                logger.info(error);
-              });
+            // new Promise((res1) => {
+            //   updateDrivers_walletCachedData(collectionDrivers_profiles, res1);
+            // })
+            //   .then(
+            //     (result) => {
+            //       logger.info(result);
+            //     },
+            //     (error) => {
+            //       logger.info(error);
+            //     }
+            //   )
+            //   .catch((error) => {
+            //     logger.info(error);
+            //   });
 
             //?2. Mark as offline all the inactive drivers
             new Promise((res2) => {
