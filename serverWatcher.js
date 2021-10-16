@@ -2400,22 +2400,42 @@ redisCluster.on("connect", function () {
           cron.schedule("*/3 * * * *", function () {
             logger.warn("Preparing for wallet computation...");
             //? 1. Refresh every driver's wallet
+            // new Promise((res1) => {
+            //   updateDrivers_walletCachedData(collectionDrivers_profiles, res1);
+            // })
+            //   .then(
+            //     (result) => {
+            //       logger.info(result);
+            //     },
+            //     (error) => {
+            //       logger.info(error);
+            //     }
+            //   )
+            //   .catch((error) => {
+            //     logger.info(error);
+            //   });
+
+            //? 2. Clean X hold requests
             new Promise((res1) => {
-              updateDrivers_walletCachedData(collectionDrivers_profiles, res1);
+              removeOldRequests_madeWithoutBeingAttended(
+                collectionPassengers_profiles,
+                collectionRidesDeliveryData,
+                res1
+              );
             })
               .then(
                 (result) => {
-                  logger.info(result);
+                  //logger.info(result);
                 },
                 (error) => {
-                  logger.info(error);
+                  //logger.info(error);
                 }
               )
               .catch((error) => {
-                logger.info(error);
+                //logger.info(error);
               });
 
-            //?2. Mark as offline all the inactive drivers
+            //?3. Mark as offline all the inactive drivers
             new Promise((res2) => {
               autoOfflineInactiveDrivers(
                 collectionDrivers_profiles,
@@ -2467,26 +2487,6 @@ redisCluster.on("connect", function () {
 
           //! FOR LIGHT HEAVY PROCESSES REQUIRING - 5min
           cron.schedule("*/5 * * * *", function () {
-            //? 1. Clean X hold requests
-            new Promise((res1) => {
-              removeOldRequests_madeWithoutBeingAttended(
-                collectionPassengers_profiles,
-                collectionRidesDeliveryData,
-                res1
-              );
-            })
-              .then(
-                (result) => {
-                  //logger.info(result);
-                },
-                (error) => {
-                  //logger.info(error);
-                }
-              )
-              .catch((error) => {
-                //logger.info(error);
-              });
-
             //? 2. Keep the drivers next payment date UP TO DATE
             new Promise((res2) => {
               updateNext_paymentDateDrivers(
