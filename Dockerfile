@@ -30,5 +30,6 @@ EXPOSE 9094
 EXPOSE 9696
 EXPOSE 9494
 EXPOSE 9093
+EXPOSE 9898
 
 CMD [ "pm2-runtime", "ecosystem.config.js" ]

@@ -23,6 +23,17 @@ module.exports = {
       },
     },
     {
+      name: "Analytics service",
+      script: "serverAnalytics.js",
+      instances: "max",
+      autorestart: true,
+      watch: false,
+      max_memory_restart: "2G",
+      env: {
+        NODE_ENV: "production",
+      },
+    },
+    {
       name: "Dispatch service",
       script: "serverDispatch.js",
       instances: "max",
