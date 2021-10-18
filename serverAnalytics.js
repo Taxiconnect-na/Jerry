@@ -315,6 +315,7 @@ function getObservabilityDataForDeliveryWeb(requestData, resolve) {
           })
           .catch((error) => {
             logger.error(error);
+            resolve({ response: "error" });
           });
         //...
         resp = JSON.parse(resp);
@@ -353,16 +354,16 @@ function getObservabilityDataForDeliveryWeb(requestData, resolve) {
       })
         .then((result) => {
           //Cache
-          // new Promise((resCache) => {
-          //   redisCluster.setex(
-          //     redisKey,
-          //     parseInt(process.env.REDIS_EXPIRATION_5MIN) * 1440,
-          //     JSON.stringify(result)
-          //   );
-          //   resCache(true);
-          // })
-          //   .then()
-          //   .catch((error) => logger.error(error));
+          new Promise((resCache) => {
+            redisCluster.setex(
+              redisKey,
+              parseInt(process.env.REDIS_EXPIRATION_5MIN) * 1440,
+              JSON.stringify(result)
+            );
+            resCache(true);
+          })
+            .then()
+            .catch((error) => logger.error(error));
           //...
           resolve(result);
         })
@@ -599,7 +600,7 @@ function execGetObservabilityDataForDeliveryWeb(requestData, resolve) {
               });
               //...
               //? Get all the cancellled trips
-              collectionRidesDeliveries_data
+              collection_cancelledRidesDeliveryData
                 .find({ client_id: requestData.user_fp })
                 .sort({ date_requested: -1 })
                 .toArray(function (err, cancelledTripData) {
@@ -610,6 +611,7 @@ function execGetObservabilityDataForDeliveryWeb(requestData, resolve) {
                       data: modelMetaDataResponse,
                     });
                   }
+                  logger.error(JSON.stringify(cancelledTripData));
                   //...
                   if (
                     cancelledTripData !== undefined &&
@@ -1116,6 +1118,7 @@ var collectionDrivers_profiles = null;
 var collectionGlobalEvents = null;
 var collectionWalletTransactions_logs = null;
 var collectionDedicatedServices_accounts = null;
+var collection_cancelledRidesDeliveryData = null;
 
 redisCluster.on("connect", function () {
   //logger.info("[*] Redis connected");
@@ -1175,6 +1178,9 @@ redisCluster.on("connect", function () {
           collectionDedicatedServices_accounts = dbMongo.collection(
             "dedicated_services_accounts"
           ); //Hold all the accounts for dedicated servics like deliveries, etc.
+          collection_cancelledRidesDeliveryData = dbMongo.collection(
+            "cancelled_rides_deliveries_requests"
+          ); //Hold all the cancelled requests made (rides and deliveries)
           //-------------
           app
             .get("/", function (req, res) {

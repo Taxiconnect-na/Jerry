@@ -5525,7 +5525,6 @@ var collectionPassengers_profiles = null;
 var collectionRidesDeliveryData = null;
 var collection_OTP_dispatch_map = null;
 var collectionDrivers_profiles = null;
-var collectionDrivers_profiles = null;
 var collectionGlobalEvents = null;
 var collectionWalletTransactions_logs = null;
 var collectionAdsCompanies_central = null;
