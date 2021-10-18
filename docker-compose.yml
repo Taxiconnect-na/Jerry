@@ -12,6 +12,7 @@ services:
       - "9696:9696"
       - "9494:9494"
       - "9093:9093"
+      - "9898:9898"
     restart: always
     environment:
       - INSTANCE_PRIVATE_IP=${INSTANCE_PRIVATE_IP}
