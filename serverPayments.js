@@ -5,7 +5,7 @@ const http = require("http");
 const fs = require("fs");
 const MongoClient = require("mongodb").MongoClient;
 const certFile = fs.readFileSync("./rds-combined-ca-bundle.pem");
-
+const nodemailer = require("nodemailer");
 var parser = require("xml2json");
 
 const { logger } = require("./LogService");
@@ -14,11 +14,7 @@ var app = express();
 var server = http.createServer(app);
 const requestAPI = require("request");
 //....
-
-var AWS_S3_ID = null;
-var AWS_S3_SECRET = null;
-var URL_MONGODB_DEV = null;
-var URL_MONGODB_PROD = null;
+const crypto = require("crypto");
 //...
 
 const urlParser = require("url");
@@ -74,6 +70,61 @@ function resolveDate() {
   chaineDateUTC = new Date(date).toISOString();
 }
 resolveDate();
+
+let transporterSecurity = nodemailer.createTransport({
+  host: process.env.INOUT_GOING_SERVER,
+  port: process.env.LOGIN_EMAIL_SMTP,
+  secure: true, // true for 465, false for other ports
+  auth: {
+    user: process.env.LOGIN_EMAIL_USER, // generated ethereal user
+    pass: process.env.LOGIN_EMAIL_PASSWORD, // generated ethereal password
+  },
+});
+
+let transporterNoReplay = nodemailer.createTransport({
+  host: process.env.INOUT_GOING_SERVER,
+  port: process.env.LOGIN_EMAIL_SMTP,
+  secure: true, // true for 465, false for other ports
+  auth: {
+    user: process.env.NOREPLY_EMAIL, // generated ethereal user
+    pass: process.env.NOREPLY_EMAIL_PASSWORD, // generated ethereal password
+  },
+});
+
+/**
+ * @func generateUniqueFingerprint()
+ * Generate unique fingerprint for any string size.
+ */
+function generateUniqueFingerprint(str, encryption = false, resolve) {
+  str = str.trim();
+  let fingerprint = null;
+  if (encryption === false) {
+    fingerprint = crypto
+      .createHmac(
+        "sha512WithRSAEncryption",
+        "TAXICONNECTBASICKEYFINGERPRINTS-RIDES-DELIVERY"
+      )
+      .update(str)
+      .digest("hex");
+    resolve(fingerprint);
+  } else if (/md5/i.test(encryption)) {
+    fingerprint = crypto
+      .createHmac(
+        "md5WithRSAEncryption",
+        "TAXICONNECTBASICKEYFINGERPRINTS-RIDES-DELIVERY"
+      )
+      .update(str)
+      .digest("hex");
+    resolve(fingerprint);
+  } //Other - default
+  else {
+    fingerprint = crypto
+      .createHmac("sha256", "TAXICONNECTBASICKEYFINGERPRINTS-RIDES-DELIVERY")
+      .update(str)
+      .digest("hex");
+    resolve(fingerprint);
+  }
+}
 
 /**
  * @func deductXML_responses()
@@ -659,6 +710,26 @@ function processExecute_paymentCardWallet_topup(
                                   () => {}
                                 );
                                 //...
+                                //Send the receipt for the delivery web purchases of packages
+                                new Promise((resSendReceipt) => {
+                                  if (
+                                    /corporate/i.test(
+                                      dataBundle.request_globality
+                                    )
+                                  ) {
+                                    sendReceipt(
+                                      dataBundle,
+                                      "packagePurchaseReceipt",
+                                      resSendReceipt
+                                    );
+                                  } //Pass
+                                  else {
+                                    resSendReceipt(false);
+                                  }
+                                })
+                                  .then()
+                                  .catch((error) => logger.error(error));
+
                                 //DONE - SUCCESSFULLY PAID
                                 resolve({
                                   response: "success",
@@ -1107,10 +1178,256 @@ function checkNonSelf_sendingFunds_user(
 }
 
 /**
+ * @func sendReceipt
+ * Responsible for sending receipts for delivery web requests.
+ * @param metaDataBundle: the drop off meta data
+ * @param scenarioType: dropoffReceipt or packagePurchaseReceipt
+ * @param resolve
+ */
+function sendReceipt(metaDataBundle, scenarioType, resolve) {
+  logger.info(metaDataBundle);
+  logger.info(scenarioType);
+  resolveDate();
+
+  if (/packagePurchaseReceipt/i.test(scenarioType)) {
+    //Receipt after purchasing a package
+    let dpo_gateway_deduction_fees =
+      (parseFloat(metaDataBundle.amount) *
+        process.env.DPO_GATEWAY_CHARGES_PERCENTAGE) /
+      100;
+    let taxiconnect_service_fees =
+      (parseFloat(metaDataBundle.amount) *
+        process.env.TAXICONNECT_WALLET_TOPUP_SERVICE_FEES) /
+      100;
+    let amountRecomputed =
+      parseFloat(metaDataBundle.amount) -
+      dpo_gateway_deduction_fees -
+      taxiconnect_service_fees; //! VERY IMPORTANT - REMOVE DPO AND TAXICONNECT DEDUCTIONS
+    //...
+    //Get the company data
+    collectionDedicatedServices_accounts
+      .find({
+        company_fp: metaDataBundle.user_fp,
+      })
+      .toArray(function (err, companyData) {
+        if (err) {
+          logger.error(err);
+          resolve(false);
+        }
+        logger.info(companyData);
+        //...
+        if (companyData !== undefined && companyData.length > 0) {
+          companyData = companyData[0];
+          let receiptFp = Math.round(new Date(chaineDateUTC).getTime())
+            .toString()
+            .substring(0, 7);
+          //Found the company
+          //? Generate a receipt fingerprint
+          new Promise((resGenerateFp) => {
+            generateUniqueFingerprint(
+              `${metaDataBundle.user_fp}-${new Date(chaineDateUTC).getTime()}`,
+              "md5",
+              resGenerateFp
+            );
+          })
+            .then((result) => {
+              receiptFp = result.toString().toUpperCase().substring(0, 7);
+            })
+            .catch((error) => {
+              logger.error(error);
+              //...
+            })
+            .finally(() => {
+              let emailTemplate = `
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+              <meta charset="UTF-8">
+              <meta http-equiv="X-UA-Compatible" content="IE=edge">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>Invoice</title>
+          </head>
+          <body style="display: flex;flex-direction: column;align-items: flex-start;justify-content: center;padding:20px;padding-left:5%;padding-right:5%;font-family:Arial, Helvetica, sans-serif;font-size: 15px;flex:1">
+              <div style="width: 100px;height:100px;bottom:20px;position: relative;margin:auto">
+                  <img alt="TaxiConnect" src="https://ads-central-tc.s3.us-west-1.amazonaws.com/logo_ios.png" style="width: 100%;height: 100%;object-fit: contain;" />
+              </div>
+              <div style="border-bottom:1px solid #d0d0d0;display: flex;flex-direction: row;justify-content: space-between;margin-bottom: 15px;width: 100%;">
+                  <div style="display: flex;flex-direction: row;">
+                      <div style="margin-left: 2%;">
+                          <div style="font-weight: bold;font-size: 17px;">Posterity TaxiConnect Technologies CC</div>
+                          <div style="font-size: 14px;margin-top: 5px;color:#272626bb">
+                          <div>17 Schinz street</div>
+                          <div>Windhoek</div>
+                          <div>+264814400089</div>
+                          <div>support@taxiconnectna.com</div>
+                          </div>
+                      </div>
+                  </div>
+                  <div style="text-align: right;width:100%">
+                      <div style="margin-bottom: 13px;">
+                          <div style="font-weight: bold;font-size: 11px;">RECEIPT</div>
+                          <div style="font-size: 14px;color:#272626bb;margin-top: 4px;">${receiptFp}</div>
+                      </div>
+                      <div style="margin-bottom: 13px;">
+                          <div style="font-weight: bold;font-size: 11px;">DATE</div>
+                          <div style="font-size: 14px;color:#272626bb;margin-top: 4px;">${
+                            new Date(chaineDateUTC).toDateString().split(" ")[1]
+                          } ${new Date(chaineDateUTC).getDate()}, ${new Date(
+                chaineDateUTC
+              ).getFullYear()}</div>
+                      </div>
+                      <div style="margin-bottom: 25px;min-width: 100px;">
+                          <div style="font-weight: bold;font-size: 11px;">BALANCE DUE</div>
+                          <div style="font-size: 14px;color:#272626bb;margin-top: 4px;">NAD $${parseFloat(
+                            metaDataBundle.amount
+                          ).toFixed(2)}</div>
+                      </div>
+                  </div>
+              </div>
+
+              <!-- Body -->
+              <div style="border:1px solid #fff;margin-top: 10px;width:100%">
+                  <div  style="font-size: 11px;margin-top: 5px;color:#272626bb">BILL TO</div>
+                  <div  style="font-weight: bold;font-size: 17px;margin-top: 10px;margin-bottom: 20px;">${companyData.company_name.toUpperCase()}</div>
+                  <div style="font-size: 14px;margin-top: 5px;color:#272626bb;line-height: 20px;">
+                      <div></div>
+                      <div>Windhoek</div>
+                      <div></div>
+                      <div>${companyData.phone}</div>
+                      </div>
+              </div>
+
+              <!-- Summary -->
+              <div style="border-top:1px solid #272626bb;border-bottom:1px solid #272626bb; display: flex;flex-direction: row;color:#000;padding-bottom: 10px;padding-top:10px;margin-top: 40px;width:100%">
+                  <div style="flex:1;align-items: flex-end;font-weight: bold;font-size: 12px;">DESCRIPTION</div>
+                  <div style="display: flex;flex-direction: row;text-align: right;font-size: 12px;font-weight: bold;flex:1;justify-content: space-between;">
+                      <div style="flex:1">RATE</div>
+                      <div style="flex:1;">QTY</div>
+                      <div style="flex:1;">AMOUNT</div>
+                  </div>
+              </div>
+              <!-- Element -->
+              <div style="border-bottom:1px dashed #272626bb; display: flex;flex-direction: row;color:#000;padding-bottom: 10px;padding-top:10px;margin-top: 10px;width:100%">
+                  <div style="flex:1;">
+                  <div style="align-items: flex-end;font-weight: bold;font-size: 15px;margin-bottom: 5px;">${
+                    metaDataBundle.plan_name
+                  }</div>
+                  <div style="color: #272626bb;font-size: 13px;">
+                      Package purchased
+                  </div>
+                  </div>
+                  <div style="display: flex;flex-direction: row;text-align: right;font-size: 14px;color:#272626bb;flex:1;justify-content: space-between;">
+                      <div style="flex:1">$${parseFloat(
+                        metaDataBundle.amount
+                      ).toFixed(2)}</div>
+                      <div style="flex:1">1</div>
+                      <div style="flex:1">$${parseFloat(
+                        metaDataBundle.amount
+                      ).toFixed(2)}</div>
+                  </div>
+              </div>
+              <!-- Element -->
+
+              <!-- Totals -->
+              <div style="display: flex;flex-direction: row;justify-content: space-between;margin-top: 30px;align-items: center;width:100%">
+                  <div style="flex:1;color:#272626bb;font-size: 12px;padding-right: 30px;">Thank you for choosing TaxiConnect for all your business delivery needs.</div>
+                  <di style="flex:2">
+                    <div style="display:flex;flex-direction:row;justify-content: space-between;align-items: center;margin-bottom: 5px;">
+                        <div style="font-weight: bold;font-size:11px">SUBTOTAL</div>
+                        <div style="font-size: 14px;color:#272626bb;">$${parseFloat(
+                          metaDataBundle.amount
+                        ).toFixed(2)}</div>
+                    </div>
+                    <div style="display:flex;flex-direction:row;justify-content: space-between;align-items: center;margin-bottom: 5px;">
+                          <div style="font-weight: bold;font-size:11px">TAXABLE</div>
+                          <div style="font-size: 14px;color:#272626bb;">$${amountRecomputed.toFixed(
+                            2
+                          )}</div>
+                      </div>
+                      <div style="border-bottom:1px solid #d0d0d0;padding-bottom:10px;display:flex;flex-direction:row;justify-content: space-between;align-items: center;margin-bottom: 10px;">
+                          <div style="font-weight: bold;font-size:11px">SERVICE FEE (4%)</div>
+                          <div style="font-size: 14px;color:#272626bb;">$${(
+                            parseFloat(metaDataBundle.amount) * 0.04
+                          ).toFixed(2)}</div>
+                      </div>
+                      <div style="border-bottom:1px solid #d0d0d0;padding-bottom:10px;display:flex;flex-direction:row;justify-content: space-between;align-items: center;margin-bottom: 15px;">
+                          <div style="font-weight: bold;font-size:11px">TOTAL</div>
+                          <div style="font-size: 14px;color:#272626bb;">$${parseFloat(
+                            metaDataBundle.amount
+                          ).toFixed(2)}</div>
+                      </div>
+                      <div style="border-bottom:1px solid #d0d0d0;padding-bottom:10px;display:flex;flex-direction:row;justify-content: space-between;align-items: center;margin-bottom: 5px;">
+                          <div style="font-weight: bold;font-size:12px;flex:1">BALANCE DUE</div>
+                          <div style="font-size: 15px;color:#272626bb;font-weight: bold;">NAD $${parseFloat(
+                            metaDataBundle.amount
+                          ).toFixed(2)}</div>
+                      </div>
+                  </div>
+              </div>
+          </body>
+          </html>
+        `;
+
+              //? Save the email dispatch event
+              new Promise((saveEvent) => {
+                let eventBundle = {
+                  event_name: "Delivery_package_email_receipt_dipstach",
+                  user_fingerprint: metaDataBundle.user_fp,
+                  user_nature: "rider",
+                  city: "Windhoek",
+                  receipt_fp: receiptFp,
+                  email_data: emailTemplate,
+                  date: new Date(chaineDateUTC),
+                };
+                //...
+                collectionGlobalEvents.insertOne(
+                  eventBundle,
+                  function (err, reslt) {
+                    if (err) {
+                      logger.error(err);
+                      saveEvent(false);
+                    }
+                    //...
+                    saveEvent(true);
+                  }
+                );
+              })
+                .then()
+                .catch((error) => logger.error(error));
+
+              //? Send email
+              let info = transporterNoReplay.sendMail({
+                from: process.env.NOREPLY_EMAIL, // sender address
+                to: companyData.email, // list of receivers
+                subject: `Delivery Package purchase receipt (${receiptFp})`, // Subject line
+                html: emailTemplate,
+              });
+
+              //?DONE
+              logger.info(`Sending receipt email...to ${companyData.email}`);
+              logger.info(info.messageId);
+              resolve(true);
+            });
+        } //Unknown company
+        else {
+          resolve(false);
+        }
+      });
+  } else {
+    resolve(false);
+  }
+}
+
+/**
  * MAIN
  */
 
 var collectionDedicatedServices_accounts = null;
+var collectionPassengers_profiles = null;
+var collectionDrivers_profiles = null;
+var collectionWalletTransactions_logs = null;
+var collectionRidesDeliveryData = null;
+var collectionGlobalEvents = null;
 
 requestAPI(
   /development/i.test(process.env.EVIRONMENT)
@@ -1146,18 +1463,17 @@ requestAPI(
         if (err) throw err;
         logger.info("[*] Payments services up");
         const dbMongo = clientMongo.db(process.env.DB_NAME_MONGODDB);
-        const collectionPassengers_profiles = dbMongo.collection(
+        collectionPassengers_profiles = dbMongo.collection(
           "passengers_profiles"
         ); //Hold the information about the riders
-        const collectionDrivers_profiles =
-          dbMongo.collection("drivers_profiles"); //Hold all the drivers profiles
-        const collectionWalletTransactions_logs = dbMongo.collection(
+        collectionDrivers_profiles = dbMongo.collection("drivers_profiles"); //Hold all the drivers profiles
+        collectionWalletTransactions_logs = dbMongo.collection(
           "wallet_transactions_logs"
         ); //Hold the latest information about the riders topups
-        const collectionRidesDeliveryData = dbMongo.collection(
+        collectionRidesDeliveryData = dbMongo.collection(
           "rides_deliveries_requests"
         ); //Hold all the requests made (rides and deliveries)
-        const collectionGlobalEvents = dbMongo.collection("global_events"); //Hold all the random events that happened somewhere.
+        collectionGlobalEvents = dbMongo.collection("global_events"); //Hold all the random events that happened somewhere.
         collectionDedicatedServices_accounts = dbMongo.collection(
           "dedicated_services_accounts"
         ); //Hold all the accounts for dedicated servics like deliveries, etc.
