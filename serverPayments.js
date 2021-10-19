@@ -463,19 +463,22 @@ function saveLogForTopupsSuccess(
 ) {
   resolveDate();
   let tmpDate = new Date();
-  let dpo_gateway_deduction_fees =
-    (parseFloat(amount) * process.env.DPO_GATEWAY_CHARGES_PERCENTAGE) / 100;
-  let taxiconnect_service_fees =
-    (parseFloat(amount) * process.env.TAXICONNECT_WALLET_TOPUP_SERVICE_FEES) /
-    100;
-  let amountRecomputed =
-    parseFloat(amount) - dpo_gateway_deduction_fees - taxiconnect_service_fees; //! VERY IMPORTANT - REMOVE DPO AND TAXICONNECT DEDUCTIONS
-  //...
 
   if (
     /normal/i.test(trailingData.request_globality) ||
     trailingData.request_globality === undefined
   ) {
+    let dpo_gateway_deduction_fees =
+      (parseFloat(amount) * process.env.DPO_GATEWAY_CHARGES_PERCENTAGE) / 100;
+    let taxiconnect_service_fees =
+      (parseFloat(amount) * process.env.TAXICONNECT_WALLET_TOPUP_SERVICE_FEES) /
+      100;
+    let amountRecomputed =
+      parseFloat(amount) -
+      dpo_gateway_deduction_fees -
+      taxiconnect_service_fees; //! VERY IMPORTANT - REMOVE DPO AND TAXICONNECT DEDUCTIONS
+    //...
+
     let dataBundle = {
       user_fingerprint: user_fp,
       initial_paid_amount: parseFloat(amount),
@@ -508,6 +511,25 @@ function saveLogForTopupsSuccess(
       Pro: "PR",
       Personalised: "PRSNLD",
     };
+    //...
+    const PLAN_PRICES = {
+      STR: 100,
+      ITMD: 2500,
+      PR: 15000,
+      PRSNLD: 25000,
+    };
+    //...
+    let dpo_gateway_deduction_fees =
+      (parseFloat(PLAN_PRICES[PLAN_CODES[trailingData.plan_name]]) *
+        process.env.DPO_GATEWAY_CHARGES_PERCENTAGE) /
+      100;
+    let taxiconnect_service_fees =
+      (parseFloat(PLAN_PRICES[PLAN_CODES[trailingData.plan_name]]) *
+        process.env.TAXICONNECT_WALLET_TOPUP_SERVICE_FEES) /
+      100;
+    let amountRecomputed = parseFloat(
+      PLAN_PRICES[PLAN_CODES[trailingData.plan_name]]
+    ); //! VERY IMPORTANT - REMOVE DPO AND TAXICONNECT DEDUCTIONS
     //...
     let dataBundle = {
       company_fp: user_fp,
@@ -1191,18 +1213,36 @@ function sendReceipt(metaDataBundle, scenarioType, resolve) {
 
   if (/packagePurchaseReceipt/i.test(scenarioType)) {
     //Receipt after purchasing a package
+    const PLAN_CODES = {
+      Starter: "STR",
+      Intermediate: "ITMD",
+      Pro: "PR",
+      Personalised: "PRSNLD",
+    };
+    //...
+    const PLAN_PRICES = {
+      STR: 100,
+      ITMD: 2500,
+      PR: 15000,
+      PRSNLD: 25000,
+    };
+    //...
     let dpo_gateway_deduction_fees =
-      (parseFloat(metaDataBundle.amount) *
+      (parseFloat(PLAN_PRICES[PLAN_CODES[metaDataBundle.plan_name]]) *
         process.env.DPO_GATEWAY_CHARGES_PERCENTAGE) /
       100;
     let taxiconnect_service_fees =
-      (parseFloat(metaDataBundle.amount) *
+      (parseFloat(PLAN_PRICES[PLAN_CODES[metaDataBundle.plan_name]]) *
         process.env.TAXICONNECT_WALLET_TOPUP_SERVICE_FEES) /
       100;
-    let amountRecomputed =
-      parseFloat(metaDataBundle.amount) -
-      dpo_gateway_deduction_fees -
-      taxiconnect_service_fees; //! VERY IMPORTANT - REMOVE DPO AND TAXICONNECT DEDUCTIONS
+    let amountRecomputed = parseFloat(
+      PLAN_PRICES[PLAN_CODES[metaDataBundle.plan_name]]
+    ); //! VERY IMPORTANT - REMOVE DPO AND TAXICONNECT DEDUCTIONS
+
+    logger.info(`DPO fee: ${dpo_gateway_deduction_fees}`);
+    logger.info(`TC fee: ${taxiconnect_service_fees}`);
+    logger.info(`Recomputed: ${amountRecomputed}`);
+
     //...
     //Get the company data
     collectionDedicatedServices_accounts
@@ -1565,11 +1605,11 @@ function sendReceipt(metaDataBundle, scenarioType, resolve) {
                                 </div>
                                 <div style="display: flex;flex-direction: row;text-align: right;font-size: 14px;color:#272626bb;flex:1;justify-content: space-between;width:50%">
                                     <div style="flex:1;width:33%;">$${parseFloat(
-                                      metaDataBundle.amount
+                                      amountRecomputed
                                     ).toFixed(2)}</div>
                                     <div style="flex:1;width:33%;">1</div>
                                     <div style="flex:1;width:33%;">$${parseFloat(
-                                      metaDataBundle.amount
+                                      amountRecomputed
                                     ).toFixed(2)}</div>
                                 </div>
                             </div>
@@ -1583,26 +1623,17 @@ function sendReceipt(metaDataBundle, scenarioType, resolve) {
                                           <div style="display:flex;flex-direction:row;justify-content: space-between;align-items: center;margin-bottom: 5px;width:100%;">
                                               <div style="font-weight: bold;font-size:11px;width:50%;position:relative;top:5px;text-align:left;">SUBTOTAL</div>
                                               <div style="font-size: 14px;color:#272626bb;width:50%;text-align:right;position:relative;bottom:3px">$${parseFloat(
-                                                metaDataBundle.amount
+                                                amountRecomputed
                                               ).toFixed(2)}</div>
-                                          </div>
-                                      </tr>
-                                      <tr>
-                                          <div style="display:flex;flex-direction:row;justify-content: space-between;align-items: center;margin-bottom: 5px;">
-                                              <div style="font-weight: bold;font-size:11px;width:50%;position:relative;top:5px">TAXABLE</div>
-                                              <div style="font-size: 14px;color:#272626bb;width:50%;text-align:right;position:relative;bottom:3px">$${amountRecomputed.toFixed(
-                                                2
-                                              )}</div>
                                           </div>
                                       </tr>
                                       <tr>
                                           <div style="border-bottom:1px solid #d0d0d0;padding-bottom:10px;display:flex;flex-direction:row;justify-content: space-between;align-items: center;margin-bottom: 10px;">
                                               <div style="font-weight: bold;font-size:11px;width:50%;position:relative;top:5px">SERVICE FEE (4%)</div>
-                                              <div style="font-size: 14px;color:#272626bb;width:50%;text-align:right;position:relative;bottom:3px">$${(
-                                                parseFloat(
-                                                  metaDataBundle.amount
-                                                ) * 0.04
-                                              ).toFixed(2)}</div>
+                                              <div style="font-size: 14px;color:#272626bb;width:50%;text-align:right;position:relative;bottom:3px">$${
+                                                dpo_gateway_deduction_fees +
+                                                taxiconnect_service_fees
+                                              }</div>
                                           </div>
                                       </tr>
                                       <tr>
@@ -1615,7 +1646,7 @@ function sendReceipt(metaDataBundle, scenarioType, resolve) {
                                       </tr>
                                       <tr>
                                           <div style="border-bottom:1px solid #d0d0d0;padding-bottom:10px;display:flex;flex-direction:row;justify-content: space-between;align-items: center;margin-bottom: 5px;">
-                                              <div style="font-weight: bold;font-size:12px;flex:1;width:50%;position:relative;top:5px">BALANCE DUE</div>
+                                              <div style="font-weight: bold;font-size:12px;flex:1;width:50%;position:relative;top:5px">BALANCE PAID</div>
                                               <div style="font-size: 15px;color:#272626bb;font-weight: bold;width:50%;text-align:right;position:relative;bottom:3px">NAD $${parseFloat(
                                                 metaDataBundle.amount
                                               ).toFixed(2)}</div>

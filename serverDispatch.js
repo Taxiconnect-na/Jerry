@@ -2804,14 +2804,6 @@ function sendReceipt(metaDataBundle, scenarioType, resolve) {
                                             </div>
                                         </tr>
                                         <tr>
-                                            <div style="display:flex;flex-direction:row;justify-content: space-between;align-items: center;margin-bottom: 5px;">
-                                                <div style="font-weight: bold;font-size:11px;width:50%;position:relative;top:5px">TAXABLE</div>
-                                                <div style="font-size: 14px;color:#272626bb;width:50%;text-align:right;position:relative;bottom:3px">$${amountRecomputed.toFixed(
-                                                  2
-                                                )}</div>
-                                            </div>
-                                        </tr>
-                                        <tr>
                                             <div style="border-bottom:1px solid #d0d0d0;padding-bottom:10px;display:flex;flex-direction:row;justify-content: space-between;align-items: center;margin-bottom: 10px;">
                                                 <div style="font-weight: bold;font-size:11px;width:50%;position:relative;top:5px">SERVICE FEE (4%)</div>
                                                 <div style="font-size: 14px;color:#272626bb;width:50%;text-align:right;position:relative;bottom:3px">$${(
@@ -2831,7 +2823,7 @@ function sendReceipt(metaDataBundle, scenarioType, resolve) {
                                         </tr>
                                         <tr>
                                             <div style="border-bottom:1px solid #d0d0d0;padding-bottom:10px;display:flex;flex-direction:row;justify-content: space-between;align-items: center;margin-bottom: 5px;">
-                                                <div style="font-weight: bold;font-size:12px;flex:1;width:50%;position:relative;top:5px">BALANCE DUE</div>
+                                                <div style="font-weight: bold;font-size:12px;flex:1;width:50%;position:relative;top:5px">BALANCE PAID</div>
                                                 <div style="font-size: 15px;color:#272626bb;font-weight: bold;width:50%;text-align:right;position:relative;bottom:3px">NAD $${parseFloat(
                                                   metaDataBundle.amount
                                                 ).toFixed(2)}</div>
