@@ -7,6 +7,7 @@ const fs = require("fs");
 const MongoClient = require("mongodb").MongoClient;
 const certFile = fs.readFileSync("./rds-combined-ca-bundle.pem");
 const { logger } = require("./LogService");
+const nodemailer = require("nodemailer");
 
 var app = express();
 var server = http.createServer(app);
@@ -43,7 +44,26 @@ var chaineDateUTC = null;
 var dateObject = null;
 const moment = require("moment");
 const { stringify, parse } = require("flatted");
-const { filter } = require("compression");
+
+let transporterSecurity = nodemailer.createTransport({
+  host: process.env.INOUT_GOING_SERVER,
+  port: process.env.LOGIN_EMAIL_SMTP,
+  secure: true, // true for 465, false for other ports
+  auth: {
+    user: process.env.LOGIN_EMAIL_USER, // generated ethereal user
+    pass: process.env.LOGIN_EMAIL_PASSWORD, // generated ethereal password
+  },
+});
+
+let transporterNoReplay = nodemailer.createTransport({
+  host: process.env.INOUT_GOING_SERVER,
+  port: process.env.LOGIN_EMAIL_SMTP,
+  secure: true, // true for 465, false for other ports
+  auth: {
+    user: process.env.NOREPLY_EMAIL, // generated ethereal user
+    pass: process.env.NOREPLY_EMAIL_PASSWORD, // generated ethereal password
+  },
+});
 
 function resolveDate() {
   //Resolve date
@@ -2283,6 +2303,7 @@ function confirmDropoff_fromRider_side(
       if (err) {
         resolve({ response: "error" });
       }
+      //...
       collectionRidesDeliveryData
         .find(retrieveTrip)
         .toArray(function (err, result) {
@@ -2291,9 +2312,23 @@ function confirmDropoff_fromRider_side(
           }
           //...
           if (result !== undefined && result.length > 0) {
+            result = result[0];
+            //? Send the drop off receipt for corporate deliveries
+            new Promise((resSendReceipt) => {
+              let dataBundle = {
+                amount: result.fare,
+                user_fp: result.client_id,
+                tripHistory: result,
+              };
+              sendReceipt(dataBundle, "dropoffReceipt", resSendReceipt);
+            })
+              .then()
+              .catch((error) => logger.error(error));
+            //?...
+
             resolve({
               response: "successfully_confirmed",
-              driver_fp: result[0].taxi_id,
+              driver_fp: result.taxi_id,
             });
           } else {
             resolve({ response: "successfully_confirmed" });
@@ -2301,6 +2336,269 @@ function confirmDropoff_fromRider_side(
         });
     }
   );
+}
+
+/**
+ * @func sendReceipt
+ * Responsible for sending receipts for delivery web requests.
+ * @param metaDataBundle: the drop off meta data
+ * @param scenarioType: dropoffReceipt or packagePurchaseReceipt
+ * @param resolve
+ */
+function sendReceipt(metaDataBundle, scenarioType, resolve) {
+  if (/dropoffReceipt/i.test(scenarioType)) {
+    //Drop off receipt confirmation
+    let dpo_gateway_deduction_fees =
+      (parseFloat(metaDataBundle.amount) *
+        process.env.DPO_GATEWAY_CHARGES_PERCENTAGE) /
+      100;
+    let taxiconnect_service_fees =
+      (parseFloat(metaDataBundle.amount) *
+        process.env.TAXICONNECT_WALLET_TOPUP_SERVICE_FEES) /
+      100;
+    let amountRecomputed =
+      parseFloat(metaDataBundle.amount) -
+      dpo_gateway_deduction_fees -
+      taxiconnect_service_fees; //! VERY IMPORTANT - REMOVE DPO AND TAXICONNECT DEDUCTIONS
+    //...
+    //Get the company data
+    collectionDedicatedServices_accounts
+      .find({
+        company_fp: metaDataBundle.user_fp,
+      })
+      .toArray(function (err, companyData) {
+        if (err) {
+          logger.error(err);
+          resolve(false);
+        }
+        logger.info(companyData);
+        //...
+        if (companyData !== undefined && companyData.length > 0) {
+          companyData = companyData[0];
+          /// Get the general pickup data
+          let pickup_location_name =
+            metaDataBundle.tripHistory.pickup_location_infos.location_name !==
+              undefined &&
+            metaDataBundle.tripHistory.pickup_location_infos.location_name !==
+              false
+              ? metaDataBundle.tripHistory.pickup_location_infos.location_name
+              : metaDataBundle.tripHistory.pickup_location_infos.street_name;
+
+          let pickup_street_name =
+            metaDataBundle.tripHistory.pickup_location_infos.street_name;
+          //...
+          let pickup_suburb =
+            metaDataBundle.tripHistory.pickup_location_infos.suburb;
+          //....
+
+          let receiptFp = Math.round(new Date(chaineDateUTC).getTime())
+            .toString()
+            .substring(0, 7);
+          //Found the company
+          //? Generate a receipt fingerprint
+          new Promise((resGenerateFp) => {
+            generateUniqueFingerprint(
+              `${metaDataBundle.user_fp}-${new Date(chaineDateUTC).getTime()}`,
+              "md5",
+              resGenerateFp
+            );
+          })
+            .then((result) => {
+              receiptFp = result.toString().toUpperCase().substring(0, 7);
+            })
+            .catch((error) => {
+              logger.error(error);
+              //...
+            })
+            .finally(() => {
+              let emailTemplate = `
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+              <meta charset="UTF-8">
+              <meta http-equiv="X-UA-Compatible" content="IE=edge">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>Invoice</title>
+          </head>
+          <body style="display: flex;flex-direction: column;align-items: flex-start;justify-content: center;padding:20px;padding-left:5%;padding-right:5%;font-family:Arial, Helvetica, sans-serif;font-size: 15px;flex:1">
+              <div style="width: 100px;height:100px;bottom:20px;position: relative;margin:auto">
+                  <img alt="TaxiConnect" src="https://ads-central-tc.s3.us-west-1.amazonaws.com/logo_ios.png" style="width: 100%;height: 100%;object-fit: contain;" />
+              </div>
+              <div style="border-bottom:1px solid #d0d0d0;display: flex;flex-direction: row;justify-content: space-between;margin-bottom: 15px;width: 100%;">
+                  <div style="display: flex;flex-direction: row;">
+                      <div style="margin-left: 2%;">
+                          <div style="font-weight: bold;font-size: 17px;">Posterity TaxiConnect Technologies CC</div>
+                          <div style="font-size: 14px;margin-top: 5px;color:#272626bb">
+                          <div>17 Schinz street</div>
+                          <div>Windhoek</div>
+                          <div>+264814400089</div>
+                          <div>support@taxiconnectna.com</div>
+                          </div>
+                      </div>
+                  </div>
+                  <div style="text-align: right;width:100%">
+                      <div style="margin-bottom: 13px;">
+                          <div style="font-weight: bold;font-size: 11px;">RECEIPT</div>
+                          <div style="font-size: 14px;color:#272626bb;margin-top: 4px;">${receiptFp}</div>
+                      </div>
+                      <div style="margin-bottom: 13px;">
+                          <div style="font-weight: bold;font-size: 11px;">DATE</div>
+                          <div style="font-size: 14px;color:#272626bb;margin-top: 4px;">${
+                            new Date(chaineDateUTC).toDateString().split(" ")[1]
+                          } ${new Date(chaineDateUTC).getDate()}, ${new Date(
+                chaineDateUTC
+              ).getFullYear()}</div>
+                      </div>
+                      <div style="margin-bottom: 25px;min-width: 100px;">
+                          <div style="font-weight: bold;font-size: 11px;">BALANCE DUE</div>
+                          <div style="font-size: 14px;color:#272626bb;margin-top: 4px;">NAD $${parseFloat(
+                            metaDataBundle.amount
+                          ).toFixed(2)}</div>
+                      </div>
+                  </div>
+              </div>
+
+              <!-- Body -->
+              <div style="border:1px solid #fff;margin-top: 10px;width:100%">
+                  <div  style="font-size: 11px;margin-top: 5px;color:#272626bb">BILL TO</div>
+                  <div  style="font-weight: bold;font-size: 17px;margin-top: 10px;margin-bottom: 20px;">${companyData.company_name.toUpperCase()}</div>
+                  <div style="font-size: 14px;margin-top: 5px;color:#272626bb;line-height: 20px;">
+                      <div></div>
+                      <div>Windhoek</div>
+                      <div></div>
+                      <div>${companyData.phone}</div>
+                      </div>
+              </div>
+
+              <!-- Summary -->
+              <div style="border-top:1px solid #272626bb;border-bottom:1px solid #272626bb; display: flex;flex-direction: row;color:#000;padding-bottom: 10px;padding-top:10px;margin-top: 40px;width:100%">
+                  <div style="flex:1;align-items: flex-end;font-weight: bold;font-size: 12px;">DESCRIPTION</div>
+                  <div style="display: flex;flex-direction: row;text-align: right;font-size: 12px;font-weight: bold;flex:1;justify-content: space-between;">
+                      <div style="flex:1">RATE</div>
+                      <div style="flex:1;">QTY</div>
+                      <div style="flex:1;">AMOUNT</div>
+                  </div>
+              </div>
+              <!-- Element -->${metaDataBundle.tripHistory.destinationData
+                .map((destination, index) => {
+                  let dest_location_name =
+                    destination.location_name !== undefined &&
+                    destination.location_name !== false
+                      ? destination.location_name
+                      : destination.street_name;
+
+                  let dest_street_name = destination.street_name;
+                  //...
+                  let dest_suburb = destination.suburb;
+                  let singlePrice =
+                    /Elisenheim/i.test(pickup_suburb) ||
+                    /Elisenheim/i.test(dest_suburb)
+                      ? 70
+                      : 50;
+
+                  return `<div style="border-bottom:1px dashed #272626bb; display: flex;flex-direction: row;color:#000;padding-bottom: 10px;padding-top:10px;margin-top: 10px;width:100%">
+                  <div style="flex:1;">
+                  <div style="align-items: flex-end;font-weight: bold;font-size: 15px;margin-bottom: 5px;">Delivery</div>
+                  <div style="color: #272626bb;font-size: 13px;">
+                    Pickup: ${pickup_location_name}, ${pickup_suburb}<br />
+                    Drop off: ${dest_location_name}, ${dest_suburb}
+                  </div>
+                  </div>
+                  <div style="display: flex;flex-direction: row;text-align: right;font-size: 14px;color:#272626bb;flex:1;justify-content: space-between;">
+                      <div style="flex:1">$${parseFloat(singlePrice).toFixed(
+                        2
+                      )}</div>
+                      <div style="flex:1">1</div>
+                      <div style="flex:1">$${parseFloat(singlePrice).toFixed(
+                        2
+                      )}</div>
+                  </div>
+              </div>`;
+                })
+                .toString()
+                .replace(/,/g, "")}
+              <!-- Element -->
+
+              <!-- Totals -->
+              <div style="display: flex;flex-direction: row;justify-content: space-between;margin-top: 30px;align-items: center;width:100%">
+                  <div style="flex:1;color:#272626bb;font-size: 12px;padding-right: 30px;">Thank you for choosing TaxiConnect for all your business delivery needs.</div>
+                  <di style="flex:2">
+                    <div style="display:flex;flex-direction:row;justify-content: space-between;align-items: center;margin-bottom: 5px;">
+                        <div style="font-weight: bold;font-size:11px">SUBTOTAL</div>
+                        <div style="font-size: 14px;color:#272626bb;">$${parseFloat(
+                          metaDataBundle.amount
+                        ).toFixed(2)}</div>
+                    </div>
+                      <div style="border-bottom:1px solid #d0d0d0;padding-bottom:10px;display:flex;flex-direction:row;justify-content: space-between;align-items: center;margin-bottom: 10px;">
+                          <div style="font-weight: bold;font-size:11px">TAX (4%)</div>
+                          <div style="font-size: 14px;color:#272626bb;">$0</div>
+                      </div>
+                      <div style="border-bottom:1px solid #d0d0d0;padding-bottom:10px;display:flex;flex-direction:row;justify-content: space-between;align-items: center;margin-bottom: 15px;">
+                          <div style="font-weight: bold;font-size:11px">TOTAL</div>
+                          <div style="font-size: 14px;color:#272626bb;">$${parseFloat(
+                            metaDataBundle.amount
+                          ).toFixed(2)}</div>
+                      </div>
+                      <div style="border-bottom:1px solid #d0d0d0;padding-bottom:10px;display:flex;flex-direction:row;justify-content: space-between;align-items: center;margin-bottom: 5px;">
+                          <div style="font-weight: bold;font-size:12px;flex:1">BALANCE DUE</div>
+                          <div style="font-size: 15px;color:#272626bb;font-weight: bold;">NAD $${parseFloat(
+                            metaDataBundle.amount
+                          ).toFixed(2)}</div>
+                      </div>
+                  </div>
+              </div>
+          </body>
+          </html>
+        `;
+
+              //? Save the email dispatch event
+              new Promise((saveEvent) => {
+                let eventBundle = {
+                  event_name: "Delivery_trip_email_receipt_dipstach",
+                  user_fingerprint: metaDataBundle.user_fp,
+                  user_nature: "rider",
+                  city: "Windhoek",
+                  receipt_fp: receiptFp,
+                  email_data: emailTemplate,
+                  date: new Date(chaineDateUTC),
+                };
+                //...
+                collectionGlobalEvents.insertOne(
+                  eventBundle,
+                  function (err, reslt) {
+                    if (err) {
+                      logger.error(err);
+                      saveEvent(false);
+                    }
+                    //...
+                    saveEvent(true);
+                  }
+                );
+              })
+                .then()
+                .catch((error) => logger.error(error));
+
+              //? Send email
+              let info = transporterNoReplay.sendMail({
+                from: process.env.NOREPLY_EMAIL, // sender address
+                to: companyData.email, // list of receivers
+                subject: `Delivery receipt (${receiptFp})`, // Subject line
+                html: emailTemplate,
+              });
+
+              //?DONE
+              logger.info(`Sending receipt email...to ${companyData.email}`);
+              logger.info(info.messageId);
+              resolve(true);
+            });
+        } //Unknown company
+        else {
+          resolve(false);
+        }
+      });
+  } else {
+    resolve(false);
+  }
 }
 
 /**
@@ -4721,20 +5019,20 @@ redisCluster.on("connect", function () {
             //logger.info(req);
             //TEST data
             /*req = {
-        user_fingerprint:
-          "7c57cb6c9471fd33fd265d5441f253eced2a6307c0207dea57c987035b496e6e8dfa7105b86915da",
-        dropoff_compliments: {
-          neatAndTidy: false,
-          excellentService: true,
-          greatMusic: false,
-          greatConversation: false,
-          expertNavigator: true,
-        },
-        dropoff_personal_note: "Very good experience",
-        rating_score: 5,
-        request_fp:
-          "87109d03cab8bc5032a71683e084551107f1c1bafb5136f6ee5a7c990550b81ef3ecf5c96b13f2afde2cc75e6c8187ce290c973dd1e8d137caf27fee334a68e8",
-      };*/
+              user_fingerprint:
+                "7c57cb6c9471fd33fd265d5441f253eced2a6307c0207dea57c987035b496e6e8dfa7105b86915da",
+              dropoff_compliments: {
+                neatAndTidy: false,
+                excellentService: true,
+                greatMusic: false,
+                greatConversation: false,
+                expertNavigator: true,
+              },
+              dropoff_personal_note: "Very good experience",
+              rating_score: 5,
+              request_fp:
+                "87109d03cab8bc5032a71683e084551107f1c1bafb5136f6ee5a7c990550b81ef3ecf5c96b13f2afde2cc75e6c8187ce290c973dd1e8d137caf27fee334a68e8",
+            };*/
 
             //Do basic checking
             if (
