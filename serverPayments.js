@@ -1239,133 +1239,406 @@ function sendReceipt(metaDataBundle, scenarioType, resolve) {
             })
             .finally(() => {
               let emailTemplate = `
-          <!DOCTYPE html>
-          <html lang="en">
-          <head>
-              <meta charset="UTF-8">
-              <meta http-equiv="X-UA-Compatible" content="IE=edge">
-              <meta name="viewport" content="width=device-width, initial-scale=1.0">
-              <title>Invoice</title>
-          </head>
-          <body style="display: flex;flex-direction: column;align-items: flex-start;justify-content: center;padding:20px;padding-left:5%;padding-right:5%;font-family:Arial, Helvetica, sans-serif;font-size: 15px;flex:1">
-              <div style="width: 100px;height:100px;bottom:20px;position: relative;margin:auto">
-                  <img alt="TaxiConnect" src="https://ads-central-tc.s3.us-west-1.amazonaws.com/logo_ios.png" style="width: 100%;height: 100%;object-fit: contain;" />
-              </div>
-              <div style="border-bottom:1px solid #d0d0d0;display: flex;flex-direction: row;justify-content: space-between;margin-bottom: 15px;width: 100%;">
-                  <div style="display: flex;flex-direction: row;">
-                      <div style="margin-left: 2%;">
-                          <div style="font-weight: bold;font-size: 17px;">Posterity TaxiConnect Technologies CC</div>
-                          <div style="font-size: 14px;margin-top: 5px;color:#272626bb">
-                          <div>17 Schinz street</div>
-                          <div>Windhoek</div>
-                          <div>+264814400089</div>
-                          <div>support@taxiconnectna.com</div>
-                          </div>
-                      </div>
-                  </div>
-                  <div style="text-align: right;width:100%">
-                      <div style="margin-bottom: 13px;">
-                          <div style="font-weight: bold;font-size: 11px;">RECEIPT</div>
-                          <div style="font-size: 14px;color:#272626bb;margin-top: 4px;">${receiptFp}</div>
-                      </div>
-                      <div style="margin-bottom: 13px;">
-                          <div style="font-weight: bold;font-size: 11px;">DATE</div>
-                          <div style="font-size: 14px;color:#272626bb;margin-top: 4px;">${
-                            new Date(chaineDateUTC).toDateString().split(" ")[1]
-                          } ${new Date(chaineDateUTC).getDate()}, ${new Date(
+              <!doctype html>
+              <html>
+
+              <head>
+                <meta charset="utf-8">
+                <meta http-equiv="x-ua-compatible" content="ie=edge">
+                <title></title>
+                <meta name="description" content="">
+                <meta name="viewport" content="width=device-width, initial-scale=1">
+
+
+                <style type="text/css">
+                  a {
+                    color: #0000ee;
+                    text-decoration: underline;
+                  }
+                  
+                  a:hover {
+                    color: #0000ee;
+                    text-decoration: underline;
+                  }
+                  
+                  .u-row {
+                    display: flex;
+                    flex-wrap: nowrap;
+                    margin-left: 0;
+                    margin-right: 0;
+                  }
+                  
+                  .u-row .u-col {
+                    position: relative;
+                    width: 100%;
+                    padding-right: 0;
+                    padding-left: 0;
+                  }
+                  
+                  .u-row .u-col.u-col-100 {
+                    flex: 0 0 100%;
+                    max-width: 100%;
+                  }
+                  
+                  @media (max-width: 767px) {
+                    .u-row:not(.no-stack) {
+                      flex-wrap: wrap;
+                    }
+                    .u-row:not(.no-stack) .u-col {
+                      flex: 0 0 100% !important;
+                      max-width: 100% !important;
+                    }
+                  }
+                  
+                  body,
+                  html {
+                    padding: 0;
+                    margin: 0;background-color:#fff;
+                  }
+                  
+                  html {
+                    box-sizing: border-box
+                  }
+                  
+                  *,
+                  :after,
+                  :before {
+                    box-sizing: inherit
+                  }
+                  
+                  html {
+                    font-size: 14px;
+                    -ms-overflow-style: scrollbar;
+                    -webkit-tap-highlight-color: rgba(0, 0, 0, 0)
+                  }
+                  
+                  body {
+                    font-family: Arial, Helvetica, sans-serif;
+                    font-size: 1rem;
+                    line-height: 1.5;
+                    color: #373a3c;
+                    background-color: #fff
+                  }
+                  
+                  p {
+                    margin: 0
+                  }
+                  
+                  .error-field {
+                    -webkit-animation-name: shake;
+                    animation-name: shake;
+                    -webkit-animation-duration: 1s;
+                    animation-duration: 1s;
+                    -webkit-animation-fill-mode: both;
+                    animation-fill-mode: both
+                  }
+                  
+                  .error-field input,
+                  .error-field textarea {
+                    border-color: #a94442!important;
+                    color: #a94442!important
+                  }
+                  
+                  .field-error {
+                    padding: 5px 10px;
+                    font-size: 14px;
+                    font-weight: 700;
+                    position: absolute;
+                    top: -20px;
+                    right: 10px
+                  }
+                  
+                  .field-error:after {
+                    top: 100%;
+                    left: 50%;
+                    border: solid transparent;
+                    content: " ";
+                    height: 0;
+                    width: 0;
+                    position: absolute;
+                    pointer-events: none;
+                    border-color: rgba(136, 183, 213, 0);
+                    border-top-color: #ebcccc;
+                    border-width: 5px;
+                    margin-left: -5px
+                  }
+                  
+                  .spinner {
+                    margin: 0 auto;
+                    width: 70px;
+                    text-align: center
+                  }
+                  
+                  .spinner>div {
+                    width: 12px;
+                    height: 12px;
+                    background-color: hsla(0, 0%, 100%, .5);
+                    margin: 0 2px;
+                    border-radius: 100%;
+                    display: inline-block;
+                    -webkit-animation: sk-bouncedelay 1.4s infinite ease-in-out both;
+                    animation: sk-bouncedelay 1.4s infinite ease-in-out both
+                  }
+                  
+                  .spinner .bounce1 {
+                    -webkit-animation-delay: -.32s;
+                    animation-delay: -.32s
+                  }
+                  
+                  .spinner .bounce2 {
+                    -webkit-animation-delay: -.16s;
+                    animation-delay: -.16s
+                  }
+                  
+                  @-webkit-keyframes sk-bouncedelay {
+                    0%,
+                    80%,
+                    to {
+                      -webkit-transform: scale(0)
+                    }
+                    40% {
+                      -webkit-transform: scale(1)
+                    }
+                  }
+                  
+                  @keyframes sk-bouncedelay {
+                    0%,
+                    80%,
+                    to {
+                      -webkit-transform: scale(0);
+                      transform: scale(0)
+                    }
+                    40% {
+                      -webkit-transform: scale(1);
+                      transform: scale(1)
+                    }
+                  }
+                  
+                  @-webkit-keyframes shake {
+                    0%,
+                    to {
+                      -webkit-transform: translateZ(0);
+                      transform: translateZ(0)
+                    }
+                    10%,
+                    30%,
+                    50%,
+                    70%,
+                    90% {
+                      -webkit-transform: translate3d(-10px, 0, 0);
+                      transform: translate3d(-10px, 0, 0)
+                    }
+                    20%,
+                    40%,
+                    60%,
+                    80% {
+                      -webkit-transform: translate3d(10px, 0, 0);
+                      transform: translate3d(10px, 0, 0)
+                    }
+                  }
+                  
+                  @keyframes shake {
+                    0%,
+                    to {
+                      -webkit-transform: translateZ(0);
+                      transform: translateZ(0)
+                    }
+                    10%,
+                    30%,
+                    50%,
+                    70%,
+                    90% {
+                      -webkit-transform: translate3d(-10px, 0, 0);
+                      transform: translate3d(-10px, 0, 0)
+                    }
+                    20%,
+                    40%,
+                    60%,
+                    80% {
+                      -webkit-transform: translate3d(10px, 0, 0);
+                      transform: translate3d(10px, 0, 0)
+                    }
+                  }
+                  
+                  @media only screen and (max-width:480px) {
+                    .container {
+                      max-width: 100%!important
+                    }
+                  }
+                  
+                  .container {
+                    width: 100%;
+                    padding-right: 0;
+                    padding-left: 0;
+                    margin-right: auto;
+                    margin-left: auto
+                  }
+                  
+                  
+                  
+                  a[onclick] {
+                    cursor: pointer;
+                  }
+                </style>
+
+
+              </head>
+
+              <body style="background-color:#fff;">
+
+                <div id="u_body" class="u_body" style="min-height: 100vh; color: #000000; background-color: #fff; font-family: arial,helvetica,sans-serif;">
+
+                  <div id="u_row_1" class="u_row" style="padding: 0px;">
+                    <div class="container" style="width:100%;margin: 0 auto;">
+                      <div class="u-row">
+
+                        <div id="u_column_1" class="u-col u-col-100 u_column">
+                          <div style="padding: 0px;border-top: 0px solid transparent;border-left: 0px solid transparent;border-right: 0px solid transparent;border-bottom: 0px solid transparent;">
+
+                            <div id="u_content_html_1" class="u_content_html" style="overflow-wrap: break-word;padding: 10px;">
+                            <div class="u-col u_column style="display: flex;flex-direction: column;align-items: flex-start;justify-content: center;padding:20px;padding-left:5%;padding-right:5%;font-family:Arial, Helvetica, sans-serif;font-size: 15px;flex:1;width:100%">
+                            <div style="width: 100px;height:100px;bottom:20px;position: relative;margin:auto">
+                                <img alt="TaxiConnect" src="https://ads-central-tc.s3.us-west-1.amazonaws.com/logo_ios.png" style="width: 100%;height: 100%;object-fit: contain;" />
+                            </div>
+                            <div style="border-bottom:1px solid #d0d0d0;display: flex;flex-direction: row;justify-content: space-between;margin-bottom: 15px;width: 100%;">
+                                <div style="display: flex;flex-direction: row;">
+                                    <div style="margin-left: 2%;">
+                                        <div style="font-weight: bold;font-size: 17px;">Posterity TaxiConnect Technologies CC</div>
+                                        <div style="font-size: 14px;margin-top: 5px;color:#272626bb">
+                                        <div>17 Schinz street</div>
+                                        <div>Windhoek</div>
+                                        <div>+264814400089</div>
+                                        <div>support@taxiconnectna.com</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div style="text-align: right;width:100%">
+                                    <div style="margin-bottom: 13px;">
+                                        <div style="font-weight: bold;font-size: 11px;">RECEIPT</div>
+                                        <div style="font-size: 14px;color:#272626bb;margin-top: 4px;">${receiptFp}</div>
+                                    </div>
+                                    <div style="margin-bottom: 13px;">
+                                        <div style="font-weight: bold;font-size: 11px;">DATE</div>
+                                        <div style="font-size: 14px;color:#272626bb;margin-top: 4px;">${
+                                          new Date(chaineDateUTC)
+                                            .toDateString()
+                                            .split(" ")[1]
+                                        } ${new Date(
                 chaineDateUTC
-              ).getFullYear()}</div>
-                      </div>
-                      <div style="margin-bottom: 25px;min-width: 100px;">
-                          <div style="font-weight: bold;font-size: 11px;">BALANCE DUE</div>
-                          <div style="font-size: 14px;color:#272626bb;margin-top: 4px;">NAD $${parseFloat(
-                            metaDataBundle.amount
-                          ).toFixed(2)}</div>
-                      </div>
-                  </div>
-              </div>
+              ).getDate()}, ${new Date(chaineDateUTC).getFullYear()}</div>
+                                    </div>
+                                    <div style="margin-bottom: 25px;min-width: 100px;">
+                                        <div style="font-weight: bold;font-size: 11px;">BALANCE DUE</div>
+                                        <div style="font-size: 14px;color:#272626bb;margin-top: 4px;">NAD $${parseFloat(
+                                          metaDataBundle.amount
+                                        ).toFixed(2)}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        
+                            <div style="border:1px solid #fff;margin-top: 10px;width:100%">
+                                <div  style="font-size: 11px;margin-top: 5px;color:#272626bb">BILL TO</div>
+                                <div  style="font-weight: bold;font-size: 17px;margin-top: 10px;margin-bottom: 20px;">${companyData.company_name.toUpperCase()}</div>
+                                <div style="font-size: 14px;margin-top: 5px;color:#272626bb;line-height: 20px;">
+                                    <div>Windhoek</div>
+                                    <div>${companyData.phone}</div>
+                                    </div>
+                            </div>
+                        
+                            <div style="border-top:1px solid #272626bb;border-bottom:1px solid #272626bb; display: flex;flex-direction: row;color:#000;padding-bottom: 10px;padding-top:10px;margin-top: 40px;width:100%">
+                                <div style="flex:1;align-items: flex-end;font-weight: bold;font-size: 12px;width:50%;">DESCRIPTION</div>
+                                <div style="display: flex;flex-direction: row;text-align: right;font-size: 12px;font-weight: bold;flex:1;justify-content: space-between;width:50%">
+                                    <div style="flex:1;width:33%;">RATE</div>
+                                    <div style="flex:1;width:33%">QTY</div>
+                                    <div style="flex:1;width:33%">AMOUNT</div>
+                                </div>
+                            </div>
 
-              <!-- Body -->
-              <div style="border:1px solid #fff;margin-top: 10px;width:100%">
-                  <div  style="font-size: 11px;margin-top: 5px;color:#272626bb">BILL TO</div>
-                  <div  style="font-weight: bold;font-size: 17px;margin-top: 10px;margin-bottom: 20px;">${companyData.company_name.toUpperCase()}</div>
-                  <div style="font-size: 14px;margin-top: 5px;color:#272626bb;line-height: 20px;">
-                      <div></div>
-                      <div>Windhoek</div>
-                      <div></div>
-                      <div>${companyData.phone}</div>
+                            <div style="border-bottom:1px dashed #272626bb; display: flex;flex-direction: row;color:#000;padding-bottom: 10px;padding-top:10px;margin-top: 10px;width:100%">
+                                <div style="flex:1;width:50%;">
+                                <div style="align-items: flex-end;font-weight: bold;font-size: 15px;margin-bottom: 5px;">${
+                                  metaDataBundle.plan_name
+                                }</div>
+                                <div style="color: #272626bb;font-size: 13px;">
+                                    Package purchased
+                                </div>
+                                </div>
+                                <div style="display: flex;flex-direction: row;text-align: right;font-size: 14px;color:#272626bb;flex:1;justify-content: space-between;width:50%">
+                                    <div style="flex:1;width:33%;">$${parseFloat(
+                                      metaDataBundle.amount
+                                    ).toFixed(2)}</div>
+                                    <div style="flex:1;width:33%;">1</div>
+                                    <div style="flex:1;width:33%;">$${parseFloat(
+                                      metaDataBundle.amount
+                                    ).toFixed(2)}</div>
+                                </div>
+                            </div>
+                        
+                            <div style="display: flex;flex-direction: row;justify-content: space-between;margin-top: 30px;align-items: center;width:100%">
+                                <div style="flex:1;color:#272626bb;font-size: 12px;padding-right: 30px;min-width:150px;">Thank you for choosing TaxiConnect for all your business delivery needs.</div>
+                                
+                                <di class="u-col u_column" style="flex:2;display:flex;flex-direction:column;width:70%;">
+                                  <table style="width:100%;">
+                                      <tr>
+                                          <div style="display:flex;flex-direction:row;justify-content: space-between;align-items: center;margin-bottom: 5px;width:100%;">
+                                              <div style="font-weight: bold;font-size:11px;width:50%;position:relative;top:5px;text-align:left;">SUBTOTAL</div>
+                                              <div style="font-size: 14px;color:#272626bb;width:50%;text-align:right;position:relative;bottom:3px">$${parseFloat(
+                                                metaDataBundle.amount
+                                              ).toFixed(2)}</div>
+                                          </div>
+                                      </tr>
+                                      <tr>
+                                          <div style="display:flex;flex-direction:row;justify-content: space-between;align-items: center;margin-bottom: 5px;">
+                                              <div style="font-weight: bold;font-size:11px;width:50%;position:relative;top:5px">TAXABLE</div>
+                                              <div style="font-size: 14px;color:#272626bb;width:50%;text-align:right;position:relative;bottom:3px">$${amountRecomputed.toFixed(
+                                                2
+                                              )}</div>
+                                          </div>
+                                      </tr>
+                                      <tr>
+                                          <div style="border-bottom:1px solid #d0d0d0;padding-bottom:10px;display:flex;flex-direction:row;justify-content: space-between;align-items: center;margin-bottom: 10px;">
+                                              <div style="font-weight: bold;font-size:11px;width:50%;position:relative;top:5px">SERVICE FEE (4%)</div>
+                                              <div style="font-size: 14px;color:#272626bb;width:50%;text-align:right;position:relative;bottom:3px">$${(
+                                                parseFloat(
+                                                  metaDataBundle.amount
+                                                ) * 0.04
+                                              ).toFixed(2)}</div>
+                                          </div>
+                                      </tr>
+                                      <tr>
+                                          <div style="border-bottom:1px solid #d0d0d0;padding-bottom:10px;display:flex;flex-direction:row;justify-content: space-between;align-items: center;margin-bottom: 15px;">
+                                              <div style="font-weight: bold;font-size:11px;width:50%;position:relative;top:5px">TOTAL</div>
+                                              <div style="font-size: 14px;color:#272626bb;width:50%;text-align:right;position:relative;bottom:3px">$${parseFloat(
+                                                metaDataBundle.amount
+                                              ).toFixed(2)}</div>
+                                          </div>
+                                      </tr>
+                                      <tr>
+                                          <div style="border-bottom:1px solid #d0d0d0;padding-bottom:10px;display:flex;flex-direction:row;justify-content: space-between;align-items: center;margin-bottom: 5px;">
+                                              <div style="font-weight: bold;font-size:12px;flex:1;width:50%;position:relative;top:5px">BALANCE DUE</div>
+                                              <div style="font-size: 15px;color:#272626bb;font-weight: bold;width:50%;text-align:right;position:relative;bottom:3px">NAD $${parseFloat(
+                                                metaDataBundle.amount
+                                              ).toFixed(2)}</div>
+                                          </div>
+                                      </tr>
+                                  </table>
+                                </div>
+                            </div>
+                        </div>
+                            </div>
+
+                          </div>
+                        </div>
+
                       </div>
-              </div>
-
-              <!-- Summary -->
-              <div style="border-top:1px solid #272626bb;border-bottom:1px solid #272626bb; display: flex;flex-direction: row;color:#000;padding-bottom: 10px;padding-top:10px;margin-top: 40px;width:100%">
-                  <div style="flex:1;align-items: flex-end;font-weight: bold;font-size: 12px;">DESCRIPTION</div>
-                  <div style="display: flex;flex-direction: row;text-align: right;font-size: 12px;font-weight: bold;flex:1;justify-content: space-between;">
-                      <div style="flex:1">RATE</div>
-                      <div style="flex:1;">QTY</div>
-                      <div style="flex:1;">AMOUNT</div>
-                  </div>
-              </div>
-              <!-- Element -->
-              <div style="border-bottom:1px dashed #272626bb; display: flex;flex-direction: row;color:#000;padding-bottom: 10px;padding-top:10px;margin-top: 10px;width:100%">
-                  <div style="flex:1;">
-                  <div style="align-items: flex-end;font-weight: bold;font-size: 15px;margin-bottom: 5px;">${
-                    metaDataBundle.plan_name
-                  }</div>
-                  <div style="color: #272626bb;font-size: 13px;">
-                      Package purchased
-                  </div>
-                  </div>
-                  <div style="display: flex;flex-direction: row;text-align: right;font-size: 14px;color:#272626bb;flex:1;justify-content: space-between;">
-                      <div style="flex:1">$${parseFloat(
-                        metaDataBundle.amount
-                      ).toFixed(2)}</div>
-                      <div style="flex:1">1</div>
-                      <div style="flex:1">$${parseFloat(
-                        metaDataBundle.amount
-                      ).toFixed(2)}</div>
-                  </div>
-              </div>
-              <!-- Element -->
-
-              <!-- Totals -->
-              <div style="display: flex;flex-direction: row;justify-content: space-between;margin-top: 30px;align-items: center;width:100%">
-                  <div style="flex:1;color:#272626bb;font-size: 12px;padding-right: 30px;">Thank you for choosing TaxiConnect for all your business delivery needs.</div>
-                  <di style="flex:2">
-                    <div style="display:flex;flex-direction:row;justify-content: space-between;align-items: center;margin-bottom: 5px;">
-                        <div style="font-weight: bold;font-size:11px">SUBTOTAL</div>
-                        <div style="font-size: 14px;color:#272626bb;">$${parseFloat(
-                          metaDataBundle.amount
-                        ).toFixed(2)}</div>
                     </div>
-                    <div style="display:flex;flex-direction:row;justify-content: space-between;align-items: center;margin-bottom: 5px;">
-                          <div style="font-weight: bold;font-size:11px">TAXABLE</div>
-                          <div style="font-size: 14px;color:#272626bb;">$${amountRecomputed.toFixed(
-                            2
-                          )}</div>
-                      </div>
-                      <div style="border-bottom:1px solid #d0d0d0;padding-bottom:10px;display:flex;flex-direction:row;justify-content: space-between;align-items: center;margin-bottom: 10px;">
-                          <div style="font-weight: bold;font-size:11px">SERVICE FEE (4%)</div>
-                          <div style="font-size: 14px;color:#272626bb;">$${(
-                            parseFloat(metaDataBundle.amount) * 0.04
-                          ).toFixed(2)}</div>
-                      </div>
-                      <div style="border-bottom:1px solid #d0d0d0;padding-bottom:10px;display:flex;flex-direction:row;justify-content: space-between;align-items: center;margin-bottom: 15px;">
-                          <div style="font-weight: bold;font-size:11px">TOTAL</div>
-                          <div style="font-size: 14px;color:#272626bb;">$${parseFloat(
-                            metaDataBundle.amount
-                          ).toFixed(2)}</div>
-                      </div>
-                      <div style="border-bottom:1px solid #d0d0d0;padding-bottom:10px;display:flex;flex-direction:row;justify-content: space-between;align-items: center;margin-bottom: 5px;">
-                          <div style="font-weight: bold;font-size:12px;flex:1">BALANCE DUE</div>
-                          <div style="font-size: 15px;color:#272626bb;font-weight: bold;">NAD $${parseFloat(
-                            metaDataBundle.amount
-                          ).toFixed(2)}</div>
-                      </div>
                   </div>
-              </div>
-          </body>
-          </html>
+
+                </div>
+
+              </body>
+
+              </html>
         `;
 
               //? Save the email dispatch event
