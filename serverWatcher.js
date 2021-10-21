@@ -2454,6 +2454,27 @@ redisCluster.on("connect", function () {
               .catch((error) => {
                 logger.info(error);
               });
+
+            //? 4. Observe all the scheduled requests for executions
+            new Promise((res3) => {
+              scheduledRequestsWatcher_junky(
+                collectionRidesDeliveryData,
+                collectionDrivers_profiles,
+                collectionPassengers_profiles,
+                res3
+              );
+            })
+              .then(
+                (result) => {
+                  logger.info(result);
+                },
+                (error) => {
+                  logger.info(error);
+                }
+              )
+              .catch((error) => {
+                logger.info(error);
+              });
           });
 
           //! FOR LIGHT HEAVY PROCESSES REQUIRING - 30min
@@ -2485,8 +2506,8 @@ redisCluster.on("connect", function () {
               });
           });
 
-          //! FOR LIGHT HEAVY PROCESSES REQUIRING - 5min
-          cron.schedule("*/5 * * * *", function () {
+          //! FOR LIGHT HEAVY PROCESSES REQUIRING - 15min
+          cron.schedule("*/15 * * * *", function () {
             //? 2. Keep the drivers next payment date UP TO DATE
             new Promise((res2) => {
               updateNext_paymentDateDrivers(
@@ -2495,27 +2516,6 @@ redisCluster.on("connect", function () {
                 collectionRidesDeliveryData,
                 collectionGlobalEvents,
                 res2
-              );
-            })
-              .then(
-                (result) => {
-                  logger.info(result);
-                },
-                (error) => {
-                  logger.info(error);
-                }
-              )
-              .catch((error) => {
-                logger.info(error);
-              });
-
-            //? 3. Observe all the scheduled requests for executions
-            new Promise((res3) => {
-              scheduledRequestsWatcher_junky(
-                collectionRidesDeliveryData,
-                collectionDrivers_profiles,
-                collectionPassengers_profiles,
-                res3
               );
             })
               .then(

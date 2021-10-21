@@ -1390,10 +1390,10 @@ function execTripChecker_Dispatcher(
                         );
                       }).then(
                         (resultFinal) => {
-                          //! SAVE THE FINAL FULL RESULT - for 15 min ------
+                          //! SAVE THE FINAL FULL RESULT - for 24h ------
                           redisCluster.setex(
                             RIDE_REDIS_KEY,
-                            parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
+                            parseInt(process.env.REDIS_EXPIRATION_5MIN) * 288,
                             JSON.stringify(resultFinal)
                           );
                           //! ----------------------------------------------
@@ -1419,10 +1419,10 @@ function execTripChecker_Dispatcher(
                         );
                       }).then(
                         (resultFinal) => {
-                          //! SAVE THE FINAL FULL RESULT - for 15 min ------
+                          //! SAVE THE FINAL FULL RESULT - for 24h ------
                           redisCluster.setex(
                             RIDE_REDIS_KEY,
-                            parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
+                            parseInt(process.env.REDIS_EXPIRATION_5MIN) * 288,
                             JSON.stringify(resultFinal)
                           );
                           //! ----------------------------------------------
@@ -1450,10 +1450,10 @@ function execTripChecker_Dispatcher(
                   );
                 }).then(
                   (resultFinal) => {
-                    //! SAVE THE FINAL FULL RESULT - for 15 min ------
+                    //! SAVE THE FINAL FULL RESULT - for 24h ------
                     redisCluster.setex(
                       RIDE_REDIS_KEY,
-                      parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
+                      parseInt(process.env.REDIS_EXPIRATION_5MIN) * 288,
                       JSON.stringify(resultFinal)
                     );
                     //! ----------------------------------------------
