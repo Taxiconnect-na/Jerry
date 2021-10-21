@@ -215,94 +215,104 @@ function autocompleteInputData(
     // logger.info(body);
     try {
       body = JSON.parse(body);
-      // logger.warn(body);
+      logger.info(body);
       //? Write at the input data level - not the isolated pickup data
       inputData.pickup_location_infos.state = body.state;
       inputData.pickup_location_infos.suburb = body.suburb;
 
-      //? Autocomplete the destination data if any of them are incomplete
-      let parentPromises = inputData.destination_location_infos.map(
-        (destination) => {
-          logger.info(destination);
-          return new Promise((resCompute) => {
-            if (
-              destination.suburb === undefined ||
-              destination.suburb === null ||
-              destination.suburb === false ||
-              destination.suburb === "false" ||
-              destination.state === undefined ||
-              destination.state === null ||
-              destination.state === false ||
-              destination.state === "false"
-            ) {
-              //Found some invalid input data
-              logger.warn("Found some invalid input data, resolving them...");
-              let url =
-                `${
-                  /production/i.test(process.env.EVIRONMENT)
-                    ? `http://${process.env.INSTANCE_PRIVATE_IP}`
-                    : process.env.LOCAL_URL
-                }` +
-                ":" +
-                process.env.SEARCH_SERVICE_PORT +
-                `/brieflyCompleteSuburbAndState?latitude=${destination.coordinates.latitude}&longitude=${destination.coordinates.longitude}&city=${destination.city}&location_name=${destination.location_name}`;
+      if (
+        inputData.destination_location_infos !== undefined &&
+        inputData.destination_location_infos !== null &&
+        inputData.destination_location_infos.length > 0
+      ) {
+        //? Autocomplete the destination data if any of them are incomplete
+        let parentPromises = inputData.destination_location_infos.map(
+          (destination) => {
+            logger.info(destination);
+            return new Promise((resCompute) => {
+              if (
+                destination.suburb === undefined ||
+                destination.suburb === null ||
+                destination.suburb === false ||
+                destination.suburb === "false" ||
+                destination.state === undefined ||
+                destination.state === null ||
+                destination.state === false ||
+                destination.state === "false"
+              ) {
+                //Found some invalid input data
+                logger.warn("Found some invalid input data, resolving them...");
+                let url =
+                  `${
+                    /production/i.test(process.env.EVIRONMENT)
+                      ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+                      : process.env.LOCAL_URL
+                  }` +
+                  ":" +
+                  process.env.SEARCH_SERVICE_PORT +
+                  `/brieflyCompleteSuburbAndState?latitude=${destination.coordinates.latitude}&longitude=${destination.coordinates.longitude}&city=${destination.city}&location_name=${destination.location_name}`;
 
-              requestAPI(url, function (error, response, body) {
-                try {
-                  body = JSON.parse(body);
-                  logger.warn(body);
-                  //? Update the old record
-                  destination.suburb = body.suburb;
-                  destination.state = body.state;
-                  //DONE
-                  resCompute(destination);
-                } catch (error) {
-                  logger.error(error);
-                  resCompute(destination);
-                }
-              });
-            } //Clean data
-            else {
-              logger.error("CLEAN DATA");
-              logger.error(destination);
-              if (/ Region/i.test(destination.state)) {
-                destination.state = destination.state.replace(/ Region/, "");
-                resCompute(destination);
-              } //No problem
+                requestAPI(url, function (error, response, body) {
+                  try {
+                    body = JSON.parse(body);
+                    logger.warn(body);
+                    //? Update the old record
+                    destination.suburb = body.suburb;
+                    destination.state = body.state;
+                    //DONE
+                    resCompute(destination);
+                  } catch (error) {
+                    logger.error(error);
+                    resCompute(destination);
+                  }
+                });
+              } //Clean data
               else {
-                resCompute(destination);
-              }
-            }
-          });
-        }
-      );
-      //DONE
-      Promise.all(parentPromises)
-        .then((result) => {
-          logger.warn("POINT OF INTEREST HERE");
-          logger.info(result);
-          //Update the destination data based on the order
-          result.map((updatedDestination) => {
-            inputData.destination_location_infos.map(
-              (oldDestination, index) => {
-                if (
-                  parseInt(updatedDestination.passenger_number_id) ===
-                  parseInt(oldDestination.passenger_number_id)
-                ) {
-                  //Matched record
-                  inputData.destination_location_infos[index] =
-                    updatedDestination; //? Updated source record
+                logger.error("CLEAN DATA");
+                logger.error(destination);
+                if (/ Region/i.test(destination.state)) {
+                  destination.state = destination.state.replace(/ Region/, "");
+                  resCompute(destination);
+                } //No problem
+                else {
+                  resCompute(destination);
                 }
               }
-            );
+            });
+          }
+        );
+        //DONE
+        Promise.all(parentPromises)
+          .then((result) => {
+            logger.warn("POINT OF INTEREST HERE");
+            logger.info(result);
+            //Update the destination data based on the order
+            result.map((updatedDestination) => {
+              inputData.destination_location_infos.map(
+                (oldDestination, index) => {
+                  if (
+                    parseInt(updatedDestination.passenger_number_id) ===
+                    parseInt(oldDestination.passenger_number_id)
+                  ) {
+                    //Matched record
+                    inputData.destination_location_infos[index] =
+                      updatedDestination; //? Updated source record
+                  }
+                }
+              );
+            });
+            //DONE
+            resolve(inputData);
+          })
+          .catch((error) => {
+            logger.error(error);
+            resolve(inputData);
           });
-          //DONE
-          resolve(inputData);
-        })
-        .catch((error) => {
-          logger.error(error);
-          resolve(inputData);
-        });
+      } //Destination data not in array
+      else {
+        logger.info("Destination data not in array form");
+        resolve(inputData);
+      }
     } catch (error) {
       logger.error(error);
       //? Send the same data
@@ -353,10 +363,25 @@ function doMongoSearchForAutocompletedSuburbs(
         passenger_number_id: 1,
         suburb: result.pickup_location_infos.suburb,
         state: result.pickup_location_infos.state,
-        location_name: inputTemplate.location_name,
-        city: inputTemplate.city,
-        country: inputTemplate.country,
-        street_name: result.pickup_location_infos.street,
+        location_name:
+          inputTemplate.location_name !== undefined &&
+          inputTemplate.location_name !== null &&
+          inputTemplate.location_name !== false
+            ? inputTemplate.location_name
+            : result.pickup_location_infos.location_name,
+        city:
+          inputTemplate.city !== undefined &&
+          inputTemplate.city !== null &&
+          inputTemplate.city !== false
+            ? inputTemplate.city
+            : result.pickup_location_infos.city,
+        country:
+          inputTemplate.country !== undefined &&
+          inputTemplate.country !== null &&
+          inputTemplate.country !== false
+            ? inputTemplate.country
+            : result.pickup_location_infos.country,
+        street_name: result.pickup_location_infos.street_name,
       });
     })
     .catch((error) => {
