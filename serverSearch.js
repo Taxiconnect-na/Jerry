@@ -45,6 +45,7 @@ const moment = require("moment");
 
 const cities_center = {
   windhoek: "-22.558926,17.073211", //Conventional center on which to biais the search results
+  swakopmund: "-22.6507972303997,14.582524465837887",
 };
 
 const conventionalSearchRadius = 80000; //The radius in which to focus the search;
@@ -697,11 +698,14 @@ function getLocationList_five(
   let keyREDIS = `search_locations-${city.trim().toLowerCase()}-${country
     .trim()
     .toLowerCase()}-${queryOR}`; //! Added time for debug
+  logger.info(keyREDIS);
   //-------------------------------------
   redisGet(keyREDIS).then(
     (resp) => {
       if (resp != null && resp !== undefined) {
-        logger.warn("Found global search results for the same query input");
+        logger.warn(
+          "[*] Found global search results for the same query input."
+        );
         //logObject(JSON.parse(reslt));
         try {
           //Rehydrate records
@@ -1439,7 +1443,7 @@ redisCluster.on("connect", function () {
             //search_timestamp = dateObject.unix();
             // let search_timestamp = request.query.length;
             let search_timestamp = new Date(chaineDateUTC).getTime();
-            let redisKeyConsistencyKeeper = `${request.user_fp}-autocompleteSearchRecordTime`;
+            let redisKeyConsistencyKeeper = `${request.user_fp}-autocompleteSearchRecordTime-${request.city}`;
             //1. Get the cityCenter
             request0 = new Promise((res) => {
               //Save in Cache

@@ -5018,6 +5018,7 @@ var collectionDrivers_profiles = null;
 var collectionGlobalEvents = null;
 var collectionWalletTransactions_logs = null;
 var collectionDedicatedServices_accounts = null;
+var collectionHistoricalGPS = null;
 
 redisCluster.on("connect", function () {
   //logger.info("[*] Redis connected");
@@ -5066,6 +5067,9 @@ redisCluster.on("connect", function () {
           collectionRidersLocation_log = dbMongo.collection(
             "historical_positioning_logs"
           ); //Hold all the location updated from the rider
+          collectionHistoricalGPS = dbMongo.collection(
+            "historical_gps_positioning"
+          ); //Hold all the GPS updates from the rider or driver
           collectionDrivers_profiles = dbMongo.collection("drivers_profiles"); //Hold all the drivers profiles
           collectionPassengers_profiles = dbMongo.collection(
             "passengers_profiles"
@@ -5444,11 +5448,10 @@ redisCluster.on("connect", function () {
            * REDIS propertiy
            * user_fingerprint -> currentLocationInfos: {...}
            */
-          app.get("/getUserLocationInfos", function (req, res) {
+          app.post("/getUserLocationInfos", function (req, res) {
             new Promise((resMAIN) => {
-              let params = urlParser.parse(req.url, true);
-              //logger.info(params.query);
-              let request = params.query;
+              let request = req.body;
+              resolveDate();
 
               if (
                 request.latitude != undefined &&
@@ -5458,6 +5461,37 @@ redisCluster.on("connect", function () {
                 request.user_fingerprint !== null &&
                 request.user_fingerprint !== undefined
               ) {
+                logger.warn(JSON.stringify(request));
+                //Save the history of the geolocation
+                new Promise((resHistory) => {
+                  if (request.geolocationData !== undefined) {
+                    bundleData = {
+                      user_fingerprint: request.user_fingerprint,
+                      gps_data: request.geolocationData,
+                      date: new Date(chaineDateUTC),
+                    };
+                    //..
+                    collectionHistoricalGPS.insertOne(
+                      bundleData,
+                      function (err, reslt) {
+                        if (err) {
+                          logger.error(err);
+                          resHistory(false);
+                        }
+                        //...
+                        logger.info("Saved GPS data");
+                        resHistory(true);
+                      }
+                    );
+                  } //No required data
+                  else {
+                    logger.info("No required GPS data for logs");
+                    resHistory(false);
+                  }
+                })
+                  .then()
+                  .catch();
+
                 //Hand responses
                 new Promise((resolve) => {
                   reverseGeocodeUserLocation(resolve, request);
