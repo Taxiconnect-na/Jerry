@@ -155,13 +155,9 @@ io.on("connection", (socket) => {
         }` +
         ":" +
         process.env.MAP_SERVICE_PORT +
-        "/getUserLocationInfos?latitude=" +
-        req.latitude +
-        "&longitude=" +
-        req.longitude +
-        "&user_fingerprint=" +
-        req.user_fingerprint;
-      requestAPI(url, function (error, response, body) {
+        "/getUserLocationInfos";
+
+      requestAPI.post({ url, form: req }, function (error, response, body) {
         logger.info(url);
         logger.info(body, error);
         if (error === null) {
