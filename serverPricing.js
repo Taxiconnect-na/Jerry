@@ -212,7 +212,7 @@ function autocompleteInputData(
     `/brieflyCompleteSuburbAndState?latitude=${pickupInfos.coordinates.latitude}&longitude=${pickupInfos.coordinates.longitude}&city=${pickupInfos.city}&location_name=${pickupInfos.location_name}`;
 
   requestAPI(url, function (error, response, body) {
-    // logger.info(body);
+    // logger.error(body);
     try {
       body = JSON.parse(body);
       logger.info(body);

@@ -801,104 +801,113 @@ function completeLastLoccation_infosSubsAndRest(
     }` +
     ":" +
     process.env.MAP_SERVICE_PORT +
-    "/getUserLocationInfos?latitude=" +
-    locationData.latitude +
-    "&longitude=" +
-    locationData.longitude +
-    "&user_fingerprint=" +
-    locationData.user_fingerprint;
-  requestAPI(url, function (error, response, body) {
-    if (error === null) {
-      try {
-        body = JSON.parse(body);
-        //? Partially complete the final object
-        objFinal.city = body.city;
-        objFinal.country = body.country;
-        objFinal.street = body.street !== undefined ? body.street : false;
-        objFinal.location_name = body.name;
-        objFinal.geographic_extent =
-          body.extent !== undefined ? body.extent : false;
-        //1. Get the suburb
-        let url =
-          `${
-            /production/i.test(process.env.EVIRONMENT)
-              ? `http://${process.env.INSTANCE_PRIVATE_IP}`
-              : process.env.LOCAL_URL
-          }` +
-          ":" +
-          process.env.PRICING_SERVICE_PORT +
-          "/getCorrespondingSuburbInfos?location_name=" +
-          objFinal.location_name +
-          "&street_name=" +
-          objFinal.street +
-          "&city=" +
-          objFinal.city +
-          "&country=" +
-          objFinal.country +
-          "&latitude=" +
-          locationData.latitude +
-          "&longitude=" +
-          locationData.longitude +
-          "&user_fingerprint=" +
-          locationData.user_fingerprint;
-        requestAPI(url, function (error, response, body) {
-          if (error === null) {
-            try {
-              body = JSON.parse(body);
-              ////logger.info(body);
-              //? Complete the suburb data
-              objFinal.suburb = body.suburb !== undefined ? body.suburb : false;
-              //Update the user's profile
-              if (
-                objFinal.city !== null &&
-                objFinal.country !== null &&
-                objFinal.city !== "null" &&
-                objFinal.country !== "null" &&
-                objFinal.city !== undefined &&
-                objFinal.country !== undefined &&
-                objFinal.city !== "undefined" &&
-                objFinal.country !== "undefined"
-              ) {
-                //! Avoid to overwrite good values by nulls
-                collectionDrivers_profiles.updateOne(
-                  {
-                    driver_fingerprint: locationData.user_fingerprint,
-                  },
-                  {
-                    $set: {
-                      "operational_state.last_location.city": objFinal.city,
-                      "operational_state.last_location.country":
-                        objFinal.country,
-                      "operational_state.last_location.suburb": objFinal.suburb,
-                      "operational_state.last_location.street": objFinal.street,
-                      "operational_state.last_location.location_name":
-                        objFinal.location_name,
-                      "operational_state.last_location.geographic_extent":
-                        objFinal.geographic_extent,
+    "/getUserLocationInfos";
+  //....
+  requestAPI.post(
+    {
+      url,
+      form: {
+        latitude: locationData.latitude,
+        longitude: locationData.longitude,
+        user_fingerprint: locationData.user_fingerprint,
+      },
+    },
+    function (error, response, body) {
+      if (error === null) {
+        try {
+          body = JSON.parse(body);
+          //? Partially complete the final object
+          objFinal.city = body.city;
+          objFinal.country = body.country;
+          objFinal.street = body.street !== undefined ? body.street : false;
+          objFinal.location_name = body.name;
+          objFinal.geographic_extent =
+            body.extent !== undefined ? body.extent : false;
+          //1. Get the suburb
+          let url =
+            `${
+              /production/i.test(process.env.EVIRONMENT)
+                ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+                : process.env.LOCAL_URL
+            }` +
+            ":" +
+            process.env.PRICING_SERVICE_PORT +
+            "/getCorrespondingSuburbInfos?location_name=" +
+            objFinal.location_name +
+            "&street_name=" +
+            objFinal.street +
+            "&city=" +
+            objFinal.city +
+            "&country=" +
+            objFinal.country +
+            "&latitude=" +
+            locationData.latitude +
+            "&longitude=" +
+            locationData.longitude +
+            "&user_fingerprint=" +
+            locationData.user_fingerprint;
+          requestAPI(url, function (error, response, body) {
+            if (error === null) {
+              try {
+                body = JSON.parse(body);
+                ////logger.info(body);
+                //? Complete the suburb data
+                objFinal.suburb =
+                  body.suburb !== undefined ? body.suburb : false;
+                //Update the user's profile
+                if (
+                  objFinal.city !== null &&
+                  objFinal.country !== null &&
+                  objFinal.city !== "null" &&
+                  objFinal.country !== "null" &&
+                  objFinal.city !== undefined &&
+                  objFinal.country !== undefined &&
+                  objFinal.city !== "undefined" &&
+                  objFinal.country !== "undefined"
+                ) {
+                  //! Avoid to overwrite good values by nulls
+                  collectionDrivers_profiles.updateOne(
+                    {
+                      driver_fingerprint: locationData.user_fingerprint,
                     },
-                  },
-                  function (err, res) {
-                    //logger.info(err);
-                    resolve(true);
-                  }
-                );
-              } else {
+                    {
+                      $set: {
+                        "operational_state.last_location.city": objFinal.city,
+                        "operational_state.last_location.country":
+                          objFinal.country,
+                        "operational_state.last_location.suburb":
+                          objFinal.suburb,
+                        "operational_state.last_location.street":
+                          objFinal.street,
+                        "operational_state.last_location.location_name":
+                          objFinal.location_name,
+                        "operational_state.last_location.geographic_extent":
+                          objFinal.geographic_extent,
+                      },
+                    },
+                    function (err, res) {
+                      //logger.info(err);
+                      resolve(true);
+                    }
+                  );
+                } else {
+                  resolve(false);
+                }
+              } catch (error) {
                 resolve(false);
               }
-            } catch (error) {
+            } else {
               resolve(false);
             }
-          } else {
-            resolve(false);
-          }
-        });
-      } catch (error) {
+          });
+        } catch (error) {
+          resolve(false);
+        }
+      } else {
         resolve(false);
       }
-    } else {
-      resolve(false);
     }
-  });
+  );
 }
 
 /**

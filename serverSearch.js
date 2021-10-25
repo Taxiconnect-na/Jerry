@@ -1056,107 +1056,113 @@ function execBrieflyCompleteEssentialsForLocations(
     }` +
     ":" +
     process.env.MAP_SERVICE_PORT +
-    "/getUserLocationInfos?latitude=" +
-    coordinates.latitude +
-    "&longitude=" +
-    coordinates.longitude +
-    `&user_fingerprint=internal_${new Date(
-      chaineDateUTC
-    ).getTime()}${otpGenerator.generate(14, {
-      upperCase: false,
-      specialChars: false,
-      alphabets: false,
-    })}`;
-
-  requestAPI(url, function (error, response, body) {
-    logger.info(url);
-    logger.info(body, error);
-    if (error === null) {
-      try {
-        body = JSON.parse(body);
-        //? OSM ID
-        let osm_id = body.osm_id;
-        //Check if there are any record in mongodb
-        collectionAutoCompletedSuburbs
-          .find({ osm_id: osm_id })
-          .toArray(function (err, locationData) {
-            if (err) {
-              logger.error(err);
-              //Make a fresh search
-              new Promise((resCompute) => {
-                doFreshBrieflyCompleteEssentialsForLocations(
-                  coordinates,
-                  location_name,
-                  city,
-                  osm_id,
-                  resCompute
-                );
-              })
-                .then((result) => {
-                  resolve(result);
+    "/getUserLocationInfos";
+  //...
+  requestAPI.post(
+    {
+      url,
+      form: {
+        latitude: coordinates.latitude,
+        longitude: coordinates.longitude,
+        user_fingerprint: `internal_${new Date(
+          chaineDateUTC
+        ).getTime()}${otpGenerator.generate(14, {
+          upperCase: false,
+          specialChars: false,
+          alphabets: false,
+        })}`,
+      },
+    },
+    function (error, response, body) {
+      logger.info(url);
+      logger.info(body, error);
+      if (error === null) {
+        try {
+          body = JSON.parse(body);
+          //? OSM ID
+          let osm_id = body.osm_id;
+          //Check if there are any record in mongodb
+          collectionAutoCompletedSuburbs
+            .find({ osm_id: osm_id })
+            .toArray(function (err, locationData) {
+              if (err) {
+                logger.error(err);
+                //Make a fresh search
+                new Promise((resCompute) => {
+                  doFreshBrieflyCompleteEssentialsForLocations(
+                    coordinates,
+                    location_name,
+                    city,
+                    osm_id,
+                    resCompute
+                  );
                 })
-                .catch((error) => {
-                  logger.error(error);
-                  resolve({
-                    coordinates: coordinates,
-                    state: false,
-                    suburb: false,
+                  .then((result) => {
+                    resolve(result);
+                  })
+                  .catch((error) => {
+                    logger.error(error);
+                    resolve({
+                      coordinates: coordinates,
+                      state: false,
+                      suburb: false,
+                    });
                   });
-                });
-            }
+              }
 
-            //...
-            if (locationData !== undefined && locationData.length > 0) {
-              logger.warn(
-                `Found mongo record for the related suburb - ${osm_id}`
-              );
-              //Found a record
-              locationData = locationData[0];
               //...
-              resolve({
-                coordinates: coordinates,
-                state: locationData.results[0].components.state,
-                suburb: locationData.results[0].components.suburb,
-              });
-            } //Make a fresh search
-            else {
-              new Promise((resCompute) => {
-                doFreshBrieflyCompleteEssentialsForLocations(
-                  coordinates,
-                  location_name,
-                  city,
-                  osm_id,
-                  resCompute
+              if (locationData !== undefined && locationData.length > 0) {
+                logger.warn(
+                  `Found mongo record for the related suburb - ${osm_id}`
                 );
-              })
-                .then((result) => {
-                  resolve(result);
-                })
-                .catch((error) => {
-                  logger.error(error);
-                  resolve({
-                    coordinates: coordinates,
-                    state: false,
-                    suburb: false,
-                  });
+                //Found a record
+                locationData = locationData[0];
+                //...
+                resolve({
+                  coordinates: coordinates,
+                  state: locationData.results[0].components.state,
+                  suburb: locationData.results[0].components.suburb,
                 });
-            }
+              } //Make a fresh search
+              else {
+                new Promise((resCompute) => {
+                  doFreshBrieflyCompleteEssentialsForLocations(
+                    coordinates,
+                    location_name,
+                    city,
+                    osm_id,
+                    resCompute
+                  );
+                })
+                  .then((result) => {
+                    resolve(result);
+                  })
+                  .catch((error) => {
+                    logger.error(error);
+                    resolve({
+                      coordinates: coordinates,
+                      state: false,
+                      suburb: false,
+                    });
+                  });
+              }
+            });
+        } catch (error) {
+          resolve({
+            coordinates: coordinates,
+            state: false,
+            suburb: false,
           });
-      } catch (error) {
+        }
+      } else {
         resolve({
           coordinates: coordinates,
           state: false,
           suburb: false,
         });
       }
-    } else {
-      resolve({
-        coordinates: coordinates,
-        state: false,
-        suburb: false,
-      });
     }
-  });
+  );
 }
 
 /**

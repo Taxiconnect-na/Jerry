@@ -4134,7 +4134,7 @@ function INIT_RIDE_DELIVERY_DISPATCH_ENTRY(
     .find(checkPrevRequest)
     .toArray(function (err, prevRequest) {
       if (err) {
-        //logger.info(err);
+        logger.error(err);
         resolve({ response: "Unable_to_make_the_request" });
       }
       //....
