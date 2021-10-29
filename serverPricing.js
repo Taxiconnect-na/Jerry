@@ -217,7 +217,9 @@ function autocompleteInputData(
       body = JSON.parse(body);
       logger.info(body);
       //? Write at the input data level - not the isolated pickup data
-      inputData.pickup_location_infos.state = body.state;
+      inputData.pickup_location_infos.state = body.state
+        .replace(/ Region/i, "")
+        .trim();
       inputData.pickup_location_infos.suburb = body.suburb;
 
       if (
@@ -258,7 +260,9 @@ function autocompleteInputData(
                     logger.warn(body);
                     //? Update the old record
                     destination.suburb = body.suburb;
-                    destination.state = body.state;
+                    destination.state = body.state
+                      .replace(/ Region/i, "")
+                      .trim();
                     //DONE
                     resCompute(destination);
                   } catch (error) {
@@ -465,10 +469,15 @@ function estimateFullVehiclesCatPrices(
             pickup_suburb: completedInputData.pickup_location_infos.suburb,
           };
 
+          logger.error(filterQuery);
+
           collectionPricesLocationsMap
             .find(filterQuery)
             .toArray(function (err, result) {
               if (result.length > 0) {
+                logger.info(
+                  `PRICE LOCATION MAP ----> ${JSON.stringify(result)}`
+                );
                 //Found corresponding prices maps
                 res(result);
               } //No prices map found - Set default prices NAD 12 - non realistic and fixed prices
@@ -522,6 +531,7 @@ function estimateFullVehiclesCatPrices(
             });
         }).then(
           (reslt) => {
+            logger.info(`PRICE LOCATION MAP ----> ${JSON.stringify(reslt)}`);
             let globalPricesMap = reslt;
             //call computeInDepthPricesMap
             new Promise((res) => {
@@ -573,7 +583,7 @@ function estimateFullVehiclesCatPrices(
  * @param goingUntilHome: if the customer is going until home or not
  */
 function doubleTheFareIfNecessary(initialFare, goingUntilHome) {
-  if (initialFare == 12 && goingUntilHome) {
+  if (initialFare <= 14 && goingUntilHome) {
     logger.warn("Doubled the fare called");
     return initialFare * 2;
   }

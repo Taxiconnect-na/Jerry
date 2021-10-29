@@ -48,7 +48,7 @@ const cities_center = {
   swakopmund: "-22.6507972303997,14.582524465837887",
 };
 
-const conventionalSearchRadius = 80000; //The radius in which to focus the search;
+const conventionalSearchRadius = 8000000; //The radius in which to focus the search;
 
 //GLOBALS
 const _CITY = "Windhoek";
@@ -146,6 +146,7 @@ function similarityCheck_locations_search(arrayLocations, query, res) {
  * @param {*} cityCenter
  * @param {*} res
  * @param {*} timestamp
+ * @param {*} trailingData: will contain the full data needed coming from the user request
  */
 
 function newLoaction_search_engine(
@@ -154,11 +155,16 @@ function newLoaction_search_engine(
   city,
   cityCenter,
   res,
-  timestamp
+  timestamp,
+  trailingData
 ) {
   //? 1. Check if it was written in mongodb
   collectionSearchedLocationPersist
-    .find({ query: queryOR, city: city })
+    .find({
+      query: queryOR,
+      city: city,
+      state: trailingData.state.replace(/ Region/i, "").trim(),
+    })
     .toArray(function (err, searchedData) {
       if (err) {
         logger.error(err);
@@ -170,7 +176,8 @@ function newLoaction_search_engine(
             city,
             cityCenter,
             resCompute,
-            timestamp
+            timestamp,
+            trailingData
           );
         })
           .then((result) => {
@@ -217,7 +224,8 @@ function newLoaction_search_engine(
             city,
             cityCenter,
             resCompute,
-            timestamp
+            timestamp,
+            trailingData
           );
         })
           .then((result) => {
@@ -240,6 +248,7 @@ function newLoaction_search_engine(
  * @param {*} cityCenter
  * @param {*} res
  * @param {*} timestamp
+ * @param {*} trailingData: will contain the full data needed coming from the user request
  */
 function initializeFreshGetOfLocations(
   keyREDIS,
@@ -247,12 +256,14 @@ function initializeFreshGetOfLocations(
   city,
   cityCenter,
   res,
-  timestamp
+  timestamp,
+  trailingData
 ) {
   query = encodeURIComponent(queryOR.toLowerCase());
 
   //TODO: could allocate the country dynamically for scale.
-  let urlRequest = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${query}&key=${process.env.GOOGLE_API_KEY}&components=country:na&language=en&location=${cityCenter}&radius=${conventionalSearchRadius}`;
+  let urlRequest = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${query}&key=${process.env.GOOGLE_API_KEY}&components=country:na&language=en&radius=${conventionalSearchRadius}&limit=1000`;
+  logger.error(urlRequest);
 
   requestAPI(urlRequest, function (err, response, body) {
     try {
@@ -336,12 +347,30 @@ function initializeFreshGetOfLocations(
               return element !== false && element !== null;
             });
             //? Remove all the out of context cities
-            result = fastFilter(val, function (element) {
-              let regFilterCity = new RegExp(city.trim(), "i");
-              return element.city !== false && element.city !== undefined
-                ? regFilterCity.test(element.city.trim())
-                : false;
-            });
+            //! 1. Filter by town only for Windhoek in the Khomas region
+            if (
+              /windhoek/i.test(city.trim()) &&
+              /khomas/i.test(trailingData.state.replace(/ Region/i, "").trim())
+            ) {
+              //Khomas region
+              logger.info("KHOMAS");
+              result = fastFilter(val, function (element) {
+                let regFilterCity = new RegExp(city.trim(), "i");
+                return element.city !== false && element.city !== undefined
+                  ? regFilterCity.test(element.city.trim())
+                  : false;
+              });
+            } //Other regions
+            else {
+              logger.error(val);
+              result = fastFilter(val, function (element) {
+                let regFilterState = new RegExp(trailingData.state.trim(), "i");
+                return element.state !== false && element.state !== undefined
+                  ? regFilterState.test(element.state.trim())
+                  : false;
+              });
+            }
+
             //! Save in mongo search persist - Cost reduction
             new Promise((saveMongo) => {
               if (result.length > 0) {
@@ -683,6 +712,7 @@ function removeResults_duplicates(arrayResults, resolve) {
  * @param {*} cityCenter
  * @param {*} res
  * @param {*} timestamp
+ * @param {*} trailingData: will contain the full data needed coming from the user request
  */
 
 function getLocationList_five(
@@ -691,13 +721,14 @@ function getLocationList_five(
   country,
   cityCenter,
   res,
-  timestamp
+  timestamp,
+  trailingData
 ) {
   resolveDate();
   //Check if cached results are available
   let keyREDIS = `search_locations-${city.trim().toLowerCase()}-${country
     .trim()
-    .toLowerCase()}-${queryOR}`; //! Added time for debug
+    .toLowerCase()}-${queryOR}-${trailingData.state}`; //! Added time for debug
   logger.info(keyREDIS);
   //-------------------------------------
   redisGet(keyREDIS).then(
@@ -716,7 +747,8 @@ function getLocationList_five(
               city,
               cityCenter,
               resCompute,
-              timestamp
+              timestamp,
+              trailingData
             );
           })
             .then()
@@ -745,7 +777,8 @@ function getLocationList_five(
             city,
             cityCenter,
             res,
-            timestamp
+            timestamp,
+            trailingData
           );
         }
       } //No cached results
@@ -758,7 +791,8 @@ function getLocationList_five(
           city,
           cityCenter,
           res,
-          timestamp
+          timestamp,
+          trailingData
         );
       }
     },
@@ -772,7 +806,8 @@ function getLocationList_five(
         city,
         cityCenter,
         res,
-        timestamp
+        timestamp,
+        trailingData
       );
     }
   );
@@ -792,7 +827,10 @@ function brieflyCompleteEssentialsForLocations(
   city,
   resolve
 ) {
-  let redisKey = `${JSON.stringify(coordinates)}-${location_name}-${city}`;
+  let redisKey = `${JSON.stringify(
+    coordinates
+  )}-${location_name}-${city}`.replace(/ /g, "_");
+  logger.info(redisKey);
 
   //! APPLY BLUE OCEAN BUG FIX FOR THE PICKUP LOCATION COORDINATES
   //? 1. Destination
@@ -1175,10 +1213,12 @@ function doFreshBrieflyCompleteEssentialsForLocations(
   osm_id,
   resolve
 ) {
-  let localRedisKey = `${osm_id}-localSuburbInfos`;
+  let localRedisKey =
+    `${osm_id}-localSuburbInfos-${city}-${location_name}`.replace(/ /g, "_");
   //? Check from redis first
   redisGet(localRedisKey)
     .then((resp) => {
+      logger.error(resp);
       if (resp !== null) {
         //Has some records
         try {
@@ -1349,10 +1389,19 @@ function makeFreshOpenCageRequests(coordinates, osm_id, redisKey, resolve) {
           });
         } //Not valid infos
         else {
+          logger.error(
+            `LOGGER IS -> ${JSON.stringify(body.results[0].components)}`
+          );
           resolve({
             coordinates: coordinates,
-            state: false,
-            suburb: false,
+            state:
+              body.results[0].components.state !== undefined &&
+              body.results[0].components.state !== null
+                ? body.results[0].components.state.replace(" Region", "").trim()
+                : false,
+            suburb: /Erongo/i.test(body.results[0].components.state)
+              ? "Tamariskia"
+              : false,
           });
         }
       } catch (error) {
@@ -1439,17 +1488,21 @@ redisCluster.on("connect", function () {
             );
 
           //1. SEARCH API
-          app.get("/getSearchedLocations", function (request, res) {
+          app.post("/getSearchedLocations", function (request, res) {
             resolveDate();
             //..
-            let params = urlParser.parse(request.url, true);
-            request = params.query;
+            request = request.body;
             // logger.info(request);
             //Update search timestamp
             //search_timestamp = dateObject.unix();
             // let search_timestamp = request.query.length;
             let search_timestamp = new Date(chaineDateUTC).getTime();
-            let redisKeyConsistencyKeeper = `${request.user_fp}-autocompleteSearchRecordTime-${request.city}`;
+            request.state =
+              request.state !== undefined
+                ? request.state.replace(/ Region/i, "").trim()
+                : "Khomas"; //Default to Khomas
+            //...
+            let redisKeyConsistencyKeeper = `${request.user_fp}-autocompleteSearchRecordTime-${request.city}-${request.state}`;
             //1. Get the cityCenter
             request0 = new Promise((res) => {
               //Save in Cache
@@ -1467,7 +1520,8 @@ redisCluster.on("connect", function () {
                     request.country,
                     cityCenter,
                     res,
-                    tmpTimestamp
+                    tmpTimestamp,
+                    request
                   );
                 }).then(
                   (result) => {
