@@ -494,7 +494,7 @@ io.on("connection", (socket) => {
    * Seached locations autocomplete.
    */
   socket.on("getLocations", function (req) {
-    //logger.info(req);
+    logger.info(req);
     if (
       req.user_fp !== undefined &&
       req.user_fp !== null &&
@@ -511,16 +511,9 @@ io.on("connection", (socket) => {
         }` +
         ":" +
         process.env.SEARCH_SERVICE_PORT +
-        "/getSearchedLocations?user_fp=" +
-        req.user_fp +
-        "&query=" +
-        req.query +
-        "&city=" +
-        req.city +
-        "&country=" +
-        req.country;
+        "/getSearchedLocations";
 
-      requestAPI(url, function (error, response, body) {
+      requestAPI.post({ url, form: req }, function (error, response, body) {
         ////logger.info(body);
         if (error === null) {
           try {
