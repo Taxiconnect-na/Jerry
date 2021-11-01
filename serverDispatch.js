@@ -709,7 +709,8 @@ function parseRequestData(inputData, resolve) {
                                     inputData.destinationData.passenger1Destination.state
                                       .replace(/ Region/i, "")
                                       .trim(),
-                                  city: inputData.pickupData.city,
+                                  city: inputData.destinationData
+                                    .passenger1Destination.city,
                                 });
                               });
                               //Done
@@ -757,7 +758,7 @@ function parseRequestData(inputData, resolve) {
                                     state: passengerData.state
                                       .replace(/ Region/i, "")
                                       .trim(),
-                                    city: inputData.pickupData.city,
+                                    city: passengerData.city,
                                   });
                                 }
                               }
@@ -806,7 +807,8 @@ function parseRequestData(inputData, resolve) {
                                 inputData.destinationData.passenger1Destination.state
                                   .replace(/ Region/i, "")
                                   .trim(),
-                              city: inputData.pickupData.city,
+                              city: inputData.destinationData
+                                .passenger1Destination.city,
                             });
                             res5(cleanInputData);
                           }
@@ -3846,15 +3848,6 @@ function INIT_RIDE_DELIVERY_DISPATCH_ENTRY(
       ) {
         collectionRidesDeliveryData.insertOne(
           parsedReqest_data,
-          // {
-          //   client_id: parsedReqest_data.client_id,
-          //   "ride_state_vars.isRideCompleted_riderSide": false,
-          //   isArrivedToDestination: false,
-          // },
-          // { $set: parsedReqest_data },
-          // {
-          //   upsert: true,
-          // },
           function (err, requestDt) {
             if (err) {
               //logger.info(err);

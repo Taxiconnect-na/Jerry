@@ -1348,12 +1348,15 @@ function makeFreshOpenCageRequests(coordinates, osm_id, redisKey, resolve) {
         if (
           body.results[0].components !== undefined &&
           (body.results[0].components.suburb !== undefined ||
-            body.results[0].components.neighbourhood !== undefined)
+            body.results[0].components.neighbourhood !== undefined ||
+            body.results[0].components.residential !== undefined)
         ) {
           body.results[0].components["suburb"] =
             body.results[0].components.suburb !== undefined
               ? body.results[0].components.suburb
-              : body.results[0].components.neighbourhood; //Ge the accurate suburb
+              : body.results[0].components.neighbourhood !== undefined
+              ? body.results[0].components.neighbourhood
+              : body.results[0].components.residential; //Ge the accurate suburb
           //Has valid data
           //?Save in Mongo
           new Promise((resSaveMongo) => {
@@ -1399,9 +1402,7 @@ function makeFreshOpenCageRequests(coordinates, osm_id, redisKey, resolve) {
               body.results[0].components.state !== null
                 ? body.results[0].components.state.replace(" Region", "").trim()
                 : false,
-            suburb: /Erongo/i.test(body.results[0].components.state)
-              ? "Tamariskia"
-              : false,
+            suburb: false,
           });
         }
       } catch (error) {
