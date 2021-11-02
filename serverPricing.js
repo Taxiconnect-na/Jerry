@@ -177,6 +177,7 @@ function autocompleteInputData(
   collectionSavedSuburbResults
 ) {
   let pickupInfos = inputData.pickup_location_infos;
+  logger.error(pickupInfos);
 
   //! APPLY BLUE OCEAN BUG FIX FOR THE PICKUP LOCATION COORDINATES
   //? 1. Destination
@@ -465,7 +466,17 @@ function estimateFullVehiclesCatPrices(
           //?...
           filterQuery = {
             country: completedInputData.country,
-            city: completedInputData.pickup_location_infos.city,
+            city: {
+              $in: [
+                ...new Set(
+                  [completedInputData.pickup_location_infos.city].concat(
+                    completedInputData.destination_location_infos.map(
+                      (el) => el.city
+                    )
+                  )
+                ),
+              ],
+            },
             pickup_suburb: completedInputData.pickup_location_infos.suburb,
           };
 
@@ -493,6 +504,11 @@ function estimateFullVehiclesCatPrices(
                     point2_suburb: "ANY",
                     city: completedInputData.pickup_location_infos.city,
                     country: completedInputData.country,
+                    region:
+                      completedInputData.pickup_location_infos.state.replace(
+                        / Region/i,
+                        ""
+                      ),
                     date: new Date(chaineDateUTC),
                   };
                   let checkQuery = {
@@ -531,7 +547,7 @@ function estimateFullVehiclesCatPrices(
             });
         }).then(
           (reslt) => {
-            logger.info(`PRICE LOCATION MAP ----> ${JSON.stringify(reslt)}`);
+            // logger.info(`PRICE LOCATION MAP ----> ${JSON.stringify(reslt)}`);
             let globalPricesMap = reslt;
             //call computeInDepthPricesMap
             new Promise((res) => {
@@ -717,6 +733,26 @@ function computeInDepthPricesMap(
           }
           //...
           completedInputData.destination_location_infos.map((destination) => {
+            // //? A. INNERCITY
+            // if (
+            //   destination.city.trim().toUpperCase() ===
+            //   completedInputData.pickup_location_infos.city.trim().toUpperCase()
+            // ) {
+
+            // } //? B. INTERCITY
+            // else {
+            //   let INTERCITY_PRICES = {
+            //     "WALVIS BAY-SWAKOPMUND": 120,
+            //     "SWAKOPMUND-WALVIS BAY": 120,
+            //   };
+            //   logger.warn(
+            //     `INTERCITY PRICING DETECTED: ${completedInputData.pickup_location_infos.city} <-> ${destination.city}`
+            //   );
+            //   //...
+            //   let combinationStrings = `${completedInputData.pickup_location_infos.city
+            //     .trim()
+            //     .toUpperCase()}-${destination.city.trim().toUpperCase()}`;
+            // }
             //! Add suburb name exception - Only apply to the destination suburb.
             //? 1. Windhoek Central -> Windhoek Central / CBD
             destination.suburb = /^Windhoek Central$/i.test(destination.suburb)
@@ -811,9 +847,14 @@ function computeInDepthPricesMap(
                       didFindRegisteredSuburbs = true;
                     }
 
+                    logger.warn("INSIDE PROCESSOR");
+
                     //...
                     if (didFindRegisteredSuburbs === false) {
                       globalPricesMap.map((suburbToSuburbInfo) => {
+                        logger.warn(
+                          `${suburbToSuburbInfo.pickup_suburb} --> ${destination.suburb}`
+                        );
                         if (
                           suburbToSuburbInfo.pickup_suburb === false &&
                           lockPorgress === false
@@ -845,6 +886,7 @@ function computeInDepthPricesMap(
                             "i"
                           ).test(destination.suburb.toUpperCase().trim())
                         ) {
+                          logger.error("INSIDE");
                           lockPorgress = false;
                           didFindRegisteredSuburbs = true; //Found registered suburbs.
                           //If the car type is economy electric, add its base price
@@ -867,7 +909,6 @@ function computeInDepthPricesMap(
                       });
                     }
                     //...
-                    logger.warn(basePrice);
                     if (didFindRegisteredSuburbs === false) {
                       //Did not find suburbs with mathing suburbs included
                       //Register in mongo
@@ -888,26 +929,25 @@ function computeInDepthPricesMap(
                           country: request_country,
                         };
                         //Check to avoid duplicates
-                        collectionNotFoundSubursPricesMap
-                          .find(checkQuery)
-                          .toArray(function (err, resultX) {
-                            if (resultX.length <= 0) {
-                              //New record
-                              collectionNotFoundSubursPricesMap.insertOne(
-                                queryNoMatch,
-                                function (err, res) {
-                                  logger.info("New record added");
-                                  resX(true);
-                                }
-                              );
-                            }
-                          });
+                        //New record
+                        collectionNotFoundSubursPricesMap.updateOne(
+                          checkQuery,
+                          { $set: queryNoMatch },
+                          { upsert: true },
+                          function (err, res) {
+                            logger.info("New record added");
+                            resX(true);
+                          }
+                        );
                       }).then(
                         () => {},
                         () => {}
                       );
                       //Estimate a realistic price for now - EXTREMELY URGENT
                       //Assign ride base price
+                      logger.error(
+                        `DID NOT FIND REGISTERED SUBURBS COMBINATIONS, USING DEFAULT CAR FARE ---> ${vehicle.base_fare}`
+                      );
                       basePrice += doubleTheFareIfNecessary(
                         vehicle.base_fare,
                         completedInputData.isGoingUntilHome
@@ -1209,7 +1249,7 @@ function parsePricingInputData(resolve, inputData) {
                       inputData.destinationData.passenger1Destination.suburb,
                     state:
                       inputData.destinationData.passenger1Destination.state,
-                    city: inputData.pickupData.city,
+                    city: inputData.destinationData.passenger1Destination.city,
                   });
                 });
                 //Done
@@ -1243,260 +1283,20 @@ function parsePricingInputData(resolve, inputData) {
                           : false,
                       suburb: passengerData.suburb,
                       state: passengerData.state,
-                      city: inputData.pickupData.city,
+                      city: passengerData.city,
                     });
                   }
                 }
 
                 res(cleanInputData);
-
-                // if (cleanInputData.passengers_number == 2) {
-                //   //Passenger1
-                //   let passenger1Data =
-                //     inputData.destinationData.passenger1Destination;
-                //   cleanInputData.destination_location_infos.push({
-                //     passenger_number_id: 1,
-                //     dropoff_type: "PrivateLocation",
-                //     coordinates: {
-                //       latitude: passenger1Data.coordinates[0],
-                //       longitude: passenger1Data.coordinates[1],
-                //     },
-                //     location_name:
-                //       passenger1Data.location_name !== undefined &&
-                //       passenger1Data.location_name !== false
-                //         ? passenger1Data.location_name
-                //         : false,
-                //     street_name:
-                //       passenger1Data.street !== undefined &&
-                //       passenger1Data.street !== false
-                //         ? passenger1Data.street
-                //         : false,
-                //     suburb:
-                //       inputData.destinationData.passenger1Destination.suburb,
-                //     state:
-                //       inputData.destinationData.passenger1Destination.state,
-                //     city: inputData.pickupData.city,
-                //   });
-                //   //Passenger2
-                //   let passenger2Data =
-                //     inputData.destinationData.passenger2Destination;
-                //   cleanInputData.destination_location_infos.push({
-                //     passenger_number_id: 2,
-                //     dropoff_type: "PrivateLocation",
-                //     coordinates: {
-                //       latitude: passenger2Data.coordinates[0],
-                //       longitude: passenger2Data.coordinates[1],
-                //     },
-                //     location_name:
-                //       passenger2Data.location_name !== undefined &&
-                //       passenger2Data.location_name !== false
-                //         ? passenger2Data.location_name
-                //         : false,
-                //     street_name:
-                //       passenger2Data.street !== undefined &&
-                //       passenger2Data.street !== false
-                //         ? passenger2Data.street
-                //         : false,
-                //     suburb:
-                //       inputData.destinationData.passenger2Destination.suburb,
-                //     state:
-                //       inputData.destinationData.passenger2Destination.state,
-                //     city: inputData.pickupData.city,
-                //   });
-                //   //Done
-                //   res(cleanInputData);
-                // } else if (cleanInputData.passengers_number == 3) {
-                //   //Passenger1
-                //   let passenger1Data =
-                //     inputData.destinationData.passenger1Destination;
-                //   cleanInputData.destination_location_infos.push({
-                //     passenger_number_id: 1,
-                //     dropoff_type: "PrivateLocation",
-                //     coordinates: {
-                //       latitude: passenger1Data.coordinates[0],
-                //       longitude: passenger1Data.coordinates[1],
-                //     },
-                //     location_name:
-                //       passenger1Data.location_name !== undefined &&
-                //       passenger1Data.location_name !== false
-                //         ? passenger1Data.location_name
-                //         : false,
-                //     street_name:
-                //       passenger1Data.street !== undefined &&
-                //       passenger1Data.street !== false
-                //         ? passenger1Data.street
-                //         : false,
-                //     suburb:
-                //       inputData.destinationData.passenger1Destination.suburb,
-                //     state:
-                //       inputData.destinationData.passenger1Destination.state,
-                //     city: inputData.pickupData.city,
-                //   });
-                //   //Passenger2
-                //   let passenger2Data =
-                //     inputData.destinationData.passenger2Destination;
-                //   cleanInputData.destination_location_infos.push({
-                //     passenger_number_id: 2,
-                //     dropoff_type: "PrivateLocation",
-                //     coordinates: {
-                //       latitude: passenger2Data.coordinates[0],
-                //       longitude: passenger2Data.coordinates[1],
-                //     },
-                //     location_name:
-                //       passenger2Data.location_name !== undefined &&
-                //       passenger2Data.location_name !== false
-                //         ? passenger2Data.location_name
-                //         : false,
-                //     street_name:
-                //       passenger2Data.street !== undefined &&
-                //       passenger2Data.street !== false
-                //         ? passenger2Data.street
-                //         : false,
-                //     suburb:
-                //       inputData.destinationData.passenger2Destination.suburb,
-                //     state:
-                //       inputData.destinationData.passenger2Destination.state,
-                //     city: inputData.pickupData.city,
-                //   });
-                //   //Passenger3
-                //   let passenger3Data =
-                //     inputData.destinationData.passenger3Destination;
-                //   cleanInputData.destination_location_infos.push({
-                //     passenger_number_id: 3,
-                //     dropoff_type: "PrivateLocation",
-                //     coordinates: {
-                //       latitude: passenger3Data.coordinates[0],
-                //       longitude: passenger3Data.coordinates[1],
-                //     },
-                //     location_name:
-                //       passenger3Data.location_name !== undefined &&
-                //       passenger3Data.location_name !== false
-                //         ? passenger3Data.location_name
-                //         : false,
-                //     street_name:
-                //       passenger3Data.street !== undefined &&
-                //       passenger3Data.street !== false
-                //         ? passenger3Data.street
-                //         : false,
-                //     suburb:
-                //       inputData.destinationData.passenger3Destination.suburb,
-                //     state:
-                //       inputData.destinationData.passenger3Destination.state,
-                //     city: inputData.pickupData.city,
-                //   });
-                //   //Done
-                //   res(cleanInputData);
-                // } else if (cleanInputData.passengers_number == 4) {
-                //   //Passenger1
-                //   let passenger1Data =
-                //     inputData.destinationData.passenger1Destination;
-                //   cleanInputData.destination_location_infos.push({
-                //     passenger_number_id: 1,
-                //     dropoff_type: "PrivateLocation",
-                //     coordinates: {
-                //       latitude: passenger1Data.coordinates[0],
-                //       longitude: passenger1Data.coordinates[1],
-                //     },
-                //     location_name:
-                //       passenger1Data.location_name !== undefined &&
-                //       passenger1Data.location_name !== false
-                //         ? passenger1Data.location_name
-                //         : false,
-                //     street_name:
-                //       passenger1Data.street !== undefined &&
-                //       passenger1Data.street !== false
-                //         ? passenger1Data.street
-                //         : false,
-                //     suburb:
-                //       inputData.destinationData.passenger1Destination.suburb,
-                //     state:
-                //       inputData.destinationData.passenger1Destination.state,
-                //     city: inputData.pickupData.city,
-                //   });
-                //   //Passenger2
-                //   let passenger2Data =
-                //     inputData.destinationData.passenger2Destination;
-                //   cleanInputData.destination_location_infos.push({
-                //     passenger_number_id: 2,
-                //     dropoff_type: "PrivateLocation",
-                //     coordinates: {
-                //       latitude: passenger2Data.coordinates[0],
-                //       longitude: passenger2Data.coordinates[1],
-                //     },
-                //     location_name:
-                //       passenger2Data.location_name !== undefined &&
-                //       passenger2Data.location_name !== false
-                //         ? passenger2Data.location_name
-                //         : false,
-                //     street_name:
-                //       passenger2Data.street !== undefined &&
-                //       passenger2Data.street !== false
-                //         ? passenger2Data.street
-                //         : false,
-                //     suburb:
-                //       inputData.destinationData.passenger2Destination.suburb,
-                //     state:
-                //       inputData.destinationData.passenger2Destination.state,
-                //     city: inputData.pickupData.city,
-                //   });
-                //   //Passenger3
-                //   let passenger3Data =
-                //     inputData.destinationData.passenger3Destination;
-                //   cleanInputData.destination_location_infos.push({
-                //     passenger_number_id: 3,
-                //     dropoff_type: "PrivateLocation",
-                //     coordinates: {
-                //       latitude: passenger3Data.coordinates[0],
-                //       longitude: passenger3Data.coordinates[1],
-                //     },
-                //     location_name:
-                //       passenger3Data.location_name !== undefined &&
-                //       passenger3Data.location_name !== false
-                //         ? passenger3Data.location_name
-                //         : false,
-                //     street_name:
-                //       passenger3Data.street !== undefined &&
-                //       passenger3Data.street !== false
-                //         ? passenger3Data.street
-                //         : false,
-                //     suburb:
-                //       inputData.destinationData.passenger3Destination.suburb,
-                //     state:
-                //       inputData.destinationData.passenger3Destination.state,
-                //     city: inputData.pickupData.city,
-                //   });
-                //   //Passenger4
-                //   let passenger4Data =
-                //     inputData.destinationData.passenger4Destination;
-                //   cleanInputData.destination_location_infos.push({
-                //     passenger_number_id: 4,
-                //     dropoff_type: "PrivateLocation",
-                //     coordinates: {
-                //       latitude: passenger4Data.coordinates[0],
-                //       longitude: passenger4Data.coordinates[1],
-                //     },
-                //     location_name:
-                //       passenger4Data.location_name !== undefined &&
-                //       passenger4Data.location_name !== false
-                //         ? passenger4Data.location_name
-                //         : false,
-                //     street_name:
-                //       passenger4Data.street !== undefined &&
-                //       passenger4Data.street !== false
-                //         ? passenger4Data.street
-                //         : false,
-                //     suburb:
-                //       inputData.destinationData.passenger4Destination.suburb,
-                //     state:
-                //       inputData.destinationData.passenger4Destination.state,
-                //     city: inputData.pickupData.city,
-                //   });
-                //   //Done
-                //   res(cleanInputData);
-                // }
               }
             } //Single passenger
             else {
+              logger.info(
+                `DESTINATION INFOS -> ${JSON.stringify(
+                  inputData.destinationData.passenger1Destination
+                )}`
+              );
               cleanInputData.destination_location_infos.push({
                 passenger_number_id: 1,
                 dropoff_type: "PrivateLocation",
@@ -1525,7 +1325,7 @@ function parsePricingInputData(resolve, inputData) {
                     : false,
                 suburb: inputData.destinationData.passenger1Destination.suburb,
                 state: inputData.destinationData.passenger1Destination.state,
-                city: inputData.pickupData.city,
+                city: inputData.destinationData.passenger1Destination.city,
               });
               res(cleanInputData);
             }

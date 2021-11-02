@@ -3769,7 +3769,7 @@ function reverseGeocodeUserLocation(resolve, req) {
         //Do a fresh request to update the cache
         //Make a new reseach
         new Promise((res) => {
-          ////logger.info("Fresh geocpding launched");
+          //logger.info("Fresh geocpding launched");
           reverseGeocoderExec(res, req, JSON.parse(resp), redisKey);
         }).then(
           (result) => {},
@@ -3884,39 +3884,97 @@ function reverseGeocoderExec(resolve, req, updateCache = false, redisKey) {
 
   requestAPI(url, function (error, response, body) {
     try {
-      ////logger.info(body);
+      //logger.info(body);
       body = JSON.parse(body);
       if (body != undefined) {
         if (body.features[0].properties != undefined) {
-          if (body.features[0].properties.street != undefined) {
-            if (updateCache !== false) {
-              //Update cache
-              updateCache.currentLocationInfos = body.features[0].properties;
-              redisCluster.setex(
-                redisKey,
-                process.env.REDIS_EXPIRATION_5MIN,
-                JSON.stringify(updateCache)
-              );
+          //Check if a city was already assigned
+          //? Deduct consistently the town
+          let urlNominatim = `${process.env.URL_NOMINATIM_SERVICES}/reverse?lat=${req.latitude}&lon=${req.longitude}&zoom=10&format=json`;
+
+          requestAPI(urlNominatim, function (error2, response2, body2) {
+            // logger.error(body2);
+            try {
+              body2 = JSON.parse(body2);
+              // logger.warn(body2.address.city);
+              if (body.features[0].properties.street != undefined) {
+                //? Update the city
+                body.features[0].properties["city"] =
+                  body2.address.city !== undefined
+                    ? body2.address.city
+                    : body.features[0].properties["city"];
+                //? -----
+                if (updateCache !== false) {
+                  //Update cache
+                  updateCache.currentLocationInfos =
+                    body.features[0].properties;
+                  redisCluster.setex(
+                    redisKey,
+                    process.env.REDIS_EXPIRATION_5MIN,
+                    JSON.stringify(updateCache)
+                  );
+                }
+                //...
+                resolve(body.features[0].properties);
+              } else if (body.features[0].properties.name != undefined) {
+                //? Update the city
+                body.features[0].properties["city"] =
+                  body2.address.city !== undefined
+                    ? body2.address.city
+                    : body.features[0].properties["city"];
+                //? -----
+                body.features[0].properties.street =
+                  body.features[0].properties.name;
+                if (updateCache !== false) {
+                  //Update cache
+                  updateCache.currentLocationInfos =
+                    body.features[0].properties;
+                  redisCluster.setex(
+                    redisKey,
+                    process.env.REDIS_EXPIRATION_5MIN,
+                    JSON.stringify(updateCache)
+                  );
+                }
+                //...
+                resolve(body.features[0].properties);
+              } else {
+                resolve(false);
+              }
+            } catch (error) {
+              logger.error(error);
+              if (body.features[0].properties.street != undefined) {
+                if (updateCache !== false) {
+                  //Update cache
+                  updateCache.currentLocationInfos =
+                    body.features[0].properties;
+                  redisCluster.setex(
+                    redisKey,
+                    process.env.REDIS_EXPIRATION_5MIN,
+                    JSON.stringify(updateCache)
+                  );
+                }
+                //...
+                resolve(body.features[0].properties);
+              } else if (body.features[0].properties.name != undefined) {
+                body.features[0].properties.street =
+                  body.features[0].properties.name;
+                if (updateCache !== false) {
+                  //Update cache
+                  updateCache.currentLocationInfos =
+                    body.features[0].properties;
+                  redisCluster.setex(
+                    redisKey,
+                    process.env.REDIS_EXPIRATION_5MIN,
+                    JSON.stringify(updateCache)
+                  );
+                }
+                //...
+                resolve(body.features[0].properties);
+              } else {
+                resolve(false);
+              }
             }
-            //...
-            resolve(body.features[0].properties);
-          } else if (body.features[0].properties.name != undefined) {
-            body.features[0].properties.street =
-              body.features[0].properties.name;
-            if (updateCache !== false) {
-              //Update cache
-              updateCache.currentLocationInfos = body.features[0].properties;
-              redisCluster.setex(
-                redisKey,
-                process.env.REDIS_EXPIRATION_5MIN,
-                JSON.stringify(updateCache)
-              );
-            }
-            //...
-            resolve(body.features[0].properties);
-          } else {
-            resolve(false);
-          }
+          });
         } else {
           resolve(false);
         }
@@ -4458,7 +4516,6 @@ function getFreshProximity_driversList(
   //...
   collectionDrivers_profiles
     .find(driverFilter)
-    //!.collation({ locale: "en", strength: 2 })
     .toArray(function (err, driversProfiles) {
       if (err) {
         logger.info(err);
