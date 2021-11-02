@@ -466,7 +466,17 @@ function estimateFullVehiclesCatPrices(
           //?...
           filterQuery = {
             country: completedInputData.country,
-            city: completedInputData.pickup_location_infos.city,
+            city: {
+              $in: [
+                ...new Set(
+                  [completedInputData.pickup_location_infos.city].concat(
+                    completedInputData.destination_location_infos.map(
+                      (el) => el.city
+                    )
+                  )
+                ),
+              ],
+            },
             pickup_suburb: completedInputData.pickup_location_infos.suburb,
           };
 
@@ -537,7 +547,7 @@ function estimateFullVehiclesCatPrices(
             });
         }).then(
           (reslt) => {
-            logger.info(`PRICE LOCATION MAP ----> ${JSON.stringify(reslt)}`);
+            // logger.info(`PRICE LOCATION MAP ----> ${JSON.stringify(reslt)}`);
             let globalPricesMap = reslt;
             //call computeInDepthPricesMap
             new Promise((res) => {
@@ -723,6 +733,26 @@ function computeInDepthPricesMap(
           }
           //...
           completedInputData.destination_location_infos.map((destination) => {
+            // //? A. INNERCITY
+            // if (
+            //   destination.city.trim().toUpperCase() ===
+            //   completedInputData.pickup_location_infos.city.trim().toUpperCase()
+            // ) {
+
+            // } //? B. INTERCITY
+            // else {
+            //   let INTERCITY_PRICES = {
+            //     "WALVIS BAY-SWAKOPMUND": 120,
+            //     "SWAKOPMUND-WALVIS BAY": 120,
+            //   };
+            //   logger.warn(
+            //     `INTERCITY PRICING DETECTED: ${completedInputData.pickup_location_infos.city} <-> ${destination.city}`
+            //   );
+            //   //...
+            //   let combinationStrings = `${completedInputData.pickup_location_infos.city
+            //     .trim()
+            //     .toUpperCase()}-${destination.city.trim().toUpperCase()}`;
+            // }
             //! Add suburb name exception - Only apply to the destination suburb.
             //? 1. Windhoek Central -> Windhoek Central / CBD
             destination.suburb = /^Windhoek Central$/i.test(destination.suburb)
@@ -817,9 +847,14 @@ function computeInDepthPricesMap(
                       didFindRegisteredSuburbs = true;
                     }
 
+                    logger.warn("INSIDE PROCESSOR");
+
                     //...
                     if (didFindRegisteredSuburbs === false) {
                       globalPricesMap.map((suburbToSuburbInfo) => {
+                        logger.warn(
+                          `${suburbToSuburbInfo.pickup_suburb} --> ${destination.suburb}`
+                        );
                         if (
                           suburbToSuburbInfo.pickup_suburb === false &&
                           lockPorgress === false
@@ -851,6 +886,7 @@ function computeInDepthPricesMap(
                             "i"
                           ).test(destination.suburb.toUpperCase().trim())
                         ) {
+                          logger.error("INSIDE");
                           lockPorgress = false;
                           didFindRegisteredSuburbs = true; //Found registered suburbs.
                           //If the car type is economy electric, add its base price
@@ -873,7 +909,6 @@ function computeInDepthPricesMap(
                       });
                     }
                     //...
-                    logger.warn(basePrice);
                     if (didFindRegisteredSuburbs === false) {
                       //Did not find suburbs with mathing suburbs included
                       //Register in mongo
@@ -894,26 +929,25 @@ function computeInDepthPricesMap(
                           country: request_country,
                         };
                         //Check to avoid duplicates
-                        collectionNotFoundSubursPricesMap
-                          .find(checkQuery)
-                          .toArray(function (err, resultX) {
-                            if (resultX.length <= 0) {
-                              //New record
-                              collectionNotFoundSubursPricesMap.insertOne(
-                                queryNoMatch,
-                                function (err, res) {
-                                  logger.info("New record added");
-                                  resX(true);
-                                }
-                              );
-                            }
-                          });
+                        //New record
+                        collectionNotFoundSubursPricesMap.updateOne(
+                          checkQuery,
+                          { $set: queryNoMatch },
+                          { upsert: true },
+                          function (err, res) {
+                            logger.info("New record added");
+                            resX(true);
+                          }
+                        );
                       }).then(
                         () => {},
                         () => {}
                       );
                       //Estimate a realistic price for now - EXTREMELY URGENT
                       //Assign ride base price
+                      logger.error(
+                        `DID NOT FIND REGISTERED SUBURBS COMBINATIONS, USING DEFAULT CAR FARE ---> ${vehicle.base_fare}`
+                      );
                       basePrice += doubleTheFareIfNecessary(
                         vehicle.base_fare,
                         completedInputData.isGoingUntilHome
