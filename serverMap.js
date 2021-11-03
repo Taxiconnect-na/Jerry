@@ -5563,6 +5563,16 @@ redisCluster.on("connect", function () {
                   reverseGeocodeUserLocation(resolve, request);
                 }).then(
                   (result) => {
+                    //! SUPPORTED CITIES
+                    let SUPPORTED_CITIES = [
+                      "WINDHOEK",
+                      "SWAKOPMUND",
+                      "WALVIS BAY",
+                    ];
+                    //? Attach the supported city state
+                    result["isCity_supported"] = SUPPORTED_CITIES.includes(
+                      result.city.trim().toUpperCase()
+                    );
                     //! Replace Samora Machel Constituency by Wanaheda
                     if (
                       result.suburb !== undefined &&

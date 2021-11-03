@@ -685,17 +685,9 @@ function computeInDepthPricesMap(
       timeDayMultiplier = 2;
     }
     //...
-    if (/PrivateLocation/i.test(pickup_type)) {
-      //+NAD5
-      headerPrice += 5;
-      res(true);
-    } else if (/TaxiRank/i.test(pickup_type)) {
-      //+NAD2
-      headerPrice += 2;
-      res(true);
-    } else {
-      res(true);
-    }
+    //? Add N$5 pickup fee
+    headerPrice += 5;
+    res(true);
   }).then(
     (reslt) => {
       logger.info("Pricing variables summary");
@@ -1112,6 +1104,7 @@ function computeInDepthPricesMap(
           // }
           //...
           basePrice *= timeDayMultiplier;
+          logger.info(headerPrice);
           if (/ConnectUs/i.test(connectType)) {
             //? Going until home
             if (completedInputData.isGoingUntilHome && basePrice <= 14) {
