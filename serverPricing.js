@@ -765,7 +765,14 @@ function computeInDepthPricesMap(
                 "false" &&
               completedInputData.pickup_location_infos.city !==
                 completedInputData.pickup_location_infos.location_name &&
-              destination.city !== destination.location_name
+              destination.city !== destination.location_name &&
+              /Langstrand/i.test(
+                completedInputData.pickup_location_infos.suburb
+              ) === false &&
+              /Langstrand/i.test(destination.suburb) === false &&
+              completedInputData.pickup_location_infos.city
+                .trim()
+                .toUpperCase() === destination.city.trim().toUpperCase()
             ) {
               //! Add suburb name exception - Only apply to the destination suburb.
               //? 1. Windhoek Central -> Windhoek Central / CBD
@@ -1050,6 +1057,24 @@ function computeInDepthPricesMap(
               }
             } //? B. INTERCITY
             else {
+              //? Substitute langstrand to the location names
+              completedInputData.pickup_location_infos.location_name =
+                /Langstrand/i.test(
+                  completedInputData.pickup_location_infos.suburb
+                )
+                  ? "Langstrand"
+                  : /Dolphin Beach/i.test(
+                      completedInputData.pickup_location_infos.suburb
+                    )
+                  ? "Langstrand"
+                  : completedInputData.pickup_location_infos.city; //Pickup
+
+              destination.location_name = /Langstrand/i.test(destination.suburb)
+                ? "Langstrand"
+                : /Dolphin Beach/i.test(destination.suburb)
+                ? "Langstrand"
+                : destination.city;
+
               let INTERCITY_PRICES = {
                 CONNECTUS: {
                   "WALVIS_BAY-SWAKOPMUND": 35,

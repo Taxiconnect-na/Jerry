@@ -221,6 +221,120 @@ function generateUniqueFingerprint(str, encryption = false, resolve) {
 }
 
 /**
+ * @func isIntercityRide
+ * Responsible for finding out if the ride is intercity or innercity.
+ * @param inputData: received trip input data.
+ */
+function isIntercityRide(inputData) {
+  // let testData = {
+  //   actualRider: "someonelese",
+  //   actualRiderPhone_number: "0817563369",
+  //   carTypeSelected: "normalTaxiEconomy",
+  //   connectType: "ConnectUs",
+  //   country: "Namibia",
+  //   destinationData: {
+  //     passenger1Destination: {
+  //       _id: "5f7e16126661813ab09e417f",
+  //       averageGeo: -10.989369499999999,
+  //       city: "Windhoek",
+  //       coordinates: [-22.548558, 17.0504368],
+  //       country: "Namibia",
+  //       location_id: 242368923,
+  //       location_name: "Grove Khomasdal Funky Town - Pequena Angola",
+  //       query: "Grovr",
+  //       state: "Khomas",
+  //       street: false,
+  //     },
+  //     passenger2Destination: {
+  //       _id: "5fc8dde588e09715d0df05ca",
+  //       averageGeo: -5.491276299999999,
+  //       city: "Windhoek",
+  //       coordinates: [-22.5818168, 17.0878857],
+  //       country: "Namibia",
+  //       location_id: 1768699533,
+  //       location_name: "Showground Parking Area",
+  //       query: "Showg",
+  //       state: "Khomas",
+  //       street: "Jan Jonker Weg",
+  //     },
+  //     passenger3Destination: {
+  //       _id: "5f7de487c6811253c83529b3",
+  //       averageGeo: -10.975441900000003,
+  //       city: "Windhoek",
+  //       coordinates: [-22.56578, 17.0751551],
+  //       country: "Namibia",
+  //       location_id: 244132971,
+  //       location_name: "NUST Main St",
+  //       query: "Nust",
+  //       state: "Khomas",
+  //       street: false,
+  //     },
+  //     passenger4Destination: {
+  //       _id: "5f7de491c6811253c83529f6",
+  //       averageGeo: -11.1064516,
+  //       city: "Windhoek",
+  //       coordinates: [-22.6121691, 17.0233537],
+  //       country: "Namibia",
+  //       location_id: 6520901,
+  //       location_name: "University of Namibia (UNAM)",
+  //       query: "Unam",
+  //       state: "Khomas",
+  //       street: "Mandume Ndemufayo Avenue",
+  //     },
+  //   },
+  //   fareAmount: 80,
+  //   isAllGoingToSameDestination: false,
+  //   naturePickup: "PrivateLocation",
+  //   passengersNo: 4,
+  //   pickupData: {
+  //     city: "Windhoek",
+  //     coordinates: [-22.5705005, 17.0809437],
+  //     location_name: "Embassy of Brazil in Windhoek",
+  //     street_name: "Simeon Shixungileni Steet",
+  //   },
+  //   pickupNote: "Hello world",
+  //   receiverName_delivery: false,
+  //   receiverPhone_delivery: false,
+  //   rideType: "RIDE",
+  //   timeScheduled: "immediate",
+  //   paymentMethod: "CASH",
+  //   user_fingerprint:
+  //     "5b29bb1b9ac69d884f13fd4be2badcd22b72b98a69189bfab806dcf7c5f5541b6cbe8087cf60c791",
+  // };
+  // req = testData;
+  //...
+  let isIntercity = false;
+  let isDone = false;
+  for (var i = 0; i < Object.keys(inputData.destinationData).length; i++) {
+    let key = `passenger${i + 1}Destination`;
+    //...
+    if (
+      inputData.destinationData[key] !== false &&
+      inputData.destinationData[key] !== undefined &&
+      inputData.destinationData[key] !== null &&
+      inputData.destinationData[key] !== "false"
+    ) {
+      let pickupCity = inputData.pickupData.city.trim().toUpperCase();
+      let tmpDestinationCity = inputData.destinationData[key].city
+        .trim()
+        .toUpperCase();
+      //...
+      if (pickupCity !== tmpDestinationCity) {
+        isIntercity = true;
+      }
+    }
+    //...
+    if (i + 1 === Object.keys(inputData.destinationData).length) {
+      isDone = true;
+    }
+  }
+  //...
+  if (isDone) {
+    return isIntercity;
+  }
+}
+
+/**
  * @func parseRequestData
  * @param resolve
  * @param inputData: received request data straight from the rider's device.
@@ -272,6 +386,8 @@ function parseRequestData(inputData, resolve) {
           inputData.subscribed_plan !== null
             ? inputData.subscribed_plan
             : false;
+        //! Detect the Intercity ride
+        parsedData.isIntercity_trip = isIntercityRide(inputData);
         //...
         parsedData.client_id = inputData.user_fingerprint;
         parsedData.request_fp = dateObject.unix();
