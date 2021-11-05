@@ -1572,12 +1572,12 @@ function execGetDrivers_requests_and_provide(
       )
         ? {
             taxi_id: false,
-            "pickup_location_infos.city":
-              driverData.operational_state.last_location !== null &&
-              driverData.operational_state.last_location.city &&
-              driverData.operational_state.last_location.city !== undefined
-                ? driverData.operational_state.last_location.city
-                : "Windhoek",
+            // "pickup_location_infos.city":
+            //   driverData.operational_state.last_location !== null &&
+            //   driverData.operational_state.last_location.city &&
+            //   driverData.operational_state.last_location.city !== undefined
+            //     ? driverData.operational_state.last_location.city
+            //     : "Windhoek",
             country:
               driverData.operational_state.last_location !== null &&
               driverData.operational_state.last_location.country &&
@@ -1598,8 +1598,8 @@ function execGetDrivers_requests_and_provide(
             carTypeSelected:
               driverData.operational_state.default_selected_car.vehicle_type,
             country: driverData.operational_state.last_location.country,
-            "pickup_location_infos.city":
-              driverData.operational_state.last_location.city,
+            // "pickup_location_infos.city":
+            //   driverData.operational_state.last_location.city,
             //ride_mode: { $regex: requestType, $options: "i" }, //ride, delivery
             request_type: request_type_regex, //Shceduled or now rides/deliveries
           };
@@ -1719,12 +1719,12 @@ function execGetDrivers_requests_and_provide(
       )
         ? {
             taxi_id: false,
-            "pickup_location_infos.city":
-              driverData.operational_state.last_location !== null &&
-              driverData.operational_state.last_location.city &&
-              driverData.operational_state.last_location.city !== undefined
-                ? driverData.operational_state.last_location.city
-                : "Windhoek",
+            // "pickup_location_infos.city":
+            //   driverData.operational_state.last_location !== null &&
+            //   driverData.operational_state.last_location.city &&
+            //   driverData.operational_state.last_location.city !== undefined
+            //     ? driverData.operational_state.last_location.city
+            //     : "Windhoek",
             country:
               driverData.operational_state.last_location !== null &&
               driverData.operational_state.last_location.country &&
@@ -1735,12 +1735,12 @@ function execGetDrivers_requests_and_provide(
           }
         : {
             taxi_id: false,
-            "pickup_location_infos.city":
-              driverData.operational_state.last_location !== null &&
-              driverData.operational_state.last_location.city &&
-              driverData.operational_state.last_location.city !== undefined
-                ? driverData.operational_state.last_location.city
-                : "Windhoek",
+            // "pickup_location_infos.city":
+            //   driverData.operational_state.last_location !== null &&
+            //   driverData.operational_state.last_location.city &&
+            //   driverData.operational_state.last_location.city !== undefined
+            //     ? driverData.operational_state.last_location.city
+            //     : "Windhoek",
             country:
               driverData.operational_state.last_location !== null &&
               driverData.operational_state.last_location.country &&
@@ -1859,6 +1859,19 @@ function execGetDrivers_requests_and_provide(
 }
 
 /**
+ * @func arrayEquals
+ * ! Responsible for comparing 2 arrays.
+ */
+function arrayEquals(a, b) {
+  return (
+    Array.isArray(a) &&
+    Array.isArray(b) &&
+    a.length === b.length &&
+    a.every((val, index) => val === b[index])
+  );
+}
+
+/**
  * @func parseRequests_forDrivers_view
  * Responsible for parsing the raw requests data into an app friendly format, limiting the data
  * to ONLY the needed ones.
@@ -1877,7 +1890,15 @@ function parseRequests_forDrivers_view(
   let batchRequestProcessing = requestsArray.map((request) => {
     return new Promise((res) => {
       //Build the redis key unique template
-      let redisKey = request.request_fp + "cached_tempo-parsed-request";
+      let driverCity =
+        driverData.operational_state.last_location !== null &&
+        driverData.operational_state.last_location !== undefined &&
+        driverData.operational_state.last_location.city !== undefined &&
+        driverData.operational_state.last_location.city != null
+          ? driverData.operational_state.last_location.city
+          : false;
+
+      let redisKey = `${request.request_fp}-cached_tempo-parsed-request-${driverCity}`;
       //CHECK for any previous parsing
       new Promise((resFresh) => {
         execDriver_requests_parsing(
@@ -1994,8 +2015,194 @@ function parseRequests_forDrivers_view(
         batchRequestsResults = batchRequestsResults.filter(
           (request) => request !== false
         );
+        //! Remove irrelevant requests based on the locations
+        let parentPromisesFilter = batchRequestsResults.map((trip) => {
+          // logger.info(trip);
+          return new Promise((resFilter) => {
+            if (
+              trip.isIntercity_trip !== undefined &&
+              trip.isIntercity_trip !== null
+            ) {
+              //Has an intercity preference
+              if (
+                trip.isIntercity_trip === true ||
+                trip.isIntercity_trip === "true"
+              ) {
+                //? Intercity trip
+                //? Check that the region and the city is within the driver's regional clearances.
+                logger.info("Intercity trip detected");
+                let driverRegionalClearances =
+                  driverData.regional_clearances !== undefined &&
+                  driverData.regional_clearances !== null
+                    ? driverData.regional_clearances
+                    : false;
+                //...
+                let driverCity =
+                  driverData.operational_state.last_location !== null &&
+                  driverData.operational_state.last_location !== undefined &&
+                  driverData.operational_state.last_location.city !==
+                    undefined &&
+                  driverData.operational_state.last_location.city != null
+                    ? driverData.operational_state.last_location.city
+                    : false;
+                //...
+                if (
+                  driverRegionalClearances !== false &&
+                  driverCity !== false
+                ) {
+                  //Has a regional clearance
+                  // logger.info(trip.origin_destination_infos.destination_infos);
+                  if (
+                    driverRegionalClearances[
+                      trip.origin_destination_infos.pickup_infos.region
+                    ] !== undefined &&
+                    driverRegionalClearances[
+                      trip.origin_destination_infos.pickup_infos.region
+                    ] !== null
+                  ) {
+                    //! Sort the clearances array
+                    driverRegionalClearances[
+                      trip.origin_destination_infos.pickup_infos.region
+                    ].sort();
+
+                    //? Found a valid clearance rule
+                    //? 1. Check if the pickup AND destination towns is included in the clearances
+                    let tripTowns_summary = [
+                      trip.origin_destination_infos.pickup_infos.city,
+                      ...trip.origin_destination_infos.destination_infos.map(
+                        (dest) => dest.city
+                      ),
+                    ];
+                    // Normalize
+                    tripTowns_summary = tripTowns_summary.map((el) =>
+                      el.trim().toUpperCase()
+                    );
+                    // Sort
+                    tripTowns_summary.sort();
+                    // logger.error(tripTowns_summary);
+                    // logger.error(
+                    //   driverRegionalClearances[
+                    //     trip.origin_destination_infos.pickup_infos.region
+                    //   ]
+                    // );
+                    // logger.error(
+                    //   arrayEquals(
+                    //     tripTowns_summary,
+                    //     driverRegionalClearances[
+                    //       trip.origin_destination_infos.pickup_infos.region
+                    //     ]
+                    //   )
+                    // );
+                    if (
+                      arrayEquals(
+                        tripTowns_summary,
+                        driverRegionalClearances[
+                          trip.origin_destination_infos.pickup_infos.region
+                        ]
+                      )
+                    ) {
+                      //TOWNS WITHIN THE CLEARANCES
+                      //? 2. Check that the driver's current location (city) as equal to one of the towns allowed by his regional credentials.
+                      driverCity = driverCity.trim().toUpperCase();
+                      //...
+                      if (
+                        driverRegionalClearances[
+                          trip.origin_destination_infos.pickup_infos.region
+                        ].includes(driverCity)
+                      ) {
+                        //? Driver's current location is within the regional clearances
+                        logger.info(
+                          `Intercity trip allowed for driver's interaction -> ${driverData.driver_fingerprint.substring(
+                            0,
+                            15
+                          )}`
+                        );
+                        resFilter(trip);
+                      } //! The driver's current location is not within the regional clearances
+                      else {
+                        logger.warn(
+                          `The driver's current location is not within the regional clearances`
+                        );
+                        resFilter(false);
+                      }
+                    } //Towns for the trip not fitting in the driver's regional clearances
+                    else {
+                      logger.warn(
+                        `Towns for the trip not fitting in the driver's regional clearances`
+                      );
+                      resFilter(false);
+                    }
+                  } //No valid rule found
+                  else {
+                    logger.warn("No valid regional clearance rule found.");
+                    resFilter(false);
+                  }
+                } //?No regional clearances
+                else {
+                  logger.warn("No regional clearances found for this driver.");
+                  resFilter(false);
+                }
+              } //? Not intercity trip - filter based on the drivers location
+              else {
+                logger.info("Normal innercity trip detected");
+                let driverCity =
+                  driverData.operational_state.last_location !== null &&
+                  driverData.operational_state.last_location !== undefined &&
+                  driverData.operational_state.last_location.city !==
+                    undefined &&
+                  driverData.operational_state.last_location.city != null
+                    ? driverData.operational_state.last_location.city
+                    : "Windhoek";
+                //...
+                resFilter(
+                  trip.origin_destination_infos.pickup_infos.city
+                    .trim()
+                    .toUpperCase() === driverCity.trim().toUpperCase()
+                    ? trip
+                    : false
+                );
+              }
+            } //Default - no intercity preference - take it as false - filter based on the drivers location
+            else {
+              let driverCity =
+                driverData.operational_state.last_location !== null &&
+                driverData.operational_state.last_location !== undefined &&
+                driverData.operational_state.last_location.city !== undefined &&
+                driverData.operational_state.last_location.city != null
+                  ? driverData.operational_state.last_location.city
+                  : "Windhoek";
+              //...
+              logger.error(
+                trip.origin_destination_infos.pickup_infos.city
+                  .trim()
+                  .toUpperCase(),
+                driverCity.trim().toUpperCase()
+              );
+              resFilter(
+                trip.origin_destination_infos.pickup_infos.city
+                  .trim()
+                  .toUpperCase() === driverCity.trim().toUpperCase()
+                  ? trip
+                  : false
+              );
+            }
+          });
+        });
         //DONE WITH BATCH REQUESTS
-        resolve(batchRequestsResults);
+        Promise.all(parentPromisesFilter)
+          .then((batchRequestsResultsFiltered) => {
+            //Remove any false values
+            batchRequestsResultsFiltered = batchRequestsResultsFiltered.filter(
+              (request) => request !== false
+            );
+            //? DONE
+            logger.info(batchRequestsResultsFiltered);
+            resolve(batchRequestsResultsFiltered);
+          })
+          .catch((error) => {
+            logger.warn(error);
+            resolve(false);
+          });
       },
       (error) => {
         //logger.warn(error);
@@ -2003,7 +2210,7 @@ function parseRequests_forDrivers_view(
       }
     )
     .catch((error) => {
-      //logger.warn(error);
+      logger.warn(error);
       resolve(false);
     });
 }
@@ -2028,6 +2235,7 @@ function execDriver_requests_parsing(
   let parsedRequestsArray = {
     request_fp: null,
     request_type: null, //! RIDE, DELIVERY OR SCHEDULED
+    isIntercity_trip: null,
     passenger_infos: {
       name: null,
       phone_number: null,
@@ -2057,6 +2265,9 @@ function execDriver_requests_parsing(
         location_name: null,
         street_name: null,
         suburb: null,
+        city: null,
+        country: null,
+        region: null,
         coordinates: null,
       },
       eta_to_destination_infos: {
@@ -2125,6 +2336,12 @@ function execDriver_requests_parsing(
         parsedRequestsArray.ride_basic_infos.date_state_wishedPickup_time =
           null;
       }
+      //! Attach intercity state
+      parsedRequestsArray.isIntercity_trip =
+        request.isIntercity_trip !== undefined &&
+        request.isIntercity_trip !== null
+          ? request.isIntercity_trip
+          : false;
       //?---
       parsedRequestsArray.ride_basic_infos.fare_amount = parseFloat(
         request.fare
@@ -2201,6 +2418,16 @@ function execDriver_requests_parsing(
               request.pickup_location_infos.suburb;
             parsedRequestsArray.origin_destination_infos.pickup_infos.coordinates =
               request.pickup_location_infos.coordinates;
+            //?Attach region, city and country for the pickup
+            parsedRequestsArray.origin_destination_infos.pickup_infos.city =
+              request.pickup_location_infos.city;
+            parsedRequestsArray.origin_destination_infos.pickup_infos.country =
+              request.country;
+            parsedRequestsArray.origin_destination_infos.pickup_infos.region =
+              request.pickup_location_infos.state
+                .replace(/ Region/i, "")
+                .trim()
+                .toUpperCase();
 
             //ADD THE REQUEST TYPE
             parsedRequestsArray.request_type = /(now|immediate)/i.test(
@@ -5207,7 +5434,7 @@ redisCluster.on("connect", function () {
                 req.user_fingerprint !== undefined
               ) {
                 //Update cache for this user's location
-                let pro3 = new Promise((resolve1) => {
+                new Promise((resolve1) => {
                   updateRiderLocationInfosCache(req, resolve1);
                 }).then(
                   () => {
@@ -5217,7 +5444,7 @@ redisCluster.on("connect", function () {
                 );
 
                 //Update rider's location - promise always
-                let pro4 = new Promise((resolve2) => {
+                new Promise((resolve2) => {
                   updateRidersRealtimeLocationData(
                     collectionRidesDeliveries_data,
                     collectionRidersLocation_log,
@@ -5232,6 +5459,106 @@ redisCluster.on("connect", function () {
                   },
                   () => {}
                 );
+
+                //! Update the regional clearances - DRIVERS
+                if (/^driver$/i.test(req.user_nature)) {
+                  new Promise((resRegionalClrs) => {
+                    //? auto-assign the regional clearances for drivers without the right ones based on their location.
+                    logger.warn(
+                      "Preparing for auto-assigning the regional clearances for drivers without the right ones based on their location."
+                    );
+
+                    let static_regional_assigner = {
+                      WINDHOEK: {
+                        regional_clearances: {
+                          KHOMAS: ["WINDHOEK"],
+                        },
+                      },
+                      SWAKOPMUND: {
+                        regional_clearances: {
+                          ERONGO: ["SWAKOPMUND", "WALVIS BAY"],
+                        },
+                      },
+                      "WALVIS BAY": {
+                        regional_clearances: {
+                          ERONGO: ["SWAKOPMUND", "WALVIS BAY"],
+                        },
+                      },
+                    };
+
+                    //...
+                    collectionDrivers_profiles
+                      .find({
+                        driver_fingerprint: req.user_fingerprint,
+                      })
+                      .toArray(function (err, driverTmpData) {
+                        if (err) {
+                          logger.error(err);
+                          resRegionalClrs(false);
+                        }
+                        //...
+                        if (
+                          driverTmpData !== undefined &&
+                          driverTmpData.length > 0
+                        ) {
+                          let driverData = driverTmpData[0];
+                          //Get a static regional rule
+                          let driverCity =
+                            driverData.operational_state.last_location !==
+                              null &&
+                            driverData.operational_state.last_location !==
+                              undefined &&
+                            driverData.operational_state.last_location.city !==
+                              undefined &&
+                            driverData.operational_state.last_location.city !=
+                              null
+                              ? driverData.operational_state.last_location.city
+                              : "MISSING";
+                          //...
+                          driverCity = driverCity.trim().toUpperCase();
+                          //...
+                          if (
+                            static_regional_assigner[driverCity] !== undefined
+                          ) {
+                            //Found a rule
+                            //? Update the rule to the driver's profile
+                            collectionDrivers_profiles.updateOne(
+                              { driver_fingerprint: req.user_fingerprint },
+                              {
+                                $set: {
+                                  regional_clearances:
+                                    static_regional_assigner[driverCity]
+                                      .regional_clearances,
+                                },
+                              },
+                              function (error, reslt) {
+                                if (err) {
+                                  logger.error(err);
+                                  resRegionalClrs(false);
+                                }
+                                //...
+                                logger.info(
+                                  `Updated the driver's regional rule -> TICKET [${req.user_fingerprint.substring(
+                                    0,
+                                    15
+                                  )}]`
+                                );
+                                resRegionalClrs(true);
+                              }
+                            );
+                          } //No static rule for a probably invalid city
+                          else {
+                            resRegionalClrs(false);
+                          }
+                        } //No drivers
+                        else {
+                          resRegionalClrs(false);
+                        }
+                      });
+                  })
+                    .then()
+                    .catch((error) => logger.error(error));
+                }
               }
 
               if (
@@ -5563,6 +5890,7 @@ redisCluster.on("connect", function () {
                   reverseGeocodeUserLocation(resolve, request);
                 }).then(
                   (result) => {
+                    logger.error(result);
                     //! SUPPORTED CITIES
                     let SUPPORTED_CITIES = [
                       "WINDHOEK",
@@ -5571,7 +5899,9 @@ redisCluster.on("connect", function () {
                     ];
                     //? Attach the supported city state
                     result["isCity_supported"] = SUPPORTED_CITIES.includes(
-                      result.city.trim().toUpperCase()
+                      result.city !== undefined && result.city !== null
+                        ? result.city.trim().toUpperCase()
+                        : result.name.trim().toUpperCase()
                     );
                     //! Replace Samora Machel Constituency by Wanaheda
                     if (
