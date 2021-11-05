@@ -1890,7 +1890,15 @@ function parseRequests_forDrivers_view(
   let batchRequestProcessing = requestsArray.map((request) => {
     return new Promise((res) => {
       //Build the redis key unique template
-      let redisKey = request.request_fp + "cached_tempo-parsed-request";
+      let driverCity =
+        driverData.operational_state.last_location !== null &&
+        driverData.operational_state.last_location !== undefined &&
+        driverData.operational_state.last_location.city !== undefined &&
+        driverData.operational_state.last_location.city != null
+          ? driverData.operational_state.last_location.city
+          : false;
+
+      let redisKey = `${request.request_fp}-cached_tempo-parsed-request-${driverCity}`;
       //CHECK for any previous parsing
       new Promise((resFresh) => {
         execDriver_requests_parsing(
@@ -5882,6 +5890,7 @@ redisCluster.on("connect", function () {
                   reverseGeocodeUserLocation(resolve, request);
                 }).then(
                   (result) => {
+                    logger.error(result);
                     //! SUPPORTED CITIES
                     let SUPPORTED_CITIES = [
                       "WINDHOEK",
@@ -5890,7 +5899,9 @@ redisCluster.on("connect", function () {
                     ];
                     //? Attach the supported city state
                     result["isCity_supported"] = SUPPORTED_CITIES.includes(
-                      result.city.trim().toUpperCase()
+                      result.city !== undefined && result.city !== null
+                        ? result.city.trim().toUpperCase()
+                        : result.name.trim().toUpperCase()
                     );
                     //! Replace Samora Machel Constituency by Wanaheda
                     if (

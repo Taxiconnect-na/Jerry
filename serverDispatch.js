@@ -693,6 +693,7 @@ function parseRequestData(inputData, resolve) {
                       requestAPI(url, function (error, response, body) {
                         if (error === null) {
                           try {
+                            logger.error(body);
                             body = JSON.parse(body);
                             parsedData.pickup_location_infos.suburb =
                               /Samora Machel Constituency/i.test(body.suburb)
@@ -716,6 +717,14 @@ function parseRequestData(inputData, resolve) {
                               body.street_name !== "false"
                                 ? body.street_name
                                 : parsedData.pickup_location_infos.street_name; //! Street name
+
+                            parsedData.pickup_location_infos.city =
+                              body.city !== undefined &&
+                              body.city !== null &&
+                              body.city !== false &&
+                              body.city !== "false"
+                                ? body.city
+                                : parsedData.pickup_location_infos.city; //! City
 
                             res3(true);
                           } catch (error) {
@@ -1222,6 +1231,11 @@ function sendStagedNotificationsDrivers(
   collectionRidesDeliveryData,
   resolve
 ) {
+  logger.error(
+    `DISPATCH STRATEGY TEST: ${/general/i.test(
+      process.env.RIDES_DISPATCH_STRATEGY
+    )}`
+  );
   if (/general/i.test(process.env.RIDES_DISPATCH_STRATEGY)) {
     //Send to all the drivers
     //1. Filter the drivers based on trip requirements
@@ -1229,7 +1243,7 @@ function sendStagedNotificationsDrivers(
     //3. Send the notifications to each selected one.
     let driverFilter = {
       "operational_state.status": { $in: ["online"] },
-      "operational_state.last_location.city": snapshotTripInfos.city,
+      //! "operational_state.last_location.city": snapshotTripInfos.city,
       /*"operational_state.last_location.country": snapshotTripInfos.country,
       operation_clearances: snapshotTripInfos.ride_type,*/
       //Filter the drivers based on the vehicle type if provided
@@ -1239,7 +1253,6 @@ function sendStagedNotificationsDrivers(
     //..
     collectionDrivers_profiles
       .find(driverFilter)
-      //!.collation({ locale: "en", strength: 2 })
       .toArray(function (err, driversProfiles) {
         //Filter the drivers based on their car's maximum capacity (the amount of passengers it can handle)
         //They can receive 3 additional requests on top of the limit of sits in their selected cars.
@@ -1259,17 +1272,141 @@ function sendStagedNotificationsDrivers(
         );*/
 
         //...Register the drivers fp so that thei can see tne requests
+        //TODO: Filter the driver's fingerprint based on the regional clearances as well.
         let driversFp = driversProfiles.map((data) => data.driver_fingerprint); //Drivers fingerprints
         let driversPushNotif_token = driversProfiles.map((data) => {
           if (/online/i.test(data.operational_state.status)) {
-            return data.operational_state.push_notification_token !== null &&
-              data.operational_state.push_notification_token !== undefined
-              ? data.operational_state.push_notification_token.userId
-              : null;
+            let driverData = data;
+            if (
+              snapshotTripInfos.isIntercity_trip === true ||
+              snapshotTripInfos.isIntercity_trip === "true"
+            ) {
+              //? Intercity trip
+              //? Check that the region and the city is within the driver's regional clearances.
+              logger.info("Intercity trip detected");
+              let driverRegionalClearances =
+                driverData.regional_clearances !== undefined &&
+                driverData.regional_clearances !== null
+                  ? driverData.regional_clearances
+                  : false;
+              //...
+              let driverCity =
+                driverData.operational_state.last_location !== null &&
+                driverData.operational_state.last_location !== undefined &&
+                driverData.operational_state.last_location.city !== undefined &&
+                driverData.operational_state.last_location.city != null
+                  ? driverData.operational_state.last_location.city
+                  : false;
+              //...
+              if (driverRegionalClearances !== false && driverCity !== false) {
+                //Has a regional clearance
+                // logger.info(trip.origin_destination_infos.destination_infos);
+                if (
+                  driverRegionalClearances[snapshotTripInfos.region] !==
+                    undefined &&
+                  driverRegionalClearances[snapshotTripInfos.region] !== null
+                ) {
+                  //! Sort the clearances array
+                  driverRegionalClearances[snapshotTripInfos.region].sort();
+
+                  //? Found a valid clearance rule
+                  //? 1. Check if the pickup AND destination towns is included in the clearances
+                  let tripTowns_summary = [
+                    snapshotTripInfos.city,
+                    ...snapshotTripInfos.destination_infos.map(
+                      (dest) => dest.city
+                    ),
+                  ];
+                  // Normalize
+                  tripTowns_summary = tripTowns_summary.map((el) =>
+                    el.trim().toUpperCase()
+                  );
+                  // Sort
+                  tripTowns_summary.sort();
+                  if (
+                    arrayEquals(
+                      tripTowns_summary,
+                      driverRegionalClearances[snapshotTripInfos.region]
+                    )
+                  ) {
+                    //TOWNS WITHIN THE CLEARANCES
+                    //? 2. Check that the driver's current location (city) as equal to one of the towns allowed by his regional credentials.
+                    driverCity = driverCity.trim().toUpperCase();
+                    //...
+                    if (
+                      driverRegionalClearances[
+                        snapshotTripInfos.region
+                      ].includes(driverCity)
+                    ) {
+                      //? Driver's current location is within the regional clearances
+                      logger.info(
+                        `Intercity trip allowed for driver's interaction -> ${driverData.driver_fingerprint.substring(
+                          0,
+                          15
+                        )}`
+                      );
+                      return data.operational_state.push_notification_token !==
+                        null &&
+                        data.operational_state.push_notification_token !==
+                          undefined
+                        ? data.operational_state.push_notification_token.userId
+                        : null;
+                    } //! The driver's current location is not within the regional clearances
+                    else {
+                      logger.warn(
+                        `The driver's current location is not within the regional clearances`
+                      );
+                      return null;
+                    }
+                  } //Towns for the trip not fitting in the driver's regional clearances
+                  else {
+                    logger.warn(
+                      `Towns for the trip not fitting in the driver's regional clearances`
+                    );
+                    return null;
+                  }
+                } //No valid rule found
+                else {
+                  logger.warn("No valid regional clearance rule found.");
+                  return null;
+                }
+              } //?No regional clearances
+              else {
+                logger.warn("No regional clearances found for this driver.");
+                return null;
+              }
+            } //? Not intercity trip - filter based on the drivers location
+            else {
+              logger.info("Normal innercity trip detected");
+              let driverCity =
+                driverData.operational_state.last_location !== null &&
+                driverData.operational_state.last_location !== undefined &&
+                driverData.operational_state.last_location.city !== undefined &&
+                driverData.operational_state.last_location.city != null
+                  ? driverData.operational_state.last_location.city
+                  : "MISSING";
+              //...
+              logger.error(snapshotTripInfos.city.trim().toUpperCase());
+              logger.error(driverCity.trim().toUpperCase());
+              if (
+                snapshotTripInfos.city.trim().toUpperCase() ===
+                driverCity.trim().toUpperCase()
+              ) {
+                return data.operational_state.push_notification_token !==
+                  null &&
+                  data.operational_state.push_notification_token !== undefined
+                  ? data.operational_state.push_notification_token.userId
+                  : null;
+              } //not elligible driver
+              else {
+                return null;
+              }
+            }
           } else {
             return null; //Only notify the drivers that are online.
           }
         }); //Push notification token
+        logger.error(driversPushNotif_token);
         collectionRidesDeliveryData.updateOne(
           { request_fp: snapshotTripInfos.request_fp },
           { $set: { allowed_drivers_see: driversFp } },
@@ -3101,6 +3238,19 @@ function acceptRequest_driver(
 }
 
 /**
+ * @func arrayEquals
+ * ! Responsible for comparing 2 arrays.
+ */
+function arrayEquals(a, b) {
+  return (
+    Array.isArray(a) &&
+    Array.isArray(b) &&
+    a.length === b.length &&
+    a.every((val, index) => val === b[index])
+  );
+}
+
+/**
  * @func cancelRequest_driver
  * Responsible for cancelling any request from the driver app, If and only if the request was accepted by the driver who's requesting for the cancellation.
  * @param collectionRidesDeliveryData: list of all the requests made.
@@ -3130,6 +3280,8 @@ function cancelRequest_driver(
       }
       //...
       if (result.length > 0) {
+        let tripData = result[0];
+        //...
         let tmpRefDate = new Date(chaineDateUTC);
         //! Check if the driver did not cancel more than MAXIMUM_CANCELLATION_DRIVER_REQUESTS_LIMIT requests today
         collectionGlobalEvents
@@ -3154,15 +3306,15 @@ function cancelRequest_driver(
               logger.warn(error);
               resolve({ response: "unable_to_cancel_request_error" });
             }
-            logger.info(resultCancelledRequests);
-            logger.info(resultCancelledRequests.length);
-            logger.info(
-              resultCancelledRequests !== undefined &&
-                resultCancelledRequests.length <
-                  parseInt(
-                    process.env.MAXIMUM_CANCELLATION_DRIVER_REQUESTS_LIMIT
-                  )
-            );
+            // logger.info(resultCancelledRequests);
+            // logger.info(resultCancelledRequests.length);
+            // logger.info(
+            //   resultCancelledRequests !== undefined &&
+            //     resultCancelledRequests.length <
+            //       parseInt(
+            //         process.env.MAXIMUM_CANCELLATION_DRIVER_REQUESTS_LIMIT
+            //       )
+            // );
             //...
             if (
               resultCancelledRequests !== undefined &&
@@ -3211,8 +3363,8 @@ function cancelRequest_driver(
                     //! Get all the drivers
                     let driverFilter = {
                       "operational_state.status": { $in: ["online"] },
-                      "operational_state.last_location.city":
-                        result[0].pickup_location_infos.city,
+                      // "operational_state.last_location.city":
+                      //   result[0].pickup_location_infos.city,
                       /*"operational_state.last_location.country": snapshotTripInfos.country,
                 operation_clearances: snapshotTripInfos.ride_type,*/
                       //Filter the drivers based on the vehicle type if provided
@@ -3222,7 +3374,6 @@ function cancelRequest_driver(
                     //..
                     collectionDrivers_profiles
                       .find(driverFilter)
-                      //!.collation({ locale: "en", strength: 2 })
                       .toArray(function (err, driversProfiles) {
                         //Filter the drivers based on their car's maximum capacity (the amount of passengers it can handle)
                         //They can receive 3 additional requests on top of the limit of sits in their selected cars.
@@ -3244,18 +3395,190 @@ function cancelRequest_driver(
                         //...Register the drivers fp so that thei can see tne requests
                         let driversPushNotif_token = driversProfiles.map(
                           (data) => {
+                            logger.error(data.operational_state.status);
+                            logger.error(
+                              data.driver_fingerprint.trim() !==
+                                bundleWorkingData.driver_fingerprint.trim()
+                            );
                             if (
                               /online/i.test(data.operational_state.status) &&
                               data.driver_fingerprint.trim() !==
                                 bundleWorkingData.driver_fingerprint.trim()
                             ) {
-                              return data.operational_state
-                                .push_notification_token !== null &&
-                                data.operational_state
-                                  .push_notification_token !== undefined
-                                ? data.operational_state.push_notification_token
-                                    .userId
-                                : null;
+                              let driverData = data;
+                              let snapshotTripInfos = {
+                                isIntercity_trip:
+                                  tripData.isIntercity_trip !== undefined &&
+                                  tripData.isIntercity_trip !== null
+                                    ? tripData.isIntercity_trip
+                                    : false,
+                                region: tripData.pickup_location_infos.state
+                                  .replace(/ Region/i, "")
+                                  .trim()
+                                  .toUpperCase(),
+                                city: tripData.pickup_location_infos.city
+                                  .trim()
+                                  .toUpperCase(),
+                                destination_infos: tripData.destinationData,
+                              };
+                              logger.info(snapshotTripInfos);
+                              //....
+                              if (
+                                snapshotTripInfos.isIntercity_trip === true ||
+                                snapshotTripInfos.isIntercity_trip === "true"
+                              ) {
+                                //? Intercity trip
+                                //? Check that the region and the city is within the driver's regional clearances.
+                                logger.info("Intercity trip detected");
+                                let driverRegionalClearances =
+                                  driverData.regional_clearances !==
+                                    undefined &&
+                                  driverData.regional_clearances !== null
+                                    ? driverData.regional_clearances
+                                    : false;
+                                //...
+                                let driverCity =
+                                  driverData.operational_state.last_location !==
+                                    null &&
+                                  driverData.operational_state.last_location !==
+                                    undefined &&
+                                  driverData.operational_state.last_location
+                                    .city !== undefined &&
+                                  driverData.operational_state.last_location
+                                    .city != null
+                                    ? driverData.operational_state.last_location
+                                        .city
+                                    : false;
+                                //...
+                                if (
+                                  driverRegionalClearances !== false &&
+                                  driverCity !== false
+                                ) {
+                                  //Has a regional clearance
+                                  // logger.info(trip.origin_destination_infos.destination_infos);
+                                  if (
+                                    driverRegionalClearances[
+                                      snapshotTripInfos.region
+                                    ] !== undefined &&
+                                    driverRegionalClearances[
+                                      snapshotTripInfos.region
+                                    ] !== null
+                                  ) {
+                                    //! Sort the clearances array
+                                    driverRegionalClearances[
+                                      snapshotTripInfos.region
+                                    ].sort();
+
+                                    //? Found a valid clearance rule
+                                    //? 1. Check if the pickup AND destination towns is included in the clearances
+                                    let tripTowns_summary = [
+                                      snapshotTripInfos.city,
+                                      ...snapshotTripInfos.destination_infos.map(
+                                        (dest) => dest.city
+                                      ),
+                                    ];
+                                    // Normalize
+                                    tripTowns_summary = tripTowns_summary.map(
+                                      (el) => el.trim().toUpperCase()
+                                    );
+                                    // Sort
+                                    tripTowns_summary.sort();
+                                    if (
+                                      arrayEquals(
+                                        tripTowns_summary,
+                                        driverRegionalClearances[
+                                          snapshotTripInfos.region
+                                        ]
+                                      )
+                                    ) {
+                                      //TOWNS WITHIN THE CLEARANCES
+                                      //? 2. Check that the driver's current location (city) as equal to one of the towns allowed by his regional credentials.
+                                      driverCity = driverCity
+                                        .trim()
+                                        .toUpperCase();
+                                      //...
+                                      if (
+                                        driverRegionalClearances[
+                                          snapshotTripInfos.region
+                                        ].includes(driverCity)
+                                      ) {
+                                        //? Driver's current location is within the regional clearances
+                                        logger.info(
+                                          `Intercity trip allowed for driver's interaction -> ${driverData.driver_fingerprint.substring(
+                                            0,
+                                            15
+                                          )}`
+                                        );
+                                        return data.operational_state
+                                          .push_notification_token !== null &&
+                                          data.operational_state
+                                            .push_notification_token !==
+                                            undefined
+                                          ? data.operational_state
+                                              .push_notification_token.userId
+                                          : null;
+                                      } //! The driver's current location is not within the regional clearances
+                                      else {
+                                        logger.warn(
+                                          `The driver's current location is not within the regional clearances`
+                                        );
+                                        return null;
+                                      }
+                                    } //Towns for the trip not fitting in the driver's regional clearances
+                                    else {
+                                      logger.warn(
+                                        `Towns for the trip not fitting in the driver's regional clearances`
+                                      );
+                                      return null;
+                                    }
+                                  } //No valid rule found
+                                  else {
+                                    logger.warn(
+                                      "No valid regional clearance rule found."
+                                    );
+                                    return null;
+                                  }
+                                } //?No regional clearances
+                                else {
+                                  logger.warn(
+                                    "No regional clearances found for this driver."
+                                  );
+                                  return null;
+                                }
+                              } //? Not intercity trip - filter based on the drivers location
+                              else {
+                                logger.info("Normal innercity trip detected");
+                                let driverCity =
+                                  driverData.operational_state.last_location !==
+                                    null &&
+                                  driverData.operational_state.last_location !==
+                                    undefined &&
+                                  driverData.operational_state.last_location
+                                    .city !== undefined &&
+                                  driverData.operational_state.last_location
+                                    .city != null
+                                    ? driverData.operational_state.last_location
+                                        .city
+                                    : "MISSING";
+                                //...
+                                if (
+                                  snapshotTripInfos.city
+                                    .trim()
+                                    .toUpperCase() ===
+                                  driverCity.trim().toUpperCase()
+                                ) {
+                                  return data.operational_state
+                                    .push_notification_token !== null &&
+                                    data.operational_state
+                                      .push_notification_token !== undefined
+                                    ? data.operational_state
+                                        .push_notification_token.userId
+                                    : null;
+                                } //not elligible driver
+                                else {
+                                  return null;
+                                }
+                              }
                             } else {
                               return null; //Only notify the drivers that are online.
                             }
@@ -3975,7 +4298,12 @@ function INIT_RIDE_DELIVERY_DISPATCH_ENTRY(
               //FORM THE REQUEST SNAPSHOT
               let snapshotTripInfos = {
                 user_fingerprint: parsedReqest_data.client_id,
+                isIntercity_trip: parsedReqest_data.isIntercity_trip,
                 city: parsedReqest_data.pickup_location_infos.city,
+                region: parsedReqest_data.pickup_location_infos.state
+                  .replace(/ Region/i, "")
+                  .trim()
+                  .toUpperCase(),
                 country: parsedReqest_data.country,
                 ride_type: parsedReqest_data.ride_mode,
                 request_type: parsedReqest_data.request_type,
@@ -3989,6 +4317,7 @@ function INIT_RIDE_DELIVERY_DISPATCH_ENTRY(
                 destination_suburb: parsedReqest_data.destinationData[0].suburb,
                 fare: parsedReqest_data.fare,
                 passengers_number: parsedReqest_data.passengers_number,
+                destination_infos: parsedReqest_data.destinationData, //? Full destination data
               };
 
               intitiateStagedDispatch(
@@ -3999,10 +4328,10 @@ function INIT_RIDE_DELIVERY_DISPATCH_ENTRY(
               );
             }).then(
               (result) => {
-                //logger.info(result);
+                logger.info(result);
               },
               (error) => {
-                //logger.info(error);
+                logger.info(error);
               }
             );
             //..Success - respond to the user
