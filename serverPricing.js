@@ -1077,8 +1077,8 @@ function computeInDepthPricesMap(
 
               let INTERCITY_PRICES = {
                 CONNECTUS: {
-                  "WALVIS_BAY-SWAKOPMUND": 120,
-                  "SWAKOPMUND-WALVIS_BAY": 120,
+                  "WALVIS_BAY-SWAKOPMUND": 140,
+                  "SWAKOPMUND-WALVIS_BAY": 140,
                   "LANGSTRAND-SWAKOPMUND": 120,
                   "SWAKOPMUND-LANGSTRAND": 120,
                   "WALVIS_BAY-LANGSTRAND": 120,
