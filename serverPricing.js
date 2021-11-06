@@ -1077,16 +1077,20 @@ function computeInDepthPricesMap(
 
               let INTERCITY_PRICES = {
                 CONNECTUS: {
-                  "WALVIS_BAY-SWAKOPMUND": 35,
-                  "SWAKOPMUND-WALVIS_BAY": 35,
-                  "LANGSTRAND-SWAKOPMUND": 30,
-                  "SWAKOPMUND-LANGSTRAND": 30,
+                  "WALVIS_BAY-SWAKOPMUND": 120,
+                  "SWAKOPMUND-WALVIS_BAY": 120,
+                  "LANGSTRAND-SWAKOPMUND": 120,
+                  "SWAKOPMUND-LANGSTRAND": 120,
+                  "WALVIS_BAY-LANGSTRAND": 120,
+                  "LANGSTRAND-WALVIS_BAY": 120,
                 },
                 CONNECTME: {
                   "WALVIS_BAY-SWAKOPMUND": 140,
                   "SWAKOPMUND-WALVIS_BAY": 140,
                   "LANGSTRAND-SWAKOPMUND": 120,
                   "SWAKOPMUND-LANGSTRAND": 120,
+                  "WALVIS_BAY-LANGSTRAND": 120,
+                  "LANGSTRAND-WALVIS_BAY": 120,
                 },
               };
               logger.warn(
@@ -1142,6 +1146,7 @@ function computeInDepthPricesMap(
             basePrice += headerPrice; //Add header price LAST
           }
         }
+
         //DONE update base price...
         logger.info("ESTIMATED BASE PRICE (car type:");
         logger.info(vehicle.car_type);
