@@ -1146,6 +1146,7 @@ function computeInDepthPricesMap(
             basePrice += headerPrice; //Add header price LAST
           }
         }
+
         //DONE update base price...
         logger.info("ESTIMATED BASE PRICE (car type:");
         logger.info(vehicle.car_type);
