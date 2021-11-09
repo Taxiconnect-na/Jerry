@@ -5903,6 +5903,7 @@ redisCluster.on("connect", function () {
                         ? result.city.trim().toUpperCase()
                         : result.name.trim().toUpperCase()
                     );
+                    result["isCity_supported"] = true;
                     //! Replace Samora Machel Constituency by Wanaheda
                     if (
                       result.suburb !== undefined &&
