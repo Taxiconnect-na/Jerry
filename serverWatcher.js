@@ -540,31 +540,31 @@ function updateNext_paymentDateDrivers(
                                               },
                                             ];
                                             //...
-                                            // collectionDrivers_profiles.updateOne(
-                                            //   {
-                                            //     driver_fingerprint:
-                                            //       driverData.driver_fingerprint,
-                                            //   },
-                                            //   {
-                                            //     $set: {
-                                            //       "operational_state.status":
-                                            //         "online", //! PUT OFFLINE - ONLINE TO KEEP RECEIVING REQUESTS.
-                                            //       //isDriverSuspended: false, //!DO NOT SUSPEND FOR NOW
-                                            //       // suspension_infos:
-                                            //       //   suspensionInfos_array,
-                                            //     },
-                                            //   },
-                                            //   function (err, rest) {
-                                            //     //? DONE
-                                            //     logger.info(
-                                            //       `DRIVER SUSPENDED --> Tag: ${driverData.driver_fingerprint.substr(
-                                            //         0,
-                                            //         15
-                                            //       )}`
-                                            //     );
-                                            //     resPaymentCycle(true);
-                                            //   }
-                                            // );
+                                            collectionDrivers_profiles.updateOne(
+                                              {
+                                                driver_fingerprint:
+                                                  driverData.driver_fingerprint,
+                                              },
+                                              {
+                                                $set: {
+                                                  "operational_state.status":
+                                                    "offline", //! PUT OFFLINE - ONLINE TO KEEP RECEIVING REQUESTS.
+                                                  isDriverSuspended: false, //!DO NOT SUSPEND FOR NOW
+                                                  suspension_infos:
+                                                    suspensionInfos_array,
+                                                },
+                                              },
+                                              function (err, rest) {
+                                                //? DONE
+                                                logger.info(
+                                                  `DRIVER SUSPENDED --> Tag: ${driverData.driver_fingerprint.substr(
+                                                    0,
+                                                    15
+                                                  )}`
+                                                );
+                                                resPaymentCycle(true);
+                                              }
+                                            );
                                             resPaymentCycle(true);
                                           } //No driver data found
                                           else {
@@ -579,27 +579,30 @@ function updateNext_paymentDateDrivers(
                                 //? NOTIFICATION AREA
                                 new Promise((resNotify) => {
                                   //? Compute the amount left COMISSION-DUE based on who's greater of course.
-                                  let amount =
-                                    parseFloat(
-                                      body.header.remaining_commission
-                                    ) >
-                                    parseFloat(
-                                      body.header.remaining_due_to_driver
-                                    )
-                                      ? Math.ceil(
-                                          parseFloat(
-                                            body.header.remaining_commission
-                                          ) -
-                                            parseFloat(
-                                              body.header
-                                                .remaining_due_to_driver
-                                            )
-                                        )
-                                      : Math.ceil(
-                                          parseFloat(
-                                            body.header.remaining_commission
-                                          )
-                                        );
+                                  // let amount =
+                                  //   parseFloat(
+                                  //     body.header.remaining_commission
+                                  //   ) >
+                                  //   parseFloat(
+                                  //     body.header.remaining_due_to_driver
+                                  //   )
+                                  //     ? Math.ceil(
+                                  //         parseFloat(
+                                  //           body.header.remaining_commission
+                                  //         ) -
+                                  //           parseFloat(
+                                  //             body.header
+                                  //               .remaining_due_to_driver
+                                  //           )
+                                  //       )
+                                  //     : Math.ceil(
+                                  //         parseFloat(
+                                  //           body.header.remaining_commission
+                                  //         )
+                                  //       );
+                                  let amount = parseFloat(
+                                    body.header.remaining_commission
+                                  );
                                   //.....
                                   //1. Check the time from the last notification
                                   //? Event name: comission_reminder_comission_drivers

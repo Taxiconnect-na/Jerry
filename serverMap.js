@@ -4000,7 +4000,9 @@ function reverseGeocodeUserLocation(resolve, req) {
           reverseGeocoderExec(res, req, JSON.parse(resp), redisKey);
         }).then(
           (result) => {},
-          (error) => {}
+          (error) => {
+            logger.error(error);
+          }
         );
 
         //Has already a cache entry
@@ -4020,7 +4022,9 @@ function reverseGeocodeUserLocation(resolve, req) {
                 JSON.stringify(currentLocationEntry)
               );
             },
-            (error) => {}
+            (error) => {
+              logger.error(error);
+            }
           );
           //Send
           resolve(resp.currentLocationInfos);
@@ -4041,6 +4045,7 @@ function reverseGeocodeUserLocation(resolve, req) {
               resolve(result);
             },
             (error) => {
+              logger.error(error);
               resolve(false);
             }
           );
@@ -4062,12 +4067,14 @@ function reverseGeocodeUserLocation(resolve, req) {
             resolve(result);
           },
           (error) => {
+            logger.error(error);
             resolve(false);
           }
         );
       }
     },
     (error) => {
+      logger.error(error);
       resolve(false);
     }
   );
@@ -4109,9 +4116,10 @@ function reverseGeocoderExec(resolve, req, updateCache = false, redisKey) {
     "&lat=" +
     req.latitude;
 
+  logger.info(url);
+
   requestAPI(url, function (error, response, body) {
     try {
-      //logger.info(body);
       body = JSON.parse(body);
       if (body != undefined) {
         if (body.features[0].properties != undefined) {
@@ -5854,7 +5862,7 @@ redisCluster.on("connect", function () {
                 request.user_fingerprint !== null &&
                 request.user_fingerprint !== undefined
               ) {
-                logger.warn(JSON.stringify(request));
+                logger.error(JSON.stringify(request.user_fingerprint));
                 //Save the history of the geolocation
                 new Promise((resHistory) => {
                   if (request.geolocationData !== undefined) {
@@ -5890,33 +5898,38 @@ redisCluster.on("connect", function () {
                   reverseGeocodeUserLocation(resolve, request);
                 }).then(
                   (result) => {
-                    logger.error(result);
-                    //! SUPPORTED CITIES
-                    let SUPPORTED_CITIES = [
-                      "WINDHOEK",
-                      "SWAKOPMUND",
-                      "WALVIS BAY",
-                    ];
-                    //? Attach the supported city state
-                    result["isCity_supported"] = SUPPORTED_CITIES.includes(
-                      result.city !== undefined && result.city !== null
-                        ? result.city.trim().toUpperCase()
-                        : result.name.trim().toUpperCase()
-                    );
-                    result["isCity_supported"] = true;
-                    //! Replace Samora Machel Constituency by Wanaheda
-                    if (
-                      result.suburb !== undefined &&
-                      result.suburb !== null &&
-                      /Samora Machel Constituency/i.test(result.suburb)
-                    ) {
-                      result.suburb = "Wanaheda";
-                      resMAIN(result);
-                    } else {
-                      resMAIN(result);
+                    if (result !== false && result !== "false") {
+                      //! SUPPORTED CITIES
+                      let SUPPORTED_CITIES = [
+                        "WINDHOEK",
+                        "SWAKOPMUND",
+                        "WALVIS BAY",
+                      ];
+                      //? Attach the supported city state
+                      result["isCity_supported"] = SUPPORTED_CITIES.includes(
+                        result.city !== undefined && result.city !== null
+                          ? result.city.trim().toUpperCase()
+                          : result.name.trim().toUpperCase()
+                      );
+                      result["isCity_supported"] = true;
+                      //! Replace Samora Machel Constituency by Wanaheda
+                      if (
+                        result.suburb !== undefined &&
+                        result.suburb !== null &&
+                        /Samora Machel Constituency/i.test(result.suburb)
+                      ) {
+                        result.suburb = "Wanaheda";
+                        resMAIN(result);
+                      } else {
+                        resMAIN(result);
+                      }
+                    } //False returned
+                    else {
+                      resMAIN(false);
                     }
                   },
                   (error) => {
+                    logger.error(error);
                     resMAIN(false);
                   }
                 );
