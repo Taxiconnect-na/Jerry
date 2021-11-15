@@ -1106,35 +1106,79 @@ function intitiateStagedDispatch(
       resolve(false);
     }
   );*/
-  let url =
-    `${
-      /production/i.test(process.env.EVIRONMENT)
-        ? `http://${process.env.INSTANCE_PRIVATE_IP}`
-        : process.env.LOCAL_URL
-    }` +
-    ":" +
-    process.env.MAP_SERVICE_PORT +
-    "/getVitalsETAOrRouteInfos2points?user_fingerprint=" +
-    snapshotTripInfos.user_fingerprint +
-    "&org_latitude=" +
-    snapshotTripInfos.org_latitude +
-    "&org_longitude=" +
-    snapshotTripInfos.org_longitude +
-    "&ride_type=" +
-    snapshotTripInfos.ride_type +
-    "&vehicle_type=" +
-    snapshotTripInfos.vehicle_type +
-    "&city=" +
-    snapshotTripInfos.city +
-    "&country=" +
-    snapshotTripInfos.country +
-    "&list_limit=all&make_new=true";
-  requestAPI(url, function (error, response, body) {
-    logger.info(body);
-    try {
-      body = JSON.parse(body);
-      if (body.response !== undefined) {
-        //Error getting the list - send to all drivers
+  if (process.env.RIDES_DISPATCH_STRATEGY === "targeted") {
+    let url =
+      `${
+        /production/i.test(process.env.EVIRONMENT)
+          ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+          : process.env.LOCAL_URL
+      }` +
+      ":" +
+      process.env.MAP_SERVICE_PORT +
+      "/getVitalsETAOrRouteInfos2points?user_fingerprint=" +
+      snapshotTripInfos.user_fingerprint +
+      "&org_latitude=" +
+      snapshotTripInfos.org_latitude +
+      "&org_longitude=" +
+      snapshotTripInfos.org_longitude +
+      "&ride_type=" +
+      snapshotTripInfos.ride_type +
+      "&vehicle_type=" +
+      snapshotTripInfos.vehicle_type +
+      "&city=" +
+      snapshotTripInfos.city +
+      "&country=" +
+      snapshotTripInfos.country +
+      "&list_limit=all";
+    //? "&list_limit=all&make_new=true";
+    requestAPI(url, function (error, response, body) {
+      logger.info(body);
+      try {
+        body = JSON.parse(body);
+        if (body.response !== undefined) {
+          //Error getting the list - send to all drivers
+          new Promise((res) => {
+            sendStagedNotificationsDrivers(
+              false,
+              snapshotTripInfos,
+              collectionDrivers_profiles,
+              collectionRidesDeliveryData,
+              res
+            );
+          }).then(
+            (result) => {
+              //logger.info(result);
+              resolve(result);
+            },
+            (error) => {
+              //logger.info(error);
+              resolve(false);
+            }
+          );
+        } //Successfully got the list
+        else {
+          new Promise((res) => {
+            sendStagedNotificationsDrivers(
+              body,
+              snapshotTripInfos,
+              collectionDrivers_profiles,
+              collectionRidesDeliveryData,
+              res
+            );
+          }).then(
+            (result) => {
+              //logger.info(result);
+              resolve(result);
+            },
+            (error) => {
+              //logger.info(error);
+              resolve(false);
+            }
+          );
+        }
+      } catch (error) {
+        //logger.info(error);
+        //Error getting the list of closest drivers - send to all the drivers
         new Promise((res) => {
           sendStagedNotificationsDrivers(
             false,
@@ -1153,50 +1197,29 @@ function intitiateStagedDispatch(
             resolve(false);
           }
         );
-      } //Successfully got the list
-      else {
-        new Promise((res) => {
-          sendStagedNotificationsDrivers(
-            body,
-            snapshotTripInfos,
-            collectionDrivers_profiles,
-            collectionRidesDeliveryData,
-            res
-          );
-        }).then(
-          (result) => {
-            //logger.info(result);
-            resolve(result);
-          },
-          (error) => {
-            //logger.info(error);
-            resolve(false);
-          }
-        );
       }
-    } catch (error) {
-      //logger.info(error);
-      //Error getting the list of closest drivers - send to all the drivers
-      new Promise((res) => {
-        sendStagedNotificationsDrivers(
-          false,
-          snapshotTripInfos,
-          collectionDrivers_profiles,
-          collectionRidesDeliveryData,
-          res
-        );
-      }).then(
-        (result) => {
-          //logger.info(result);
-          resolve(result);
-        },
-        (error) => {
-          //logger.info(error);
-          resolve(false);
-        }
+    });
+  } //General dispatch
+  else {
+    new Promise((res) => {
+      sendStagedNotificationsDrivers(
+        false,
+        snapshotTripInfos,
+        collectionDrivers_profiles,
+        collectionRidesDeliveryData,
+        res
       );
-    }
-  });
+    }).then(
+      (result) => {
+        //logger.info(result);
+        resolve(result);
+      },
+      (error) => {
+        //logger.info(error);
+        resolve(false);
+      }
+    );
+  }
 }
 
 /**
@@ -1670,7 +1693,6 @@ function sendStagedNotificationsDrivers(
       //..
       collectionDrivers_profiles
         .find(driverFilter)
-        //!.collation({ locale: "en", strength: 2 })
         .toArray(function (err, driversProfiles) {
           //Filter the drivers based on their car's maximum capacity (the amount of passengers it can handle)
           //They can receive 3 additional requests on top of the limit of sits in their selected cars.
