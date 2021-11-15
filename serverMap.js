@@ -2907,7 +2907,7 @@ function computeRouteDetails_skeleton(
                                     resolve(result);
                                   },
                                   (error) => {
-                                    ////logger.info(error);
+                                    logger.error(error);
                                     resolve(false);
                                   }
                                 );
@@ -3386,7 +3386,7 @@ function computeAndCacheRouteDestination(
   let bundle = {};
 
   new Promise((reslv) => {
-    let redisKey = rideHistory.client_id + "-" + rideHistory.taxi_id;
+    let redisKey = `${rideHistory.client_id}-${rideHistory.taxi_id}`;
     if (request_status === "inRouteToPickup") {
       //For to pickup only
       bundle = {
@@ -3477,14 +3477,13 @@ function computeAndCacheRouteDestination(
         .then(
           () => {},
           (error) => {
-            //logger.warn(error);
+            logger.warn(error);
           }
         )
         .catch((error) => {
-          //logger.warn(error);
+          logger.warn(error);
         });
-      ////logger.info("HEEEEEEEE->", result);
-      ////logger.info(rideHistory.destinationData);
+
       //Add request status variable - inRouteToPickup, inRouteToDestination
       result["request_status"] = request_status;
       let additionalInfos = {
@@ -3697,8 +3696,14 @@ function computeAndCacheRouteDestination(
             .then(
               (estimated_travel_time) => {
                 //Add the eta to destination
-                additionalInfos.ETA_toDestination = estimated_travel_time;
+                //? Change the ETA based on the request status
+                additionalInfos.ETA_toDestination = /inRouteToPickup/i.test(
+                  request_status
+                )
+                  ? result.eta
+                  : estimated_travel_time;
                 additionalInfos.request_status = request_status;
+                //?---
                 result = { ...result, ...additionalInfos }; //Merge all the data
                 //Cache-
                 //Cache computed result
