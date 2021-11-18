@@ -5897,7 +5897,12 @@ redisCluster.on("connect", function () {
                   reverseGeocodeUserLocation(resolve, request);
                 }).then(
                   (result) => {
-                    if (result !== false && result !== "false") {
+                    if (
+                      result !== false &&
+                      result !== "false" &&
+                      result !== undefined &&
+                      result !== null
+                    ) {
                       //? Compute the list of closest drivers of all categories to this rider
                       new Promise((resCompute) => {
                         //1. Get the list of cars categories
@@ -6000,7 +6005,9 @@ redisCluster.on("connect", function () {
                       result["isCity_supported"] = SUPPORTED_CITIES.includes(
                         result.city !== undefined && result.city !== null
                           ? result.city.trim().toUpperCase()
-                          : result.name.trim().toUpperCase()
+                          : result.name !== undefined && result.name !== null
+                          ? result.name.trim().toUpperCase()
+                          : "Unknown city"
                       );
                       result["isCity_supported"] = true;
                       //! Replace Samora Machel Constituency by Wanaheda
