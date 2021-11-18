@@ -1033,6 +1033,47 @@ function computeInDepthPricesMap(
                           basePrice = 70;
                         }
                       }
+                      //...
+                      logger.warn("CONNECTEME CHECKING");
+                      //! Make the base connectMe fare for N$36 worth locations to N$70 for 1 passengers
+                      //! If the fare is <= N$50
+                      // if (parseInt(completedInputData.passengers_number) == 1) {
+                      //   //? Only compute for 1 passenger
+                      //   globalPricesMap.map((suburbToSuburbInfo) => {
+                      //     if (
+                      //       suburbToSuburbInfo.pickup_suburb !== false &&
+                      //       destination.suburb !== false &&
+                      //       new RegExp(
+                      //         suburbToSuburbInfo.pickup_suburb
+                      //           .toUpperCase()
+                      //           .trim(),
+                      //         "i"
+                      //       ).test(tmpPickupPickup.toUpperCase().trim()) &&
+                      //       new RegExp(
+                      //         suburbToSuburbInfo.destination_suburb
+                      //           .toUpperCase()
+                      //           .trim(),
+                      //         "i"
+                      //       ).test(destination.suburb.toUpperCase().trim())
+                      //     ) {
+                      //       if (
+                      //         parseInt(suburbToSuburbInfo.fare) >= 36 &&
+                      //         /Economy/i.test(vehicle.category)
+                      //       ) {
+                      //         //N$36
+                      //         logger.warn(
+                      //           `${suburbToSuburbInfo.pickup_suburb} --> ${destination.suburb}`
+                      //         );
+                      //         logger.error(
+                      //           "Found location match - increasing fare for normal cab to 70"
+                      //         );
+                      //         basePrice = 70;
+                      //       }
+                      //     }
+                      //   });
+
+                      //   //? Continue
+                      // }
                     }
                   } else if (/DELIVERY/i.test(vehicle.ride_type)) {
                     logger.warn("Delivery detected!");
