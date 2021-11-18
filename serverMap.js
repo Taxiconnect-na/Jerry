@@ -5904,96 +5904,96 @@ redisCluster.on("connect", function () {
                       result !== null
                     ) {
                       //? Compute the list of closest drivers of all categories to this rider
-                      new Promise((resCompute) => {
-                        //1. Get the list of cars categories
-                        let carsCategories = [
-                          "normalTaxiEconomy",
-                          "electricEconomy",
-                          "comfortNormalRide",
-                          "comfortElectricRide",
-                          "luxuryNormalRide",
-                          "luxuryElectricRide",
-                          "electricBikes",
-                          "bikes",
-                          "carDelivery",
-                          "vanDelivery",
-                        ];
-                        //2. Batch request
-                        let parentPromises = carsCategories.map((cars) => {
-                          return new Promise((resBatch) => {
-                            //! APPLY BLUE OCEAN BUG FIX FOR THE PICKUP LOCATION COORDINATES
-                            //? 1. Destination
-                            //? Get temporary vars
-                            let pickLatitude1 = parseFloat(request.latitude);
-                            let pickLongitude1 = parseFloat(request.longitude);
-                            //! Coordinates order fix - major bug fix for ocean bug
-                            if (
-                              pickLatitude1 !== undefined &&
-                              pickLatitude1 !== null &&
-                              pickLatitude1 !== 0 &&
-                              pickLongitude1 !== undefined &&
-                              pickLongitude1 !== null &&
-                              pickLongitude1 !== 0
-                            ) {
-                              //? Switch latitude and longitude - check the negative sign
-                              if (parseFloat(pickLongitude1) < 0) {
-                                //Negative - switch
-                                request.latitude = pickLongitude1;
-                                request.longitude = pickLatitude1;
-                              }
-                            }
-                            //! -------
+                      // new Promise((resCompute) => {
+                      //   //1. Get the list of cars categories
+                      //   let carsCategories = [
+                      //     "normalTaxiEconomy",
+                      //     "electricEconomy",
+                      //     "comfortNormalRide",
+                      //     "comfortElectricRide",
+                      //     "luxuryNormalRide",
+                      //     "luxuryElectricRide",
+                      //     "electricBikes",
+                      //     "bikes",
+                      //     "carDelivery",
+                      //     "vanDelivery",
+                      //   ];
+                      //   //2. Batch request
+                      //   let parentPromises = carsCategories.map((cars) => {
+                      //     return new Promise((resBatch) => {
+                      //       //! APPLY BLUE OCEAN BUG FIX FOR THE PICKUP LOCATION COORDINATES
+                      //       //? 1. Destination
+                      //       //? Get temporary vars
+                      //       let pickLatitude1 = parseFloat(request.latitude);
+                      //       let pickLongitude1 = parseFloat(request.longitude);
+                      //       //! Coordinates order fix - major bug fix for ocean bug
+                      //       if (
+                      //         pickLatitude1 !== undefined &&
+                      //         pickLatitude1 !== null &&
+                      //         pickLatitude1 !== 0 &&
+                      //         pickLongitude1 !== undefined &&
+                      //         pickLongitude1 !== null &&
+                      //         pickLongitude1 !== 0
+                      //       ) {
+                      //         //? Switch latitude and longitude - check the negative sign
+                      //         if (parseFloat(pickLongitude1) < 0) {
+                      //           //Negative - switch
+                      //           request.latitude = pickLongitude1;
+                      //           request.longitude = pickLatitude1;
+                      //         }
+                      //       }
+                      //       //! -------
 
-                            let url =
-                              `${
-                                /production/i.test(process.env.EVIRONMENT)
-                                  ? `http://${process.env.INSTANCE_PRIVATE_IP}`
-                                  : process.env.LOCAL_URL
-                              }` +
-                              ":" +
-                              process.env.MAP_SERVICE_PORT +
-                              "/getVitalsETAOrRouteInfos2points?user_fingerprint=" +
-                              request.user_fingerprint +
-                              "&org_latitude=" +
-                              request.latitude +
-                              "&org_longitude=" +
-                              request.longitude +
-                              "&ride_type=" +
-                              cars +
-                              "&city=" +
-                              result.city +
-                              "&country=" +
-                              result.country +
-                              "&list_limit=all";
-                            requestAPI(url, function (error, response, body) {
-                              if (error === null) {
-                                try {
-                                  body = JSON.parse(body);
-                                  // logger.warn(body);
-                                  resBatch(true);
-                                } catch (error) {
-                                  logger.error(error);
-                                  resBatch(false);
-                                }
-                              } else {
-                                resBatch(false);
-                              }
-                            });
-                          });
-                        });
-                        //? Wrap up
-                        Promise.all(parentPromises)
-                          .then((resultBatch) => {
-                            logger.info(resultBatch);
-                          })
-                          .catch((error) => {
-                            logger.error(error);
-                          });
-                        //? Done
-                        resCompute(true);
-                      })
-                        .then()
-                        .catch((error) => logger.error(error));
+                      //       let url =
+                      //         `${
+                      //           /production/i.test(process.env.EVIRONMENT)
+                      //             ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+                      //             : process.env.LOCAL_URL
+                      //         }` +
+                      //         ":" +
+                      //         process.env.MAP_SERVICE_PORT +
+                      //         "/getVitalsETAOrRouteInfos2points?user_fingerprint=" +
+                      //         request.user_fingerprint +
+                      //         "&org_latitude=" +
+                      //         request.latitude +
+                      //         "&org_longitude=" +
+                      //         request.longitude +
+                      //         "&ride_type=" +
+                      //         cars +
+                      //         "&city=" +
+                      //         result.city +
+                      //         "&country=" +
+                      //         result.country +
+                      //         "&list_limit=all";
+                      //       requestAPI(url, function (error, response, body) {
+                      //         if (error === null) {
+                      //           try {
+                      //             body = JSON.parse(body);
+                      //             // logger.warn(body);
+                      //             resBatch(true);
+                      //           } catch (error) {
+                      //             logger.error(error);
+                      //             resBatch(false);
+                      //           }
+                      //         } else {
+                      //           resBatch(false);
+                      //         }
+                      //       });
+                      //     });
+                      //   });
+                      //   //? Wrap up
+                      //   Promise.all(parentPromises)
+                      //     .then((resultBatch) => {
+                      //       logger.info(resultBatch);
+                      //     })
+                      //     .catch((error) => {
+                      //       logger.error(error);
+                      //     });
+                      //   //? Done
+                      //   resCompute(true);
+                      // })
+                      //   .then()
+                      //   .catch((error) => logger.error(error));
 
                       //! SUPPORTED CITIES
                       let SUPPORTED_CITIES = [
