@@ -1309,7 +1309,9 @@ function execTripChecker_Dispatcher(
                   },
                   request_type: request_type_regex, //Shceduled or now rides/deliveries
                   //allowed_drivers_see: user_fingerprint,
-                  //intentional_request_decline: { $not: user_fingerprint },
+                  intentional_request_decline: {
+                    $not: { $in: [user_fingerprint] },
+                  },
                 };
           //-----
 
@@ -1373,9 +1375,9 @@ function execTripChecker_Dispatcher(
                           ],
                         },
                         // allowed_drivers_see: user_fingerprint,
-                        /*intentional_request_decline: {
-                  $not: user_fingerprint,
-                },*/
+                        intentional_request_decline: {
+                          $not: { $in: [user_fingerprint] },
+                        },
                       };
                 collectionRidesDeliveries_data
                   .find(checkRide1)
@@ -1592,9 +1594,9 @@ function execGetDrivers_requests_and_provide(
             "ride_state_vars.isRideCompleted_driverSide": false,
             isArrivedToDestination: false,
             // allowed_drivers_see: driverData.driver_fingerprint,
-            /*intentional_request_decline: {
-              $not: driverData.driver_fingerprint,
-            },*/
+            intentional_request_decline: {
+              $not: { $in: [driverData.driver_fingerprint] },
+            },
             carTypeSelected:
               driverData.operational_state.default_selected_car.vehicle_type,
             country: driverData.operational_state.last_location.country,
@@ -1748,9 +1750,9 @@ function execGetDrivers_requests_and_provide(
                 ? driverData.operational_state.last_location.country
                 : "Namibia",
             // allowed_drivers_see: driverData.driver_fingerprint,
-            /*intentional_request_decline: {
-        $not: driverData.driver_fingerprint,
-      },*/
+            intentional_request_decline: {
+              $not: { $in: [driverData.driver_fingerprint] },
+            },
             carTypeSelected:
               driverData.operational_state.default_selected_car.vehicle_type,
             ride_mode: {
@@ -1765,6 +1767,8 @@ function execGetDrivers_requests_and_provide(
             //ride_mode: { $regex: requestType, $options: "i" }, //ride, delivery
             request_type: request_type_regex, //Shceduled or now rides/deliveries
           };
+
+    logger.warn(requestFilter);
 
     //---
     /*let requestFilter = {

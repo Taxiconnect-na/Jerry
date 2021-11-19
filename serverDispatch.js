@@ -4376,6 +4376,7 @@ function INIT_RIDE_DELIVERY_DISPATCH_ENTRY(
  * ? Filter based on the car type selected (normal taxo, ebikes, etc).
  * ? Filter based on the country and city.
  * ! Do not limit based on the driver's maximum capacity.
+ * ! Do not count the declined trips
  * ? Filter based on the operation clearances of the driver.
  * ------
  * @param driver_fingerprint: the driver's fingerprint.
@@ -4439,6 +4440,9 @@ function getRequests_graphPreview_forDrivers(
                         undefined
                         ? driverData[0].operational_state.last_location.country
                         : "Namibia",
+                    intentional_request_decline: {
+                      $not: { $in: [driver_fingerprint] },
+                    },
                   }
                 : {
                     taxi_id: false,
@@ -4471,7 +4475,9 @@ function getRequests_graphPreview_forDrivers(
                       )[0],
                     },
                     // allowed_drivers_see: driver_fingerprint,
-                    //intentional_request_decline: driver_fingerprint,
+                    intentional_request_decline: {
+                      $not: { $in: [driver_fingerprint] },
+                    },
                   }
             )
             .toArray(function (err, filteredRequests) {
@@ -4521,6 +4527,9 @@ function getRequests_graphPreview_forDrivers(
                           "ride_state_vars.isAccepted": true,
                           "ride_state_vars.isRideCompleted_driverSide": false,
                           isArrivedToDestination: false,
+                          intentional_request_decline: {
+                            $not: { $in: [driver_fingerprint] },
+                          },
                         })
                         .toArray(function (err, scheduledTripData) {
                           if (err) {
@@ -4569,6 +4578,9 @@ function getRequests_graphPreview_forDrivers(
                     "ride_state_vars.isAccepted": true,
                     "ride_state_vars.isRideCompleted_driverSide": false,
                     isArrivedToDestination: false,
+                    intentional_request_decline: {
+                      $not: { $in: [driver_fingerprint] },
+                    },
                   })
                   .toArray(function (err, scheduledTripData) {
                     if (err) {
