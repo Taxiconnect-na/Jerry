@@ -362,466 +362,523 @@ function updateNext_paymentDateDrivers(
           //? For days before wednesday, set to wednesdat and for those after wednesday, set to next week that same day.
           //! Annotation string: startingPoint_forFreshPayouts
 
-          collectionWalletTransactions_logs
-            .find({
-              flag_annotation: "startingPoint_forFreshPayouts",
-              user_fingerprint: driverData.driver_fingerprint,
-            })
-            .toArray(function (err, referenceData) {
-              if (err) {
-                resPaymentCycle(false);
-              }
-              //...
-              if (
-                referenceData !== undefined &&
-                referenceData.length > 0 &&
-                referenceData[0].date_captured !== undefined
-              ) {
-                referenceData = referenceData[0];
-                //? Check if the date is not old, not behing of 24h
-                let refDate = new Date(chaineDateUTC);
-                let nextPaymentDate = new Date(referenceData.date_captured);
-                let dateDiffChecker = date_diff_indays(
-                  refDate,
-                  nextPaymentDate
-                ); //In days
+          // logger.info(
+          //   `Found obsolete date, add 7 days --> Tag: ${driverData.driver_fingerprint.substr(
+          //     0,
+          //     10
+          //   )}`
+          // );
+          //? Check the current comission state
+          let url =
+            `${
+              /production/i.test(process.env.EVIRONMENT)
+                ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+                : process.env.LOCAL_URL
+            }` +
+            ":" +
+            process.env.ACCOUNTS_SERVICE_PORT +
+            "/getDrivers_walletInfosDeep?user_fingerprint=" +
+            driverData.driver_fingerprint;
 
-                if (dateDiffChecker <= 0) {
-                  logger.info(
-                    `Found obsolete date, add 7 days --> Tag: ${driverData.driver_fingerprint.substr(
-                      0,
-                      10
-                    )}`
-                  );
-                  //? Check the current comission state
-                  let url =
-                    `${
-                      /production/i.test(process.env.EVIRONMENT)
-                        ? `http://${process.env.INSTANCE_PRIVATE_IP}`
-                        : process.env.LOCAL_URL
-                    }` +
-                    ":" +
-                    process.env.ACCOUNTS_SERVICE_PORT +
-                    "/getDrivers_walletInfosDeep?user_fingerprint=" +
-                    driverData.driver_fingerprint;
-
-                  requestAPI(url, function (error, response, body) {
-                    if (error === null) {
-                      try {
-                        body = JSON.parse(body);
-                        if (body.header !== undefined && body.header !== null) {
-                          //?Check for the comission
-                          if (
-                            body.header.remaining_commission !== undefined &&
-                            body.header.remaining_commission !== null
-                          ) {
-                            //Detected a potential comission
-                            //? Check if there's a pending payment > than the comission threshold (process.env.DRIVERS_MAXIMUM_COMISSION_THRESHOLD)
-                            if (
-                              parseFloat(body.header.remaining_commission) >=
-                              parseFloat(
-                                process.env.DRIVERS_MAXIMUM_COMISSION_THRESHOLD
-                              )
-                            ) {
-                              amount += parseFloat(
-                                body.header.remaining_commission
-                              );
-                              amount -= parseFloat(
-                                body.header.remaining_due_to_driver
-                              );
-                              //Has reached the threshold
-                              if (
-                                parseFloat(
-                                  body.header.remaining_due_to_driver
-                                ) < 0
-                              ) {
-                                logger.info(body.header);
-                                logger.info(driverData.driver_fingerprint);
-                              }
-                              logger.info(amount);
-                              //? Check the waiting period
-                              if (
-                                parseFloat(
-                                  process.env
-                                    .COMISSION_WAITING_PERIOD_BEFORE_SUSPENSION_DAYS
-                                ) <= Math.abs(parseFloat(dateDiffChecker))
-                              ) {
-                                //? Compute the amount left COMISSION-DUE based on who's greater of course.
-                                let amount =
-                                  parseFloat(body.header.remaining_commission) >
+          requestAPI(url, function (error, response, body) {
+            if (error === null) {
+              try {
+                body = JSON.parse(body);
+                if (body.header !== undefined && body.header !== null) {
+                  //?Check for the comission
+                  if (
+                    body.header.remaining_commission !== undefined &&
+                    body.header.remaining_commission !== null &&
+                    body.header.scheduled_payment_date !== undefined &&
+                    body.header.scheduled_payment_date !== null
+                  ) {
+                    let refDate = new Date(chaineDateUTC);
+                    let nextPaymentDate = new Date(
+                      body.header.scheduled_payment_date
+                    );
+                    let dateDiffChecker = date_diff_indays(
+                      refDate,
+                      nextPaymentDate
+                    ); //In days
+                    //Detected a potential comission
+                    //? Check if there's a pending payment > than the comission threshold (process.env.DRIVERS_MAXIMUM_COMISSION_THRESHOLD)
+                    if (
+                      parseFloat(body.header.remaining_commission) >=
+                      parseFloat(
+                        process.env.DRIVERS_MAXIMUM_COMISSION_THRESHOLD
+                      )
+                    ) {
+                      logger.error("COMMISSION DUE");
+                      amount += parseFloat(body.header.remaining_commission);
+                      amount -= parseFloat(body.header.remaining_due_to_driver);
+                      //Has reached the threshold
+                      if (parseFloat(body.header.remaining_due_to_driver) < 0) {
+                        logger.info(body.header);
+                        logger.info(driverData.driver_fingerprint);
+                      }
+                      //? Check the waiting period
+                      if (
+                        parseFloat(
+                          process.env
+                            .COMISSION_WAITING_PERIOD_BEFORE_SUSPENSION_DAYS
+                        ) <= Math.abs(parseFloat(dateDiffChecker)) &&
+                        dateDiffChecker < 0
+                      ) {
+                        //? Compute the amount left COMISSION-DUE based on who's greater of course.
+                        let amount =
+                          parseFloat(body.header.remaining_commission) >
+                          parseFloat(body.header.remaining_due_to_driver)
+                            ? Math.ceil(
+                                parseFloat(body.header.remaining_commission) -
                                   parseFloat(
                                     body.header.remaining_due_to_driver
                                   )
-                                    ? Math.ceil(
-                                        parseFloat(
-                                          body.header.remaining_commission
-                                        ) -
-                                          parseFloat(
-                                            body.header.remaining_due_to_driver
-                                          )
-                                      )
-                                    : Math.ceil(
-                                        parseFloat(
-                                          body.header.remaining_commission
-                                        )
-                                      );
-                                //! Passed waiting period
-                                //? Check if there's any trip in progress.
-                                let checkExistingRide = {
-                                  taxi_id: driverData.driver_fingerprint,
-                                  "ride_state_vars.isRideCompleted_driverSide": false,
-                                };
-                                //...
-                                collectionRidesDeliveryData
-                                  .find(checkExistingRide)
-                                  .toArray(function (err, tripData) {
-                                    if (err) {
-                                      logger.info(err);
-                                      resPaymentCycle(false);
-                                    }
-                                    //...
-                                    if (
-                                      tripData !== undefined &&
-                                      tripData.length > 0
-                                    ) {
-                                      //Found an undone trip
-                                      //! Wait for the trip to be completed
-                                      logger.info(
-                                        `TRIP IN PROGRESS, HOLD SUSPENSION --> Tag: ${driverData.driver_fingerprint.substr(
-                                          0,
-                                          15
-                                        )}`
-                                      );
-                                      resPaymentCycle(true);
-                                    } //No trip in progress
-                                    else {
-                                      //! SUSPEND THE DRIVER
-                                      collectionDrivers_profiles
-                                        .find({
-                                          driver_fingerprint:
-                                            driverData.driver_fingerprint,
-                                        })
-                                        .toArray(function (err, newDriverData) {
-                                          if (err) {
-                                            logger.info(err);
-                                            resPaymentCycle(false);
-                                          }
-                                          //...
-                                          if (
-                                            newDriverData !== undefined &&
-                                            newDriverData.length > 0
-                                          ) {
-                                            //Found a driver data
-                                            resolveDate();
-                                            //? Append the new suspension to the suspension array
-                                            let suspensionInfos_array =
-                                              newDriverData[0]
-                                                .suspension_infos !==
-                                                undefined &&
-                                              newDriverData[0]
-                                                .suspension_infos !== null
-                                                ? newDriverData[0]
-                                                    .suspension_infos
-                                                : [];
-                                            /*suspensionInfos_array.push({
+                              )
+                            : Math.ceil(
+                                parseFloat(body.header.remaining_commission)
+                              );
+                        //! Passed waiting period
+                        //? Check if there's any trip in progress.
+                        let checkExistingRide = {
+                          taxi_id: driverData.driver_fingerprint,
+                          "ride_state_vars.isRideCompleted_driverSide": false,
+                        };
+                        //...
+                        collectionRidesDeliveryData
+                          .find(checkExistingRide)
+                          .toArray(function (err, tripData) {
+                            if (err) {
+                              logger.info(err);
+                              resPaymentCycle(false);
+                            }
+                            //...
+                            if (tripData !== undefined && tripData.length > 0) {
+                              //Found an undone trip
+                              //! Wait for the trip to be completed
+                              logger.info(
+                                `TRIP IN PROGRESS, HOLD SUSPENSION --> Tag: ${driverData.driver_fingerprint.substr(
+                                  0,
+                                  15
+                                )}`
+                              );
+                              resPaymentCycle(true);
+                            } //No trip in progress
+                            else {
+                              //! SUSPEND THE DRIVER
+                              collectionDrivers_profiles
+                                .find({
+                                  driver_fingerprint:
+                                    driverData.driver_fingerprint,
+                                })
+                                .toArray(function (err, newDriverData) {
+                                  if (err) {
+                                    logger.info(err);
+                                    resPaymentCycle(false);
+                                  }
+                                  //...
+                                  if (
+                                    newDriverData !== undefined &&
+                                    newDriverData.length > 0
+                                  ) {
+                                    //Found a driver data
+                                    resolveDate();
+                                    //? Append the new suspension to the suspension array
+                                    let suspensionInfos_array =
+                                      newDriverData[0].suspension_infos !==
+                                        undefined &&
+                                      newDriverData[0].suspension_infos !== null
+                                        ? newDriverData[0].suspension_infos
+                                        : [];
+                                    /*suspensionInfos_array.push({
                                               reason: "UNPAID_COMISSION",
                                               state: "SUSPENDED",
                                               amount: amount,
                                               bot_locker: "Junkstem",
                                               date: new Date(chaineDateUTC),
                                             });*/
-                                            suspensionInfos_array = [
-                                              {
-                                                reason: "UNPAID_COMISSION",
-                                                state: "SUSPENDED",
-                                                amount: amount,
-                                                bot_locker: "Junkstem",
-                                                date: new Date(chaineDateUTC),
-                                              },
-                                            ];
-                                            //...
-                                            collectionDrivers_profiles.updateOne(
-                                              {
-                                                driver_fingerprint:
-                                                  driverData.driver_fingerprint,
-                                              },
-                                              {
-                                                $set: {
-                                                  "operational_state.status":
-                                                    "offline", //! PUT OFFLINE - ONLINE TO KEEP RECEIVING REQUESTS.
-                                                  isDriverSuspended: false, //!DO NOT SUSPEND FOR NOW
-                                                  suspension_infos:
-                                                    suspensionInfos_array,
-                                                },
-                                              },
-                                              function (err, rest) {
-                                                //? DONE
-                                                logger.info(
-                                                  `DRIVER SUSPENDED --> Tag: ${driverData.driver_fingerprint.substr(
-                                                    0,
-                                                    15
-                                                  )}`
-                                                );
-                                                resPaymentCycle(true);
-                                              }
-                                            );
-                                            resPaymentCycle(true);
-                                          } //No driver data found
-                                          else {
-                                            resPaymentCycle(false);
-                                          }
-                                        });
-                                    }
-                                  });
-                                logger.info(body.header);
-                              } //? Not yet over the waiting period
-                              else {
-                                //? NOTIFICATION AREA
-                                new Promise((resNotify) => {
-                                  //? Compute the amount left COMISSION-DUE based on who's greater of course.
-                                  // let amount =
-                                  //   parseFloat(
-                                  //     body.header.remaining_commission
-                                  //   ) >
-                                  //   parseFloat(
-                                  //     body.header.remaining_due_to_driver
-                                  //   )
-                                  //     ? Math.ceil(
-                                  //         parseFloat(
-                                  //           body.header.remaining_commission
-                                  //         ) -
-                                  //           parseFloat(
-                                  //             body.header
-                                  //               .remaining_due_to_driver
-                                  //           )
-                                  //       )
-                                  //     : Math.ceil(
-                                  //         parseFloat(
-                                  //           body.header.remaining_commission
-                                  //         )
-                                  //       );
-                                  let amount = parseFloat(
-                                    body.header.remaining_commission
-                                  );
-                                  //.....
-                                  //1. Check the time from the last notification
-                                  //? Event name: comission_reminder_comission_drivers
-                                  collectionGlobalEvents
-                                    .find({
-                                      event_name:
-                                        "comission_reminder_comission_drivers",
-                                      user_fingerprint:
-                                        driverData.driver_fingerprint,
-                                    })
-                                    .toArray(function (err, eventData) {
-                                      if (err) {
-                                        logger.info(err);
-                                        resNotify(false);
-                                      }
-                                      //...
-                                      if (
-                                        eventData !== undefined &&
-                                        eventData.length > 0
-                                      ) {
-                                        resolveDate();
-                                        //Found a previous event
-                                        //? Check the time elapsed after the previous notification
-                                        eventData =
-                                          eventData[eventData.length - 1];
-                                        //...
+                                    suspensionInfos_array = [
+                                      {
+                                        reason: "UNPAID_COMISSION",
+                                        state: "SUSPENDED",
+                                        amount: amount,
+                                        bot_locker: "Junkstem",
+                                        date: new Date(chaineDateUTC),
+                                      },
+                                    ];
+                                    //...
+                                    collectionDrivers_profiles.updateOne(
+                                      {
+                                        driver_fingerprint:
+                                          driverData.driver_fingerprint,
+                                      },
+                                      {
+                                        $set: {
+                                          "operational_state.status": "offline", //! PUT OFFLINE - ONLINE TO KEEP RECEIVING REQUESTS.
+                                          isDriverSuspended: true,
+                                          suspension_infos:
+                                            suspensionInfos_array,
+                                        },
+                                      },
+                                      function (err, rest) {
+                                        //? DONE
                                         logger.info(
-                                          `Next notification cycle count -> ${
-                                            diff_min(
-                                              new Date(eventData.date),
-                                              new Date(chaineDateUTC)
-                                            ).difference
-                                          }min`
-                                        );
-                                        if (
-                                          diff_min(
-                                            new Date(eventData.date),
-                                            new Date(chaineDateUTC)
-                                          ).difference >= 30
-                                        ) {
-                                          //Send a new one
-                                          //? Send a fresh notification
-                                          logger.info(
-                                            `SEND NOTIFICATION -> Tag: ${driverData.driver_fingerprint.substr(
-                                              0,
-                                              15
-                                            )}`
-                                          );
-                                          sendComission_notificationsDrivers(
-                                            driverData,
-                                            amount,
-                                            Math.abs(dateDiffChecker),
-                                            collectionGlobalEvents,
-                                            resNotify
-                                          );
-                                        } //Pass - waiting for the next 30 from the previous notification
-                                        else {
-                                          logger.info(
-                                            `Waiting for the next notification cycle - Tag: ${driverData.driver_fingerprint.substr(
-                                              0,
-                                              5
-                                            )}`
-                                          );
-                                          resNotify(true);
-                                        }
-                                      } //No previous event data - send a fresh notification
-                                      else {
-                                        logger.info(
-                                          `SEND NOTIFICATION -> Tag: ${driverData.driver_fingerprint.substr(
+                                          `DRIVER SUSPENDED --> Tag: ${driverData.driver_fingerprint.substr(
                                             0,
                                             15
                                           )}`
                                         );
-                                        sendComission_notificationsDrivers(
-                                          driverData,
-                                          amount,
-                                          Math.abs(dateDiffChecker),
-                                          collectionGlobalEvents,
-                                          resNotify
-                                        );
-                                      }
-                                    });
-                                })
-                                  .then(
-                                    () => {},
-                                    () => {}
-                                  )
-                                  .catch((error) => {
-                                    logger.info(error);
-                                  });
+                                        //? NOTIFICATION AREA
+                                        new Promise((resNotify) => {
+                                          //? Compute the amount left COMISSION-DUE based on who's greater of course.
+                                          // let amount =
+                                          //   parseFloat(
+                                          //     body.header.remaining_commission
+                                          //   ) >
+                                          //   parseFloat(
+                                          //     body.header.remaining_due_to_driver
+                                          //   )
+                                          //     ? Math.ceil(
+                                          //         parseFloat(
+                                          //           body.header.remaining_commission
+                                          //         ) -
+                                          //           parseFloat(
+                                          //             body.header
+                                          //               .remaining_due_to_driver
+                                          //           )
+                                          //       )
+                                          //     : Math.ceil(
+                                          //         parseFloat(
+                                          //           body.header.remaining_commission
+                                          //         )
+                                          //       );
+                                          let amount = parseFloat(
+                                            body.header.remaining_commission
+                                          );
+                                          //.....
+                                          //1. Check the time from the last notification
+                                          //? Event name: comission_reminder_comission_drivers
+                                          collectionGlobalEvents
+                                            .find({
+                                              event_name:
+                                                "comission_reminder_comission_drivers",
+                                              user_fingerprint:
+                                                driverData.driver_fingerprint,
+                                            })
+                                            .toArray(function (err, eventData) {
+                                              if (err) {
+                                                logger.info(err);
+                                                resNotify(false);
+                                              }
+                                              //...
+                                              if (
+                                                eventData !== undefined &&
+                                                eventData.length > 0
+                                              ) {
+                                                resolveDate();
+                                                //Found a previous event
+                                                //? Check the time elapsed after the previous notification
+                                                eventData =
+                                                  eventData[
+                                                    eventData.length - 1
+                                                  ];
+                                                //...
+                                                logger.info(
+                                                  `Next notification cycle count -> ${
+                                                    diff_min(
+                                                      new Date(eventData.date),
+                                                      new Date(chaineDateUTC)
+                                                    ).difference
+                                                  }min`
+                                                );
+                                                if (
+                                                  diff_min(
+                                                    new Date(eventData.date),
+                                                    new Date(chaineDateUTC)
+                                                  ).difference >= 30
+                                                ) {
+                                                  //Send a new one
+                                                  //? Send a fresh notification
+                                                  logger.info(
+                                                    `SEND NOTIFICATION -> Tag: ${driverData.driver_fingerprint.substr(
+                                                      0,
+                                                      15
+                                                    )}`
+                                                  );
+                                                  sendComission_notificationsDrivers(
+                                                    driverData,
+                                                    amount,
+                                                    Math.abs(dateDiffChecker),
+                                                    collectionGlobalEvents,
+                                                    resNotify
+                                                  );
+                                                } //Pass - waiting for the next 30 from the previous notification
+                                                else {
+                                                  logger.info(
+                                                    `Waiting for the next notification cycle - Tag: ${driverData.driver_fingerprint.substr(
+                                                      0,
+                                                      5
+                                                    )}`
+                                                  );
+                                                  resNotify(true);
+                                                }
+                                              } //No previous event data - send a fresh notification
+                                              else {
+                                                logger.info(
+                                                  `SEND NOTIFICATION -> Tag: ${driverData.driver_fingerprint.substr(
+                                                    0,
+                                                    15
+                                                  )}`
+                                                );
+                                                sendComission_notificationsDrivers(
+                                                  driverData,
+                                                  amount,
+                                                  Math.abs(dateDiffChecker),
+                                                  collectionGlobalEvents,
+                                                  resNotify
+                                                );
+                                              }
+                                            });
+                                        })
+                                          .then(
+                                            () => {},
+                                            () => {}
+                                          )
+                                          .catch((error) => {
+                                            logger.info(error);
+                                          });
 
-                                logger.info("WAIT FOR FINAL DDEADLINE");
-                                //! Do not update the payment date
-                                resPaymentCycle(true);
-                              }
-                            } //Not reached the threshold already - so update the payment cycle
-                            else {
-                              //? Unlock the driver if locked --------------------------------
-                              new Promise((resUnlock) => {
-                                lock_unlock_drivers(
-                                  "PAID_COMISSION",
-                                  "Junkstem",
-                                  false,
-                                  driverData,
-                                  collectionDrivers_profiles,
-                                  resUnlock
-                                );
-                              })
-                                .then(
-                                  () => {},
-                                  () => {}
-                                )
-                                .catch((error) => logger.info(error));
-                              //?----------------------------------------------------------------------
-                              //! Day passed already by 24 hours - update - ADD 7 days
-                              //! Update the payment cycle
-                              new Promise((resCompute) => {
-                                updateNextPaymentDate_cycle(
-                                  driverData,
-                                  collectionWalletTransactions_logs,
-                                  resCompute
-                                );
-                              })
-                                .then(
-                                  (result) => {
+                                        resPaymentCycle(true);
+                                      }
+                                    );
                                     resPaymentCycle(true);
-                                  },
-                                  (error) => {
-                                    logger.info(error);
+                                  } //No driver data found
+                                  else {
                                     resPaymentCycle(false);
                                   }
-                                )
-                                .catch((error) => {
-                                  logger.info(error);
-                                  resPaymentCycle(false);
                                 });
                             }
-                          } //No comission found - Ignore
-                          else {
-                            //? Unlock the driver if locked --------------------------------
-                            new Promise((resUnlock) => {
-                              lock_unlock_drivers(
-                                "PAID_COMISSION",
-                                "Junkstem",
-                                false,
-                                driverData,
-                                collectionDrivers_profiles,
-                                resUnlock
-                              );
+                          });
+                        logger.info(body.header);
+                      } //? Not yet over the waiting period
+                      else {
+                        //? NOTIFICATION AREA
+                        new Promise((resNotify) => {
+                          //? Compute the amount left COMISSION-DUE based on who's greater of course.
+                          // let amount =
+                          //   parseFloat(
+                          //     body.header.remaining_commission
+                          //   ) >
+                          //   parseFloat(
+                          //     body.header.remaining_due_to_driver
+                          //   )
+                          //     ? Math.ceil(
+                          //         parseFloat(
+                          //           body.header.remaining_commission
+                          //         ) -
+                          //           parseFloat(
+                          //             body.header
+                          //               .remaining_due_to_driver
+                          //           )
+                          //       )
+                          //     : Math.ceil(
+                          //         parseFloat(
+                          //           body.header.remaining_commission
+                          //         )
+                          //       );
+                          let amount = parseFloat(
+                            body.header.remaining_commission
+                          );
+                          //.....
+                          //1. Check the time from the last notification
+                          //? Event name: comission_reminder_comission_drivers
+                          collectionGlobalEvents
+                            .find({
+                              event_name:
+                                "comission_reminder_comission_drivers",
+                              user_fingerprint: driverData.driver_fingerprint,
                             })
-                              .then(
-                                () => {},
-                                () => {}
-                              )
-                              .catch((error) => logger.info(error));
-                            //?----------------------------------------------------------------------
-
-                            //! Day passed already by 24 hours - update - ADD 7 days
-                            //! Update the payment cycle
-                            new Promise((resCompute) => {
-                              updateNextPaymentDate_cycle(
-                                driverData,
-                                collectionWalletTransactions_logs,
-                                resCompute
-                              );
-                            })
-                              .then(
-                                (result) => {
-                                  resPaymentCycle(true);
-                                },
-                                (error) => {
-                                  logger.info(error);
-                                  resPaymentCycle(false);
+                            .toArray(function (err, eventData) {
+                              if (err) {
+                                logger.info(err);
+                                resNotify(false);
+                              }
+                              //...
+                              if (
+                                eventData !== undefined &&
+                                eventData.length > 0
+                              ) {
+                                resolveDate();
+                                //Found a previous event
+                                //? Check the time elapsed after the previous notification
+                                eventData = eventData[eventData.length - 1];
+                                //...
+                                logger.info(
+                                  `Next notification cycle count -> ${
+                                    diff_min(
+                                      new Date(eventData.date),
+                                      new Date(chaineDateUTC)
+                                    ).difference
+                                  }min`
+                                );
+                                if (
+                                  diff_min(
+                                    new Date(eventData.date),
+                                    new Date(chaineDateUTC)
+                                  ).difference >= 30
+                                ) {
+                                  //Send a new one
+                                  //? Send a fresh notification
+                                  logger.info(
+                                    `SEND NOTIFICATION -> Tag: ${driverData.driver_fingerprint.substr(
+                                      0,
+                                      15
+                                    )}`
+                                  );
+                                  sendComission_notificationsDrivers(
+                                    driverData,
+                                    amount,
+                                    Math.abs(dateDiffChecker),
+                                    collectionGlobalEvents,
+                                    resNotify
+                                  );
+                                } //Pass - waiting for the next 30 from the previous notification
+                                else {
+                                  logger.info(
+                                    `Waiting for the next notification cycle - Tag: ${driverData.driver_fingerprint.substr(
+                                      0,
+                                      5
+                                    )}`
+                                  );
+                                  resNotify(true);
                                 }
-                              )
-                              .catch((error) => {
-                                logger.info(error);
-                                resPaymentCycle(false);
-                              });
+                              } //No previous event data - send a fresh notification
+                              else {
+                                logger.info(
+                                  `SEND NOTIFICATION -> Tag: ${driverData.driver_fingerprint.substr(
+                                    0,
+                                    15
+                                  )}`
+                                );
+                                sendComission_notificationsDrivers(
+                                  driverData,
+                                  amount,
+                                  Math.abs(dateDiffChecker),
+                                  collectionGlobalEvents,
+                                  resNotify
+                                );
+                              }
+                            });
+                        })
+                          .then(
+                            () => {},
+                            () => {}
+                          )
+                          .catch((error) => {
+                            logger.info(error);
+                          });
+
+                        logger.info("WAIT FOR FINAL DDEADLINE");
+                        //! Do not update the payment date
+                        resPaymentCycle(true);
+                      }
+                    }
+                    //Not reached the threshold already - so update the payment cycle
+                    else {
+                      //? Unlock the driver if locked --------------------------------
+                      new Promise((resUnlock) => {
+                        lock_unlock_drivers(
+                          "PAID_COMISSION",
+                          "Junkstem",
+                          false,
+                          driverData,
+                          collectionDrivers_profiles,
+                          resUnlock
+                        );
+                      })
+                        .then(
+                          () => {},
+                          () => {}
+                        )
+                        .catch((error) => logger.info(error));
+                      //?----------------------------------------------------------------------
+                      //! Day passed already by 24 hours - update - ADD 7 days
+                      //! Update the payment cycle
+                      new Promise((resCompute) => {
+                        updateNextPaymentDate_cycle(
+                          driverData,
+                          collectionWalletTransactions_logs,
+                          resCompute
+                        );
+                      })
+                        .then(
+                          (result) => {
+                            resPaymentCycle(true);
+                          },
+                          (error) => {
+                            logger.info(error);
+                            resPaymentCycle(false);
                           }
-                        } //Error
-                        else {
+                        )
+                        .catch((error) => {
+                          logger.info(error);
+                          resPaymentCycle(false);
+                        });
+                    }
+                  } //No comission found - Ignore
+                  else {
+                    //? Unlock the driver if locked --------------------------------
+                    new Promise((resUnlock) => {
+                      lock_unlock_drivers(
+                        "PAID_COMISSION",
+                        "Junkstem",
+                        false,
+                        driverData,
+                        collectionDrivers_profiles,
+                        resUnlock
+                      );
+                    })
+                      .then(
+                        () => {},
+                        () => {}
+                      )
+                      .catch((error) => logger.info(error));
+                    //?----------------------------------------------------------------------
+
+                    //! Day passed already by 24 hours - update - ADD 7 days
+                    //! Update the payment cycle
+                    new Promise((resCompute) => {
+                      updateNextPaymentDate_cycle(
+                        driverData,
+                        collectionWalletTransactions_logs,
+                        resCompute
+                      );
+                    })
+                      .then(
+                        (result) => {
+                          resPaymentCycle(true);
+                        },
+                        (error) => {
+                          logger.info(error);
                           resPaymentCycle(false);
                         }
-                      } catch (error) {
+                      )
+                      .catch((error) => {
                         logger.info(error);
                         resPaymentCycle(false);
-                      }
-                    } else {
-                      resPaymentCycle(false);
-                    }
-                  });
-                } //? The date looks good - skip
+                      });
+                  }
+                } //Error
                 else {
-                  logger.info("Next payment date not obsolete found!");
-                  //? Unlock the driver if locked --------------------------------
-                  new Promise((resUnlock) => {
-                    lock_unlock_drivers(
-                      "PAID_COMISSION",
-                      "Junkstem",
-                      false,
-                      driverData,
-                      collectionDrivers_profiles,
-                      resUnlock
-                    );
-                  })
-                    .then(
-                      () => {},
-                      () => {}
-                    )
-                    .catch((error) => logger.info(error));
-                  //?----------------------------------------------------------------------
-                  resPaymentCycle(true);
+                  resPaymentCycle(false);
                 }
-              } //No annotation yet - create one
-              else {
-                resPaymentCycle(true);
+              } catch (error) {
+                logger.info(error);
+                resPaymentCycle(false);
               }
-            });
+            } else {
+              resPaymentCycle(false);
+            }
+          });
         });
       });
       //? DONE
@@ -939,7 +996,7 @@ function lock_unlock_drivers(
           );
         } //! No proper suspension reason found - pass
         else {
-          logger.info("No proper unsuspension reason found, pass.");
+          // logger.info("No proper unsuspension reason found, pass.");
           resolve(false);
         }
       } //No driver data found
@@ -2510,31 +2567,34 @@ redisCluster.on("connect", function () {
           });
 
           //! FOR LIGHT HEAVY PROCESSES REQUIRING - 15min
-          cron.schedule("*/15 * * * *", function () {
-            //? 2. Keep the drivers next payment date UP TO DATE
-            new Promise((res2) => {
-              updateNext_paymentDateDrivers(
-                collectionDrivers_profiles,
-                collectionWalletTransactions_logs,
-                collectionRidesDeliveryData,
-                collectionGlobalEvents,
-                res2
-              );
-            })
-              .then(
-                (result) => {
-                  logger.info(result);
-                },
-                (error) => {
+          cron.schedule(
+            "*/15 * * * *",
+            function () {
+              logger.warn("Getting ready for wallet computation...");
+              //? 2. Keep the drivers next payment date UP TO DATE
+              new Promise((res2) => {
+                updateNext_paymentDateDrivers(
+                  collectionDrivers_profiles,
+                  collectionWalletTransactions_logs,
+                  collectionRidesDeliveryData,
+                  collectionGlobalEvents,
+                  res2
+                );
+              })
+                .then(
+                  (result) => {
+                    logger.info(result);
+                  },
+                  (error) => {
+                    logger.info(error);
+                  }
+                )
+                .catch((error) => {
                   logger.info(error);
-                }
-              )
-              .catch((error) => {
-                logger.info(error);
-              });
+                });
 
-            //? 2. Reinforce the date type for the transaction logs
-            /*new Promise((res2) => {
+              //? 2. Reinforce the date type for the transaction logs
+              /*new Promise((res2) => {
             collectionWalletTransactions_logs
               .find({ date_captured: { $type: "string" } })
               .toArray(function (err, transactionData) {
@@ -2598,7 +2658,9 @@ redisCluster.on("connect", function () {
             .catch((error) => {
               logger.info(error);
             });*/
-          });
+            },
+            5000
+          );
         }
       );
     }
