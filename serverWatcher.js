@@ -869,13 +869,64 @@ function updateNext_paymentDateDrivers(
                   }
                 } //Error
                 else {
+                  //? Unlock the driver if locked --------------------------------
+                  new Promise((resUnlock) => {
+                    lock_unlock_drivers(
+                      "PAID_COMISSION",
+                      "Junkstem",
+                      false,
+                      driverData,
+                      collectionDrivers_profiles,
+                      resUnlock
+                    );
+                  })
+                    .then(
+                      () => {},
+                      () => {}
+                    )
+                    .catch((error) => logger.info(error));
+                  //?----------------------------------------------------------------------
                   resPaymentCycle(false);
                 }
               } catch (error) {
                 logger.info(error);
+                //? Unlock the driver if locked --------------------------------
+                new Promise((resUnlock) => {
+                  lock_unlock_drivers(
+                    "PAID_COMISSION",
+                    "Junkstem",
+                    false,
+                    driverData,
+                    collectionDrivers_profiles,
+                    resUnlock
+                  );
+                })
+                  .then(
+                    () => {},
+                    () => {}
+                  )
+                  .catch((error) => logger.info(error));
+                //?----------------------------------------------------------------------
                 resPaymentCycle(false);
               }
             } else {
+              //? Unlock the driver if locked --------------------------------
+              new Promise((resUnlock) => {
+                lock_unlock_drivers(
+                  "PAID_COMISSION",
+                  "Junkstem",
+                  false,
+                  driverData,
+                  collectionDrivers_profiles,
+                  resUnlock
+                );
+              })
+                .then(
+                  () => {},
+                  () => {}
+                )
+                .catch((error) => logger.info(error));
+              //?----------------------------------------------------------------------
               resPaymentCycle(false);
             }
           });
@@ -936,7 +987,7 @@ function lock_unlock_drivers(
     .toArray(function (err, newDriverData) {
       if (err) {
         logger.info(err);
-        resolvee(false);
+        resolve(false);
       }
       //...
       if (newDriverData !== undefined && newDriverData.length > 0) {
