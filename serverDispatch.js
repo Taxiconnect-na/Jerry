@@ -1441,66 +1441,66 @@ function sendStagedNotificationsDrivers(
                 ? false
                 : snapshotTripInfos.pickup_suburb;
             //!
-            new Promise((resNotify) => {
-              let message = {
-                app_id: process.env.DRIVERS_APP_ID_ONESIGNAL,
-                android_channel_id: /RIDE/i.test(snapshotTripInfos.ride_type)
-                  ? process.env.DRIVERS_ONESIGNAL_CHANNEL_NEW_NOTIFICATION
-                  : process.env.DRIVERS_ONESIGNAL_CHANNEL_NEW_NOTIFICATION, //Ride or delivery channel
-                priority: 10,
-                contents: /RIDE/i.test(snapshotTripInfos.ride_type)
-                  ? {
-                      en:
-                        "You have a new ride request " +
-                        (snapshotTripInfos.pickup_suburb !== false
-                          ? "from " + snapshotTripInfos.pickup_suburb !==
-                              undefined &&
-                            snapshotTripInfos.pickup_suburb !== false &&
-                            snapshotTripInfos.pickup_suburb !== null
-                            ? snapshotTripInfos.pickup_suburb.toUpperCase()
-                            : "near your location" +
-                                " to " +
-                                snapshotTripInfos.destination_suburb !==
-                                undefined &&
-                              snapshotTripInfos.destination_suburb !== false &&
-                              snapshotTripInfos.destination_suburb !== null
-                            ? snapshotTripInfos.destination_suburb.toUpperCase()
-                            : "near your location" +
-                              ". Click here for more details."
-                          : "near your location, click here for more details."),
-                    }
-                  : {
-                      en:
-                        "You have a new delivery request " +
-                        (snapshotTripInfos.pickup_suburb !== false
-                          ? "from " + snapshotTripInfos.pickup_suburb !==
-                              undefined &&
-                            snapshotTripInfos.pickup_suburb !== false &&
-                            snapshotTripInfos.pickup_suburb !== null
-                            ? snapshotTripInfos.pickup_suburb.toUpperCase()
-                            : "near your location" +
-                                " to " +
-                                snapshotTripInfos.destination_suburb !==
-                                undefined &&
-                              snapshotTripInfos.destination_suburb !== false &&
-                              snapshotTripInfos.destination_suburb !== null
-                            ? snapshotTripInfos.destination_suburb.toUpperCase()
-                            : "near your location" +
-                              ". Click here for more details."
-                          : "near your location, click here for more details."),
-                    },
-                headings: /RIDE/i.test(snapshotTripInfos.ride_type)
-                  ? { en: "New ride request, N$" + snapshotTripInfos.fare }
-                  : { en: "New delivery request, N$" + snapshotTripInfos.fare },
-                content_available: true,
-                include_player_ids: driversPushNotif_token,
-              };
-              //Send
-              sendPushUPNotification(message);
-              resNotify(true);
-            })
-              .then()
-              .catch();
+            // new Promise((resNotify) => {
+            //   let message = {
+            //     app_id: process.env.DRIVERS_APP_ID_ONESIGNAL,
+            //     android_channel_id: /RIDE/i.test(snapshotTripInfos.ride_type)
+            //       ? process.env.DRIVERS_ONESIGNAL_CHANNEL_NEW_NOTIFICATION
+            //       : process.env.DRIVERS_ONESIGNAL_CHANNEL_NEW_NOTIFICATION, //Ride or delivery channel
+            //     priority: 10,
+            //     contents: /RIDE/i.test(snapshotTripInfos.ride_type)
+            //       ? {
+            //           en:
+            //             "You have a new ride request " +
+            //             (snapshotTripInfos.pickup_suburb !== false
+            //               ? "from " + snapshotTripInfos.pickup_suburb !==
+            //                   undefined &&
+            //                 snapshotTripInfos.pickup_suburb !== false &&
+            //                 snapshotTripInfos.pickup_suburb !== null
+            //                 ? snapshotTripInfos.pickup_suburb.toUpperCase()
+            //                 : "near your location" +
+            //                     " to " +
+            //                     snapshotTripInfos.destination_suburb !==
+            //                     undefined &&
+            //                   snapshotTripInfos.destination_suburb !== false &&
+            //                   snapshotTripInfos.destination_suburb !== null
+            //                 ? snapshotTripInfos.destination_suburb.toUpperCase()
+            //                 : "near your location" +
+            //                   ". Click here for more details."
+            //               : "near your location, click here for more details."),
+            //         }
+            //       : {
+            //           en:
+            //             "You have a new delivery request " +
+            //             (snapshotTripInfos.pickup_suburb !== false
+            //               ? "from " + snapshotTripInfos.pickup_suburb !==
+            //                   undefined &&
+            //                 snapshotTripInfos.pickup_suburb !== false &&
+            //                 snapshotTripInfos.pickup_suburb !== null
+            //                 ? snapshotTripInfos.pickup_suburb.toUpperCase()
+            //                 : "near your location" +
+            //                     " to " +
+            //                     snapshotTripInfos.destination_suburb !==
+            //                     undefined &&
+            //                   snapshotTripInfos.destination_suburb !== false &&
+            //                   snapshotTripInfos.destination_suburb !== null
+            //                 ? snapshotTripInfos.destination_suburb.toUpperCase()
+            //                 : "near your location" +
+            //                   ". Click here for more details."
+            //               : "near your location, click here for more details."),
+            //         },
+            //     headings: /RIDE/i.test(snapshotTripInfos.ride_type)
+            //       ? { en: "New ride request, N$" + snapshotTripInfos.fare }
+            //       : { en: "New delivery request, N$" + snapshotTripInfos.fare },
+            //     content_available: true,
+            //     include_player_ids: driversPushNotif_token,
+            //   };
+            //   //Send
+            //   sendPushUPNotification(message);
+            //   resNotify(true);
+            // })
+            //   .then()
+            //   .catch();
 
             new Promise((resNotify) => {
               let message = {
@@ -2910,6 +2910,9 @@ function cancelRider_request(
       }
       //...
       if (requestData.length > 0) {
+        let driver_fp = requestData[0].taxi_id; //If any
+        let pickup_suburb = requestData[0].pickup_location_infos.suburb;
+        let destination_suburb = requestData[0].destinationData[0].suburb;
         //Found something
         //Add the cancelling reason
         requestData[0]["rider_cancellation_reason"] = requestBundle_data.reason;
@@ -2932,6 +2935,68 @@ function cancelRider_request(
                 if (err3) {
                   resolve({ response: "error_cancelling" });
                 }
+                //? Notify the driver if any is linked to this request
+                //Send the push notifications - FOR drivers
+                new Promise((resSendNotif) => {
+                  if (
+                    driver_fp !== false &&
+                    driver_fp !== "false" &&
+                    driver_fp !== undefined &&
+                    driver_fp !== null
+                  ) {
+                    //Has a linked driver
+                    //? Get the driver's notification ID
+                    //? Get the rider's details
+                    collectionDrivers_profiles
+                      .find({
+                        driver_fingerprint: driver_fp,
+                      })
+                      .toArray(function (err, driverDetails) {
+                        if (err) {
+                          resSendNotif(false);
+                        }
+                        //...push_notification_token
+                        if (
+                          driverDetails.length > 0 &&
+                          driverDetails[0].driver_fingerprint !== undefined &&
+                          driverDetails[0].operational_state.pushnotif_token !==
+                            null &&
+                          driverDetails[0].operational_state.pushnotif_token !==
+                            undefined &&
+                          driverDetails[0].operational_state.pushnotif_token
+                            .userId !== undefined
+                        ) {
+                          let message = {
+                            app_id: process.env.DRIVERS_APP_ID_ONESIGNAL,
+                            android_channel_id:
+                              process.env
+                                .DRIVERS_ONESIGNAL_CHANNEL_NEW_NOTIFICATION, //Ride or delivery channel
+                            priority: 10,
+                            contents: {
+                              en: `Your request from ${pickup_suburb} to ${destination_suburb} has been cancelled.`,
+                            },
+                            headings: { en: "Request cancelled" },
+                            content_available: true,
+                            include_player_ids: [
+                              String(
+                                driverDetails[0].operational_state
+                                  .pushnotif_token.userId
+                              ),
+                            ],
+                          };
+                          logger.info(message);
+                          //Send
+                          sendPushUPNotification(message);
+                          resSendNotif(false);
+                        } else {
+                          resSendNotif(false);
+                        }
+                      });
+                  }
+                }).then(
+                  () => {},
+                  () => {}
+                );
                 //...DONE
                 resolve({ response: "successully_cancelled" });
               }

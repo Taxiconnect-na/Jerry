@@ -665,7 +665,7 @@ function updateNext_paymentDateDrivers(
                         new Promise((resNotify) => {
                           //? Compute the amount left COMISSION-DUE based on who's greater of course.
                           // let amount =
-                          //   parseFloat(
+                          //   parseFloat(fcollectionGlobalEsvents
                           //     body.header.remaining_commission
                           //   ) >
                           //   parseFloat(
@@ -2567,7 +2567,7 @@ redisCluster.on("connect", function () {
           });
 
           //! FOR LIGHT HEAVY PROCESSES REQUIRING - 15min
-          cron.schedule("*/2 * * * *", function () {
+          cron.schedule("*/5 * * * *", function () {
             logger.warn("Getting ready for wallet computation...");
             //? 2. Keep the drivers next payment date UP TO DATE
             new Promise((res2) => {
@@ -2575,7 +2575,7 @@ redisCluster.on("connect", function () {
                 collectionDrivers_profiles,
                 collectionWalletTransactions_logs,
                 collectionRidesDeliveryData,
-                collectionGlobalEsvents,
+                collectionGlobalEvents,
                 res2
               );
             })
