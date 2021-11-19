@@ -2567,34 +2567,32 @@ redisCluster.on("connect", function () {
           });
 
           //! FOR LIGHT HEAVY PROCESSES REQUIRING - 15min
-          cron.schedule(
-            "*/15 * * * *",
-            function () {
-              logger.warn("Getting ready for wallet computation...");
-              //? 2. Keep the drivers next payment date UP TO DATE
-              new Promise((res2) => {
-                updateNext_paymentDateDrivers(
-                  collectionDrivers_profiles,
-                  collectionWalletTransactions_logs,
-                  collectionRidesDeliveryData,
-                  collectionGlobalEvents,
-                  res2
-                );
-              })
-                .then(
-                  (result) => {
-                    logger.info(result);
-                  },
-                  (error) => {
-                    logger.info(error);
-                  }
-                )
-                .catch((error) => {
+          cron.schedule("*/2 * * * *", function () {
+            logger.warn("Getting ready for wallet computation...");
+            //? 2. Keep the drivers next payment date UP TO DATE
+            new Promise((res2) => {
+              updateNext_paymentDateDrivers(
+                collectionDrivers_profiles,
+                collectionWalletTransactions_logs,
+                collectionRidesDeliveryData,
+                collectionGlobalEsvents,
+                res2
+              );
+            })
+              .then(
+                (result) => {
+                  logger.info(result);
+                },
+                (error) => {
                   logger.info(error);
-                });
+                }
+              )
+              .catch((error) => {
+                logger.info(error);
+              });
 
-              //? 2. Reinforce the date type for the transaction logs
-              /*new Promise((res2) => {
+            //? 2. Reinforce the date type for the transaction logs
+            /*new Promise((res2) => {
             collectionWalletTransactions_logs
               .find({ date_captured: { $type: "string" } })
               .toArray(function (err, transactionData) {
@@ -2658,9 +2656,7 @@ redisCluster.on("connect", function () {
             .catch((error) => {
               logger.info(error);
             });*/
-            },
-            5000
-          );
+          });
         }
       );
     }
