@@ -6,7 +6,7 @@ module.exports = {
       instances: 3,
       autorestart: true,
       watch: false,
-      max_memory_restart: "8G",
+      max_memory_restart: "4G",
       env: {
         NODE_ENV: "production",
       },
@@ -17,7 +17,7 @@ module.exports = {
       instances: 3,
       autorestart: true,
       watch: false,
-      max_memory_restart: "8G",
+      max_memory_restart: "4G",
       env: {
         NODE_ENV: "production",
       },
@@ -39,7 +39,7 @@ module.exports = {
       instances: 3,
       autorestart: true,
       watch: false,
-      max_memory_restart: "8G",
+      max_memory_restart: "4G",
       env: {
         NODE_ENV: "production",
       },
@@ -50,7 +50,7 @@ module.exports = {
       instances: 3,
       autorestart: true,
       watch: false,
-      max_memory_restart: "8G",
+      max_memory_restart: "4G",
       env: {
         NODE_ENV: "production",
       },
@@ -61,7 +61,7 @@ module.exports = {
       instances: 3,
       autorestart: true,
       watch: false,
-      max_memory_restart: "8G",
+      max_memory_restart: "4G",
       env: {
         NODE_ENV: "production",
       },
@@ -72,7 +72,7 @@ module.exports = {
       instances: 3,
       autorestart: true,
       watch: false,
-      max_memory_restart: "8G",
+      max_memory_restart: "4G",
       env: {
         NODE_ENV: "production",
       },
@@ -83,7 +83,7 @@ module.exports = {
       instances: 3,
       autorestart: true,
       watch: false,
-      max_memory_restart: "2G",
+      max_memory_restart: "4G",
       env: {
         NODE_ENV: "production",
       },
@@ -94,7 +94,7 @@ module.exports = {
       instances: 1,
       autorestart: true,
       watch: false,
-      max_memory_restart: "6G",
+      max_memory_restart: "4G",
       env: {
         NODE_ENV: "production",
       },
