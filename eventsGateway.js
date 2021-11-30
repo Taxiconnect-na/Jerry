@@ -70,6 +70,55 @@ app
   )
   .use(cors())
   .use(helmet());
+
+//? REST equivalent for common websockets.
+
+app.post("/update_requestsGraph", function (req, res) {
+  logger.info(req);
+  req = req.body;
+
+  if (req.driver_fingerprint !== undefined && req.driver_fingerprint !== null) {
+    let url =
+      `${
+        /production/i.test(process.env.EVIRONMENT)
+          ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+          : process.env.LOCAL_URL
+      }` +
+      ":" +
+      process.env.DISPATCH_SERVICE_PORT +
+      "/getRequests_graphNumbers?driver_fingerprint=" +
+      req.driver_fingerprint;
+
+    requestAPI(url, function (error, response, body) {
+      //logger.info(body);
+      if (error === null) {
+        try {
+          body = JSON.parse(body);
+          res.send(body);
+        } catch (error) {
+          res.send({
+            rides: 0,
+            deliveries: 0,
+            scheduled: 0,
+          });
+        }
+      } else {
+        res.send({
+          rides: 0,
+          deliveries: 0,
+          scheduled: 0,
+        });
+      }
+    });
+  } else {
+    res.send({
+      rides: 0,
+      deliveries: 0,
+      scheduled: 0,
+    });
+  }
+});
+
 //! DISABLE EXTERNAL SERVING FOR SECURITY REASONS.
 //!.use(express.static(__dirname + process.env.RIDERS_PROFILE_PICTURES_PATH)) //Riders profiles
 //!.use(express.static(__dirname + process.env.DRIVERS_PROFILE_PICTURES_PATH)); //Drivers profiles.
