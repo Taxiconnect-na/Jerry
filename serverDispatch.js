@@ -4536,6 +4536,7 @@ function getRequests_graphPreview_forDrivers(
                             .toLowerCase()
                             .trim()}`,
                           clearance.toUpperCase().trim(),
+                          clearance[0],
                         ]
                       )[0],
                     },

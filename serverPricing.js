@@ -503,7 +503,11 @@ function estimateFullVehiclesCatPrices(
                 ),
               ],
             },
-            pickup_suburb: completedInputData.pickup_location_infos.suburb,
+            pickup_suburb: /Elisenheim/i.test(
+              completedInputData.pickup_location_infos.location_name
+            )
+              ? "Elisenheim"
+              : completedInputData.pickup_location_infos.suburb,
           };
 
           logger.error(filterQuery);
@@ -666,7 +670,11 @@ function computeInDepthPricesMap(
   //?...
   //ESTABLISH IMPORTANT PRICING VARIABLES
   let connectType = completedInputData.connect_type;
-  let pickup_suburb = completedInputData.pickup_location_infos.suburb;
+  let pickup_suburb = /Elisenheim/i.test(
+    completedInputData.pickup_location_infos.location_name
+  )
+    ? "Elisenheim"
+    : completedInputData.pickup_location_infos.suburb;
 
   let pickup_hour = new Date(completedInputData.pickup_time).getHours();
   let pickup_minutes = pickup_hour * 60;
@@ -756,6 +764,12 @@ function computeInDepthPricesMap(
           }
           //...
           completedInputData.destination_location_infos.map((destination) => {
+            //! Substitude suburb by location names considered like sububrs
+            //? 1. Elisenheim <-> Northen Industrial
+            destination.suburb = /Elisenheim/i.test(destination.location_name)
+              ? "Elisenheim"
+              : destination.suburb;
+
             //? A. INNERCITY
             if (
               destination.city !== false &&
@@ -784,7 +798,11 @@ function computeInDepthPricesMap(
               //?...
 
               let tmpPickupPickup = pickup_suburb;
-              let tmpDestinationSuburb = destination.suburb;
+              let tmpDestinationSuburb = /Elisenheim/i.test(
+                destination.location_name
+              )
+                ? "Elisenheim"
+                : destination.suburb;
               //To Airport - mark vehicles that can't do airports as unavailable.
               if (
                 /Airport/i.test(destination.dropoff_type) &&
@@ -878,9 +896,6 @@ function computeInDepthPricesMap(
                       //...
                       if (didFindRegisteredSuburbs === false) {
                         globalPricesMap.map((suburbToSuburbInfo) => {
-                          // logger.warn(
-                          //   `${suburbToSuburbInfo.pickup_suburb} --> ${destination.suburb}`
-                          // );
                           if (
                             suburbToSuburbInfo.pickup_suburb === false &&
                             lockPorgress === false
@@ -912,7 +927,12 @@ function computeInDepthPricesMap(
                               "i"
                             ).test(destination.suburb.toUpperCase().trim())
                           ) {
-                            logger.error("INSIDE");
+                            logger.warn(
+                              `${suburbToSuburbInfo.pickup_suburb} --> ${suburbToSuburbInfo.destination_suburb}`
+                            );
+                            logger.error(
+                              `INSIDE  --> NAD ${suburbToSuburbInfo.fare}`
+                            );
                             lockPorgress = false;
                             didFindRegisteredSuburbs = true; //Found registered suburbs.
                             //If the car type is economy electric, add its base price
@@ -1019,6 +1039,7 @@ function computeInDepthPricesMap(
                     } //Economy
                     else {
                       //! ConnectMe exception for far locations
+                      logger.error("ConnectMe case");
                       if (
                         /Elisenheim/i.test(tmpPickupPickup) ||
                         /Elisenheim/i.test(tmpDestinationSuburb) ||
@@ -1028,9 +1049,10 @@ function computeInDepthPricesMap(
                         )
                       ) {
                         logger.warn("INSIDE Elisenheim");
+                        let basePriceElisen = 70 * passengersMultiplier;
                         //? Rectify price  to 70 if less
-                        if (basePrice < 70) {
-                          basePrice = 70;
+                        if (basePrice < basePriceElisen) {
+                          basePrice = basePriceElisen;
                         }
                       }
                       //...

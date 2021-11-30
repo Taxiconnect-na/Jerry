@@ -1389,12 +1389,39 @@ function execTripChecker_Dispatcher(
                     if (result1.length > 0) {
                       //logger.info("PENDING_CONNECTME");
                       //Has an uncompleted connectMe request - only send this connectMe request until it is completed
+                      // new Promise((res) => {
+                      //   execGetDrivers_requests_and_provide(
+                      //     driverData,
+                      //     requestType,
+                      //     "PENDING_CONNECTME",
+                      //     result1,
+                      //     collectionRidesDeliveries_data,
+                      //     collectionPassengers_profiles,
+                      //     res
+                      //   );
+                      // }).then(
+                      //   (resultFinal) => {
+                      //     //! SAVE THE FINAL FULL RESULT - for 24h ------
+                      //     redisCluster.setex(
+                      //       RIDE_REDIS_KEY,
+                      //       parseInt(process.env.REDIS_EXPIRATION_5MIN) * 288,
+                      //       JSON.stringify(resultFinal)
+                      //     );
+                      //     //! ----------------------------------------------
+                      //     resolve(resultFinal);
+                      //   },
+                      //   (error) => {
+                      //     //logger.info(error);
+                      //     resolve(false);
+                      //   }
+                      // );
+                      //! Allow drivers to see normal requests even with an already accepted ConnectMe
                       new Promise((res) => {
                         execGetDrivers_requests_and_provide(
                           driverData,
                           requestType,
-                          "PENDING_CONNECTME",
-                          result1,
+                          "ACCEPTED_AND_ADDITIONAL_REQUESTS",
+                          acceptedRidesArray,
                           collectionRidesDeliveries_data,
                           collectionPassengers_profiles,
                           res
