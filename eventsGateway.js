@@ -119,6 +119,111 @@ app.post("/update_requestsGraph", function (req, res) {
   }
 });
 
+//?2
+/**
+ * MAP SERVICE
+ * Get user location (reverse geocoding)
+ */
+app.post("/geocode_this_point", function (req, res) {
+  req = req.body;
+
+  if (
+    req.latitude !== undefined &&
+    req.latitude !== null &&
+    req.longitude !== undefined &&
+    req.longitude !== null &&
+    req.user_fingerprint !== null &&
+    req.user_fingerprint !== undefined
+  ) {
+    let url =
+      `${
+        /production/i.test(process.env.EVIRONMENT)
+          ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+          : process.env.LOCAL_URL
+      }` +
+      ":" +
+      process.env.MAP_SERVICE_PORT +
+      "/getUserLocationInfos";
+
+    requestAPI.post({ url, form: req }, function (error, response, body) {
+      logger.info(url);
+      logger.info(body, error);
+      if (error === null) {
+        try {
+          body = JSON.parse(body);
+          res.send(body);
+        } catch (error) {
+          res.send(false);
+        }
+      } else {
+        res.send(false);
+      }
+    });
+  } //Invalid params
+  else {
+    res.send(false);
+  }
+});
+
+/**
+ * MAP SERVICE, port 9090
+ * Route: updatePassengerLocation
+ * Event: update-passenger-location
+ * Update the passenger's location in the system and prefetch the navigation data if any.
+ */
+app.post("/update_passenger_location", function (req, res) {
+  req = req.body;
+
+  if (
+    req !== undefined &&
+    req.latitude !== undefined &&
+    req.latitude !== null &&
+    req.longitude !== undefined &&
+    req.longitude !== null &&
+    req.user_fingerprint !== null &&
+    req.user_fingerprint !== undefined
+  ) {
+    let url =
+      `${
+        /production/i.test(process.env.EVIRONMENT)
+          ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+          : process.env.LOCAL_URL
+      }` +
+      ":" +
+      process.env.MAP_SERVICE_PORT +
+      "/updatePassengerLocation";
+    //Supplement or not the request string based on if the user is a driver or rider
+    if (req.user_nature !== undefined && req.user_nature !== null) {
+      req.user_nature =
+        req.user_nature !== undefined && req.user_nature !== null
+          ? req.user_nature
+          : "rider";
+      req.requestType =
+        req.requestType !== undefined && req.requestType !== null
+          ? req.requestType
+          : "rides";
+    }
+    //...
+
+    requestAPI.post({ url, form: req }, function (error, response, body) {
+      if (error === null) {
+        try {
+          body = JSON.parse(body);
+          //logger.info(body);
+          res.send(body);
+        } catch (error) {
+          res.send(false);
+        }
+      } else {
+        res.send(false);
+      }
+    });
+  } //Invalid params
+  else {
+    res.send(false);
+  }
+});
+
 //! DISABLE EXTERNAL SERVING FOR SECURITY REASONS.
 //!.use(express.static(__dirname + process.env.RIDERS_PROFILE_PICTURES_PATH)) //Riders profiles
 //!.use(express.static(__dirname + process.env.DRIVERS_PROFILE_PICTURES_PATH)); //Drivers profiles.
