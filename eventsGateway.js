@@ -224,6 +224,154 @@ app.post("/update_passenger_location", function (req, res) {
   }
 });
 
+/**
+ * DISPATCH SERVICE, port 9094
+ * Route: accept_request
+ * event: accept_request_io
+ * Accept any request from the driver's side.
+ */
+app.post("/accept_request_io", function (req, res) {
+  //logger.info(req);
+  req = req.body;
+  if (
+    req.driver_fingerprint !== undefined &&
+    req.driver_fingerprint !== null &&
+    req.request_fp !== undefined &&
+    req.request_fp !== null
+  ) {
+    let url =
+      `${
+        /production/i.test(process.env.EVIRONMENT)
+          ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+          : process.env.LOCAL_URL
+      }` +
+      ":" +
+      process.env.DISPATCH_SERVICE_PORT +
+      "/accept_request";
+
+    requestAPI.post({ url, form: req }, function (error, response, body) {
+      //logger.info(body);
+      if (error === null) {
+        try {
+          body = JSON.parse(body);
+          res.send(body);
+        } catch (error) {
+          res.send({
+            response: "unable_to_accept_request_error",
+          });
+        }
+      } else {
+        res.send({
+          response: "unable_to_accept_request_error",
+        });
+      }
+    });
+  } else {
+    res.send({
+      response: "unable_to_accept_request_error",
+    });
+  }
+});
+
+/**
+ * DISPATCH SERVICE, port 9094
+ * Route: cancel_request_driver
+ * event: cancel_request_driver_io
+ * Cancel any request from the driver's side.
+ */
+app.post("/cancel_request_driver_io", function (req, res) {
+  req = req.body;
+  //logger.info(req);
+  if (
+    req.driver_fingerprint !== undefined &&
+    req.driver_fingerprint !== null &&
+    req.request_fp !== undefined &&
+    req.request_fp !== null
+  ) {
+    let url =
+      `${
+        /production/i.test(process.env.EVIRONMENT)
+          ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+          : process.env.LOCAL_URL
+      }` +
+      ":" +
+      process.env.DISPATCH_SERVICE_PORT +
+      "/cancel_request_driver";
+
+    requestAPI.post({ url, form: req }, function (error, response, body) {
+      //logger.info(body);
+      if (error === null) {
+        try {
+          body = JSON.parse(body);
+          res.send(body);
+        } catch (error) {
+          res.send({
+            response: "unable_to_cancel_request_error",
+          });
+        }
+      } else {
+        res.send({
+          response: "unable_to_cancel_request_error",
+        });
+      }
+    });
+  } else {
+    res.send({
+      response: "unable_to_cancel_request_error",
+    });
+  }
+});
+
+/**
+ * DISPATCH SERVICE, port 9094
+ * Route: confirm_pickup_request_driver
+ * event: confirm_pickup_request_driver_io
+ * Confirm pickup for any request from the driver's side.
+ */
+app.post("/confirm_pickup_request_driver_io", function (req, res) {
+  //logger.info(req);
+  req = req.body;
+
+  if (
+    req.driver_fingerprint !== undefined &&
+    req.driver_fingerprint !== null &&
+    req.request_fp !== undefined &&
+    req.request_fp !== null
+  ) {
+    let url =
+      `${
+        /production/i.test(process.env.EVIRONMENT)
+          ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+          : process.env.LOCAL_URL
+      }` +
+      ":" +
+      process.env.DISPATCH_SERVICE_PORT +
+      "/confirm_pickup_request_driver";
+
+    requestAPI.post({ url, form: req }, function (error, response, body) {
+      //logger.info(body);
+      if (error === null) {
+        try {
+          body = JSON.parse(body);
+          res.send(body);
+        } catch (error) {
+          res.send({
+            response: "unable_to_confirm_pickup_request_error",
+          });
+        }
+      } else {
+        res.send({
+          response: "unable_to_confirm_pickup_request_error",
+        });
+      }
+    });
+  } else {
+    res.send({
+      response: "unable_to_confirm_pickup_request_error",
+    });
+  }
+});
+
 //! DISABLE EXTERNAL SERVING FOR SECURITY REASONS.
 //!.use(express.static(__dirname + process.env.RIDERS_PROFILE_PICTURES_PATH)) //Riders profiles
 //!.use(express.static(__dirname + process.env.DRIVERS_PROFILE_PICTURES_PATH)); //Drivers profiles.
