@@ -83,44 +83,6 @@ function SendSMSTo(phone_number, message) {
     .catch(function (err) {
       console.error(err, err.stack);
     });
-  // let username = "taxiconnect";
-  // let password = "Taxiconnect*1";
-
-  // let postData = JSON.stringify({
-  //   to: phone_number,
-  //   body: message,
-  // });
-
-  // let options = {
-  //   hostname: "api.bulksms.com",
-  //   port: 443,
-  //   path: "/v1/messages",
-  //   method: "POST",
-  //   headers: {
-  //     "Content-Type": "application/json",
-  //     "Content-Length": postData.length,
-  //     Authorization:
-  //       "Basic " + Buffer.from(username + ":" + password).toString("base64"),
-  //   },
-  // };
-
-  // let req = https.request(options, (resp) => {
-  //   logger.info("statusCode:", resp.statusCode);
-  //   let data = "";
-  //   resp.on("data", (chunk) => {
-  //     data += chunk;
-  //   });
-  //   resp.on("end", () => {
-  //     logger.info("Response:", data);
-  //   });
-  // });
-
-  // req.on("error", (e) => {
-  //   logger.warn(e);
-  // });
-
-  // req.write(postData);
-  // req.end();
 }
 
 /*const numeral = require("numeral");
@@ -5662,6 +5624,19 @@ redisCluster.on("connect", function () {
                   .find({
                     event_name: "SMS_dispatch_otp",
                     phone_number: onlyDigitsPhone,
+                    date: {
+                      $gte: new Date(
+                        `${refDate.getFullYear()}-${
+                          String(refDate.getMonth() + 1).length > 1
+                            ? `${refDate.getMonth() + 1}`
+                            : `0${refDate.getMonth() + 1}`
+                        }-${
+                          String(refDate.getDate()).length > 1
+                            ? `${refDate.getDate()}`
+                            : `0${refDate.getDate()}`
+                        }T00:00:00.000Z`
+                      ),
+                    },
                   })
                   .sort({ date: -1 })
                   .toArray(function (err, eventData) {
@@ -5672,73 +5647,19 @@ redisCluster.on("connect", function () {
                     //....
                     if (eventData !== undefined && eventData.length > 0) {
                       //Check the time of the last sent sms
-                      let smsDayCount = 0;
-                      eventData.map((sms) => {
-                        let today = new Date(chaineDateUTC);
-                        let smsDate = new Date(sms.date);
-                        //...
-                        if (
-                          today.getDate() === smsDate.getDate() &&
-                          today.getMonth() === smsDate.getMonth() &&
-                          today.getFullYear() === smsDate.getFullYear()
-                        ) {
-                          //TODAY
-                          smsDayCount += 1;
-                        }
-                      });
-
-                      logger.warn(
-                        `CURRENT SMS COUNT (TODAY) ---> ${smsDayCount}`
-                      );
+                      let smsDayCount = smsDayCount;
 
                       //Found some record
-                      if (smsDayCount < 15) {
+                      if (smsDayCount < 10) {
                         resolveDate();
-                        //Check the time of the last sent sms
-                        let lastSMS = eventData[0];
-                        let timeDiff =
-                          new Date(chaineDateUTC) - new Date(lastSMS.date);
-                        timeDiff /= 1000; //Sec
-                        let diffSec = timeDiff;
-                        timeDiff /= 3600; //Hour
-                        let diffHour = timeDiff;
-                        //Check if more that 2 hours
-                        // logger.warn(diffSec);
-                        if (diffSec >= 20 && smsDayCount <= 15) {
-                          //More than 2 hours wait and less than 10SMS sent
-                          if (
-                            /^264/i.test(onlyDigitsPhone) &&
-                            onlyDigitsPhone.length === 12
-                          ) {
-                            logger.warn("Sending the SMS");
-                            //!Save dispatch event
-                            new Promise((resSave) => {
-                              collectionGlobalEvents.insertOne(
-                                {
-                                  event_name: "SMS_dispatch_otp",
-                                  phone_number: onlyDigitsPhone,
-                                  otp: otp,
-                                  date: new Date(chaineDateUTC),
-                                },
-                                function (err, rslt) {
-                                  resSave(true);
-                                }
-                              );
-                            })
-                              .then()
-                              .catch();
-                            //...
-                            SendSMSTo(onlyDigitsPhone, message);
-                          }
-                          res0(true);
-                        }
-                        //!ABuse - MORE THAN quota
-                        else {
-                          //!Save abuse event
+                        //...
+                        if (/^264/i.test(onlyDigitsPhone)) {
+                          logger.warn("Sending the SMS");
+                          //!Save dispatch event
                           new Promise((resSave) => {
                             collectionGlobalEvents.insertOne(
                               {
-                                event_name: "SMS_dispatch_otp_abuse_event",
+                                event_name: "SMS_dispatch_otp",
                                 phone_number: onlyDigitsPhone,
                                 otp: otp,
                                 date: new Date(chaineDateUTC),
@@ -5750,11 +5671,10 @@ redisCluster.on("connect", function () {
                           })
                             .then()
                             .catch();
-                          logger.warn(
-                            "Abuse - more than the 60sec interval - 10SMS quota"
-                          );
-                          res0(false);
+                          //...
+                          SendSMSTo(onlyDigitsPhone, message);
                         }
+                        res0(true);
                       } //!ABuse - more than quota
                       else {
                         //!Save abuse event
