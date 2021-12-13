@@ -615,9 +615,16 @@ function processExecute_paymentCardWallet_topup(
         dataBundle.number = "5436886269848367";
         dataBundle.expiry = "1222";
         dataBundle.cvv = "123";
+      } else if (
+        /development/i.test(process.env.EVIRONMENT) &&
+        /testing/i.test(process.env.SERVER_TYPE)
+      ) {
+        dataBundle.number = "5436886269848367";
+        dataBundle.expiry = "1222";
+        dataBundle.cvv = "123";
       }
       // -----------------------------------------------------------------------------------------
-      logger.warn(dataBundle);
+      // logger.warn(dataBundle);
 
       //...
       //MAKE PAYMENT
@@ -1883,6 +1890,27 @@ requestAPI(
                   : usersDetails.length > 0 &&
                     usersDetails[0].company_fp !== undefined &&
                     usersDetails[0].company_fp !== null;
+              //Isoltate the phone number
+              let customerPhone =
+                /normal/i.test(dataBundle.request_globality) ||
+                dataBundle.request_globality === undefined
+                  ? usersDetails[0].phone_number
+                  : usersDetails[0].phone;
+              let dialCode = "NA";
+              //...
+              customerPhone = customerPhone.replace("+", "");
+              //Isolate the firstname and lastname
+              let customerFirstName =
+                /normal/i.test(dataBundle.request_globality) ||
+                dataBundle.request_globality === undefined
+                  ? usersDetails[0].name
+                  : usersDetails[0].user_registerer.first_name;
+              //...
+              let customerLastName =
+                /normal/i.test(dataBundle.request_globality) ||
+                dataBundle.request_globality === undefined
+                  ? usersDetails[0].surname
+                  : usersDetails[0].user_registerer.last_name;
               //...
               if (dynamicConds) {
                 //?Found some valid details
@@ -1931,6 +1959,11 @@ requestAPI(
                           : "Windhoek"
                       }</customerCity>
                       <CardHolderName>${dataBundle.name}</CardHolderName>
+                      <customerEmail>${usersDetails[0].email}</customerEmail>
+                      <customerPhone>${customerPhone}</customerPhone>
+                      <customerDialCode>${dialCode}</customerDialCode>
+                      <customerFirstName>${customerFirstName}</customerFirstName>
+                      <customerLastName>${customerLastName}</customerLastName>
                       <PaymentCurrency>${
                         process.env.PAYMENT_CURRENCY
                       }</PaymentCurrency>
@@ -1964,6 +1997,8 @@ requestAPI(
                       </API3G>
                       `;
 
+                    // logger.info(xmlCreateToken);
+
                     createPaymentTransaction(
                       xmlCreateToken,
                       dataBundle.user_fp,
@@ -1972,6 +2007,7 @@ requestAPI(
                     );
                   }).then(
                     (reslt) => {
+                      logger.warn(reslt);
                       //Deduct XML response
                       new Promise((resolve) => {
                         deductXML_responses(reslt, "createToken", resolve);

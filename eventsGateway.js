@@ -421,6 +421,274 @@ app.post("/declineRequest_driver", function (req, res) {
   }
 });
 
+/**
+ * DISPATCH SERVICE, port 9094
+ * Route: confirm_dropoff_request_driver
+ * event: confirm_dropoff_request_driver_io
+ * Confirm dropoff for any request from the driver's side.
+ */
+app.post("/confirm_dropoff_request_driver_io", function (req, res) {
+  //logger.info(req);
+  req = req.body;
+  if (
+    req.driver_fingerprint !== undefined &&
+    req.driver_fingerprint !== null &&
+    req.request_fp !== undefined &&
+    req.request_fp !== null
+  ) {
+    let url =
+      `${
+        /production/i.test(process.env.EVIRONMENT)
+          ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+          : process.env.LOCAL_URL
+      }` +
+      ":" +
+      process.env.DISPATCH_SERVICE_PORT +
+      "/confirm_dropoff_request_driver";
+
+    requestAPI.post({ url, form: req }, function (error, response, body) {
+      //logger.info(body);
+      if (error === null) {
+        try {
+          body = JSON.parse(body);
+          res.send(body);
+        } catch (error) {
+          res.send({
+            response: "unable_to_confirm_dropoff_request_error",
+          });
+        }
+      } else {
+        res.send({
+          response: "unable_to_confirm_dropoff_request_error",
+        });
+      }
+    });
+  } else {
+    res.send({
+      response: "unable_to_confirm_dropoff_request_error",
+    });
+  }
+});
+
+/**
+ * DISPATCH SERVICE, port 9094
+ * Route: getRequests_graphNumbers
+ * event: update_requestsGraph
+ * Update the general requests numbers for ease of access
+ */
+app.post("/update_requestsGraph", function (req, res) {
+  //logger.info(req);
+  req = req.body;
+  if (req.driver_fingerprint !== undefined && req.driver_fingerprint !== null) {
+    let url =
+      `${
+        /production/i.test(process.env.EVIRONMENT)
+          ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+          : process.env.LOCAL_URL
+      }` +
+      ":" +
+      process.env.DISPATCH_SERVICE_PORT +
+      "/getRequests_graphNumbers?driver_fingerprint=" +
+      req.driver_fingerprint;
+
+    requestAPI(url, function (error, response, body) {
+      //logger.info(body);
+      if (error === null) {
+        try {
+          body = JSON.parse(body);
+          res.send(body);
+        } catch (error) {
+          res.send({
+            rides: 0,
+            deliveries: 0,
+            scheduled: 0,
+            accepted: 0,
+          });
+        }
+      } else {
+        res.send({
+          rides: 0,
+          deliveries: 0,
+          scheduled: 0,
+          accepted: 0,
+        });
+      }
+    });
+  } else {
+    res.send({
+      rides: 0,
+      deliveries: 0,
+      scheduled: 0,
+      accepted: 0,
+    });
+  }
+});
+
+/**
+ * ACCOUNTS SERVICE, port 9696
+ * Route: getDrivers_walletInfosDeep
+ * event: getDrivers_walletInfosDeep_io
+ * Responsible for computing the wallet deep summary for the drivers
+ */
+app.post("/getDrivers_walletInfosDeep_io", function (req, res) {
+  //logger.info(req);
+  req = req.body;
+
+  if (req.user_fingerprint !== undefined && req.user_fingerprint !== null) {
+    let url =
+      `${
+        /production/i.test(process.env.EVIRONMENT)
+          ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+          : process.env.LOCAL_URL
+      }` +
+      ":" +
+      process.env.ACCOUNTS_SERVICE_PORT +
+      "/getDrivers_walletInfosDeep?user_fingerprint=" +
+      req.user_fingerprint;
+
+    requestAPI(url, function (error, response, body) {
+      if (error === null) {
+        try {
+          body = JSON.parse(body);
+          res.send(body);
+        } catch (error) {
+          res.send({
+            header: null,
+            weeks_view: null,
+            response: "error",
+          });
+        }
+      } else {
+        res.send({
+          header: null,
+          weeks_view: null,
+          response: "error",
+        });
+      }
+    });
+  } else {
+    res.send({
+      header: null,
+      weeks_view: null,
+      response: "error",
+    });
+  }
+});
+
+/**
+ * ACCOUNTS SERVICE, port 9696
+ * Route: getRiders_walletInfos
+ * event: getRiders_walletInfos_io
+ * Responsible for computing the wallet summary (total and details) for the riders.
+ * ! TO BE RESTORED WITH THE WALLET AND OPTIMAL APP UPDATE.
+ */
+app.post("/getRiders_walletInfos_io", function (req, res) {
+  //logger.info(req);
+  req = req.body;
+  if (
+    req.user_fingerprint !== undefined &&
+    req.user_fingerprint !== null &&
+    req.mode !== undefined &&
+    req.mode !== null
+  ) {
+    let url =
+      `${
+        /production/i.test(process.env.EVIRONMENT)
+          ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+          : process.env.LOCAL_URL
+      }` +
+      ":" +
+      process.env.ACCOUNTS_SERVICE_PORT +
+      "/getRiders_walletInfos?user_fingerprint=" +
+      req.user_fingerprint +
+      "&mode=" +
+      req.mode +
+      "&avoidCached_data=true";
+
+    requestAPI(url, function (error, response, body) {
+      if (error === null) {
+        try {
+          body = JSON.parse(body);
+          res.send(body);
+        } catch (error) {
+          res.send({
+            total: 0,
+            response: "error",
+            tag: "invalid_parameters",
+          });
+        }
+      } else {
+        res.send({
+          total: 0,
+          response: "error",
+          tag: "invalid_parameters",
+        });
+      }
+    });
+  } else {
+    res.send({
+      total: 0,
+      response: "error",
+      tag: "invalid_parameters",
+    });
+  }
+});
+
+/**
+ * ACCOUNTS SERVICE, port 9696
+ * Route: computeDaily_amountMadeSoFar
+ * event: computeDaily_amountMadeSoFar_io
+ * Responsible for getting the daily amount made so far by the driver for exactly all the completed requests.
+ */
+app.post("/computeDaily_amountMadeSoFar_io", function (req, res) {
+  //logger.info(req);
+  req = req.body;
+
+  if (req.driver_fingerprint !== undefined && req.driver_fingerprint !== null) {
+    let url =
+      `${
+        /production/i.test(process.env.EVIRONMENT)
+          ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+          : process.env.LOCAL_URL
+      }` +
+      ":" +
+      process.env.ACCOUNTS_SERVICE_PORT +
+      "/computeDaily_amountMadeSoFar?driver_fingerprint=" +
+      req.driver_fingerprint;
+
+    requestAPI(url, function (error, response, body) {
+      //logger.info(body);
+      if (error === null) {
+        try {
+          body = JSON.parse(body);
+          res.send(body);
+        } catch (error) {
+          res.send({
+            amount: 0,
+            currency: "NAD",
+            currency_symbol: "N$",
+            response: "error",
+          });
+        }
+      } else {
+        res.send({
+          amount: 0,
+          currency: "NAD",
+          currency_symbol: "N$",
+          response: "error",
+        });
+      }
+    });
+  } else {
+    res.send({
+      amount: 0,
+      currency: "NAD",
+      currency_symbol: "N$",
+      response: "error",
+    });
+  }
+});
+
 //! DISABLE EXTERNAL SERVING FOR SECURITY REASONS.
 //!.use(express.static(__dirname + process.env.RIDERS_PROFILE_PICTURES_PATH)) //Riders profiles
 //!.use(express.static(__dirname + process.env.DRIVERS_PROFILE_PICTURES_PATH)); //Drivers profiles.

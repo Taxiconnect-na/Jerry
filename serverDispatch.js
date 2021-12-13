@@ -4460,6 +4460,7 @@ function getRequests_graphPreview_forDrivers(
     rides: 0,
     deliveries: 0,
     scheduled: 0,
+    accepted: 0,
   };
   //...
   //1. Get the driver's data
@@ -4471,6 +4472,7 @@ function getRequests_graphPreview_forDrivers(
           rides: 0,
           deliveries: 0,
           scheduled: 0,
+          accepted: 0,
         });
       }
       //...
@@ -4552,6 +4554,7 @@ function getRequests_graphPreview_forDrivers(
                   rides: 0,
                   deliveries: 0,
                   scheduled: 0,
+                  accepted: 0,
                 });
               }
               //...
@@ -4589,7 +4592,7 @@ function getRequests_graphPreview_forDrivers(
                       collectionRidesDeliveryData
                         .find({
                           taxi_id: driver_fingerprint,
-                          request_type: "scheduled",
+                          // request_type: "scheduled",
                           "ride_state_vars.isAccepted": true,
                           "ride_state_vars.isRideCompleted_driverSide": false,
                           isArrivedToDestination: false,
@@ -4597,19 +4600,28 @@ function getRequests_graphPreview_forDrivers(
                             $not: { $in: [driver_fingerprint] },
                           },
                         })
-                        .toArray(function (err, scheduledTripData) {
+                        .toArray(function (err, scheduledAcceptedTripData) {
                           if (err) {
                             resolve(requestsGraph);
                           }
                           //...
                           if (
-                            scheduledTripData !== undefined &&
-                            scheduledTripData !== null &&
-                            scheduledTripData.length > 0
+                            scheduledAcceptedTripData !== undefined &&
+                            scheduledAcceptedTripData !== null &&
+                            scheduledAcceptedTripData.length > 0
                           ) {
                             //Found some scheduled rides
                             //Add the number to the graph
-                            requestsGraph.scheduled += scheduledTripData.length;
+                            scheduledAcceptedTripData.map((trip) => {
+                              if (/scheduled/i.test(trip.request_type)) {
+                                //SCHEDULED
+                                requestsGraph.scheduled += 1;
+                              } //Normal accepted
+                              else {
+                                requestsGraph.accepted += 1;
+                              }
+                            });
+                            //? DONE
                             resolve(requestsGraph);
                           } //No not yet completed scheduled rides
                           else {
@@ -4623,6 +4635,7 @@ function getRequests_graphPreview_forDrivers(
                         rides: 0,
                         deliveries: 0,
                         scheduled: 0,
+                        accepted: 0,
                       });
                     }
                   )
@@ -4632,6 +4645,7 @@ function getRequests_graphPreview_forDrivers(
                       rides: 0,
                       deliveries: 0,
                       scheduled: 0,
+                      accepted: 0,
                     });
                   });
               } //No requests
@@ -4640,7 +4654,7 @@ function getRequests_graphPreview_forDrivers(
                 collectionRidesDeliveryData
                   .find({
                     taxi_id: driver_fingerprint,
-                    request_type: "scheduled",
+                    // request_type: "scheduled",
                     "ride_state_vars.isAccepted": true,
                     "ride_state_vars.isRideCompleted_driverSide": false,
                     isArrivedToDestination: false,
@@ -4648,31 +4662,32 @@ function getRequests_graphPreview_forDrivers(
                       $not: { $in: [driver_fingerprint] },
                     },
                   })
-                  .toArray(function (err, scheduledTripData) {
+                  .toArray(function (err, scheduledAcceptedTripData) {
                     if (err) {
-                      resolve({
-                        rides: 0,
-                        deliveries: 0,
-                        scheduled: 0,
-                      });
+                      resolve(requestsGraph);
                     }
                     //...
                     if (
-                      scheduledTripData !== undefined &&
-                      scheduledTripData !== null &&
-                      scheduledTripData.length > 0
+                      scheduledAcceptedTripData !== undefined &&
+                      scheduledAcceptedTripData !== null &&
+                      scheduledAcceptedTripData.length > 0
                     ) {
                       //Found some scheduled rides
                       //Add the number to the graph
-                      requestsGraph.scheduled += scheduledTripData.length;
+                      scheduledAcceptedTripData.map((trip) => {
+                        if (/scheduled/i.test(trip.request_type)) {
+                          //SCHEDULED
+                          requestsGraph.scheduled += 1;
+                        } //Normal accepted
+                        else {
+                          requestsGraph.accepted += 1;
+                        }
+                      });
+                      //? DONE
                       resolve(requestsGraph);
                     } //No not yet completed scheduled rides
                     else {
-                      resolve({
-                        rides: 0,
-                        deliveries: 0,
-                        scheduled: 0,
-                      });
+                      resolve(requestsGraph);
                     }
                   });
               }
@@ -4683,6 +4698,7 @@ function getRequests_graphPreview_forDrivers(
             rides: 0,
             deliveries: 0,
             scheduled: 0,
+            accepted: 0,
           });
         }
       } //Strange - no driver's record found
@@ -4691,6 +4707,7 @@ function getRequests_graphPreview_forDrivers(
           rides: 0,
           deliveries: 0,
           scheduled: 0,
+          accepted: 0,
         });
       }
     });
@@ -4974,6 +4991,7 @@ redisCluster.on("connect", function () {
                                 rides: 0,
                                 deliveries: 0,
                                 scheduled: 0,
+                                accepted: 0,
                               });
                             }
                           )
@@ -4984,7 +5002,12 @@ redisCluster.on("connect", function () {
                               process.env.REDIS_EXPIRATION_5MIN * 6,
                               JSON.stringify(result)
                             );
-                            resMAIN({ rides: 0, deliveries: 0, scheduled: 0 });
+                            resMAIN({
+                              rides: 0,
+                              deliveries: 0,
+                              scheduled: 0,
+                              accepted: 0,
+                            });
                           });
                       }
                     } //No cached data yet
@@ -5013,7 +5036,12 @@ redisCluster.on("connect", function () {
                               process.env.REDIS_EXPIRATION_5MIN * 6,
                               JSON.stringify(result)
                             );
-                            resMAIN({ rides: 0, deliveries: 0, scheduled: 0 });
+                            resMAIN({
+                              rides: 0,
+                              deliveries: 0,
+                              scheduled: 0,
+                              accepted: 0,
+                            });
                           }
                         )
                         .catch((error) => {
@@ -5023,7 +5051,12 @@ redisCluster.on("connect", function () {
                             process.env.REDIS_EXPIRATION_5MIN * 6,
                             JSON.stringify(result)
                           );
-                          resMAIN({ rides: 0, deliveries: 0, scheduled: 0 });
+                          resMAIN({
+                            rides: 0,
+                            deliveries: 0,
+                            scheduled: 0,
+                            accepted: 0,
+                          });
                         });
                     }
                   },
@@ -5053,7 +5086,12 @@ redisCluster.on("connect", function () {
                             process.env.REDIS_EXPIRATION_5MIN * 6,
                             JSON.stringify(result)
                           );
-                          resMAIN({ rides: 0, deliveries: 0, scheduled: 0 });
+                          resMAIN({
+                            rides: 0,
+                            deliveries: 0,
+                            scheduled: 0,
+                            accepted: 0,
+                          });
                         }
                       )
                       .catch((error) => {
@@ -5063,13 +5101,18 @@ redisCluster.on("connect", function () {
                           process.env.REDIS_EXPIRATION_5MIN * 6,
                           JSON.stringify(result)
                         );
-                        resMAIN({ rides: 0, deliveries: 0, scheduled: 0 });
+                        resMAIN({
+                          rides: 0,
+                          deliveries: 0,
+                          scheduled: 0,
+                          accepted: 0,
+                        });
                       });
                   }
                 );
               } //Invalid params
               else {
-                resMAIN({ rides: 0, deliveries: 0, scheduled: 0 });
+                resMAIN({ rides: 0, deliveries: 0, scheduled: 0, accepted: 0 });
               }
             })
               .then((result) => {
@@ -5077,7 +5120,7 @@ redisCluster.on("connect", function () {
               })
               .catch((error) => {
                 //logger.info(error);
-                resMAIN({ rides: 0, deliveries: 0, scheduled: 0 });
+                resMAIN({ rides: 0, deliveries: 0, scheduled: 0, accepted: 0 });
               });
           });
 

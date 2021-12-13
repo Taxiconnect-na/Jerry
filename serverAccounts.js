@@ -4799,13 +4799,19 @@ function performCorporateDeliveryAccountAuthOps(inputData, resolve) {
               //Ok
               //! ADD DEBUG TEST DATA -> CODE 88766
               //Send the message then check the passenger's status
-              let otp = /856997167/i.test(onlyDigitsPhone)
-                ? 88766
-                : otpGenerator.generate(6, {
-                    upperCase: false,
-                    specialChars: false,
-                    alphabets: false,
-                  });
+              // let otp = /856997167/i.test(onlyDigitsPhone)
+              //   ? 88766
+              //   : otpGenerator.generate(6, {
+              //     lowerCaseAlphabets: false,
+              //     upperCaseAlphabets: false,
+              //     specialChars: false,
+              //     });
+
+              let otp = otpGenerator.generate(6, {
+                lowerCaseAlphabets: false,
+                upperCaseAlphabets: false,
+                specialChars: false,
+              });
               //! --------------
               //let otp = 55576;
               otp = String(otp).length < 6 ? parseInt(otp) * 10 : otp;
@@ -5632,18 +5638,18 @@ redisCluster.on("connect", function () {
               //Ok
               //! ADD DEBUG TEST DATA -> CODE 88766
               //Send the message then check the passenger's status
-              let otp = /856997167/i.test(onlyDigitsPhone)
-                ? 88766
-                : otpGenerator.generate(5, {
-                    upperCase: false,
-                    specialChars: false,
-                    alphabets: false,
-                  });
-              // let otp = otpGenerator.generate(5, {
-              //   upperCase: false,
-              //   specialChars: false,
-              //   alphabets: false,
-              // });
+              // let otp = /856997167/i.test(onlyDigitsPhone)
+              //   ? 88766
+              //   : otpGenerator.generate(5, {
+              //       lowerCaseAlphabets: false,
+              //       upperCaseAlphabets: false,
+              //       specialChars: false,
+              //     });
+              let otp = otpGenerator.generate(5, {
+                lowerCaseAlphabets: false,
+                upperCaseAlphabets: false,
+                specialChars: false,
+              });
               //! --------------
               otp = String(otp).length < 5 ? parseInt(otp) * 10 : otp;
               new Promise((res0) => {
@@ -5658,10 +5664,25 @@ redisCluster.on("connect", function () {
                   date: new Date(chaineDateUTC),
                 };
 
+                let refDate = new Date(chaineDateUTC);
+
                 collectionGlobalEvents
                   .find({
                     event_name: "SMS_dispatch_otp",
                     phone_number: onlyDigitsPhone,
+                    date: {
+                      $gte: new Date(
+                        `${refDate.getFullYear()}-${
+                          String(refDate.getMonth() + 1).length > 1
+                            ? `${refDate.getMonth() + 1}`
+                            : `0${refDate.getMonth() + 1}`
+                        }-${
+                          String(refDate.getDate()).length > 1
+                            ? `${refDate.getDate()}`
+                            : `0${refDate.getDate()}`
+                        }T00:00:00.000Z`
+                      ),
+                    },
                   })
                   .sort({ date: -1 })
                   .toArray(function (err, eventData) {
@@ -5672,73 +5693,25 @@ redisCluster.on("connect", function () {
                     //....
                     if (eventData !== undefined && eventData.length > 0) {
                       //Check the time of the last sent sms
-                      let smsDayCount = 0;
-                      eventData.map((sms) => {
-                        let today = new Date(chaineDateUTC);
-                        let smsDate = new Date(sms.date);
-                        //...
-                        if (
-                          today.getDate() === smsDate.getDate() &&
-                          today.getMonth() === smsDate.getMonth() &&
-                          today.getFullYear() === smsDate.getFullYear()
-                        ) {
-                          //TODAY
-                          smsDayCount += 1;
-                        }
-                      });
+                      let smsDayCount = eventData.length;
 
                       logger.warn(
                         `CURRENT SMS COUNT (TODAY) ---> ${smsDayCount}`
                       );
 
                       //Found some record
-                      if (smsDayCount < 15) {
+                      if (smsDayCount < 10) {
                         resolveDate();
-                        //Check the time of the last sent sms
-                        let lastSMS = eventData[0];
-                        let timeDiff =
-                          new Date(chaineDateUTC) - new Date(lastSMS.date);
-                        timeDiff /= 1000; //Sec
-                        let diffSec = timeDiff;
-                        timeDiff /= 3600; //Hour
-                        let diffHour = timeDiff;
-                        //Check if more that 2 hours
-                        // logger.warn(diffSec);
-                        if (diffSec >= 20 && smsDayCount <= 15) {
-                          //More than 2 hours wait and less than 10SMS sent
-                          if (
-                            /^264/i.test(onlyDigitsPhone) &&
-                            onlyDigitsPhone.length === 12
-                          ) {
-                            logger.warn("Sending the SMS");
-                            //!Save dispatch event
-                            new Promise((resSave) => {
-                              collectionGlobalEvents.insertOne(
-                                {
-                                  event_name: "SMS_dispatch_otp",
-                                  phone_number: onlyDigitsPhone,
-                                  otp: otp,
-                                  date: new Date(chaineDateUTC),
-                                },
-                                function (err, rslt) {
-                                  resSave(true);
-                                }
-                              );
-                            })
-                              .then()
-                              .catch();
-                            //...
-                            SendSMSTo(onlyDigitsPhone, message);
-                          }
-                          res0(true);
-                        }
-                        //!ABuse - MORE THAN quota
-                        else {
-                          //!Save abuse event
+                        if (
+                          /^264/i.test(onlyDigitsPhone) &&
+                          onlyDigitsPhone.length === 12
+                        ) {
+                          logger.warn("Sending the SMS");
+                          //!Save dispatch event
                           new Promise((resSave) => {
                             collectionGlobalEvents.insertOne(
                               {
-                                event_name: "SMS_dispatch_otp_abuse_event",
+                                event_name: "SMS_dispatch_otp",
                                 phone_number: onlyDigitsPhone,
                                 otp: otp,
                                 date: new Date(chaineDateUTC),
@@ -5750,11 +5723,10 @@ redisCluster.on("connect", function () {
                           })
                             .then()
                             .catch();
-                          logger.warn(
-                            "Abuse - more than the 60sec interval - 10SMS quota"
-                          );
-                          res0(false);
+                          //...
+                          SendSMSTo(onlyDigitsPhone, message);
                         }
+                        res0(true);
                       } //!ABuse - more than quota
                       else {
                         //!Save abuse event
@@ -6935,7 +6907,7 @@ redisCluster.on("connect", function () {
 
                   //Add the mode - default: detailed
                   if (
-                    req.mode == undefined ||
+                    req.mode === undefined ||
                     req.mode === null ||
                     /detailed/i.test(req.mode)
                   ) {
