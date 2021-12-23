@@ -3,6 +3,7 @@ require("dotenv").config();
 var express = require("express");
 const http = require("http");
 const path = require("path");
+var multer = require("multer");
 
 const { logger } = require("./LogService");
 
@@ -68,10 +69,73 @@ app
       extended: true,
     })
   )
+  // .use(multer().none())
   .use(cors())
   .use(helmet());
 
 //? REST equivalent for common websockets.
+/**
+ * For the courier driver resgistration
+ */
+app.post("/registerCourier_ppline", function (req, res) {
+  logger.info(String(req.body).length);
+  let url =
+    `${
+      /production/i.test(process.env.EVIRONMENT)
+        ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+        : process.env.LOCAL_URL
+    }` +
+    ":" +
+    process.env.ACCOUNTS_SERVICE_PORT +
+    "/processCourierDrivers_application";
+
+  requestAPI.post({ url, form: req.body }, function (error, response, body) {
+    logger.info(url);
+    logger.info(body, error);
+    if (error === null) {
+      try {
+        body = JSON.parse(body);
+        res.send(body);
+      } catch (error) {
+        res.send({ response: "error" });
+      }
+    } else {
+      res.send({ response: "error" });
+    }
+  });
+});
+
+/**
+ * For the rides driver registration
+ */
+
+app.post("/registerDriver_ppline", function (req, res) {
+  logger.info(String(req.body).length);
+  let url =
+    `${
+      /production/i.test(process.env.EVIRONMENT)
+        ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+        : process.env.LOCAL_URL
+    }` +
+    ":" +
+    process.env.ACCOUNTS_SERVICE_PORT +
+    "/processRidesDrivers_application";
+
+  requestAPI.post({ url, form: req.body }, function (error, response, body) {
+    logger.info(url);
+    logger.info(body, error);
+    if (error === null) {
+      try {
+        body = JSON.parse(body);
+        res.send(body);
+      } catch (error) {
+        res.send({ response: "error" });
+      }
+    } else {
+      res.send({ response: "error" });
+    }
+  });
+});
 
 app.post("/update_requestsGraph", function (req, res) {
   logger.info(req);

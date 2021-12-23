@@ -5597,6 +5597,9 @@ redisCluster.on("connect", function () {
           collectionNotificationsComm_central = dbMongo.collection(
             "notifications_communications_central"
           ); //Hold all the notifications accounts data
+          collectionDriversApplication = dbMongo.collection(
+            "drivers_application_central"
+          ); //Hold all the drivers application (couriers/rides)
           //-------------
           app
             .get("/", function (req, res) {
@@ -7810,6 +7813,745 @@ redisCluster.on("connect", function () {
                 resolve({
                   response: "error",
                 });
+              }
+            })
+              .then((result) => {
+                res.send(result);
+              })
+              .catch((error) => {
+                logger.error(error);
+                res.send({ response: "error" });
+              });
+          });
+
+          /**
+           * Submit application for courier drivers
+           * ? Responsible for processing the application for the courier drivers.
+           */
+          app.post("/processCourierDrivers_application", function (req, res) {
+            new Promise((resolve) => {
+              req = req.body;
+              logger.info(req.extensions);
+              //! Check if all the data were received
+              if (
+                req.phone !== undefined &&
+                req.phone !== null &&
+                req.nature_driver !== undefined &&
+                req.nature_driver !== null &&
+                req.city !== undefined &&
+                req.city !== null &&
+                req.personal_details !== undefined &&
+                req.personal_details !== null &&
+                req.vehicle_details !== undefined &&
+                req.vehicle_details !== null &&
+                req.driver_photo !== undefined &&
+                req.driver_photo !== null &&
+                req.vehicle_photo !== undefined &&
+                req.vehicle_photo !== null &&
+                req.license_photo !== undefined &&
+                req.license_photo !== undefined &&
+                req.id_photo !== undefined &&
+                req.id_photo !== null &&
+                req.extensions !== undefined &&
+                req.extensions !== null
+              ) {
+                //! Create tmp dir for drivers application if missing
+                if (
+                  !fs.existsSync(
+                    `.${process.env.DRIVERS_PROFILE_PICTURES_PATH}`
+                  )
+                ) {
+                  fs.mkdirSync(`.${process.env.DRIVERS_PROFILE_PICTURES_PATH}`);
+                }
+
+                //All the data received
+                try {
+                  //! Check that the person is not applying twice
+                  collectionDriversApplication
+                    .find({ phone_number: req.phone.replace("+", "") })
+                    .toArray(function (err, driverData) {
+                      if (err) {
+                        logger.error(err);
+                        resolve({ response: "error_failed_integrity_checks" });
+                      }
+                      //...
+                      if (driverData !== undefined && driverData.length > 0) {
+                        //Already applied
+                        resolve({ response: "error_duplicate_application" });
+                      } //New and fresh application
+                      else {
+                        //Form the file names
+                        let user_fingerprint = `${req.phone}-${
+                          req.personal_details
+                        }-${req.vehicle_details}-${new Date(
+                          chaineDateUTC
+                        ).getTime()}`;
+                        new Promise((getFingerprint) => {
+                          generateUniqueFingerprint(
+                            user_fingerprint,
+                            false,
+                            getFingerprint
+                          );
+                        })
+                          .then((driverFp) => {
+                            user_fingerprint = driverFp;
+                            //? Parse the json string data
+                            req.personal_details = JSON.parse(
+                              req.personal_details
+                            );
+                            req.extensions = JSON.parse(req.extensions);
+                            req.vehicle_details = JSON.parse(
+                              req.vehicle_details
+                            );
+
+                            //? Make file names
+                            let driverPhotoName = `driverPhoto_${user_fingerprint}.${req.extensions.driver_photo}`;
+                            let vehiclePhoto = `vehiclePhoto${user_fingerprint}.${req.extensions.vehicle_photo}`;
+                            let licensePhoto = `licensePhoto${user_fingerprint}.${req.extensions.license_photo}`;
+                            let idPhoto = `idPhoto${user_fingerprint}.${req.extensions.id_photo}`;
+
+                            //? Reconstitute the files in the tempo drivers folder
+                            let filesData = [
+                              {
+                                name: driverPhotoName,
+                                base64: req.driver_photo,
+                              },
+                              {
+                                name: vehiclePhoto,
+                                base64: req.vehicle_photo,
+                              },
+                              {
+                                name: licensePhoto,
+                                base64: req.license_photo,
+                              },
+                              {
+                                name: idPhoto,
+                                base64: req.id_photo,
+                              },
+                            ];
+                            //...
+                            //TODO: If the sum of all the values ==0 (Passed) else (at least one file failed to be reconstituted)
+                            let parentReformLocally = filesData.map(
+                              (fileData) => {
+                                return new Promise((resCompute) => {
+                                  fs.writeFile(
+                                    `.${process.env.DRIVERS_PROFILE_PICTURES_PATH}${fileData.name}`,
+                                    String(fileData.base64),
+                                    "base64",
+                                    function (err) {
+                                      if (err) {
+                                        logger.error(err);
+                                        resCompute(1); //Failed
+                                      }
+                                      //...success
+                                      resCompute(0);
+                                    }
+                                  );
+                                });
+                              }
+                            );
+                            //..Done
+                            Promise.all(parentReformLocally)
+                              .then((resultReform) => {
+                                let reformCheck = resultReform.reduce(
+                                  (acc, a) => {
+                                    return acc + a;
+                                  },
+                                  0
+                                );
+
+                                if (reformCheck == 0) {
+                                  //? SUCCESSFULLY REFORMED LOCALLY
+                                  //! UPLOAD THE PICTURE TO S3 - Promisify!
+                                  let parentUploadToS3 = filesData.map(
+                                    (fileData) => {
+                                      return new Promise(
+                                        (resUploadPic_toS3) => {
+                                          // Read content from the file
+                                          const fileContentUploaded_locally =
+                                            fs.readFileSync(
+                                              `.${process.env.DRIVERS_PROFILE_PICTURES_PATH}${fileData.name}`
+                                            );
+
+                                          // Setting up S3 upload parameters
+                                          logger.warn(
+                                            `${process.env.AWS_S3_DRIVERS_BUCKET_NAME}/Drivers_Applications`
+                                          );
+                                          const params = {
+                                            Bucket: `${process.env.AWS_S3_DRIVERS_BUCKET_NAME}/Drivers_Applications`,
+                                            Key: fileData.name, // File name you want to save as in S3
+                                            Body: fileContentUploaded_locally,
+                                          };
+
+                                          // Uploading files to the bucket
+                                          s3.upload(
+                                            params,
+                                            function (err, data) {
+                                              if (err) {
+                                                logger.info(err);
+                                                resUploadPic_toS3(1);
+                                              }
+                                              logger.info(
+                                                `[Drivers]${fileData.name} -> Successfully uploaded.`
+                                              );
+                                              resUploadPic_toS3(0);
+                                            }
+                                          );
+                                        }
+                                      );
+                                    }
+                                  );
+                                  //...
+                                  Promise.all(parentUploadToS3)
+                                    .then((resultReformRemote) => {
+                                      let reformRemoteCheck =
+                                        resultReformRemote.reduce((acc, a) => {
+                                          return acc + a;
+                                        }, 0);
+
+                                      if (reformRemoteCheck == 0) {
+                                        //?SUCCESSFULL Y UPLOADED TO s3
+                                        //Delete local file
+                                        let parentRemoveUneededFiles =
+                                          filesData.map((uneededFileData) => {
+                                            return new Promise(
+                                              (resDelFiles) => {
+                                                try {
+                                                  fs.unlink(
+                                                    `.${process.env.DRIVERS_PROFILE_PICTURES_PATH}${uneededFileData.name}`,
+                                                    (err) => {
+                                                      logger.warn(err);
+                                                    }
+                                                  );
+                                                  resDelFiles(true);
+                                                } catch (error) {
+                                                  logger.warn(error);
+                                                  resDelFiles(false);
+                                                }
+                                              }
+                                            );
+                                          });
+                                        //...
+                                        Promise.all(parentRemoveUneededFiles)
+                                          .then((resDel) =>
+                                            logger.info(`Deleted: ${resDel}`)
+                                          )
+                                          .catch((error) =>
+                                            logger.error(error)
+                                          );
+                                        //.............
+                                        //? Save applicate to db
+                                        let applicationBundle = {
+                                          nature_driver: String(
+                                            req.nature_driver
+                                          )
+                                            .toUpperCase()
+                                            .trim(),
+                                          city: req.city.toUpperCase().trim(),
+                                          name: req.personal_details.name,
+                                          surname: req.personal_details.surname,
+                                          email: req.personal_details.email,
+                                          phone_number: req.phone.replace(
+                                            "+",
+                                            ""
+                                          ),
+                                          driver_fingerprint: user_fingerprint,
+                                          vehicle_details: req.vehicle_details,
+                                          documents: {
+                                            driver_photo: driverPhotoName,
+                                            vehicle_photo: vehiclePhoto,
+                                            license_photo: licensePhoto,
+                                            id_photo: idPhoto,
+                                          },
+                                          accepted_conditions_details: {
+                                            did_accept_terms:
+                                              req.did_accept_terms,
+                                            did_certify_data_veracity:
+                                              req.did_certify_data_veracity,
+                                          },
+                                          date_applied: new Date(chaineDateUTC),
+                                        };
+                                        //...
+                                        collectionDriversApplication.insertOne(
+                                          applicationBundle,
+                                          function (err, resApplication) {
+                                            if (err) {
+                                              logger.error(err);
+                                              resolve({
+                                                response:
+                                                  "error_failed_application",
+                                              });
+                                            }
+                                            //...
+                                            resolve({
+                                              response:
+                                                "successful_application",
+                                            });
+                                          }
+                                        );
+                                      } //! At least one document failed to be reformed
+                                      else {
+                                        //Delete local file
+                                        let parentRemoveUneededFiles =
+                                          filesData.map((uneededFileData) => {
+                                            return new Promise(
+                                              (resDelFiles) => {
+                                                fs.unlink(
+                                                  `.${process.env.DRIVERS_PROFILE_PICTURES_PATH}${uneededFileData.name}`,
+                                                  (err) => {
+                                                    logger.error(err);
+                                                  }
+                                                );
+                                                resDelFiles(true);
+                                              }
+                                            );
+                                          });
+                                        //...
+                                        Promise.all(parentRemoveUneededFiles)
+                                          .then((resDel) =>
+                                            logger.info(`Deleted: ${resDel}`)
+                                          )
+                                          .catch((error) =>
+                                            logger.error(error)
+                                          );
+                                        //.............
+                                        //...
+                                        resolve({
+                                          response: "error_reformation_remote",
+                                        });
+                                      }
+                                    })
+                                    .catch((error) => {
+                                      logger.error(error);
+                                      //Delete local file
+                                      let parentRemoveUneededFiles =
+                                        filesData.map((uneededFileData) => {
+                                          return new Promise((resDelFiles) => {
+                                            fs.unlink(
+                                              `.${process.env.DRIVERS_PROFILE_PICTURES_PATH}${uneededFileData.name}`,
+                                              (err) => {
+                                                logger.error(err);
+                                              }
+                                            );
+                                            resDelFiles(true);
+                                          });
+                                        });
+                                      //...
+                                      Promise.all(parentRemoveUneededFiles)
+                                        .then((resDel) =>
+                                          logger.info(`Deleted: ${resDel}`)
+                                        )
+                                        .catch((error) => logger.error(error));
+                                      //.............
+                                      //...
+                                      resolve({
+                                        response: "error_reformation_remote",
+                                      });
+                                    });
+                                } //! At least one document failed to be reformed
+                                else {
+                                  resolve({ response: "error_reformation" });
+                                }
+                              })
+                              .catch((error) => {
+                                logger.error(error);
+                                resolve({ response: "error_reformation" });
+                              });
+                          })
+                          .catch((error) => {
+                            logger.error(error);
+                            resolve({ response: "error_parsing_data" });
+                          });
+                      }
+                    });
+                } catch (error) {
+                  logger.error(error);
+                  resolve({ response: "error_parsing_data" });
+                }
+              } //Incomplete data
+              else {
+                resolve({ response: "error_parsing_data_1" });
+              }
+            })
+              .then((result) => {
+                res.send(result);
+              })
+              .catch((error) => {
+                logger.error(error);
+                res.send({ response: "error" });
+              });
+          });
+
+          /**
+           * Submit application for rides drivers
+           * ? Responsible for processing the application for the rides drivers.
+           */
+          app.post("/processRidesDrivers_application", function (req, res) {
+            new Promise((resolve) => {
+              req = req.body;
+              logger.info(req.extensions);
+              //! Check if all the data were received
+              if (
+                req.phone !== undefined &&
+                req.phone !== null &&
+                req.nature_driver !== undefined &&
+                req.nature_driver !== null &&
+                req.city !== undefined &&
+                req.city !== null &&
+                req.personal_details !== undefined &&
+                req.personal_details !== null &&
+                req.vehicle_details !== undefined &&
+                req.vehicle_details !== null &&
+                req.driver_photo !== undefined &&
+                req.driver_photo !== null &&
+                req.vehicle_photo !== undefined &&
+                req.vehicle_photo !== null &&
+                req.license_photo !== undefined &&
+                req.license_photo !== undefined &&
+                req.id_photo !== undefined &&
+                req.id_photo !== null &&
+                req.bluepaper_photo !== undefined &&
+                req.bluepaper_photo !== null &&
+                req.whitepaper_photo !== undefined &&
+                req.whitepaper_photo !== null &&
+                req.permit_photo !== undefined &&
+                req.permit_photo !== null &&
+                req.extensions !== undefined &&
+                req.extensions !== null
+              ) {
+                //! Create tmp dir for drivers application if missing
+                if (
+                  !fs.existsSync(
+                    `.${process.env.DRIVERS_PROFILE_PICTURES_PATH}`
+                  )
+                ) {
+                  fs.mkdirSync(`.${process.env.DRIVERS_PROFILE_PICTURES_PATH}`);
+                }
+
+                //All the data received
+                try {
+                  //! Check that the person is not applying twice
+                  collectionDriversApplication
+                    .find({ phone_number: req.phone.replace("+", "") })
+                    .toArray(function (err, driverData) {
+                      if (err) {
+                        logger.error(err);
+                        resolve({ response: "error_failed_integrity_checks" });
+                      }
+                      //...
+                      if (driverData !== undefined && driverData.length > 0) {
+                        //Already applied
+                        resolve({ response: "error_duplicate_application" });
+                      } //New and fresh application
+                      else {
+                        //Form the file names
+                        let user_fingerprint = `${req.phone}-${
+                          req.personal_details
+                        }-${req.vehicle_details}-${new Date(
+                          chaineDateUTC
+                        ).getTime()}`;
+                        new Promise((getFingerprint) => {
+                          generateUniqueFingerprint(
+                            user_fingerprint,
+                            false,
+                            getFingerprint
+                          );
+                        })
+                          .then((driverFp) => {
+                            user_fingerprint = driverFp;
+                            //? Parse the json string data
+                            req.personal_details = JSON.parse(
+                              req.personal_details
+                            );
+                            req.extensions = JSON.parse(req.extensions);
+                            req.vehicle_details = JSON.parse(
+                              req.vehicle_details
+                            );
+
+                            //? Make file names
+                            let driverPhotoName = `driverPhoto_${user_fingerprint}.${req.extensions.driver_photo}`;
+                            let vehiclePhoto = `vehiclePhoto${user_fingerprint}.${req.extensions.vehicle_photo}`;
+                            let licensePhoto = `licensePhoto${user_fingerprint}.${req.extensions.license_photo}`;
+                            let idPhoto = `idPhoto${user_fingerprint}.${req.extensions.id_photo}`;
+                            let bluepaperPhoto = `bluepaperPhoto${user_fingerprint}.${req.extensions.bluepaper_photo}`;
+                            let whitepaperPhoto = `whitepaperPhoto${user_fingerprint}.${req.extensions.whitepaper_photo}`;
+                            let permitPhoto = `permitpaperPhoto${user_fingerprint}.${req.extensions.permit_photo}`;
+
+                            //? Reconstitute the files in the tempo drivers folder
+                            let filesData = [
+                              {
+                                name: driverPhotoName,
+                                base64: req.driver_photo,
+                              },
+                              {
+                                name: vehiclePhoto,
+                                base64: req.vehicle_photo,
+                              },
+                              {
+                                name: licensePhoto,
+                                base64: req.license_photo,
+                              },
+                              {
+                                name: idPhoto,
+                                base64: req.id_photo,
+                              },
+                              {
+                                name: bluepaperPhoto,
+                                base64: req.bluepaper_photo,
+                              },
+                              {
+                                name: whitepaperPhoto,
+                                base64: req.whitepaper_photo,
+                              },
+                              {
+                                name: permitPhoto,
+                                base64: req.permit_photo,
+                              },
+                            ];
+
+                            logger.warn(filesData);
+                            //...
+                            //TODO: If the sum of all the values ==0 (Passed) else (at least one file failed to be reconstituted)
+                            let parentReformLocally = filesData.map(
+                              (fileData) => {
+                                return new Promise((resCompute) => {
+                                  fs.writeFile(
+                                    `.${process.env.DRIVERS_PROFILE_PICTURES_PATH}${fileData.name}`,
+                                    String(fileData.base64),
+                                    "base64",
+                                    function (err) {
+                                      if (err) {
+                                        logger.error(err);
+                                        resCompute(1); //Failed
+                                      }
+                                      //...success
+                                      resCompute(0);
+                                    }
+                                  );
+                                });
+                              }
+                            );
+                            //..Done
+                            Promise.all(parentReformLocally)
+                              .then((resultReform) => {
+                                let reformCheck = resultReform.reduce(
+                                  (acc, a) => {
+                                    return acc + a;
+                                  },
+                                  0
+                                );
+
+                                if (reformCheck == 0) {
+                                  //? SUCCESSFULLY REFORMED LOCALLY
+                                  //! UPLOAD THE PICTURE TO S3 - Promisify!
+                                  let parentUploadToS3 = filesData.map(
+                                    (fileData) => {
+                                      return new Promise(
+                                        (resUploadPic_toS3) => {
+                                          // Read content from the file
+                                          const fileContentUploaded_locally =
+                                            fs.readFileSync(
+                                              `.${process.env.DRIVERS_PROFILE_PICTURES_PATH}${fileData.name}`
+                                            );
+
+                                          // Setting up S3 upload parameters
+                                          logger.warn(
+                                            `${process.env.AWS_S3_DRIVERS_BUCKET_NAME}/Drivers_Applications`
+                                          );
+                                          const params = {
+                                            Bucket: `${process.env.AWS_S3_DRIVERS_BUCKET_NAME}/Drivers_Applications`,
+                                            Key: fileData.name, // File name you want to save as in S3
+                                            Body: fileContentUploaded_locally,
+                                          };
+
+                                          // Uploading files to the bucket
+                                          s3.upload(
+                                            params,
+                                            function (err, data) {
+                                              if (err) {
+                                                logger.info(err);
+                                                resUploadPic_toS3(1);
+                                              }
+                                              logger.info(
+                                                `[Drivers]${fileData.name} -> Successfully uploaded.`
+                                              );
+                                              resUploadPic_toS3(0);
+                                            }
+                                          );
+                                        }
+                                      );
+                                    }
+                                  );
+                                  //...
+                                  Promise.all(parentUploadToS3)
+                                    .then((resultReformRemote) => {
+                                      let reformRemoteCheck =
+                                        resultReformRemote.reduce((acc, a) => {
+                                          return acc + a;
+                                        }, 0);
+
+                                      if (reformRemoteCheck == 0) {
+                                        //?SUCCESSFULL Y UPLOADED TO s3
+                                        //Delete local file
+                                        let parentRemoveUneededFiles =
+                                          filesData.map((uneededFileData) => {
+                                            return new Promise(
+                                              (resDelFiles) => {
+                                                try {
+                                                  fs.unlink(
+                                                    `.${process.env.DRIVERS_PROFILE_PICTURES_PATH}${uneededFileData.name}`,
+                                                    (err) => {
+                                                      logger.warn(err);
+                                                    }
+                                                  );
+                                                  resDelFiles(true);
+                                                } catch (error) {
+                                                  logger.warn(error);
+                                                  resDelFiles(false);
+                                                }
+                                              }
+                                            );
+                                          });
+                                        //...
+                                        Promise.all(parentRemoveUneededFiles)
+                                          .then((resDel) =>
+                                            logger.info(`Deleted: ${resDel}`)
+                                          )
+                                          .catch((error) =>
+                                            logger.error(error)
+                                          );
+                                        //.............
+                                        //? Save applicate to db
+                                        let applicationBundle = {
+                                          nature_driver: String(
+                                            req.nature_driver
+                                          )
+                                            .toUpperCase()
+                                            .trim(),
+                                          city: req.city.toUpperCase().trim(),
+                                          name: req.personal_details.name,
+                                          surname: req.personal_details.surname,
+                                          email: req.personal_details.email,
+                                          phone_number: req.phone.replace(
+                                            "+",
+                                            ""
+                                          ),
+                                          driver_fingerprint: user_fingerprint,
+                                          vehicle_details: req.vehicle_details,
+                                          documents: {
+                                            driver_photo: driverPhotoName,
+                                            vehicle_photo: vehiclePhoto,
+                                            license_photo: licensePhoto,
+                                            id_photo: idPhoto,
+                                          },
+                                          accepted_conditions_details: {
+                                            did_accept_terms:
+                                              req.did_accept_terms,
+                                            did_certify_data_veracity:
+                                              req.did_certify_data_veracity,
+                                          },
+                                          date_applied: new Date(chaineDateUTC),
+                                        };
+                                        //...
+                                        collectionDriversApplication.insertOne(
+                                          applicationBundle,
+                                          function (err, resApplication) {
+                                            if (err) {
+                                              logger.error(err);
+                                              resolve({
+                                                response:
+                                                  "error_failed_application",
+                                              });
+                                            }
+                                            //...
+                                            resolve({
+                                              response:
+                                                "successful_application",
+                                            });
+                                          }
+                                        );
+                                      } //! At least one document failed to be reformed
+                                      else {
+                                        //Delete local file
+                                        let parentRemoveUneededFiles =
+                                          filesData.map((uneededFileData) => {
+                                            return new Promise(
+                                              (resDelFiles) => {
+                                                fs.unlink(
+                                                  `.${process.env.DRIVERS_PROFILE_PICTURES_PATH}${uneededFileData.name}`,
+                                                  (err) => {
+                                                    logger.error(err);
+                                                  }
+                                                );
+                                                resDelFiles(true);
+                                              }
+                                            );
+                                          });
+                                        //...
+                                        Promise.all(parentRemoveUneededFiles)
+                                          .then((resDel) =>
+                                            logger.info(`Deleted: ${resDel}`)
+                                          )
+                                          .catch((error) =>
+                                            logger.error(error)
+                                          );
+                                        //.............
+                                        //...
+                                        resolve({
+                                          response: "error_reformation_remote",
+                                        });
+                                      }
+                                    })
+                                    .catch((error) => {
+                                      logger.error(error);
+                                      //Delete local file
+                                      let parentRemoveUneededFiles =
+                                        filesData.map((uneededFileData) => {
+                                          return new Promise((resDelFiles) => {
+                                            fs.unlink(
+                                              `.${process.env.DRIVERS_PROFILE_PICTURES_PATH}${uneededFileData.name}`,
+                                              (err) => {
+                                                logger.error(err);
+                                              }
+                                            );
+                                            resDelFiles(true);
+                                          });
+                                        });
+                                      //...
+                                      Promise.all(parentRemoveUneededFiles)
+                                        .then((resDel) =>
+                                          logger.info(`Deleted: ${resDel}`)
+                                        )
+                                        .catch((error) => logger.error(error));
+                                      //.............
+                                      //...
+                                      resolve({
+                                        response: "error_reformation_remote",
+                                      });
+                                    });
+                                } //! At least one document failed to be reformed
+                                else {
+                                  resolve({ response: "error_reformation" });
+                                }
+                              })
+                              .catch((error) => {
+                                logger.error(error);
+                                resolve({ response: "error_reformation" });
+                              });
+                          })
+                          .catch((error) => {
+                            logger.error(error);
+                            resolve({ response: "error_parsing_data" });
+                          });
+                      }
+                    });
+                } catch (error) {
+                  logger.error(error);
+                  resolve({ response: "error_parsing_data" });
+                }
+              } //Incomplete data
+              else {
+                resolve({ response: "error_parsing_data_1" });
               }
             })
               .then((result) => {
