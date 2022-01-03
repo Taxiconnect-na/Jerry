@@ -1257,6 +1257,7 @@ function execTripChecker_Dispatcher(
         if (err) {
           resolve(false);
         }
+        logger.error(driverData);
         //
         if (driverData === undefined || driverData.length <= 0) {
           //! SAVE THE FINAL FULL RESULT - for 15 min ------
@@ -1314,6 +1315,7 @@ function execTripChecker_Dispatcher(
                   },
                 };
           //-----
+          logger.warn(checkRide0);
 
           collectionRidesDeliveries_data
             .find(checkRide0)
@@ -1326,6 +1328,7 @@ function execTripChecker_Dispatcher(
                 acceptedRidesArray !== undefined &&
                 acceptedRidesArray.length > 0
               ) {
+                logger.warn("Hass some accepted rides");
                 //Has accepted some rides already
                 //1. Check if he has accepted an unconfirmed driver's side connectMe request or not.
                 //a. If yes, only send the uncompleted connectMe request

@@ -753,6 +753,198 @@ app.post("/computeDaily_amountMadeSoFar_io", function (req, res) {
   }
 });
 
+app.post("/sendOtpAndCheckerUserStatusTc", function (req, res) {
+  logger.info(req);
+  req = req.body;
+  //...
+  if (req.phone_number !== undefined && req.phone_number !== null) {
+    let url =
+      `${
+        /production/i.test(process.env.EVIRONMENT)
+          ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+          : process.env.LOCAL_URL
+      }` +
+      ":" +
+      process.env.ACCOUNTS_SERVICE_PORT +
+      "/sendOTPAndCheckUserStatus?phone_number=" +
+      req.phone_number;
+
+    if (req.smsHashLinker !== undefined && req.smsHashLinker !== null) {
+      //Attach an hash linker for auto verification
+      url += `&smsHashLinker=${encodeURIComponent(req.smsHashLinker)}`;
+    }
+    //Attach user nature
+    if (req.user_nature !== undefined && req.user_nature !== null) {
+      url += `&user_nature=${req.user_nature}`;
+    }
+
+    requestAPI(url, function (error, response, body) {
+      //logger.info(body, error);
+      if (error === null) {
+        try {
+          body = JSON.parse(body);
+          //logger.info("HERE");
+          res.send(body);
+        } catch (error) {
+          res.send({
+            response: "error_checking_user",
+          });
+        }
+      } else {
+        res.send({
+          response: "error_checking_user",
+        });
+      }
+    });
+  } else {
+    res.send({
+      response: "error_checking_user",
+    });
+  }
+});
+
+app.post("/checkThisOTP_SMS", function (req, res) {
+  req = req.body;
+  logger.info(req);
+  if (
+    req.phone_number !== undefined &&
+    req.phone_number !== null &&
+    req.otp !== undefined &&
+    req.otp !== null
+  ) {
+    let url =
+      `${
+        /production/i.test(process.env.EVIRONMENT)
+          ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+          : process.env.LOCAL_URL
+      }` +
+      ":" +
+      process.env.ACCOUNTS_SERVICE_PORT +
+      "/checkSMSOTPTruly?phone_number=" +
+      req.phone_number +
+      "&otp=" +
+      req.otp;
+
+    //Add the user nature : passengers (undefined) or drivers
+    if (req.user_nature !== undefined && req.user_nature !== null) {
+      url += `&user_nature=${req.user_nature}`;
+    }
+
+    requestAPI(url, function (error, response, body) {
+      //logger.info(body);
+      if (error === null) {
+        try {
+          body = JSON.parse(body);
+          res.send(body);
+        } catch (error) {
+          res.send({
+            response: "error_checking_otp",
+          });
+        }
+      } else {
+        res.send({
+          response: "error_checking_otp",
+        });
+      }
+    });
+  } else {
+    res.send({
+      response: "error_checking_otp",
+    });
+  }
+});
+
+app.post("/goOnline_offlineDrivers_io", function (req, res) {
+  req = req.body;
+  //logger.info(req);
+  if (
+    req.driver_fingerprint !== undefined &&
+    req.driver_fingerprint !== null &&
+    req.action !== undefined &&
+    req.action !== null
+  ) {
+    let url =
+      `${
+        /production/i.test(process.env.EVIRONMENT)
+          ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+          : process.env.LOCAL_URL
+      }` +
+      ":" +
+      process.env.ACCOUNTS_SERVICE_PORT +
+      "/goOnline_offlineDrivers?driver_fingerprint=" +
+      req.driver_fingerprint +
+      "&action=" +
+      req.action;
+
+    //Add the state if found
+    if (req.state !== undefined && req.state !== null) {
+      url += "&state=" + req.state;
+    } else {
+      url += "&state=false";
+    }
+
+    requestAPI(url, function (error, response, body) {
+      if (error === null) {
+        try {
+          body = JSON.parse(body);
+          res.send(body);
+        } catch (error) {
+          res.send({
+            response: "error_invalid_request",
+          });
+        }
+      } else {
+        res.send({
+          response: "error_invalid_request",
+        });
+      }
+    });
+  } else {
+    res.send({
+      response: "error_invalid_request",
+    });
+  }
+});
+
+app.post("/driversOverallNumbers", function (req, res) {
+  logger.info(req);
+  req = req.body;
+  if (req.user_fingerprint !== undefined && req.user_fingerprint !== null) {
+    let url =
+      `${
+        /production/i.test(process.env.EVIRONMENT)
+          ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+          : process.env.LOCAL_URL
+      }` +
+      ":" +
+      process.env.ACCOUNTS_SERVICE_PORT +
+      "/getDriversGeneralAccountNumber?user_fingerprint=" +
+      req.user_fingerprint;
+
+    requestAPI(url, function (error, response, body) {
+      // logger.info(body);
+      if (error === null) {
+        try {
+          body = JSON.parse(body);
+          res.send(body);
+        } catch (error) {
+          res.send({
+            response: "error",
+          });
+        }
+      } else {
+        res.send({
+          response: "error",
+        });
+      }
+    });
+  } else {
+    res.send({
+      response: "error",
+    });
+  }
+});
+
 //! DISABLE EXTERNAL SERVING FOR SECURITY REASONS.
 //!.use(express.static(__dirname + process.env.RIDERS_PROFILE_PICTURES_PATH)) //Riders profiles
 //!.use(express.static(__dirname + process.env.DRIVERS_PROFILE_PICTURES_PATH)); //Drivers profiles.
