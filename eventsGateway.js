@@ -945,6 +945,63 @@ app.post("/driversOverallNumbers", function (req, res) {
   }
 });
 
+app.post("/getRides_historyRiders_batchOrNot", function (req, res) {
+  req = req.body;
+  //logger.info(req);
+  if (req.user_fingerprint !== undefined && req.user_fingerprint !== null) {
+    let url =
+      `${
+        /production/i.test(process.env.EVIRONMENT)
+          ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+          : process.env.LOCAL_URL
+      }` +
+      ":" +
+      process.env.ACCOUNTS_SERVICE_PORT +
+      "/getRides_historyRiders?user_fingerprint=" +
+      req.user_fingerprint;
+    //Add a ride_type if any
+    if (req.ride_type !== undefined && req.ride_type !== null) {
+      url += "&ride_type=" + req.ride_type;
+    }
+    //Add a request fp and targeted flag or any
+    if (
+      req.target !== undefined &&
+      req.target !== null &&
+      req.request_fp !== undefined &&
+      req.request_fp !== null
+    ) {
+      //Targeted request (target flags: single, multiple)
+      url += "&target=" + req.target + "&request_fp=" + req.request_fp;
+    }
+    //? Add the user nature for drivers if any
+    if (req.user_nature !== undefined && req.user_nature !== null) {
+      url += `&user_nature=${req.user_nature}`;
+    }
+    //...
+    requestAPI(url, function (error, response, body) {
+      //logger.info(error, body);
+      if (error === null) {
+        try {
+          body = JSON.parse(body);
+          res.send(body);
+        } catch (error) {
+          res.send({
+            response: "error_authentication_failed",
+          });
+        }
+      } else {
+        res.send({
+          response: "error_authentication_failed",
+        });
+      }
+    });
+  } else {
+    res.send({
+      response: "error_authentication_failed",
+    });
+  }
+});
+
 //! DISABLE EXTERNAL SERVING FOR SECURITY REASONS.
 //!.use(express.static(__dirname + process.env.RIDERS_PROFILE_PICTURES_PATH)) //Riders profiles
 //!.use(express.static(__dirname + process.env.DRIVERS_PROFILE_PICTURES_PATH)); //Drivers profiles.
