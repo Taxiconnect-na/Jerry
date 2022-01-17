@@ -260,7 +260,9 @@ function checkUserStatus(
   );
   //...Check the user's status
   let checkUser = {
-    phone_number: { $regex: userData.phone_number.replace("+", "").trim() },
+    phone_number: /^\+/i.test(userData.phone_number)
+      ? userData.phone_number
+      : `+${userData.phone_number}`,
   }; //?Indexed
 
   //1. Passengers
@@ -5906,7 +5908,9 @@ redisCluster.on("connect", function () {
                 if (/^unregistered$/i.test(req.user_nature.trim())) {
                   //Checking for unregistered users
                   let checkOTP = {
-                    phone_number: { $regex: req.phone_number },
+                    phone_number: /^\+/i.test(req.phone_number)
+                      ? req.phone_number
+                      : `+${req.phone_number}`,
                     otp: parseInt(req.otp),
                   };
                   //Check if it exists for this number
@@ -5936,7 +5940,9 @@ redisCluster.on("connect", function () {
                   ) {
                     logger.info("Passenger");
                     let checkOTP = {
-                      phone_number: { $regex: req.phone_number },
+                      phone_number: /^\+/i.test(req.phone_number)
+                        ? req.phone_number
+                        : `+${req.phone_number}`,
                       "account_verifications.phone_verification_secrets.otp":
                         parseInt(req.otp),
                     }; //?Indexed
@@ -5964,7 +5970,9 @@ redisCluster.on("connect", function () {
                     logger.info(req);
                     //2. Drivers
                     let checkOTP = {
-                      phone_number: { $regex: req.phone_number },
+                      phone_number: /^\+/i.test(req.phone_number)
+                        ? req.phone_number
+                        : `+${req.phone_number}`,
                       "account_verifications.phone_verification_secrets.otp":
                         parseInt(req.otp),
                     };
