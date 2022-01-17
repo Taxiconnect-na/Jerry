@@ -5909,8 +5909,8 @@ redisCluster.on("connect", function () {
                   //Checking for unregistered users
                   let checkOTP = {
                     phone_number: /^\+/i.test(req.phone_number)
-                      ? req.phone_number
-                      : `+${req.phone_number}`,
+                      ? req.phone_number.replace("+", "").trim()
+                      : req.phone_number,
                     otp: parseInt(req.otp),
                   };
                   //Check if it exists for this number
