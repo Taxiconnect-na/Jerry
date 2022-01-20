@@ -5913,6 +5913,8 @@ redisCluster.on("connect", function () {
                       : req.phone_number,
                     otp: parseInt(req.otp),
                   };
+                  logger.info("unregistered");
+                  logger.warn(checkOTP);
                   //Check if it exists for this number
                   collection_OTP_dispatch_map
                     .find(checkOTP)
@@ -5976,6 +5978,7 @@ redisCluster.on("connect", function () {
                       "account_verifications.phone_verification_secrets.otp":
                         parseInt(req.otp),
                     };
+                    logger.info(checkOTP);
                     //Check if it exists for this number
                     collectionDrivers_profiles
                       .find(checkOTP)
