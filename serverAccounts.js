@@ -265,6 +265,8 @@ function checkUserStatus(
       : `+${userData.phone_number}`,
   }; //?Indexed
 
+  logger.warn(checkUser);
+
   //1. Passengers
   if (
     userData.user_nature === undefined ||
@@ -347,6 +349,7 @@ function checkUserStatus(
           });
         } //Not yet registeredd
         else {
+          logger.warn("No yet registered driver");
           resolve({ response: "not_yet_registered" });
         }
       });
@@ -1281,11 +1284,11 @@ function exec_computeDaily_amountMade(
   resolveDate();
   //...
   //Get the driver's requests operation clearances
-  logger.info(driver_fingerprint);
   collectionDrivers_profiles
     .find({ driver_fingerprint: driver_fingerprint })
     .toArray(function (error, driverProfile) {
       if (error) {
+        logger.info("Here");
         resolve({
           amount: 0,
           currency: "NAD",
@@ -1362,6 +1365,7 @@ function exec_computeDaily_amountMade(
             }
           });
       } else {
+        logger.info("Here3");
         resolve({
           amount: 0,
           currency: "NAD",
@@ -5643,18 +5647,18 @@ redisCluster.on("connect", function () {
               //Ok
               //! ADD DEBUG TEST DATA -> CODE 88766
               //Send the message then check the passenger's status
-              // let otp = /856997167/i.test(onlyDigitsPhone)
-              //   ? 88766
-              //   : otpGenerator.generate(5, {
-              //       lowerCaseAlphabets: false,
-              //       upperCaseAlphabets: false,
-              //       specialChars: false,
-              //     });
-              let otp = otpGenerator.generate(5, {
-                lowerCaseAlphabets: false,
-                upperCaseAlphabets: false,
-                specialChars: false,
-              });
+              let otp = /856997167/i.test(onlyDigitsPhone)
+                ? 88766
+                : otpGenerator.generate(5, {
+                    lowerCaseAlphabets: false,
+                    upperCaseAlphabets: false,
+                    specialChars: false,
+                  });
+              // let otp = otpGenerator.generate(5, {
+              //   lowerCaseAlphabets: false,
+              //   upperCaseAlphabets: false,
+              //   specialChars: false,
+              // });
               //! --------------
               otp = String(otp).length < 5 ? parseInt(otp) * 10 : otp;
               new Promise((res0) => {

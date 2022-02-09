@@ -938,7 +938,7 @@ function tripChecker_Dispatcher(
   requestType = "ride",
   resolve
 ) {
-  let RIDE_REDIS_KEY = `${user_fingerprint}-rideDeliveryMade-holder`;
+  let RIDE_REDIS_KEY = `${user_fingerprint}-rideDeliveryMade-holder-${requestType}`;
 
   redisGet(RIDE_REDIS_KEY)
     .then((resp) => {
@@ -1274,6 +1274,8 @@ function execTripChecker_Dispatcher(
           //...
           let request_type_regex = /scheduled/i.test(requestType)
             ? "scheduled"
+            : /accepted/i.test(requestType)
+            ? { $in: ["scheduled", "immediate"] }
             : "immediate"; //For scheduled requests display or not.
           //? Deduct the ride mode -> RIDE or DELIVERY -> Code inline
           //Check if the driver has an accepted and not completed request already
@@ -1329,153 +1331,187 @@ function execTripChecker_Dispatcher(
                 acceptedRidesArray.length > 0
               ) {
                 logger.warn("Hass some accepted rides");
-                //Has accepted some rides already
-                //1. Check if he has accepted an unconfirmed driver's side connectMe request or not.
-                //a. If yes, only send the uncompleted connectMe request
-                //b. If not, send the current accepted requests AND add on top additional new allowed see rides.
-                let checkRide1 =
-                  /88889d088e03653169b9c18193a0b8dd329ea1e43eb0626ef9f16b5b979694a429710561a3cb3ddae/i.test(
-                    user_fingerprint
-                  )
-                    ? {
-                        taxi_id: user_fingerprint,
-                        connect_type: "ConnectMe",
-                        "ride_state_vars.isRideCompleted_driverSide": false,
-                        ride_mode: {
-                          $in: [
-                            ...driverData.operation_clearances,
-                            ...driverData.operation_clearances.map(
-                              (mode) =>
-                                `${mode[0].toUpperCase().trim()}${mode
-                                  .substr(1)
-                                  .toLowerCase()
-                                  .trim()}`
-                            ),
-                            ...driverData.operation_clearances.map((mode) =>
-                              mode.toUpperCase().trim()
-                            ),
-                          ],
-                        },
-                      }
-                    : {
-                        taxi_id: user_fingerprint,
-                        connect_type: "ConnectMe",
-                        "ride_state_vars.isRideCompleted_driverSide": false,
-                        //request_type: "immediate", //? To check
-                        ride_mode: {
-                          $in: [
-                            ...driverData.operation_clearances,
-                            ...driverData.operation_clearances.map(
-                              (mode) =>
-                                `${mode[0].toUpperCase().trim()}${mode
-                                  .substr(1)
-                                  .toLowerCase()
-                                  .trim()}`
-                            ),
-                            ...driverData.operation_clearances.map((mode) =>
-                              mode.toUpperCase().trim()
-                            ),
-                          ],
-                        },
-                        // allowed_drivers_see: user_fingerprint,
-                        intentional_request_decline: {
-                          $not: { $in: [user_fingerprint] },
-                        },
-                      };
-                collectionRidesDeliveries_data
-                  .find(checkRide1)
-                  .toArray(function (err, result1) {
-                    if (err) {
+                logger.warn(requestType);
+                //? Check if the app is only requesting for the accepted trips
+                if (/accepted/i.test(requestType)) {
+                  //Only for the accepted
+                  //! Allow drivers to only see the accepted trips
+                  new Promise((res) => {
+                    execGetDrivers_requests_and_provide(
+                      driverData,
+                      requestType,
+                      "ONLY_ACCEPTED_REQUESTS",
+                      acceptedRidesArray,
+                      collectionRidesDeliveries_data,
+                      collectionPassengers_profiles,
+                      res
+                    );
+                  }).then(
+                    (resultFinal) => {
+                      //! SAVE THE FINAL FULL RESULT - for 24h ------
+                      redisCluster.setex(
+                        RIDE_REDIS_KEY,
+                        parseInt(process.env.REDIS_EXPIRATION_5MIN) * 288,
+                        JSON.stringify(resultFinal)
+                      );
+                      //! ----------------------------------------------
+                      resolve(resultFinal);
+                    },
+                    (error) => {
+                      //logger.info(error);
                       resolve(false);
                     }
-                    //...
-                    if (result1.length > 0) {
-                      //logger.info("PENDING_CONNECTME");
-                      //Has an uncompleted connectMe request - only send this connectMe request until it is completed
-                      // new Promise((res) => {
-                      //   execGetDrivers_requests_and_provide(
-                      //     driverData,
-                      //     requestType,
-                      //     "PENDING_CONNECTME",
-                      //     result1,
-                      //     collectionRidesDeliveries_data,
-                      //     collectionPassengers_profiles,
-                      //     res
-                      //   );
-                      // }).then(
-                      //   (resultFinal) => {
-                      //     //! SAVE THE FINAL FULL RESULT - for 24h ------
-                      //     redisCluster.setex(
-                      //       RIDE_REDIS_KEY,
-                      //       parseInt(process.env.REDIS_EXPIRATION_5MIN) * 288,
-                      //       JSON.stringify(resultFinal)
-                      //     );
-                      //     //! ----------------------------------------------
-                      //     resolve(resultFinal);
-                      //   },
-                      //   (error) => {
-                      //     //logger.info(error);
-                      //     resolve(false);
-                      //   }
-                      // );
-                      //! Allow drivers to see normal requests even with an already accepted ConnectMe
-                      new Promise((res) => {
-                        execGetDrivers_requests_and_provide(
-                          driverData,
-                          requestType,
-                          "ACCEPTED_AND_ADDITIONAL_REQUESTS",
-                          acceptedRidesArray,
-                          collectionRidesDeliveries_data,
-                          collectionPassengers_profiles,
-                          res
-                        );
-                      }).then(
-                        (resultFinal) => {
-                          //! SAVE THE FINAL FULL RESULT - for 24h ------
-                          redisCluster.setex(
-                            RIDE_REDIS_KEY,
-                            parseInt(process.env.REDIS_EXPIRATION_5MIN) * 288,
-                            JSON.stringify(resultFinal)
-                          );
-                          //! ----------------------------------------------
-                          resolve(resultFinal);
-                        },
-                        (error) => {
-                          //logger.info(error);
-                          resolve(false);
+                  );
+                } //For the basic ones
+                else {
+                  //Has accepted some rides already
+                  //1. Check if he has accepted an unconfirmed driver's side connectMe request or not.
+                  //a. If yes, only send the uncompleted connectMe request
+                  //b. If not, send the current accepted requests AND add on top additional new allowed see rides.
+                  let checkRide1 =
+                    /88889d088e03653169b9c18193a0b8dd329ea1e43eb0626ef9f16b5b979694a429710561a3cb3ddae/i.test(
+                      user_fingerprint
+                    )
+                      ? {
+                          taxi_id: user_fingerprint,
+                          connect_type: "ConnectMe",
+                          "ride_state_vars.isRideCompleted_driverSide": false,
+                          ride_mode: {
+                            $in: [
+                              ...driverData.operation_clearances,
+                              ...driverData.operation_clearances.map(
+                                (mode) =>
+                                  `${mode[0].toUpperCase().trim()}${mode
+                                    .substr(1)
+                                    .toLowerCase()
+                                    .trim()}`
+                              ),
+                              ...driverData.operation_clearances.map((mode) =>
+                                mode.toUpperCase().trim()
+                              ),
+                            ],
+                          },
                         }
-                      );
-                    } //Has no uncompleted connectMe requests - so, send the accepted requests and add additional virgin allowed to see rides
-                    else {
-                      //logger.info("ACCEPTED_AND_ADDITIONAL_REQUESTS");
-                      new Promise((res) => {
-                        execGetDrivers_requests_and_provide(
-                          driverData,
-                          requestType,
-                          "ACCEPTED_AND_ADDITIONAL_REQUESTS",
-                          acceptedRidesArray,
-                          collectionRidesDeliveries_data,
-                          collectionPassengers_profiles,
-                          res
-                        );
-                      }).then(
-                        (resultFinal) => {
-                          //! SAVE THE FINAL FULL RESULT - for 24h ------
-                          redisCluster.setex(
-                            RIDE_REDIS_KEY,
-                            parseInt(process.env.REDIS_EXPIRATION_5MIN) * 288,
-                            JSON.stringify(resultFinal)
+                      : {
+                          taxi_id: user_fingerprint,
+                          connect_type: "ConnectMe",
+                          "ride_state_vars.isRideCompleted_driverSide": false,
+                          //request_type: "immediate", //? To check
+                          ride_mode: {
+                            $in: [
+                              ...driverData.operation_clearances,
+                              ...driverData.operation_clearances.map(
+                                (mode) =>
+                                  `${mode[0].toUpperCase().trim()}${mode
+                                    .substr(1)
+                                    .toLowerCase()
+                                    .trim()}`
+                              ),
+                              ...driverData.operation_clearances.map((mode) =>
+                                mode.toUpperCase().trim()
+                              ),
+                            ],
+                          },
+                          // allowed_drivers_see: user_fingerprint,
+                          intentional_request_decline: {
+                            $not: { $in: [user_fingerprint] },
+                          },
+                        };
+                  collectionRidesDeliveries_data
+                    .find(checkRide1)
+                    .toArray(function (err, result1) {
+                      if (err) {
+                        resolve(false);
+                      }
+                      //...
+                      if (result1.length > 0) {
+                        //logger.info("PENDING_CONNECTME");
+                        //Has an uncompleted connectMe request - only send this connectMe request until it is completed
+                        // new Promise((res) => {
+                        //   execGetDrivers_requests_and_provide(
+                        //     driverData,
+                        //     requestType,
+                        //     "PENDING_CONNECTME",
+                        //     result1,
+                        //     collectionRidesDeliveries_data,
+                        //     collectionPassengers_profiles,
+                        //     res
+                        //   );
+                        // }).then(
+                        //   (resultFinal) => {
+                        //     //! SAVE THE FINAL FULL RESULT - for 24h ------
+                        //     redisCluster.setex(
+                        //       RIDE_REDIS_KEY,
+                        //       parseInt(process.env.REDIS_EXPIRATION_5MIN) * 288,
+                        //       JSON.stringify(resultFinal)
+                        //     );
+                        //     //! ----------------------------------------------
+                        //     resolve(resultFinal);
+                        //   },
+                        //   (error) => {
+                        //     //logger.info(error);
+                        //     resolve(false);
+                        //   }
+                        // );
+                        //! Allow drivers to see normal requests even with an already accepted ConnectMe
+                        new Promise((res) => {
+                          execGetDrivers_requests_and_provide(
+                            driverData,
+                            requestType,
+                            "ACCEPTED_AND_ADDITIONAL_REQUESTS",
+                            acceptedRidesArray,
+                            collectionRidesDeliveries_data,
+                            collectionPassengers_profiles,
+                            res
                           );
-                          //! ----------------------------------------------
-                          resolve(resultFinal);
-                        },
-                        (error) => {
-                          //logger.info(error);
-                          resolve(false);
-                        }
-                      );
-                    }
-                  });
+                        }).then(
+                          (resultFinal) => {
+                            //! SAVE THE FINAL FULL RESULT - for 24h ------
+                            redisCluster.setex(
+                              RIDE_REDIS_KEY,
+                              parseInt(process.env.REDIS_EXPIRATION_5MIN) * 288,
+                              JSON.stringify(resultFinal)
+                            );
+                            //! ----------------------------------------------
+                            resolve(resultFinal);
+                          },
+                          (error) => {
+                            //logger.info(error);
+                            resolve(false);
+                          }
+                        );
+                      } //Has no uncompleted connectMe requests - so, send the accepted requests and add additional virgin allowed to see rides
+                      else {
+                        //logger.info("ACCEPTED_AND_ADDITIONAL_REQUESTS");
+                        new Promise((res) => {
+                          execGetDrivers_requests_and_provide(
+                            driverData,
+                            requestType,
+                            "ACCEPTED_AND_ADDITIONAL_REQUESTS",
+                            acceptedRidesArray,
+                            collectionRidesDeliveries_data,
+                            collectionPassengers_profiles,
+                            res
+                          );
+                        }).then(
+                          (resultFinal) => {
+                            //! SAVE THE FINAL FULL RESULT - for 24h ------
+                            redisCluster.setex(
+                              RIDE_REDIS_KEY,
+                              parseInt(process.env.REDIS_EXPIRATION_5MIN) * 288,
+                              JSON.stringify(resultFinal)
+                            );
+                            //! ----------------------------------------------
+                            resolve(resultFinal);
+                          },
+                          (error) => {
+                            //logger.info(error);
+                            resolve(false);
+                          }
+                        );
+                      }
+                    });
+                }
               } //NO rides already accepted yet - send full list of allowed to see rides
               else {
                 //logger.info("FULL_ALLLOWEDTOSEE_REQUESTS");
@@ -1886,7 +1922,32 @@ function execGetDrivers_requests_and_provide(
           resolve({ response: "no_requests" });
         }
       });
-  } //Unknown scenario
+  } else if (/ONLY_ACCEPTED_REQUESTS/i.test(scenarioString)) {
+    //FOr only the accepted requests
+    //2. ADD THE ALREADY ACCEPTED REQUESTS IN FRONT
+    refinedRequests = alreadyFetchedData;
+    //Slice based on the max capacity
+    //refinedRequests = refinedRequests.slice(0, max_passengers_capacity);
+    //...
+    //PARSE THE FINAL REQUESTS
+    new Promise((res) => {
+      parseRequests_forDrivers_view(
+        refinedRequests,
+        collectionPassengers_profiles,
+        driverData,
+        res
+      );
+    }).then(
+      (resultFinal) => {
+        resolve(resultFinal);
+      },
+      (error) => {
+        //logger.info(error);
+        resolve(false);
+      }
+    );
+  }
+  //Unknown scenario
   else {
     resolve(false);
   }
