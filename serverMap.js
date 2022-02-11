@@ -1880,6 +1880,7 @@ function execGetDrivers_requests_and_provide(
         if (err) {
           resolve(false);
         }
+        logger.error(requestsData);
         //...
         if (requestsData !== undefined && requestsData.length > 0) {
           //Found some data
