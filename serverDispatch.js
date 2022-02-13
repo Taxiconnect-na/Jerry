@@ -4615,7 +4615,9 @@ function getRequests_graphPreview_forDrivers(
                             scheduledAcceptedTripData.map((trip) => {
                               if (/scheduled/i.test(trip.request_type)) {
                                 //SCHEDULED
-                                requestsGraph.scheduled += 1;
+                                // requestsGraph.scheduled += 1;
+                                //...
+                                requestsGraph.accepted += 1;
                               } //Normal accepted
                               else {
                                 requestsGraph.accepted += 1;
