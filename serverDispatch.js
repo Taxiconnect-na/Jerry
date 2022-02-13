@@ -5808,25 +5808,25 @@ redisCluster.on("connect", function () {
               req.request_fp !== null
             ) {
               //...
-              res.send({ response: "unable_to_cancel_request_error" });
-              // new Promise((res0) => {
-              //   cancelRequest_driver(
-              //     req,
-              //     collectionRidesDeliveryData,
-              //     collectionGlobalEvents,
-              //     collectionPassengers_profiles,
-              //     collectionDrivers_profiles,
-              //     res0
-              //   );
-              // }).then(
-              //   (result) => {
-              //     res.send(result);
-              //   },
-              //   (error) => {
-              //     //logger.info(error);
-              //     res.send({ response: "unable_to_cancel_request_error" });
-              //   }
-              // );
+              // res.send({ response: "unable_to_cancel_request_error" });
+              new Promise((res0) => {
+                cancelRequest_driver(
+                  req,
+                  collectionRidesDeliveryData,
+                  collectionGlobalEvents,
+                  collectionPassengers_profiles,
+                  collectionDrivers_profiles,
+                  res0
+                );
+              }).then(
+                (result) => {
+                  res.send(result);
+                },
+                (error) => {
+                  //logger.info(error);
+                  res.send({ response: "unable_to_cancel_request_error" });
+                }
+              );
             }
           });
 
