@@ -676,7 +676,7 @@ function computeInDepthPricesMap(
     ? "Elisenheim"
     : completedInputData.pickup_location_infos.suburb;
 
-  let pickup_hour = new Date(completedInputData.pickup_time).getHours();
+  let pickup_hour = new Date(completedInputData.pickup_time).getHours() + 2;
   let pickup_minutes = pickup_hour * 60;
   let pickup_type = completedInputData.pickup_location_infos.pickup_type; //PrivateLocation, TaxiRank or Airport.
   let passengers_number = completedInputData.passengers_number; //Number of passengers for this ride.
