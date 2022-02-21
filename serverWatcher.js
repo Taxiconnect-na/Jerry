@@ -2624,7 +2624,7 @@ redisCluster.on("connect", function () {
           });
 
           //! FOR LIGHT HEAVY PROCESSES REQUIRING - 15min
-          cron.schedule("*/1 * * * *", function () {
+          cron.schedule("*/15 * * * *", function () {
             // setInterval(function () {
             logger.warn("Getting ready for wallet computation...");
             //? 2. Keep the drivers next payment date UP TO DATE
