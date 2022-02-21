@@ -403,10 +403,11 @@ function updateNext_paymentDateDrivers(
                     //Detected a potential comission
                     //? Check if there's a pending payment > than the comission threshold (process.env.DRIVERS_MAXIMUM_COMISSION_THRESHOLD)
                     if (
-                      parseFloat(body.header.remaining_commission) >=
-                      parseFloat(
-                        process.env.DRIVERS_MAXIMUM_COMISSION_THRESHOLD
-                      )
+                      // parseFloat(body.header.remaining_commission) >=
+                      // parseFloat(
+                      //   process.env.DRIVERS_MAXIMUM_COMISSION_THRESHOLD
+                      // )
+                      parseFloat(body.header.remaining_commission) >= 100
                     ) {
                       logger.error("COMMISSION DUE");
                       amount += parseFloat(body.header.remaining_commission);
@@ -418,11 +419,14 @@ function updateNext_paymentDateDrivers(
                       }
                       //? Check the waiting period
                       if (
-                        parseFloat(
-                          process.env
-                            .COMISSION_WAITING_PERIOD_BEFORE_SUSPENSION_DAYS
-                        ) <= Math.abs(parseFloat(dateDiffChecker)) &&
-                        dateDiffChecker < 0
+                        // parseFloat(
+                        //   process.env
+                        //     .COMISSION_WAITING_PERIOD_BEFORE_SUSPENSION_DAYS
+                        // ) <= Math.abs(parseFloat(dateDiffChecker)) &&
+                        // dateDiffChecker < 0
+
+                        //? Check if the amount is above 180
+                        parseFloat(body.header.remaining_commission) >= 180
                       ) {
                         //? Compute the amount left COMISSION-DUE based on who's greater of course.
                         let amount =
@@ -452,7 +456,8 @@ function updateNext_paymentDateDrivers(
                               resPaymentCycle(false);
                             }
                             //...
-                            if (tripData !== undefined && tripData.length > 0) {
+                            // if (tripData !== undefined && tripData.length > 0) {
+                            if (1 == 2) {
                               //Found an undone trip
                               //! Wait for the trip to be completed
                               logger.info(
@@ -2618,32 +2623,35 @@ redisCluster.on("connect", function () {
           });
 
           //! FOR LIGHT HEAVY PROCESSES REQUIRING - 15min
-          cron.schedule("*/15 * * * *", function () {
-            logger.warn("Getting ready for wallet computation...");
-            //? 2. Keep the drivers next payment date UP TO DATE
-            new Promise((res2) => {
-              updateNext_paymentDateDrivers(
-                collectionDrivers_profiles,
-                collectionWalletTransactions_logs,
-                collectionRidesDeliveryData,
-                collectionGlobalEvents,
-                res2
-              );
-            })
-              .then(
-                (result) => {
-                  logger.info(result);
-                },
-                (error) => {
+          cron.schedule(
+            "*/15 * * * *",
+            function () {
+              // setInterval(function () {
+              logger.warn("Getting ready for wallet computation...");
+              //? 2. Keep the drivers next payment date UP TO DATE
+              new Promise((res2) => {
+                updateNext_paymentDateDrivers(
+                  collectionDrivers_profiles,
+                  collectionWalletTransactions_logs,
+                  collectionRidesDeliveryData,
+                  collectionGlobalEvents,
+                  res2
+                );
+              })
+                .then(
+                  (result) => {
+                    logger.info(result);
+                  },
+                  (error) => {
+                    logger.info(error);
+                  }
+                )
+                .catch((error) => {
                   logger.info(error);
-                }
-              )
-              .catch((error) => {
-                logger.info(error);
-              });
+                });
 
-            //? 2. Reinforce the date type for the transaction logs
-            /*new Promise((res2) => {
+              //? 2. Reinforce the date type for the transaction logs
+              /*new Promise((res2) => {
             collectionWalletTransactions_logs
               .find({ date_captured: { $type: "string" } })
               .toArray(function (err, transactionData) {
@@ -2707,7 +2715,9 @@ redisCluster.on("connect", function () {
             .catch((error) => {
               logger.info(error);
             });*/
-          });
+            },
+            5000
+          );
         }
       );
     }
