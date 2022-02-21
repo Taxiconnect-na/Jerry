@@ -350,6 +350,7 @@ function updateNext_paymentDateDrivers(
   let amount = 0;
   collectionDrivers_profiles.find({}).toArray(function (err, driversMega) {
     if (err) {
+      logger.error(err);
       resolve({ response: "error_getting_drivers_mega_data" });
     }
     //...
