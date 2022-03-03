@@ -170,12 +170,15 @@ function removeOldRequests_madeWithoutBeingAttended(
             //...Compute the diff and convert to minutes
             let diff = (referenceDate - dateRequested) / 60;
             //...Save
+            logger.warn(request.date_requested);
+            logger.warn(chaineDateUTC);
             let recordObj = {
               age_minutes: diff,
               request_fp: request.request_fp,
               client_id: request.client_id,
               pushNotif_token: null,
             };
+            logger.warn(recordObj);
             //Get the push notif token
             collectionPassengers_profiles
               .find({ user_fingerprint: request.client_id })
