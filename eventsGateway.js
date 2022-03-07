@@ -2278,9 +2278,9 @@ io.on("connection", (socket) => {
    */
   socket.on("gatherAdsManagerAnalytics_io", function (req) {
     logger.warn(req);
-    socket.emit("gatherAdsManagerAnalytics_io-response", {
-      response: "error_noAds",
-    });
+    // socket.emit("gatherAdsManagerAnalytics_io-response", {
+    //   response: "error_noAds",
+    // });
     if (
       req.user_fingerprint !== undefined &&
       req.user_fingerprint !== null &&
