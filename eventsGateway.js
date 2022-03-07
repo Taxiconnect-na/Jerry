@@ -2281,7 +2281,7 @@ io.on("connection", (socket) => {
     socket.emit("gatherAdsManagerAnalytics_io-response", {
       response: "error_noAds",
     });
-    /*if (
+    if (
       req.user_fingerprint !== undefined &&
       req.user_fingerprint !== null &&
       req.user_nature !== undefined &&
@@ -2293,12 +2293,12 @@ io.on("connection", (socket) => {
       req.campaign_identifier !== undefined &&
       req.campaign_identifier !== null
     ) {
-      let url =
-        /production/i.test(process.env.EVIRONMENT)
-      ? `http://${process.env.INSTANCE_PRIVATE_IP}` : process.env.LOCAL_URL +
-        ":" +
-        process.env.ACCOUNTS_SERVICE_PORT +
-        "/gatherAdsManagerAnalytics";
+      let url = /production/i.test(process.env.EVIRONMENT)
+        ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+        : process.env.LOCAL_URL +
+          ":" +
+          process.env.ACCOUNTS_SERVICE_PORT +
+          "/gatherAdsManagerAnalytics";
 
       requestAPI.post({ url, form: req }, function (error, response, body) {
         //logger.info(body);
@@ -2321,7 +2321,7 @@ io.on("connection", (socket) => {
       socket.emit("gatherAdsManagerAnalytics_io-response", {
         response: "error_noAds",
       });
-    }*/
+    }
   });
 
   /**
