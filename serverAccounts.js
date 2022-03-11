@@ -4191,6 +4191,7 @@ function TrulyGetAdsManagerRunningInfos(req, redisKey, resolve) {
         logger.info(err);
         resolve({ response: "error", flag: "invalid_data" });
       }
+      // logger.error(companiesData[0].ad_specs);
       //....
       if (companiesData !== undefined && companiesData.length > 0) {
         //Found some data
@@ -4209,6 +4210,7 @@ function TrulyGetAdsManagerRunningInfos(req, redisKey, resolve) {
         );
         //! Rewrite the logo web path
         adsData[0].media.logo = `${process.env.AWS_S3_COMPANIES_AD_DATA_LOGOS}/${adsData[0].media.logo}`;
+        logger.error(adsData[0].media.logo);
         //! Remove the dates infos
         adsData[0].date_created = null;
         adsData[0].expiration_date = null;
@@ -7225,39 +7227,39 @@ redisCluster.on("connect", function () {
             resolveDate();
             let params = urlParser.parse(req.url, true);
             req = params.query;
-            res.send({ response: "error", flag: "invalid_data" });
-            /*logger.info(req);
-    
-        if (
-          req.user_fingerprint !== undefined &&
-          req.user_fingerprint !== null &&
-          req.user_nature !== undefined &&
-          req.user_nature !== null &&
-          req.city !== undefined &&
-          req.city !== null
-        ) {
-          //Valid
-          //? Get the only visible Ad campaign based on the operation city
-          new Promise((resGet) => {
-            getAdsManagerRunningInfos(req, resGet);
-          })
-            .then(
-              (result) => {
-                res.send(result);
-              },
-              (error) => {
-                logger.info(error);
-                res.send({ response: "error", flag: "invalid_data" });
-              }
-            )
-            .catch((error) => {
-              logger.info(error);
+            // res.send({ response: "error", flag: "invalid_data" });
+            logger.info(req);
+
+            if (
+              req.user_fingerprint !== undefined &&
+              req.user_fingerprint !== null &&
+              req.user_nature !== undefined &&
+              req.user_nature !== null &&
+              req.city !== undefined &&
+              req.city !== null
+            ) {
+              //Valid
+              //? Get the only visible Ad campaign based on the operation city
+              new Promise((resGet) => {
+                getAdsManagerRunningInfos(req, resGet);
+              })
+                .then(
+                  (result) => {
+                    res.send(result);
+                  },
+                  (error) => {
+                    logger.info(error);
+                    res.send({ response: "error", flag: "invalid_data" });
+                  }
+                )
+                .catch((error) => {
+                  logger.info(error);
+                  res.send({ response: "error", flag: "invalid_data" });
+                });
+            } //Invalid data
+            else {
               res.send({ response: "error", flag: "invalid_data" });
-            });
-        } //Invalid data
-        else {
-          res.send({ response: "error", flag: "invalid_data" });
-        }*/
+            }
           });
 
           /**
