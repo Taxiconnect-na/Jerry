@@ -1067,6 +1067,7 @@ function parseRequestData(inputData, resolve) {
  * @param snapshotTripInfos: this will contain basic review of the trip, specifically the fare, passengers number, ride type (ride/delivery),
  * @param collectionRidesDeliveryData: rides and delivery collection
  * @param collectionDrivers_profiles: drivers profiles collection
+ * @param distilledUnwantedDrivers: the drivers that were intentionally blocked by the clients
  * connect type (connectMe/connectUS).
  * Responsible for sending notifications to drivers in a staged manner:
  * ? Closest first (1 driver)
@@ -1082,6 +1083,7 @@ function intitiateStagedDispatch(
   snapshotTripInfos,
   collectionDrivers_profiles,
   collectionRidesDeliveryData,
+  distilledUnwantedDrivers,
   resolve
 ) {
   //Get the list of all the closest drivers
@@ -1143,6 +1145,7 @@ function intitiateStagedDispatch(
               snapshotTripInfos,
               collectionDrivers_profiles,
               collectionRidesDeliveryData,
+              distilledUnwantedDrivers,
               res
             );
           }).then(
@@ -1163,6 +1166,7 @@ function intitiateStagedDispatch(
               snapshotTripInfos,
               collectionDrivers_profiles,
               collectionRidesDeliveryData,
+              distilledUnwantedDrivers,
               res
             );
           }).then(
@@ -1185,6 +1189,7 @@ function intitiateStagedDispatch(
             snapshotTripInfos,
             collectionDrivers_profiles,
             collectionRidesDeliveryData,
+            distilledUnwantedDrivers,
             res
           );
         }).then(
@@ -1207,6 +1212,7 @@ function intitiateStagedDispatch(
         snapshotTripInfos,
         collectionDrivers_profiles,
         collectionRidesDeliveryData,
+        distilledUnwantedDrivers,
         res
       );
     }).then(
@@ -1229,6 +1235,7 @@ function intitiateStagedDispatch(
  * @param collectionDrivers_profiles: drivers profiles collection
  * @param snapshotTripInfos: brief trip infos
  * @param closestDriversList: the list of all the closest drivers OR false if failed to get the list,
+ * @param distilledUnwantedDrivers: the drivers that were intentionally blocked by the clients
  * in the last scenario, dispatch to all the online drivers.
  * Responsible for EXECUTING the staged sending of notifications and adding correspoding drivers to
  * the allowed_drivers_see list of the request so that they can access the trip from their app if not
@@ -1252,6 +1259,7 @@ function sendStagedNotificationsDrivers(
   snapshotTripInfos,
   collectionDrivers_profiles,
   collectionRidesDeliveryData,
+  distilledUnwantedDrivers,
   resolve
 ) {
   logger.error(
@@ -1296,9 +1304,18 @@ function sendStagedNotificationsDrivers(
 
         //...Register the drivers fp so that thei can see tne requests
         //TODO: Filter the driver's fingerprint based on the regional clearances as well.
-        let driversFp = driversProfiles.map((data) => data.driver_fingerprint); //Drivers fingerprints
+        let driversFp = driversProfiles.map((data) => {
+          if (
+            distilledUnwantedDrivers.includes(data.driver_fingerprint) === false
+          ) {
+            data.driver_fingerprint;
+          }
+        }); //Drivers fingerprints
         let driversPushNotif_token = driversProfiles.map((data) => {
-          if (/online/i.test(data.operational_state.status)) {
+          if (
+            /online/i.test(data.operational_state.status) &&
+            distilledUnwantedDrivers.includes(data.driver_fingerprint) === false
+          ) {
             let driverData = data;
             if (
               snapshotTripInfos.isIntercity_trip === true ||
@@ -1712,11 +1729,20 @@ function sendStagedNotificationsDrivers(
         );*/
 
           //...Register the drivers fp so that thei can see tne requests
-          let driversFp = driversProfiles.map(
-            (data) => data.driver_fingerprint
-          ); //Drivers fingerprints
+          let driversFp = driversProfiles.map((data) => {
+            if (
+              distilledUnwantedDrivers.includes(data.driver_fingerprint) ===
+              false
+            ) {
+              data.driver_fingerprint;
+            }
+          }); //Drivers fingerprints
           let driversPushNotif_token = driversProfiles.map((data) => {
-            if (/online/i.test(data.operational_state.status)) {
+            if (
+              /online/i.test(data.operational_state.status) &&
+              distilledUnwantedDrivers.includes(data.driver_fingerprint) ===
+                false
+            ) {
               return data.operational_state.push_notification_token !== null &&
                 data.operational_state.push_notification_token !== undefined
                 ? data.operational_state.push_notification_token.userId
@@ -4358,77 +4384,116 @@ function INIT_RIDE_DELIVERY_DISPATCH_ENTRY(
     : QUOTAS_BATCHES[parsedReqest_data.subscribed_plan];
   //! ----
 
-  collectionRidesDeliveryData
-    .find(checkPrevRequest)
-    .toArray(function (err, prevRequest) {
+  //! Get the list of blocked drivers set by the rider
+  collectionPassengers_profiles
+    .find({
+      user_fingerprint: parsedReqest_data.client_id,
+    })
+    .toArray(function (err, riderData) {
       if (err) {
-        logger.error(err);
+        //logger.info(err);
         resolve({ response: "Unable_to_make_the_request" });
       }
-      //....
-      if (
-        prevRequest === undefined ||
-        prevRequest === null ||
-        prevRequest.length <= simulataneaousRequestsLimit - 1 ||
-        prevRequest[0] === undefined
-      ) {
-        collectionRidesDeliveryData.insertOne(
-          parsedReqest_data,
-          function (err, requestDt) {
+      //...
+      if (riderData !== undefined && riderData.length > 0) {
+        //Found the profile
+        riderData = riderData[0];
+        //...
+        collectionRidesDeliveryData
+          .find(checkPrevRequest)
+          .toArray(function (err, prevRequest) {
             if (err) {
-              //logger.info(err);
+              logger.error(err);
               resolve({ response: "Unable_to_make_the_request" });
             }
+            //....
+            if (
+              prevRequest === undefined ||
+              prevRequest === null ||
+              prevRequest.length <= simulataneaousRequestsLimit - 1 ||
+              prevRequest[0] === undefined
+            ) {
+              let blockedDriversByRider =
+                riderData.drivers_blacklist !== undefined &&
+                riderData.drivers_blacklist !== null
+                  ? riderData.drivers_blacklist
+                  : [];
+              ///...
+              let distilledUnwantedDrivers = [];
+              blockedDriversByRider.map((d) => {
+                distilledUnwantedDrivers.push(d.driver_fp);
+              });
+              //! Exclude all the blocked drivers from seeing the requests - intentional_request_decline
+              parsedReqest_data["intentional_request_decline"] =
+                distilledUnwantedDrivers;
+              //! ----
+              collectionRidesDeliveryData.insertOne(
+                parsedReqest_data,
+                function (err, requestDt) {
+                  if (err) {
+                    //logger.info(err);
+                    resolve({ response: "Unable_to_make_the_request" });
+                  }
 
-            //2. INITIATE STAGED toDrivers DISPATCH
-            new Promise((resStaged) => {
-              //FORM THE REQUEST SNAPSHOT
-              let snapshotTripInfos = {
-                user_fingerprint: parsedReqest_data.client_id,
-                isIntercity_trip: parsedReqest_data.isIntercity_trip,
-                city: parsedReqest_data.pickup_location_infos.city,
-                region: parsedReqest_data.pickup_location_infos.state
-                  .replace(/ Region/i, "")
-                  .trim()
-                  .toUpperCase(),
-                country: parsedReqest_data.country,
-                ride_type: parsedReqest_data.ride_mode,
-                request_type: parsedReqest_data.request_type,
-                vehicle_type: parsedReqest_data.carTypeSelected,
-                org_latitude:
-                  parsedReqest_data.pickup_location_infos.coordinates.latitude,
-                org_longitude:
-                  parsedReqest_data.pickup_location_infos.coordinates.longitude,
-                request_fp: parsedReqest_data.request_fp,
-                pickup_suburb: parsedReqest_data.pickup_location_infos.suburb,
-                destination_suburb: parsedReqest_data.destinationData[0].suburb,
-                fare: parsedReqest_data.fare,
-                passengers_number: parsedReqest_data.passengers_number,
-                destination_infos: parsedReqest_data.destinationData, //? Full destination data
-              };
+                  //2. INITIATE STAGED toDrivers DISPATCH
+                  new Promise((resStaged) => {
+                    //FORM THE REQUEST SNAPSHOT
+                    let snapshotTripInfos = {
+                      user_fingerprint: parsedReqest_data.client_id,
+                      isIntercity_trip: parsedReqest_data.isIntercity_trip,
+                      city: parsedReqest_data.pickup_location_infos.city,
+                      region: parsedReqest_data.pickup_location_infos.state
+                        .replace(/ Region/i, "")
+                        .trim()
+                        .toUpperCase(),
+                      country: parsedReqest_data.country,
+                      ride_type: parsedReqest_data.ride_mode,
+                      request_type: parsedReqest_data.request_type,
+                      vehicle_type: parsedReqest_data.carTypeSelected,
+                      org_latitude:
+                        parsedReqest_data.pickup_location_infos.coordinates
+                          .latitude,
+                      org_longitude:
+                        parsedReqest_data.pickup_location_infos.coordinates
+                          .longitude,
+                      request_fp: parsedReqest_data.request_fp,
+                      pickup_suburb:
+                        parsedReqest_data.pickup_location_infos.suburb,
+                      destination_suburb:
+                        parsedReqest_data.destinationData[0].suburb,
+                      fare: parsedReqest_data.fare,
+                      passengers_number: parsedReqest_data.passengers_number,
+                      destination_infos: parsedReqest_data.destinationData, //? Full destination data
+                    };
 
-              intitiateStagedDispatch(
-                snapshotTripInfos,
-                collectionDrivers_profiles,
-                collectionRidesDeliveryData,
-                resStaged
+                    intitiateStagedDispatch(
+                      snapshotTripInfos,
+                      collectionDrivers_profiles,
+                      collectionRidesDeliveryData,
+                      distilledUnwantedDrivers,
+                      resStaged
+                    );
+                  }).then(
+                    (result) => {
+                      logger.info(result);
+                    },
+                    (error) => {
+                      logger.info(error);
+                    }
+                  );
+                  //..Success - respond to the user
+                  resolve({ response: "successfully_requested" });
+                }
               );
-            }).then(
-              (result) => {
-                logger.info(result);
-              },
-              (error) => {
-                logger.info(error);
-              }
-            );
-            //..Success - respond to the user
-            resolve({ response: "successfully_requested" });
-          }
-        );
-      } //Already have a request
+            } //Already have a request
+            else {
+              //logger.info("ALEADY HAS A REQUEST");
+              resolve({ response: "already_have_a_pending_request" });
+            }
+          });
+      } //No profile found
       else {
-        //logger.info("ALEADY HAS A REQUEST");
-        resolve({ response: "already_have_a_pending_request" });
+        resolve({ response: "Unable_to_make_the_request" });
       }
     });
 }

@@ -2638,6 +2638,54 @@ io.on("connection", (socket) => {
       });
     }
   });
+
+  /**
+   * ACCOUNTS SERVICE, port 9696
+   * Route: checkOrBlockDriversFromRider
+   * event: checkDriverForPotentialblock
+   * Check if the phone number is linked to a driver's account for a potential block
+   */
+  socket.on("checkDriverForPotentialblock", function (req) {
+    //logger.info(req);
+    if (req.op !== undefined && req.op !== null) {
+      let url =
+        `${
+          /production/i.test(process.env.EVIRONMENT)
+            ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+            : process.env.LOCAL_URL
+        }` +
+        ":" +
+        process.env.ACCOUNTS_SERVICE_PORT +
+        "/checkOrBlockDriversFromRider";
+      //logger.info(url);
+      requestAPI.post({ url, form: req }, function (error, response, body) {
+        //logger.info(error, body);
+        if (error === null) {
+          try {
+            body = JSON.parse(body);
+            //Add the operation
+            socket.emit(
+              `checkDriverForPotentialblock-${req.op}-response`,
+              body
+            );
+          } catch (error) {
+            socket.emit(`checkDriverForPotentialblock-${req.op}-response`, {
+              response: "error_unable_to_block",
+            });
+          }
+        } else {
+          socket.emit(`checkDriverForPotentialblock-${req.op}-response`, {
+            response: "error_unable_to_block",
+          });
+        }
+      });
+    } else {
+      socket.emit(`checkDriverForPotentialblock-${req.op}-response`, {
+        response: "error_unable_to_block",
+      });
+    }
+  });
+
   /**
    * ACCOUNTS SERVICE, port 9696
    * Route: updateAdditionalProfileData_newAccount

@@ -7760,6 +7760,326 @@ redisCluster.on("connect", function () {
           });
 
           /**
+           * CHECK DRIVERS FOR POTENTIAL BLOCKING AND BLOCK IF NEEDED FROM A SPECIFIC RIDER'S CIRCLE
+           * ? Responsible for checking and blocking a specific driver from a user's circle when requesting.
+           */
+          app.post("/checkOrBlockDriversFromRider", function (req, res) {
+            new Promise((resolve) => {
+              resolveDate();
+              req = req.body;
+              logger.info(req);
+
+              if (req.op !== undefined && req.op !== null) {
+                if (
+                  req.op === "check" &&
+                  req.driver_phoneNumber !== undefined &&
+                  req.driver_phoneNumber !== null
+                ) {
+                  //Has the data
+                  collectionDrivers_profiles
+                    .find({ phone_number: req.driver_phoneNumber.trim() })
+                    .toArray(function (err, driverData) {
+                      if (err) {
+                        logger.error(err);
+                        resolve({ response: "error_invalid_data" });
+                      }
+                      //...
+                      if (driverData !== undefined && driverData.length > 0) {
+                        //Found the driver
+                        driverData = driverData[0];
+                        //...
+                        resolve({
+                          response: {
+                            driver_name: driverData.name,
+                            driver_surname: driverData.surname,
+                            driver_fp: driverData.driver_fingerprint,
+                            profile_picture: `${process.env.AWS_S3_DRIVERS_PROFILE_PICTURES_PATH}/${driverData.identification_data.profile_picture}`,
+                          },
+                        });
+                      } //No driver found
+                      else {
+                        resolve({ response: "error_no_driver" });
+                      }
+                    });
+                } else if (
+                  req.op === "block" &&
+                  req.user_fp !== undefined &&
+                  req.user_fp !== null &&
+                  req.driver_data !== undefined &&
+                  req.driver_data !== null &&
+                  req.driver_data.driver_fp !== undefined &&
+                  req.driver_data.driver_fp !== null
+                ) {
+                  //Block the driver effectively
+                  collectionPassengers_profiles
+                    .find({
+                      user_fingerprint: req.user_fp,
+                    })
+                    .toArray(function (err, userData) {
+                      if (err) {
+                        logger.error(err);
+                        resolve({ response: "error_unable_to_block" });
+                      }
+                      //...
+                      if (userData !== undefined && userData.length > 0) {
+                        userData = userData[0];
+                        //Valid user
+                        //! Add the driver to the blocked list
+                        let blockedList =
+                          userData.drivers_blacklist !== undefined &&
+                          userData.drivers_blacklist !== null
+                            ? userData.drivers_blacklist
+                            : [];
+                        //...Attach the date unblocked
+                        req.driver_data["date"] = new Date(chaineDateUTC);
+                        //...
+                        blockedList.push(req.driver_data);
+                        let blockedListUnique = [];
+                        let fpUniqueTracker = [];
+                        blockedList.map((driver) => {
+                          if (
+                            fpUniqueTracker.includes(driver.driver_fp) === false
+                          ) {
+                            //New
+                            blockedListUnique.push(driver);
+                            //...
+                            fpUniqueTracker.push(driver.driver_fp);
+                          }
+                        });
+                        //? Update
+                        collectionPassengers_profiles.updateOne(
+                          { user_fingerprint: req.user_fp },
+                          { $set: { drivers_blacklist: blockedListUnique } },
+                          function (err, resltUpdate) {
+                            if (err) {
+                              logger.error(err);
+                              resolve({ response: "error_unable_to_block" });
+                            }
+                            //...
+                            //Cache it
+                            let RIDE_REDIS_KEY = `${req.user_fp}-getListOfBlockedDrivers`;
+                            redisCluster.setex(
+                              RIDE_REDIS_KEY,
+                              parseInt(process.env.REDIS_EXPIRATION_5MIN) * 120,
+                              JSON.stringify(blockedList)
+                            );
+                            //...
+                            resolve({ response: "successfully_blocked" });
+                          }
+                        );
+                      } //Invalid user?
+                      else {
+                        resolve({ response: "error_unable_to_block_iv_user" });
+                      }
+                    });
+                } else if (
+                  req.op === "unblock" &&
+                  req.user_fp !== undefined &&
+                  req.user_fp !== null &&
+                  req.driver_fp !== undefined &&
+                  req.driver_fp !== null
+                ) {
+                  //Just unlock
+                  //Block the driver effectively
+                  collectionPassengers_profiles
+                    .find({
+                      user_fingerprint: req.user_fp,
+                    })
+                    .toArray(function (err, userData) {
+                      if (err) {
+                        logger.error(err);
+                        resolve({ response: "error_unable_to_unblock" });
+                      }
+                      //...
+                      if (userData !== undefined && userData.length > 0) {
+                        userData = userData[0];
+                        //Valid user
+                        //! Add the driver to the blocked list
+                        let blockedList =
+                          userData.drivers_blacklist !== undefined &&
+                          userData.drivers_blacklist !== null
+                            ? userData.drivers_blacklist
+                            : [];
+                        //...
+                        //Remove the driver from the blocked list
+                        let updatedBlockedList = [];
+                        blockedList.map((driver) => {
+                          if (driver.driver_fp !== req.driver_fp) {
+                            //! Skip all the rest of the blocked drivers
+                            updatedBlockedList.push(driver);
+                          }
+                        });
+                        //? Update
+                        collectionPassengers_profiles.updateOne(
+                          { user_fingerprint: req.user_fp },
+                          { $set: { drivers_blacklist: updatedBlockedList } },
+                          function (err, resltUpdate) {
+                            if (err) {
+                              logger.error(err);
+                              resolve({ response: "error_unable_to_unblock" });
+                            }
+                            //Cache it
+                            let RIDE_REDIS_KEY = `${req.user_fp}-getListOfBlockedDrivers`;
+                            redisCluster.setex(
+                              RIDE_REDIS_KEY,
+                              parseInt(process.env.REDIS_EXPIRATION_5MIN) * 120,
+                              JSON.stringify(updatedBlockedList)
+                            );
+                            //...
+                            resolve({ response: "successfully_unblocked" });
+                          }
+                        );
+                      } //Invalid user?
+                      else {
+                        resolve({ response: "error_unable_to_block_iv_user" });
+                      }
+                    });
+                } else if (
+                  req.op === "getList" &&
+                  req.user_fp !== undefined &&
+                  req.user_fp !== null
+                ) {
+                  let RIDE_REDIS_KEY = `${req.user_fp}-getListOfBlockedDrivers`;
+                  //Get blocked account list
+                  redisGet(RIDE_REDIS_KEY).then((resp) => {
+                    if (resp !== null) {
+                      logger.warn("Cached list for blocked drivers found");
+                      //Has some cached data
+                      try {
+                        //? Rehydrate
+                        new Promise((resCompute) => {
+                          collectionPassengers_profiles
+                            .find({
+                              user_fingerprint: req.user_fp,
+                            })
+                            .toArray(function (err, userData) {
+                              if (err) {
+                                logger.error(err);
+                                resCompute(true);
+                              }
+                              //...
+                              if (
+                                userData !== undefined &&
+                                userData.length > 0
+                              ) {
+                                userData = userData[0];
+                                //Valid user
+                                //! Add the driver to the blocked list
+                                let blockedList =
+                                  userData.drivers_blacklist !== undefined &&
+                                  userData.drivers_blacklist !== null
+                                    ? userData.drivers_blacklist
+                                    : [];
+                                //...
+                                //Cache as well
+                                redisCluster.setex(
+                                  RIDE_REDIS_KEY,
+                                  parseInt(process.env.REDIS_EXPIRATION_5MIN) *
+                                    120,
+                                  JSON.stringify(blockedList)
+                                );
+                                ///...
+                                resCompute(true);
+                              } //Invalid user?
+                              else {
+                                resCompute(true);
+                              }
+                            });
+                        })
+                          .then()
+                          .catch((error) => logger.error(error));
+                        //? ---
+                        resolve({ response: JSON.parse(resp) });
+                      } catch (error) {
+                        collectionPassengers_profiles
+                          .find({
+                            user_fingerprint: req.user_fp,
+                          })
+                          .toArray(function (err, userData) {
+                            if (err) {
+                              logger.error(err);
+                              resolve({ response: [] });
+                            }
+                            //...
+                            if (userData !== undefined && userData.length > 0) {
+                              userData = userData[0];
+                              //Valid user
+                              //! Add the driver to the blocked list
+                              let blockedList =
+                                userData.drivers_blacklist !== undefined &&
+                                userData.drivers_blacklist !== null
+                                  ? userData.drivers_blacklist
+                                  : [];
+                              //...
+                              //Cache as well
+                              redisCluster.setex(
+                                RIDE_REDIS_KEY,
+                                parseInt(process.env.REDIS_EXPIRATION_5MIN) *
+                                  120,
+                                JSON.stringify(blockedList)
+                              );
+                              ///...
+                              resolve({ response: blockedList });
+                            } //Invalid user?
+                            else {
+                              resolve({ response: [] });
+                            }
+                          });
+                      }
+                    } //No cached data
+                    else {
+                      collectionPassengers_profiles
+                        .find({
+                          user_fingerprint: req.user_fp,
+                        })
+                        .toArray(function (err, userData) {
+                          if (err) {
+                            logger.error(err);
+                            resolve({ response: [] });
+                          }
+                          //...
+                          if (userData !== undefined && userData.length > 0) {
+                            userData = userData[0];
+                            //Valid user
+                            //! Add the driver to the blocked list
+                            let blockedList =
+                              userData.drivers_blacklist !== undefined &&
+                              userData.drivers_blacklist !== null
+                                ? userData.drivers_blacklist
+                                : [];
+                            //...
+                            //Cache as well
+                            redisCluster.setex(
+                              RIDE_REDIS_KEY,
+                              parseInt(process.env.REDIS_EXPIRATION_5MIN) * 120,
+                              JSON.stringify(blockedList)
+                            );
+                            ///...
+                            resolve({ response: blockedList });
+                          } //Invalid user?
+                          else {
+                            resolve({ response: [] });
+                          }
+                        });
+                    }
+                  });
+                }
+                //Invalid op
+                else {
+                  resolve({ response: "error_invalid_data" });
+                }
+              }
+            })
+              .then((result) => {
+                res.send(result);
+              })
+              .catch((error) => {
+                logger.error(error);
+                res.send({ response: "error_invalid_data" });
+              });
+          });
+
+          /**
            * GET WALLET DELIVERY FOR CORPORATIONS
            * ? Responsible for getting the wallet delivery for the corporations
            */
