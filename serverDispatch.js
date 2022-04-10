@@ -3986,25 +3986,36 @@ function confirmPickupRequest_driver(
   resolve
 ) {
   resolveDate();
+
+  let dynRequestFetcher =
+    bundleWorkingData.driver_fingerprint !== undefined &&
+    bundleWorkingData.driver_fingerprint !== null
+      ? {
+          request_fp: bundleWorkingData.request_fp,
+          taxi_id: bundleWorkingData.driver_fingerprint,
+        }
+      : {
+          request_fp: bundleWorkingData.request_fp,
+          client_id: bundleWorkingData.rider_fingerprint,
+        };
   //Only confirm pickup if not yet accepted by the driver
   collectionRidesDeliveryData
-    .find({
-      request_fp: bundleWorkingData.request_fp,
-      taxi_id: bundleWorkingData.driver_fingerprint,
-    })
-    .toArray(function (err, result) {
+    .find(dynRequestFetcher)
+    .toArray(function (err, requestGlobalData) {
       if (err) {
         resolve({ response: "unable_to_confirm_pickup_request_error" });
       }
       //...
-      if (result.length > 0) {
+      if (requestGlobalData.length > 0) {
+        requestGlobalData = requestGlobalData[0];
         //The driver requesting for the confirm pickup is the one who's currently associated to the request - proceed to the pickup confirmation.
         //Save the pickup confirmation event
         new Promise((res) => {
           collectionGlobalEvents.insertOne({
             event_name: "driver_confirm_pickup_request",
-            request_fp: bundleWorkingData.request_fp,
-            driver_fingerprint: bundleWorkingData.driver_fingerprint,
+            request_fp: requestGlobalData.request_fp,
+            driver_fingerprint: requestGlobalData.taxi_id,
+            rider_fingerprint: requestGlobalData.client_id,
             date: new Date(chaineDateUTC),
           });
           res(true);
@@ -4015,12 +4026,12 @@ function confirmPickupRequest_driver(
         //Update the true request
         collectionRidesDeliveryData.updateOne(
           {
-            request_fp: bundleWorkingData.request_fp,
-            taxi_id: bundleWorkingData.driver_fingerprint,
+            request_fp: requestGlobalData.request_fp,
+            taxi_id: requestGlobalData.taxi_id,
           },
           {
             $set: {
-              taxi_id: bundleWorkingData.driver_fingerprint,
+              taxi_id: requestGlobalData.taxi_id,
               date_pickup: new Date(chaineDateUTC),
               "ride_state_vars.isAccepted": true,
               "ride_state_vars.inRideToDestination": true,
@@ -4033,7 +4044,7 @@ function confirmPickupRequest_driver(
 
             //? If corporate delivery, notify the receiver by SMS
             //! Send SMS just for corporate globality
-            let parsedRequest = result[0];
+            let parsedRequest = requestGlobalData;
             if (
               parsedRequest.request_globality !== undefined &&
               /corporate/i.test(parsedRequest.request_globality) &&
@@ -4102,7 +4113,7 @@ function confirmPickupRequest_driver(
             //DONE
             resolve({
               response: "successfully_confirmed_pickup",
-              rider_fp: result[0].client_id,
+              rider_fp: requestGlobalData.client_id,
             });
           }
         );
@@ -5896,25 +5907,25 @@ redisCluster.on("connect", function () {
           });
 
           /**
-           * CONFIRM PICKUP REQUESTS - DRIVERS
+           * CONFIRM PICKUP REQUESTS - DRIVERS (CAN ALSO BE USED FOR RIDERS NEWER VERSION)
            * Responsible for handling the pickup confirmation of requests from the drivers side.
            */
           app.post("/confirm_pickup_request_driver", function (req, res) {
             //DEBUG
             /*req.body = {
-        driver_fingerprint:
-          "23c9d088e03653169b9c18193a0b8dd329ea1e43eb0626ef9f16b5b979694a429710561a3cb3ddae",
-        request_fp:
-          "999999f5c51c380ef9dee9680872a6538cc9708ef079a8e42de4d762bfa7d49efdcde41c6009cbdd9cdf6f0ae0544f74cb52caa84439cbcda40ce264f90825e8",
-      };*/
+              driver_fingerprint:
+                "23c9d088e03653169b9c18193a0b8dd329ea1e43eb0626ef9f16b5b979694a429710561a3cb3ddae",
+              request_fp:
+                "999999f5c51c380ef9dee9680872a6538cc9708ef079a8e42de4d762bfa7d49efdcde41c6009cbdd9cdf6f0ae0544f74cb52caa84439cbcda40ce264f90825e8",
+            };*/
             //...
             req = req.body;
             //logger.info(req);
 
             //Do basic checking
             if (
-              req.driver_fingerprint !== undefined &&
-              req.driver_fingerprint !== null &&
+              // req.driver_fingerprint !== undefined &&
+              // req.driver_fingerprint !== null &&
               req.request_fp !== undefined &&
               req.request_fp !== null
             ) {

@@ -1506,6 +1506,8 @@ function parsePricingInputData(resolve, inputData) {
   }
 }
 
+var collectionRidesDeliveryData = null;
+
 /**
  * Pricing service
  * Responsible for computing all the price estimates for evey vehicle type based on any type of requests (RIDE or DELIVERY)
@@ -1548,6 +1550,9 @@ redisCluster.on("connect", function () {
           if (err) throw err;
           logger.info("[+] Pricing service active");
           const dbMongo = clientMongo.db(process.env.DB_NAME_MONGODDB);
+          collectionRidesDeliveryData = dbMongo.collection(
+            "rides_deliveries_requests"
+          ); //Hold all the requests made (rides and deliveries)
           const collectionVehiclesInfos = dbMongo.collection(
             "vehicles_collection_infos"
           ); //Collection containing the list of all the vehicles types and all their corresponding infos
@@ -1667,6 +1672,7 @@ redisCluster.on("connect", function () {
                                   );
                                 }).then(
                                   (result) => {
+                                    logger.warn(result);
                                     logger.info("DOne computing fares");
                                     resMAIN(result);
                                   },
@@ -1772,6 +1778,68 @@ redisCluster.on("connect", function () {
               }
             })
               .then((result) => {
+                res.send(result);
+              })
+              .catch((error) => {
+                logger.info(error);
+                res.send(false);
+              });
+          });
+
+          /**
+           * UPDATE FARE IN REALTIME FROM THE PASSENGER SIDE
+           * Responsible for updating the fare from the rider app without the need of cancelling the request before a driver accepts it.
+           */
+          app.post("/getUpdateInRealtimePassengerFare", function (req, res) {
+            new Promise((resolve) => {
+              req = req.body;
+              logger.info(req);
+              //! Check if the request exists and is not yet accepted
+              if (
+                req.user_fp !== undefined &&
+                req.user_fp !== null &&
+                req.request_fp !== undefined &&
+                req.request_fp !== null &&
+                req.new_fare !== undefined &&
+                req.new_fare !== null
+              ) {
+                collectionRidesDeliveryData
+                  .find({ request_fp: req.request_fp, client_id: req.user_fp })
+                  .toArray(function (err, requestData) {
+                    if (err) {
+                      logger.error(err);
+                      resolve({ response: "error_unable_to_get_ride_infos" });
+                    }
+                    //...
+                    if (requestData !== undefined && requestData.length > 0) {
+                      //Valid trip
+                      requestData = requestData[0];
+                      collectionRidesDeliveryData.updateOne(
+                        { request_fp: req.request_fp, client_id: req.user_fp },
+                        { $set: { fare: req.new_fare } },
+                        function (err, resltUpdate) {
+                          if (err) {
+                            logger.error(err);
+                            resolve({
+                              response: "error_unable_to_update_ride_infos",
+                            });
+                          }
+                          //...
+                          resolve({ response: "successfullly_updated" });
+                        }
+                      );
+                    } //Invalid trip
+                    else {
+                      resolve({ response: "error_unable_to_get_ride_infos" });
+                    }
+                  });
+              } //Invalid params
+              else {
+                resolve({ response: "error_invalid_params" });
+              }
+            })
+              .then((result) => {
+                logger.info(result);
                 res.send(result);
               })
               .catch((error) => {

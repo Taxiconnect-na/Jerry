@@ -1603,6 +1603,17 @@ function parseDetailed_walletGetData(
               tmpClean["payment_method"] = transaction.payment_method;
               tmpClean["driverData"] = transaction.driverData;
             }
+            //? 6.a. If a reward - add the organization Name
+            if (/onetime_voucher/i.test(transaction.transaction_nature)) {
+              tmpClean["org_name"] =
+                transaction.organization.name.toLowerCase();
+              tmpClean["org_name"] = `${tmpClean[
+                "org_name"
+              ][0].toUpperCase()}${tmpClean["org_name"].substring(
+                1,
+                tmpClean["org_name"].length
+              )}`;
+            }
             //? 7. Get the recipient name for any other non ride/delivery transactions in nature.
             if (!/(ride|delivery)/i.test(transaction.transaction_nature)) {
               //Everything except rides/deliveries
@@ -1664,6 +1675,10 @@ function parseDetailed_walletGetData(
                       res(false);
                     }
                   });
+              } else if (
+                /(onetime_voucher)/i.test(tmpClean.transaction_nature)
+              ) {
+                res(tmpClean);
               } else {
                 res(false);
               }
@@ -1896,6 +1911,7 @@ function truelyExec_ridersDrivers_walletSummary(
           "sentToDriver",
           "weeklyPaidDriverAutomatic",
           "commissionTCSubtracted",
+          "onetime_voucher", //? For the reward - onetime voucher
         ],
       },
     }; //?Indexed
@@ -1919,6 +1935,9 @@ function truelyExec_ridersDrivers_walletSummary(
           };
           //? Find the total of all the received transactions
           resultTransactionsReceived.map((transaction) => {
+            if (/(onetime_voucher)/i.test(transaction.transaction_nature)) {
+              logger.warn(transaction);
+            }
             //! Add all except the TaxiConnect commission
             if (
               /(commissionTCSubtracted|weeklyPaidDriverAutomatic)/i.test(

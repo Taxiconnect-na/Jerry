@@ -1519,6 +1519,45 @@ io.on("connection", (socket) => {
   });
 
   /**
+   * PRICING SERVICE, port 9797
+   * Route: getUpdateInRealtimePassengerFare
+   * event: getUpdateInRealtimePassengerFare_io
+   * Get fare estimations for any ride or delivery booking
+   */
+  socket.on("getUpdateInRealtimePassengerFare_io", function (req) {
+    ////logger.info(req);
+    let url =
+      `${
+        /production/i.test(process.env.EVIRONMENT)
+          ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+          : process.env.LOCAL_URL
+      }` +
+      ":" +
+      process.env.PRICING_SERVICE_PORT +
+      "/getUpdateInRealtimePassengerFare";
+
+    requestAPI.post({ url, form: req }, function (error, response, body) {
+      //logger.info(body);
+      if (error === null) {
+        try {
+          body = JSON.parse(body);
+          if (body.response !== undefined) {
+            //Error
+            socket.emit("getUpdateInRealtimePassengerFare_io-response", body);
+          } //SUCCESS
+          else {
+            socket.emit("getUpdateInRealtimePassengerFare_io-response", body);
+          }
+        } catch (error) {
+          socket.emit("getUpdateInRealtimePassengerFare_io-response", false);
+        }
+      } else {
+        socket.emit("getUpdateInRealtimePassengerFare_io-response", false);
+      }
+    });
+  });
+
+  /**
    * DISPATCH SERVICE, port 9094
    * Route: dispatchRidesOrDeliveryRequests
    * event: requestRideOrDeliveryForThis
@@ -1767,8 +1806,8 @@ io.on("connection", (socket) => {
   socket.on("confirm_pickup_request_driver_io", function (req) {
     //logger.info(req);
     if (
-      req.driver_fingerprint !== undefined &&
-      req.driver_fingerprint !== null &&
+      // req.driver_fingerprint !== undefined &&
+      // req.driver_fingerprint !== null &&
       req.request_fp !== undefined &&
       req.request_fp !== null
     ) {
@@ -2927,6 +2966,44 @@ io.on("connection", (socket) => {
         flag: "transaction_error",
       });
     }
+  });
+
+  /**
+   * PAYMENTS SERVICE, port 9093
+   * Route: voucherProcessorExec
+   * event: voucherProcessorExec_io
+   * Responsible for applying or getting the voucher list
+   */
+  socket.on("voucherProcessorExec_io", function (req) {
+    //logger.info(req);
+    let url =
+      `${
+        /production/i.test(process.env.EVIRONMENT)
+          ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+          : process.env.LOCAL_URL
+      }` +
+      ":" +
+      process.env.PAYMENT_SERVICE_PORT +
+      "/voucherProcessorExec";
+
+    requestAPI.post({ url, form: req }, function (error, response, body) {
+      if (error === null) {
+        try {
+          body = JSON.parse(body);
+          socket.emit("voucherProcessorExec_io-response", body);
+        } catch (error) {
+          socket.emit("voucherProcessorExec_io-response", {
+            response: "error",
+            flag: "error_invalid_operation",
+          });
+        }
+      } else {
+        socket.emit("makeWallet_transaction_io-response", {
+          response: "error",
+          flag: "error_invalid_operation",
+        });
+      }
+    });
   });
 
   /**

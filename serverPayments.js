@@ -2361,6 +2361,426 @@ requestAPI(
             res.send({ response: "error", flag: "transaction_error" });
           }
         });
+
+        //? REWARDS API SUITE
+
+        /**
+         * CREATE ONE-TIME AND RECURSIVE REWARDS API
+         * Responsible for creating one time (with voucher money) and recursive (% based) rewards for specific organizations.
+         */
+        app.post("/createOneTimeOrRecusiveRewards", function (req, res) {
+          new Promise((resolve) => {
+            resolveDate();
+            req = req.body;
+
+            let api_keys = [
+              "kdasdfhjlajksdlasjkdlkscnklajsflskdjl;asdjlsjkdfaklsdjlaskdjlaskjdlaskdjdehjsfhsljdlsk",
+            ];
+            let allowed_roganizations = ["SANLAM"];
+
+            //! Detect the reward type
+            if (
+              req.customer_infos !== undefined &&
+              req.customer_infos !== null &&
+              req.key !== undefined &&
+              req.key !== null &&
+              req.organization_infos !== undefined &&
+              req.organization_infos !== null &&
+              req.organization_infos.name !== undefined &&
+              req.organization_infos.name !== null &&
+              api_keys.includes(req.key) &&
+              allowed_roganizations.includes(req.organization_infos.name) &&
+              req.voucher_code !== undefined &&
+              req.voucher_code !== null
+            ) {
+              //! Transaction nature: onetime_voucher, recursive_voucher
+              //! Use the phone number as the reference
+              //? Check that the voucher code is unique
+              collectionWalletTransactions_logs
+                .find({ voucher_code: req.voucher_code })
+                .toArray(function (err, voucherData) {
+                  if (err) {
+                    logger.error(err);
+                    resolve({
+                      response:
+                        "Unexpected error occured, it this error perists contact support@taxiconnectna.com",
+                    });
+                  }
+                  //...
+                  if (voucherData !== undefined && voucherData.length === 0) {
+                    //? Unique, allow
+                    if (
+                      req.reward_type === "onetime" &&
+                      req.voucher_value !== undefined &&
+                      req.voucher_value !== null
+                    ) {
+                      //One time rewards
+                      let bundleReward = {
+                        transaction_nature: "onetime_voucher",
+                        organization: req.organization_infos,
+                        ref_phone_number: req.customer_infos.phone_number,
+                        recipient_fp: "",
+                        amount: parseFloat(req.voucher_value),
+                        payment_currency: "NAD",
+                        voucher_code: req.voucher_code,
+                        timestamp: Math.round(
+                          new Date(chaineDateUTC).getTime()
+                        ),
+                        date_captured: new Date(chaineDateUTC),
+                      };
+                      //...
+                      collectionWalletTransactions_logs.insertOne(
+                        bundleReward,
+                        function (err, insrtData) {
+                          if (err) {
+                            logger.error(err);
+                            resolve({
+                              response:
+                                "Unable to create the one-time reward, it this error perists contact support@taxiconnectna.com",
+                            });
+                          }
+                          //...
+                          resolve({
+                            response: {
+                              status: "onetime_reward_successfully_created",
+                              user: req.customer_infos.phone_number,
+                              amount: req.voucher_value,
+                              time_signature: bundleReward.timestamp,
+                            },
+                          });
+                        }
+                      );
+                    } else if (
+                      req.reward_type === "recursive" &&
+                      req.apply_after !== undefined &&
+                      req.apply_after !== null &&
+                      req.apply_to !== undefined &&
+                      req.apply_to !== null &&
+                      req.discount_percentage !== undefined &&
+                      req.discount_percentage !== null
+                    ) {
+                      //Recursive rewards
+                      //! Check that no previous recusrive discount is active
+                      let bundleReward = {
+                        transaction_nature: "recursive_voucher",
+                        organization: req.organization_infos,
+                        ref_phone_number: req.customer_infos.phone_number,
+                        recipient_fp: "",
+                        discount_percentage: parseFloat(
+                          req.discount_percentage
+                        ),
+                        apply_after: req.apply_after, //Number of trips after which to start applying the reward
+                        apply_to: req.apply_to, //Number of trips to which the discount should be applied
+                        payment_currency: "NAD",
+                        voucher_code: req.voucher_code,
+                        timestamp: Math.round(
+                          new Date(chaineDateUTC).getTime()
+                        ),
+                        date_captured: new Date(chaineDateUTC),
+                      };
+                      //...
+                      collectionWalletTransactions_logs.insertOne(
+                        bundleReward,
+                        function (err, insrtData) {
+                          if (err) {
+                            logger.error(err);
+                            resolve({
+                              response:
+                                "Unable to create the one-time reward, it this error perists contact support@taxiconnectna.com",
+                            });
+                          }
+                          //...
+                          resolve({
+                            response: {
+                              status: "recursive_reward_successfully_created",
+                              user: req.customer_infos.phone_number,
+                              apply_after: req.apply_after,
+                              apply_to: req.apply_to,
+                              discount_percentage: req.discount_percentage,
+                              time_signature: bundleReward.timestamp,
+                            },
+                          });
+                        }
+                      );
+                    } //No type specified
+                    else {
+                      resolve({
+                        response:
+                          "Missing parameters, please refer the the documentation for more details on how to use the parameters.",
+                      });
+                    }
+                  } //! Not unique voucher code detected
+                  else {
+                    resolve({
+                      response:
+                        "The voucher code provided is not unique, please regenerate it preferably based on the current timestamp and try again.",
+                    });
+                  }
+                });
+            } //! Invalid data
+            else {
+              resolve({
+                response:
+                  "Missing parameters, please refer the the documentation for more details on how to use the parameters.",
+              });
+            }
+          })
+            .then((result) => {
+              logger.info(result);
+              res.send(result);
+            })
+            .catch((error) => {
+              logger.error(error);
+              res.send({
+                response:
+                  "Unexpected error occured, it this error perists contact support@taxiconnectna.com",
+              });
+            });
+        });
+
+        /**
+         * GET REWARDS DATA
+         * Responsible for getting the reward information for an organization based on a phone number
+         */
+        app.post("/getRewardListFromUserId", function (req, res) {
+          new Promise((resolve) => {
+            resolveDate();
+            req = req.body;
+
+            let api_keys = ["123"];
+            let allowed_roganizations = ["SANLAM"];
+
+            //! Detect the reward type
+            if (
+              req.customer_infos !== undefined &&
+              req.customer_infos !== null &&
+              req.customer_infos.phone_number !== undefined &&
+              req.customer_infos.phone_number !== null &&
+              req.key !== undefined &&
+              req.key !== null &&
+              req.organization_infos !== undefined &&
+              req.organization_infos !== null &&
+              req.organization_infos.name !== undefined &&
+              req.organization_infos.name !== null &&
+              api_keys.includes(req.key) &&
+              allowed_roganizations.includes(req.organization_infos.name)
+            ) {
+              //! Transaction nature: onetime_voucher, recursive_voucher
+              //! Use the phone number as the reference
+              // let redisKey = `${req.customer_infos.phone_number}-listOfRewardsLinkedToTHisPhone_number`;
+
+              collectionWalletTransactions_logs
+                .find({
+                  ref_phone_number: req.customer_infos.phone_number.trim(),
+                })
+                .toArray(function (err, rewardsData) {
+                  if (err) {
+                    logger.error(err);
+                    resolve({
+                      response:
+                        "Unexpected error occured, it this error perists contact support@taxiconnectna.com",
+                    });
+                  }
+                  //...
+                  if (rewardsData !== undefined && rewardsData.length > 0) {
+                    //Has data
+                    let distilledRewardsList = [];
+                    //...
+                    rewardsData.map((r) => {
+                      if (r.transaction_nature === "onetime_voucher") {
+                        let tmp = {
+                          reward_type: r.transaction_nature,
+                          user_phone_number: r.ref_phone_number,
+                          amount: r.amount,
+                          voucher_code: r.voucher_code,
+                          timestamp: r.timestamp,
+                          is_it_applied: r.user_fingerprint.length > 0,
+                          date_created: r.date_captured,
+                        };
+                        //...Save
+                        distilledRewardsList.push(tmp);
+                      } else if (r.transaction_nature === "recursive_voucher") {
+                        let tmp = {
+                          reward_type: r.transaction_nature,
+                          user_phone_number: r.ref_phone_number,
+                          discount_percentage: r.discount_percentage,
+                          apply_after: r.apply_after,
+                          apply_to: r.apply_to,
+                          voucher_code: r.voucher_code,
+                          timestamp: r.timestamp,
+                          is_it_applied: r.user_fingerprint.length > 0,
+                          date_created: r.date_captured,
+                        };
+                        //...Save
+                        distilledRewardsList.push(tmp);
+                      }
+                    });
+                    //...
+                    resolve({
+                      response: {
+                        status: "success",
+                        data: distilledRewardsList,
+                      },
+                    });
+                  } //No data
+                  else {
+                    resolve({
+                      response: {
+                        status: "No rewards data found",
+                        date: new Date(chaineDateUTC),
+                      },
+                    });
+                  }
+                });
+            } //! Invalid data
+            else {
+              resolve({
+                response:
+                  "Missing parameters, please refer the the documentation for more details on how to use the parameters.",
+              });
+            }
+          })
+            .then((result) => {
+              logger.info(result);
+              res.send(result);
+            })
+            .catch((error) => {
+              logger.error(error);
+              res.send({
+                response:
+                  "Unexpected error occured, it this error perists contact support@taxiconnectna.com",
+              });
+            });
+        });
+
+        /**
+         * VOUCHER CHECKS AND APPLY
+         * Responsible for checking and applying any voucher code
+         */
+        app.post("/voucherProcessorExec", function (req, res) {
+          new Promise((resolve) => {
+            req = req.body;
+
+            if (
+              req.op !== undefined &&
+              req.op !== null &&
+              req.user_fp !== undefined &&
+              req.user_fp !== null
+            ) {
+              if (
+                req.op === "applyVoucher" &&
+                req.voucher_code !== undefined &&
+                req.voucher_code !== null
+              ) {
+                //To apply any voucher
+                //1. Get the user's details
+                collectionPassengers_profiles
+                  .find({ user_fingerprint: req.user_fp })
+                  .toArray(function (err, userData) {
+                    if (err) {
+                      logger.error(err);
+                      resolve({ response: "error_no_rider_data" });
+                    }
+                    //....
+                    if (userData !== undefined && userData.length > 0) {
+                      userData = userData[0];
+                      //...
+                      //2. Check that the voucher code is valid
+                      collectionWalletTransactions_logs
+                        .find({
+                          ref_phone_number: userData.phone_number,
+                          voucher_code: req.voucher_code,
+                          recipient_fp: "", //! Not yet used
+                        })
+                        .toArray(function (err, voucherData) {
+                          if (err) {
+                            logger.error(err);
+                            resolve({ response: "error_no_voucher_data" });
+                          }
+                          logger.info({
+                            ref_phone_number: userData.phone_number,
+                            voucher_code: req.voucher_code,
+                            recipient_fp: "", //! Not yet used
+                          });
+                          //...
+                          if (
+                            voucherData !== undefined &&
+                            voucherData.length > 0
+                          ) {
+                            voucherData = voucherData[0];
+                            //Has data
+                            //? Apply this voucher to the user
+                            collectionWalletTransactions_logs.updateOne(
+                              {
+                                ref_phone_number: userData.phone_number,
+                                recipient_fp: "",
+                              },
+                              {
+                                $set: {
+                                  recipient_fp: req.user_fp,
+                                  date_applied: new Date(chaineDateUTC),
+                                },
+                              },
+                              function (err, resltUpdate) {
+                                if (err) {
+                                  logger.error(err);
+                                  resolve({
+                                    response: "error_unable_to_apply_voucher",
+                                  });
+                                }
+                                //...
+                                resolve({
+                                  response: "successfully_applied_voucher",
+                                  data: {
+                                    reward_type: voucherData.transaction_nature,
+                                    amount: voucherData.amount,
+                                    payment_currency:
+                                      voucherData.payment_currency,
+                                    discount_percentage:
+                                      voucherData.discount_percentage,
+                                    apply_after: voucherData.apply_after,
+                                    apply_to: voucherData.apply_to,
+                                    organization_name:
+                                      voucherData.organization.name,
+                                    organization_logo: `${
+                                      process.env.AWS_S3_COMPANIES_DATA_ADS
+                                    }/Rewards_organizations/${voucherData.organization.name.toLowerCase()}.png`,
+                                  },
+                                });
+                              }
+                            );
+                          } //No voucher available
+                          else {
+                            resolve({ response: "error_invalid_voucher" });
+                          }
+                        });
+                    } //! No user data?!
+                    else {
+                      resolve({ response: "error_no_rider_data" });
+                    }
+                  });
+              } else if (req.op === "getVouchersList") {
+                //To get the list of all the applied vouchers
+              } //? Almost impossible case
+              else {
+                resolve({ response: "error_invalid_operation" });
+              }
+            } //No valid operation
+            else {
+              resolve({ response: "error_invalid_operation" });
+            }
+          })
+            .then((result) => {
+              logger.info(result);
+              res.send(result);
+            })
+            .catch((error) => {
+              logger.error(error);
+              res.send({
+                response: "error_unable_toProcess_voucher",
+              });
+            });
+        });
       }
     );
   }

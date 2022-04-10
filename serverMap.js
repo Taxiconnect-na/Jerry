@@ -3317,32 +3317,30 @@ function computeRouteDetails_skeleton(
           resolve(false);
         }
       );*/
+      let dataSource = {
+        pickupLocation_name: rideHistory.pickup_location_infos.location_name,
+        pickupLocation_point: [
+          rideHistory.pickup_location_infos.coordinates.longitude,
+          rideHistory.pickup_location_infos.coordinates.latitude,
+        ],
+        request_fp: rideHistory.request_fp,
+        requester_fp: rideHistory.client_id,
+        request_status: "pending",
+        birdview_infos: {
+          number_of_packages: rideHistory.passengers_number,
+          fare: rideHistory.fare,
+          date_requested: rideHistory.date_requested,
+          dropoff_details: rideHistory.destinationData,
+          pickup_details: rideHistory.pickup_location_infos,
+        },
+      };
       //Cache response
       new Promise((res) => {
         //! SAVE THE FINAL FULL RESULT - for 15 min ------
         redisCluster.setex(
           RIDE_REDIS_KEY,
           parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
-          JSON.stringify({
-            pickupLocation_name:
-              rideHistory.pickup_location_infos.location_name,
-            pickupLocation_point: [
-              rideHistory.pickup_location_infos.coordinates.longitude,
-              rideHistory.pickup_location_infos.coordinates.latitude,
-            ],
-            request_fp: rideHistory.request_fp,
-            requester_fp: rideHistory.client_id,
-            request_status: "pending",
-            birdview_infos: /DELIVERY/i.test(rideHistory.ride_mode)
-              ? {
-                  number_of_packages: rideHistory.passengers_number,
-                  fare: rideHistory.fare,
-                  date_requested: rideHistory.date_requested,
-                  dropoff_details: rideHistory.destinationData,
-                  pickup_details: rideHistory.pickup_location_infos,
-                }
-              : null,
-          })
+          JSON.stringify(dataSource)
         );
         //! ----------------------------------------------
         //Get previous record
@@ -3352,25 +3350,7 @@ function computeRouteDetails_skeleton(
               try {
                 reslt = JSON.parse(reslt);
                 //Update old record
-                reslt.rides_history = {
-                  pickupLocation_name:
-                    rideHistory.pickup_location_infos.location_name,
-                  pickupLocation_point: [
-                    rideHistory.pickup_location_infos.coordinates.longitude,
-                    rideHistory.pickup_location_infos.coordinates.latitude,
-                  ],
-                  requester_fp: rideHistory.client_id,
-                  request_status: "pending",
-                  birdview_infos: /DELIVERY/i.test(rideHistory.ride_mode)
-                    ? {
-                        number_of_packages: rideHistory.passengers_number,
-                        fare: rideHistory.fare,
-                        date_requested: rideHistory.date_requested,
-                        dropoff_details: rideHistory.destinationData,
-                        pickup_details: rideHistory.pickup_location_infos,
-                      }
-                    : null,
-                };
+                reslt.rides_history = dataSource;
                 //..
                 redisCluster.setex(
                   rideHistory.client_id,
@@ -3388,25 +3368,7 @@ function computeRouteDetails_skeleton(
                 rideHistory.request_fp,
                 process.env.REDIS_EXPIRATION_5MIN,
                 JSON.stringify({
-                  rides_history: {
-                    pickupLocation_name:
-                      rideHistory.pickup_location_infos.location_name,
-                    pickupLocation_point: [
-                      rideHistory.pickup_location_infos.coordinates.longitude,
-                      rideHistory.pickup_location_infos.coordinates.latitude,
-                    ],
-                    requester_fp: rideHistory.client_id,
-                    request_status: "pending",
-                    birdview_infos: /DELIVERY/i.test(rideHistory.ride_mode)
-                      ? {
-                          number_of_packages: rideHistory.passengers_number,
-                          fare: rideHistory.fare,
-                          date_requested: rideHistory.date_requested,
-                          dropoff_details: rideHistory.destinationData,
-                          pickup_details: rideHistory.pickup_location_infos,
-                        }
-                      : null,
-                  },
+                  rides_history: dataSource,
                 })
               );
               res(true);
@@ -3422,25 +3384,7 @@ function computeRouteDetails_skeleton(
         () => {}
       );
       //Add request status variable - pending
-      resolve({
-        pickupLocation_name: rideHistory.pickup_location_infos.location_name,
-        pickupLocation_point: [
-          rideHistory.pickup_location_infos.coordinates.longitude,
-          rideHistory.pickup_location_infos.coordinates.latitude,
-        ],
-        request_fp: rideHistory.request_fp,
-        requester_fp: rideHistory.client_id,
-        request_status: "pending",
-        birdview_infos: /DELIVERY/i.test(rideHistory.ride_mode)
-          ? {
-              number_of_packages: rideHistory.passengers_number,
-              fare: rideHistory.fare,
-              date_requested: rideHistory.date_requested,
-              dropoff_details: rideHistory.destinationData,
-              pickup_details: rideHistory.pickup_location_infos,
-            }
-          : null,
-      });
+      resolve(dataSource);
     }
   } //No ride present
   else {
