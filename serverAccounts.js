@@ -21,37 +21,19 @@ var accessLogStream = fs.createWriteStream(
   { flags: "a" }
 );
 const { logger } = require("./LogService");
+const {
+  provideDataForCollection,
+  filterDataBasedOnNeed,
+} = require("./SmartDataProvider");
 
 var app = express();
 var server = http.createServer(app);
 const requestAPI = require("request");
 const crypto = require("crypto");
 //....
-const { promisify } = require("util");
 const urlParser = require("url");
-const redis = require("redis");
-const client = /production/i.test(String(process.env.EVIRONMENT))
-  ? null
-  : redis.createClient({
-      host: process.env.REDIS_HOST,
-      port: process.env.REDIS_PORT,
-    });
-var RedisClustr = require("redis-clustr");
-var redisCluster = /production/i.test(String(process.env.EVIRONMENT))
-  ? new RedisClustr({
-      servers: [
-        {
-          host: process.env.REDIS_HOST_ELASTICACHE,
-          port: process.env.REDIS_PORT_ELASTICACHE,
-        },
-      ],
-      createClient: function (port, host) {
-        // this is the default behaviour
-        return redis.createClient(port, host);
-      },
-    })
-  : client;
-const redisGet = promisify(redisCluster.get).bind(redisCluster);
+
+const { redisCluster, redisGet } = require("./RedisConnector");
 
 var isBase64 = require("is-base64");
 var chaineDateUTC = null;
@@ -358,7 +340,7 @@ function checkUserStatus(
 
 /**
  * @func getBachRidesHistory
- * @param collectionRidesDeliveryData: list of all rides made
+ * @param collectionRidesDeliveries_data: list of all rides made
  * @param collectionDrivers_profiles: list of all drivers
  * @param resolve
  * @param req: the requests arguments : user_fp, ride_type, and/or the targeted argument
@@ -366,7 +348,7 @@ function checkUserStatus(
  */
 function getBachRidesHistory(
   req,
-  collectionRidesDeliveryData,
+  collectionRidesDeliveries_data,
   collectionDrivers_profiles,
   resolve
 ) {
@@ -449,7 +431,7 @@ function getBachRidesHistory(
       if (result !== false) {
         //Got some object
         //Get the mongodb data
-        collectionRidesDeliveryData
+        collectionRidesDeliveries_data
           .find(result)
           .toArray(function (error, ridesData) {
             if (error) {
@@ -516,7 +498,7 @@ function getBachRidesHistory(
                         riderData[0].phone_number.trim(),
                     }; //?Indexed
                     //...
-                    collectionRidesDeliveryData
+                    collectionRidesDeliveries_data
                       .find(rideChecker)
                       .toArray(function (err, tripData) {
                         if (err) {
@@ -1127,13 +1109,13 @@ function proceedTargeted_requestHistory_fetcher(
  * @func getDaily_requestAmount_driver
  * Responsible for getting the daily amount made so far for the driver at any given time.
  * CACHED.
- * @param collectionRidesDeliveryData: the list of all the rides/deliveries
+ * @param collectionRidesDeliveries_data: the list of all the rides/deliveries
  * @param collectionDrivers_profiles: the list of all the drivers profiles
  * @param avoidCached_data: to avoid the cached data
  * @param resolve
  */
 function getDaily_requestAmount_driver(
-  collectionRidesDeliveryData,
+  collectionRidesDeliveries_data,
   collectionDrivers_profiles,
   driver_fingerprint,
   avoidCached_data = false,
@@ -1151,7 +1133,7 @@ function getDaily_requestAmount_driver(
           //? Rehydrate
           new Promise((res) => {
             exec_computeDaily_amountMade(
-              collectionRidesDeliveryData,
+              collectionRidesDeliveries_data,
               collectionDrivers_profiles,
               driver_fingerprint,
               res
@@ -1171,7 +1153,7 @@ function getDaily_requestAmount_driver(
           //Errror - make a fresh request
           new Promise((res) => {
             exec_computeDaily_amountMade(
-              collectionRidesDeliveryData,
+              collectionRidesDeliveries_data,
               collectionDrivers_profiles,
               driver_fingerprint,
               res
@@ -1198,7 +1180,7 @@ function getDaily_requestAmount_driver(
       else {
         new Promise((res) => {
           exec_computeDaily_amountMade(
-            collectionRidesDeliveryData,
+            collectionRidesDeliveries_data,
             collectionDrivers_profiles,
             driver_fingerprint,
             res
@@ -1227,7 +1209,7 @@ function getDaily_requestAmount_driver(
       //Errror - make a fresh request
       new Promise((res) => {
         exec_computeDaily_amountMade(
-          collectionRidesDeliveryData,
+          collectionRidesDeliveries_data,
           collectionDrivers_profiles,
           driver_fingerprint,
           res
@@ -1271,12 +1253,12 @@ function checkIfSameDay(date1, date2) {
 /**
  * @func exec_computeDaily_amountMade
  * Responsible for executing all the operations related to the computation of the driver's daily amount.
- * @param collectionRidesDeliveryData: the list of all the rides/deliveries
+ * @param collectionRidesDeliveries_data: the list of all the rides/deliveries
  * @param collectionDrivers_profiles: the list of all the drivers profiles.
  * @param resolve
  */
 function exec_computeDaily_amountMade(
-  collectionRidesDeliveryData,
+  collectionRidesDeliveries_data,
   collectionDrivers_profiles,
   driver_fingerprint,
   resolve
@@ -1306,7 +1288,7 @@ function exec_computeDaily_amountMade(
           "ride_state_vars.isRideCompleted_riderSide": true,
         };
 
-        collectionRidesDeliveryData
+        collectionRidesDeliveries_data
           .find(filterRequest)
           .toArray(function (err, requestsArray) {
             if (err) {
@@ -1381,7 +1363,7 @@ function exec_computeDaily_amountMade(
  * @func getRiders_wallet_summary
  * Responsible for getting riders wallet informations.
  * @param requestObj: contains the user_fingerprint and the mode: total or detailed.
- * @param collectionRidesDeliveryData: the collection of all the requests.
+ * @param collectionRidesDeliveries_data: the collection of all the requests.
  * @param collectionWalletTransactions_logs: the collection of all the possible wallet transactions.
  * @param collectionDrivers_profiles: collection of all the drivers
  * @param collectionPassengers_profiles: collection of all the passengers.
@@ -1393,7 +1375,7 @@ function exec_computeDaily_amountMade(
  */
 function getRiders_wallet_summary(
   requestObj,
-  collectionRidesDeliveryData,
+  collectionRidesDeliveries_data,
   collectionWalletTransactions_logs,
   collectionDrivers_profiles,
   collectionPassengers_profiles,
@@ -1412,7 +1394,7 @@ function getRiders_wallet_summary(
           new Promise((res) => {
             execGet_ridersDrivers_walletSummary(
               requestObj,
-              collectionRidesDeliveryData,
+              collectionRidesDeliveries_data,
               collectionWalletTransactions_logs,
               collectionDrivers_profiles,
               collectionPassengers_profiles,
@@ -1439,7 +1421,7 @@ function getRiders_wallet_summary(
           new Promise((res) => {
             execGet_ridersDrivers_walletSummary(
               requestObj,
-              collectionRidesDeliveryData,
+              collectionRidesDeliveries_data,
               collectionWalletTransactions_logs,
               collectionDrivers_profiles,
               collectionPassengers_profiles,
@@ -1466,7 +1448,7 @@ function getRiders_wallet_summary(
         new Promise((res) => {
           execGet_ridersDrivers_walletSummary(
             requestObj,
-            collectionRidesDeliveryData,
+            collectionRidesDeliveries_data,
             collectionWalletTransactions_logs,
             collectionDrivers_profiles,
             collectionPassengers_profiles,
@@ -1494,7 +1476,7 @@ function getRiders_wallet_summary(
       new Promise((res) => {
         execGet_ridersDrivers_walletSummary(
           requestObj,
-          collectionRidesDeliveryData,
+          collectionRidesDeliveries_data,
           collectionWalletTransactions_logs,
           collectionDrivers_profiles,
           collectionPassengers_profiles,
@@ -1734,7 +1716,7 @@ function parseDetailed_walletGetData(
  * @func execGet_ridersDrivers_walletSummary
  * Responsible for executing the requests and gather the rider's or driver's wallet complete infos.
  * @param requestObj: contains the user_fingerprint and the mode: total or detailed.
- * @param collectionRidesDeliveryData: the collection of all the requests.
+ * @param collectionRidesDeliveries_data: the collection of all the requests.
  * @param collectionWalletTransactions_logs: the collection of all the possible wallet transactions.
  * @param collectionDrivers_profiles: collection of all the drivers
  * @param collectionPassengers_profiles: collection of all the passengers.
@@ -1747,7 +1729,7 @@ function parseDetailed_walletGetData(
  */
 function execGet_ridersDrivers_walletSummary(
   requestObj,
-  collectionRidesDeliveryData,
+  collectionRidesDeliveries_data,
   collectionWalletTransactions_logs,
   collectionDrivers_profiles,
   collectionPassengers_profiles,
@@ -1765,7 +1747,7 @@ function execGet_ridersDrivers_walletSummary(
           new Promise((resFresh) => {
             truelyExec_ridersDrivers_walletSummary(
               requestObj,
-              collectionRidesDeliveryData,
+              collectionRidesDeliveries_data,
               collectionWalletTransactions_logs,
               collectionDrivers_profiles,
               collectionPassengers_profiles,
@@ -1789,7 +1771,7 @@ function execGet_ridersDrivers_walletSummary(
           new Promise((resFresh) => {
             truelyExec_ridersDrivers_walletSummary(
               requestObj,
-              collectionRidesDeliveryData,
+              collectionRidesDeliveries_data,
               collectionWalletTransactions_logs,
               collectionDrivers_profiles,
               collectionPassengers_profiles,
@@ -1818,7 +1800,7 @@ function execGet_ridersDrivers_walletSummary(
         new Promise((resFresh) => {
           truelyExec_ridersDrivers_walletSummary(
             requestObj,
-            collectionRidesDeliveryData,
+            collectionRidesDeliveries_data,
             collectionWalletTransactions_logs,
             collectionDrivers_profiles,
             collectionPassengers_profiles,
@@ -1847,7 +1829,7 @@ function execGet_ridersDrivers_walletSummary(
       new Promise((resFresh) => {
         truelyExec_ridersDrivers_walletSummary(
           requestObj,
-          collectionRidesDeliveryData,
+          collectionRidesDeliveries_data,
           collectionWalletTransactions_logs,
           collectionDrivers_profiles,
           collectionPassengers_profiles,
@@ -1875,7 +1857,7 @@ function execGet_ridersDrivers_walletSummary(
  * @func truelyExec_ridersDrivers_walletSummary
  * Responsible for truly run the get operations for the wallets summary for the riders and drivers.
  * @param requestObj: contains the user_fingerprint and the mode: total or detailed.
- * @param collectionRidesDeliveryData: the collection of all the requests.
+ * @param collectionRidesDeliveries_data: the collection of all the requests.
  * @param collectionWalletTransactions_logs: the collection of all the possible wallet transactions.
  * @param collectionDrivers_profiles: collection of all the drivers
  * @param collectionPassengers_profiles: collection of all the passengers.
@@ -1884,7 +1866,7 @@ function execGet_ridersDrivers_walletSummary(
  */
 function truelyExec_ridersDrivers_walletSummary(
   requestObj,
-  collectionRidesDeliveryData,
+  collectionRidesDeliveries_data,
   collectionWalletTransactions_logs,
   collectionDrivers_profiles,
   collectionPassengers_profiles,
@@ -1915,14 +1897,17 @@ function truelyExec_ridersDrivers_walletSummary(
         ],
       },
     }; //?Indexed
-    //...
-    collectionWalletTransactions_logs
-      .find(filterReceived)
-      .toArray(function (err, resultTransactionsReceived) {
-        if (err) {
-          logger.info(err);
-          resReceivedTransactions({ total: 0, transactions_data: null });
-        }
+
+    provideDataForCollection(
+      collectionWalletTransactions_logs,
+      "collectionWalletTransactions_logs",
+      filterReceived
+    )
+      .then((resultTransactionsReceived) => {
+        // console.log(resultTransactionsReceived);
+        logger.warn(
+          `[SOLVED] SUPER HEAVY RETRIEVAL 1 -> DATA : ${resultTransactionsReceived.length}`
+        );
         //...
         if (
           resultTransactionsReceived !== undefined &&
@@ -1958,6 +1943,10 @@ function truelyExec_ridersDrivers_walletSummary(
         else {
           resReceivedTransactions({ total: 0, transactions_data: null });
         }
+      })
+      .catch((error) => {
+        logger.error(error);
+        resReceivedTransactions({ total: 0, transactions_data: null });
       });
   })
     .then(
@@ -1978,13 +1967,15 @@ function truelyExec_ridersDrivers_walletSummary(
             },
           }; //?Indexed
           //...
-          collectionWalletTransactions_logs
-            .find(filterTopups)
-            .toArray(function (err, resultTransactions) {
-              if (err) {
-                logger.info(err);
-                res({ total: 0, transactions_data: null });
-              }
+          provideDataForCollection(
+            collectionWalletTransactions_logs,
+            "collectionWalletTransactions_logs",
+            filterTopups
+          )
+            .then((resultTransactions) => {
+              logger.warn(
+                `[SOLVED] SUPER HEAVY RETRIEVAL 2 -> DATA : ${resultTransactions.length}`
+              );
               //..
               if (
                 (resultTransactions !== undefined &&
@@ -2028,8 +2019,8 @@ function truelyExec_ridersDrivers_walletSummary(
                         : [];
                     //...
                     /*receivedTransactionsData.transactions_data.push(
-                      transaction
-                    );*/
+                    transaction
+                  );*/
                   }
                 });
                 //Find the sum of all the paid transactions (rides/deliveries) - for wallet only
@@ -2050,13 +2041,15 @@ function truelyExec_ridersDrivers_walletSummary(
                       },
                     };
                 //...Only consider the completed requests
-                collectionRidesDeliveryData
-                  .find(filterPaidRequests)
-                  .toArray(function (err, resultPaidRequests) {
-                    if (err) {
-                      logger.info(err);
-                      res({ total: 0, transactions_data: null });
-                    }
+                provideDataForCollection(
+                  collectionRidesDeliveries_data,
+                  "collectionRidesDeliveries_data",
+                  filterPaidRequests
+                )
+                  .then((resultPaidRequests) => {
+                    logger.warn(
+                      `[SOLVED] SUPER HEAVY RETRIEVAL 3 -> DATA : ${resultPaidRequests.length}`
+                    );
                     //...
                     if (
                       resultPaidRequests !== undefined &&
@@ -2233,6 +2226,10 @@ function truelyExec_ridersDrivers_walletSummary(
                             : detailsData.transactions_data,
                       });
                     }
+                  })
+                  .catch((err) => {
+                    logger.info(err);
+                    res({ total: 0, transactions_data: null });
                   });
               } //No topups records found - so return the transactions data
               else {
@@ -2248,13 +2245,15 @@ function truelyExec_ridersDrivers_walletSummary(
                       isArrivedToDestination: true,
                     };
                 //...Only consider the completed requests
-                collectionRidesDeliveryData
-                  .find(filterPaidRequests)
-                  .toArray(function (err, resultPaidRequests) {
-                    if (err) {
-                      logger.info(err);
-                      res({ total: 0, transactions_data: null });
-                    }
+                provideDataForCollection(
+                  collectionRidesDeliveries_data,
+                  "collectionRidesDeliveries_data",
+                  filterPaidRequests
+                )
+                  .then((resultPaidRequests) => {
+                    logger.warn(
+                      `[SOLVED] SUPER HEAVY RETRIEVAL 4 -> DATA : ${resultPaidRequests.length}`
+                    );
                     //...
                     if (
                       resultPaidRequests !== undefined &&
@@ -2445,8 +2444,16 @@ function truelyExec_ridersDrivers_walletSummary(
                         });
                       }
                     }
+                  })
+                  .catch((err) => {
+                    logger.info(err);
+                    res({ total: 0, transactions_data: null });
                   });
               }
+            })
+            .catch((err) => {
+              logger.info(err);
+              res({ total: 0, transactions_data: null });
             });
         }).then(
           (result) => {
@@ -4540,7 +4547,7 @@ function ExecgetDriversGlobalAccountNumbers(
   redisKey,
   resolve
 ) {
-  collectionRidesDeliveryData
+  collectionRidesDeliveries_data
     .find({ taxi_id: driver_fingerprint, isArrivedToDestination: true })
     .toArray(function (err, tripsData) {
       if (err) {
@@ -5346,7 +5353,7 @@ function execGetWalletSummaryForDeliveryCorps(company_fp, resolve) {
         });
         //...
         //Get the total usage amount
-        collectionRidesDeliveryData
+        collectionRidesDeliveries_data
           .find({
             client_id: company_fp,
           })
@@ -5555,7 +5562,7 @@ function execGetTargetedNotificationsOps(requestData, redisKey, resolve) {
  * MAIN
  */
 var collectionPassengers_profiles = null;
-var collectionRidesDeliveryData = null;
+var collectionRidesDeliveries_data = null;
 var collection_OTP_dispatch_map = null;
 var collectionDrivers_profiles = null;
 var collectionGlobalEvents = null;
@@ -5603,7 +5610,7 @@ redisCluster.on("connect", function () {
           collectionPassengers_profiles = dbMongo.collection(
             "passengers_profiles"
           ); //Hold all the passengers profiles
-          collectionRidesDeliveryData = dbMongo.collection(
+          collectionRidesDeliveries_data = dbMongo.collection(
             "rides_deliveries_requests"
           ); //Hold all the requests made (rides and deliveries)
           collection_OTP_dispatch_map = dbMongo.collection("OTP_dispatch_map");
@@ -6276,7 +6283,7 @@ redisCluster.on("connect", function () {
                 new Promise((res0) => {
                   getBachRidesHistory(
                     req,
-                    collectionRidesDeliveryData,
+                    collectionRidesDeliveries_data,
                     collectionDrivers_profiles,
                     res0
                   );
@@ -6298,7 +6305,7 @@ redisCluster.on("connect", function () {
                 new Promise((res0) => {
                   getBachRidesHistory(
                     req,
-                    collectionRidesDeliveryData,
+                    collectionRidesDeliveries_data,
                     collectionDrivers_profiles,
                     res0
                   );
@@ -6338,7 +6345,7 @@ redisCluster.on("connect", function () {
               ) {
                 new Promise((res0) => {
                   getDaily_requestAmount_driver(
-                    collectionRidesDeliveryData,
+                    collectionRidesDeliveries_data,
                     collectionDrivers_profiles,
                     req.driver_fingerprint,
                     req.avoidCached_data !== undefined &&
@@ -6470,7 +6477,7 @@ redisCluster.on("connect", function () {
                             "ride_state_vars.isRideCompleted_driverSide": false,
                           };
                           //check
-                          collectionRidesDeliveryData
+                          collectionRidesDeliveries_data
                             .find(checkActiveRequests)
                             .toArray(function (err, currentActiveRequests) {
                               if (err) {
@@ -6787,7 +6794,7 @@ redisCluster.on("connect", function () {
               new Promise((resolve) => {
                 getRiders_wallet_summary(
                   req,
-                  collectionRidesDeliveryData,
+                  collectionRidesDeliveries_data,
                   collectionWalletTransactions_logs,
                   collectionDrivers_profiles,
                   collectionPassengers_profiles,

@@ -1737,7 +1737,7 @@ var collectionDedicatedServices_accounts = null;
 var collectionPassengers_profiles = null;
 var collectionDrivers_profiles = null;
 var collectionWalletTransactions_logs = null;
-var collectionRidesDeliveryData = null;
+var collectionRidesDeliveries_data = null;
 var collectionGlobalEvents = null;
 
 requestAPI(
@@ -1781,7 +1781,7 @@ requestAPI(
         collectionWalletTransactions_logs = dbMongo.collection(
           "wallet_transactions_logs"
         ); //Hold the latest information about the riders topups
-        collectionRidesDeliveryData = dbMongo.collection(
+        collectionRidesDeliveries_data = dbMongo.collection(
           "rides_deliveries_requests"
         ); //Hold all the requests made (rides and deliveries)
         collectionGlobalEvents = dbMongo.collection("global_events"); //Hold all the random events that happened somewhere.

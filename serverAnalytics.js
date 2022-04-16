@@ -17,29 +17,8 @@ const requestAPI = require("request");
 //....
 const { promisify, inspect } = require("util");
 const urlParser = require("url");
-const redis = require("redis");
-const client = /production/i.test(String(process.env.EVIRONMENT))
-  ? null
-  : redis.createClient({
-      host: process.env.REDIS_HOST,
-      port: process.env.REDIS_PORT,
-    });
-var RedisClustr = require("redis-clustr");
-var redisCluster = /production/i.test(String(process.env.EVIRONMENT))
-  ? new RedisClustr({
-      servers: [
-        {
-          host: process.env.REDIS_HOST_ELASTICACHE,
-          port: process.env.REDIS_PORT_ELASTICACHE,
-        },
-      ],
-      createClient: function (port, host) {
-        // this is the default behaviour
-        return redis.createClient(port, host);
-      },
-    })
-  : client;
-const redisGet = promisify(redisCluster.get).bind(redisCluster);
+
+const { redisCluster, redisGet } = require("./RedisConnector");
 
 var chaineDateUTC = null;
 var dateObject = null;

@@ -88,5 +88,16 @@ module.exports = {
         NODE_ENV: "production",
       },
     },
+    {
+      name: "Smart cache service",
+      script: "SmartCacher.js",
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_memory_restart: "4G",
+      env: {
+        NODE_ENV: "production",
+      },
+    },
   ],
 };

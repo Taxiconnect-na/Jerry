@@ -8,6 +8,7 @@ const MongoClient = require("mongodb").MongoClient;
 const certFile = fs.readFileSync("./rds-combined-ca-bundle.pem");
 
 const { logger } = require("./LogService");
+const { provideDataForCollection } = require("./SmartDataProvider");
 
 var app = express();
 var server = http.createServer(app);
@@ -16,29 +17,8 @@ const requestAPI = require("request");
 //....
 const { promisify, inspect } = require("util");
 const urlParser = require("url");
-const redis = require("redis");
-const client = /production/i.test(String(process.env.EVIRONMENT))
-  ? null
-  : redis.createClient({
-      host: process.env.REDIS_HOST,
-      port: process.env.REDIS_PORT,
-    });
-var RedisClustr = require("redis-clustr");
-var redisCluster = /production/i.test(String(process.env.EVIRONMENT))
-  ? new RedisClustr({
-      servers: [
-        {
-          host: process.env.REDIS_HOST_ELASTICACHE,
-          port: process.env.REDIS_PORT_ELASTICACHE,
-        },
-      ],
-      createClient: function (port, host) {
-        // this is the default behaviour
-        return redis.createClient(port, host);
-      },
-    })
-  : client;
-const redisGet = promisify(redisCluster.get).bind(redisCluster);
+
+const { redisCluster, redisGet } = require("./RedisConnector");
 
 var chaineDateUTC = null;
 var dateObject = null;
@@ -1065,32 +1045,22 @@ function execTripChecker_Dispatcher(
       "ride_state_vars.isRideCompleted_riderSide": false,
     };
 
-    collectionRidesDeliveries_data
-      .find(rideChecker)
-      .toArray(function (err, userDataRepr) {
-        if (err) {
-          resolve(false);
-          throw err;
-        }
+    provideDataForCollection(
+      collectionRidesDeliveries_data,
+      "collectionRidesDeliveries_data",
+      rideChecker
+    )
+      .then((userDataRepr) => {
         if (userDataRepr.length <= 0) {
           //Get the user's data First
-          collectionPassengers_profiles
-            .find({
+          provideDataForCollection(
+            collectionPassengers_profiles,
+            "collectionPassengers_profiles",
+            {
               user_fingerprint: user_fingerprint,
-            })
-            .toArray(function (err, riderData) {
-              if (err) {
-                logger.error(err);
-                //! SAVE THE FINAL FULL RESULT - for 15 min ------
-                redisCluster.setex(
-                  RIDE_REDIS_KEY,
-                  parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
-                  JSON.stringify(false)
-                );
-                resolve(false);
-                //! ----------------------------------------------
-              }
-              //...
+            }
+          )
+            .then((riderData) => {
               if (riderData !== undefined && riderData.length > 0) {
                 //Valid rider
                 //!Check for the deliveries
@@ -1099,14 +1069,13 @@ function execTripChecker_Dispatcher(
                     riderData[0].phone_number,
                   "ride_state_vars.isRideCompleted_riderSide": false,
                 };
-                collectionRidesDeliveries_data
-                  .find(deliveryChecker)
-                  .toArray(function (err, userDataRepr) {
-                    if (err) {
-                      resolve(false);
-                      throw err;
-                    }
-                    //...
+
+                provideDataForCollection(
+                  collectionRidesDeliveries_data,
+                  "collectionRidesDeliveries_data",
+                  deliveryChecker
+                )
+                  .then((userDataRepr) => {
                     if (userDataRepr.length <= 0) {
                       redisCluster.setex(
                         RIDE_REDIS_KEY,
@@ -1143,8 +1112,11 @@ function execTripChecker_Dispatcher(
                         resolve("no_rides");
                       }
                     }
+                  })
+                  .catch((err) => {
+                    logger.error(err);
+                    resolve(false);
                   });
-                resolve(false);
               } else {
                 //Invalid user
                 redisCluster.setex(
@@ -1154,6 +1126,17 @@ function execTripChecker_Dispatcher(
                 );
                 resolve(false);
               }
+            })
+            .catch((err) => {
+              logger.error(err);
+              //! SAVE THE FINAL FULL RESULT - for 15 min ------
+              redisCluster.setex(
+                RIDE_REDIS_KEY,
+                parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
+                JSON.stringify(false)
+              );
+              resolve(false);
+              //! ----------------------------------------------
             });
         } //Found a user record
         else {
@@ -1244,21 +1227,23 @@ function execTripChecker_Dispatcher(
               });
           }
         }
+      })
+      .catch((err) => {
+        logger.error(err);
+        resolve(false);
       });
   } else if (/^driver$/i.test(user_nature)) {
     //Get the driver's details
-    collectionDrivers_profiles
-      .find({
+    provideDataForCollection(
+      collectionDrivers_profiles,
+      "collectionDrivers_profiles",
+      {
         driver_fingerprint: user_fingerprint,
         isDriverSuspended: false, //! When a driver is suspended - lock all requests.
         "operational_state.status": "online",
-      })
-      .toArray(function (err, driverData) {
-        if (err) {
-          resolve(false);
-        }
-        logger.error(driverData);
-        //
+      }
+    )
+      .then((driverData) => {
         if (driverData === undefined || driverData.length <= 0) {
           //! SAVE THE FINAL FULL RESULT - for 15 min ------
           redisCluster.setex(
@@ -1544,6 +1529,10 @@ function execTripChecker_Dispatcher(
               }
             });
         }
+      })
+      .catch((err) => {
+        logger.error(err);
+        resolve(false);
       });
   }
   //Malformed
@@ -1672,13 +1661,12 @@ function execGetDrivers_requests_and_provide(
             request_type: request_type_regex, //Shceduled or now rides/deliveries
           };
     //...
-    collectionRidesDeliveries_data
-      .find(requestFilter)
-      .toArray(function (err, requestsData) {
-        if (err) {
-          resolve(false);
-        }
-        //...
+    provideDataForCollection(
+      collectionRidesDeliveries_data,
+      "collectionRidesDeliveries_data",
+      requestFilter
+    )
+      .then((requestsData) => {
         if (requestsData !== undefined && requestsData.length > 0) {
           //Found some data
           //1. Filter the requests based on the clearances of the driver - ride/delivery
@@ -1737,6 +1725,10 @@ function execGetDrivers_requests_and_provide(
             }
           );
         }
+      })
+      .catch((err) => {
+        logger.error(err);
+        resolve(false);
       });
   } else if (/FULL_ALLLOWEDTOSEE_REQUESTS/i.test(scenarioString)) {
     logger.warn("FULL_ALLLOWEDTOSEE_REQUESTS");
@@ -1873,15 +1865,12 @@ function execGetDrivers_requests_and_provide(
       request_type: { $regex: request_type_regex, $options: "i" }, //Shceduled or immediate rides/deliveries
     };*/
     //...
-    collectionRidesDeliveries_data
-      .find(requestFilter)
-      //!.collation({ locale: "en", strength: 2 })
-      .toArray(function (err, requestsData) {
-        if (err) {
-          resolve(false);
-        }
-        logger.error(requestsData);
-        //...
+    provideDataForCollection(
+      collectionRidesDeliveries_data,
+      "collectionRidesDeliveries_data",
+      requestFilter
+    )
+      .then((requestsData) => {
         if (requestsData !== undefined && requestsData.length > 0) {
           //Found some data
           //! 1. Filter the requests based on the clearances of the driver - ride/delivery
@@ -1922,6 +1911,10 @@ function execGetDrivers_requests_and_provide(
         else {
           resolve({ response: "no_requests" });
         }
+      })
+      .catch((err) => {
+        logger.error(err);
+        resolve(false);
       });
   } else if (/ONLY_ACCEPTED_REQUESTS/i.test(scenarioString)) {
     //FOr only the accepted requests
@@ -2757,14 +2750,12 @@ function computeRouteDetails_skeleton(
     if (rideHistory.ride_state_vars.isAccepted) {
       //Get all the driver's informations
       //? Indexed
-      collectionDrivers_profiles
-        .find({ driver_fingerprint: rideHistory.taxi_id })
-        .toArray(function (err, driverProfile) {
-          if (err) {
-            //logger.info(err);
-            resolve(false); //An error happened
-          }
-
+      provideDataForCollection(
+        collectionDrivers_profiles,
+        "collectionDrivers_profiles",
+        { driver_fingerprint: rideHistory.taxi_id }
+      )
+        .then((driverProfile) => {
           if (driverProfile.length > 0) {
             //Found the driver's profile
             driverProfile = driverProfile[0];
@@ -3287,6 +3278,10 @@ function computeRouteDetails_skeleton(
             );
             //! ----------------------------------------------
           }
+        })
+        .catch((err) => {
+          logger.error(err);
+          resolve(false);
         });
     } //Request pending
     else {

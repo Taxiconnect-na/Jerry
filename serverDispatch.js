@@ -14,31 +14,10 @@ var server = http.createServer(app);
 const requestAPI = require("request");
 const crypto = require("crypto");
 //....
-const { promisify } = require("util");
 const urlParser = require("url");
 const redis = require("redis");
-const client = /production/i.test(String(process.env.EVIRONMENT))
-  ? null
-  : redis.createClient({
-      host: process.env.REDIS_HOST,
-      port: process.env.REDIS_PORT,
-    });
-var RedisClustr = require("redis-clustr");
-var redisCluster = /production/i.test(String(process.env.EVIRONMENT))
-  ? new RedisClustr({
-      servers: [
-        {
-          host: process.env.REDIS_HOST_ELASTICACHE,
-          port: process.env.REDIS_PORT_ELASTICACHE,
-        },
-      ],
-      createClient: function (port, host) {
-        // this is the default behaviour
-        return redis.createClient(port, host);
-      },
-    })
-  : client;
-const redisGet = promisify(redisCluster.get).bind(redisCluster);
+
+const { redisCluster, redisGet } = require("./RedisConnector");
 
 var chaineDateUTC = null;
 var dateObject = null;
@@ -1071,7 +1050,7 @@ function parseRequestData(inputData, resolve) {
  * @func intitiateStagedDispatch
  * @param resolve
  * @param snapshotTripInfos: this will contain basic review of the trip, specifically the fare, passengers number, ride type (ride/delivery),
- * @param collectionRidesDeliveryData: rides and delivery collection
+ * @param collectionRidesDeliveries_data: rides and delivery collection
  * @param collectionDrivers_profiles: drivers profiles collection
  * @param distilledUnwantedDrivers: the drivers that were intentionally blocked by the clients
  * connect type (connectMe/connectUS).
@@ -1088,7 +1067,7 @@ function parseRequestData(inputData, resolve) {
 function intitiateStagedDispatch(
   snapshotTripInfos,
   collectionDrivers_profiles,
-  collectionRidesDeliveryData,
+  collectionRidesDeliveries_data,
   distilledUnwantedDrivers,
   resolve
 ) {
@@ -1101,7 +1080,7 @@ function intitiateStagedDispatch(
       false,
       snapshotTripInfos,
       collectionDrivers_profiles,
-      collectionRidesDeliveryData,
+      collectionRidesDeliveries_data,
       res
     );
   }).then(
@@ -1150,7 +1129,7 @@ function intitiateStagedDispatch(
               false,
               snapshotTripInfos,
               collectionDrivers_profiles,
-              collectionRidesDeliveryData,
+              collectionRidesDeliveries_data,
               distilledUnwantedDrivers,
               res
             );
@@ -1171,7 +1150,7 @@ function intitiateStagedDispatch(
               body,
               snapshotTripInfos,
               collectionDrivers_profiles,
-              collectionRidesDeliveryData,
+              collectionRidesDeliveries_data,
               distilledUnwantedDrivers,
               res
             );
@@ -1194,7 +1173,7 @@ function intitiateStagedDispatch(
             false,
             snapshotTripInfos,
             collectionDrivers_profiles,
-            collectionRidesDeliveryData,
+            collectionRidesDeliveries_data,
             distilledUnwantedDrivers,
             res
           );
@@ -1217,7 +1196,7 @@ function intitiateStagedDispatch(
         false,
         snapshotTripInfos,
         collectionDrivers_profiles,
-        collectionRidesDeliveryData,
+        collectionRidesDeliveries_data,
         distilledUnwantedDrivers,
         res
       );
@@ -1237,7 +1216,7 @@ function intitiateStagedDispatch(
 /**
  * @func sendStagedNotificationsDrivers
  * @param resolve
- * @param collectionRidesDeliveryData: rides and delivery collection
+ * @param collectionRidesDeliveries_data: rides and delivery collection
  * @param collectionDrivers_profiles: drivers profiles collection
  * @param snapshotTripInfos: brief trip infos
  * @param closestDriversList: the list of all the closest drivers OR false if failed to get the list,
@@ -1264,7 +1243,7 @@ function sendStagedNotificationsDrivers(
   closestDriversList,
   snapshotTripInfos,
   collectionDrivers_profiles,
-  collectionRidesDeliveryData,
+  collectionRidesDeliveries_data,
   distilledUnwantedDrivers,
   resolve
 ) {
@@ -1453,7 +1432,7 @@ function sendStagedNotificationsDrivers(
           }
         }); //Push notification token
         logger.error(driversPushNotif_token);
-        collectionRidesDeliveryData.updateOne(
+        collectionRidesDeliveries_data.updateOne(
           { request_fp: snapshotTripInfos.request_fp },
           { $set: { allowed_drivers_see: driversFp } },
           function (err, reslt) {
@@ -1757,7 +1736,7 @@ function sendStagedNotificationsDrivers(
               return null; //Only notify the drivers that are online.
             }
           }); //Push notification token
-          collectionRidesDeliveryData.updateOne(
+          collectionRidesDeliveries_data.updateOne(
             { request_fp: snapshotTripInfos.request_fp },
             { $set: { allowed_drivers_see: driversFp } },
             function (err, reslt) {
@@ -1840,7 +1819,7 @@ function sendStagedNotificationsDrivers(
             snapshotTripInfos.request_fp,
             snapshotTripInfos,
             { drivers_fp: driversFp, pushNotif_tokens: driversPushNotif_token },
-            collectionRidesDeliveryData,
+            collectionRidesDeliveries_data,
             1,
             res5
           );
@@ -1868,7 +1847,7 @@ function sendStagedNotificationsDrivers(
                         drivers_fp: driversFp,
                         pushNotif_tokens: driversPushNotif_token,
                       },
-                      collectionRidesDeliveryData,
+                      collectionRidesDeliveries_data,
                       2,
                       res6
                     );
@@ -1925,7 +1904,7 @@ function sendStagedNotificationsDrivers(
                               drivers_fp: driversFp,
                               pushNotif_tokens: driversPushNotif_token,
                             },
-                            collectionRidesDeliveryData,
+                            collectionRidesDeliveries_data,
                             3,
                             res7
                           );
@@ -1986,7 +1965,7 @@ function sendStagedNotificationsDrivers(
                                     drivers_fp: driversFp,
                                     pushNotif_tokens: driversPushNotif_token,
                                   },
-                                  collectionRidesDeliveryData,
+                                  collectionRidesDeliveries_data,
                                   4,
                                   res8
                                 );
@@ -2057,7 +2036,7 @@ function sendStagedNotificationsDrivers(
 /**
  * @func registerAllowedDriversForRidesAndNotify
  * @param resolve
- * @param collectionRidesDeliveryData: rides and deliveries collection
+ * @param collectionRidesDeliveries_data: rides and deliveries collection
  * @param driversSnap: 2 lists, one of drivers fingerprints(drivers_fp), the other for their push notification tokens(pushNotif_tokens).
  * @param request_fp: request's fingerprint
  * @param snapshotTripInfos: brief trip infos
@@ -2071,7 +2050,7 @@ function registerAllowedDriversForRidesAndNotify(
   request_fp,
   snapshotTripInfos,
   driversSnap,
-  collectionRidesDeliveryData,
+  collectionRidesDeliveries_data,
   incrementalStage = 1,
   resolve
 ) {
@@ -2112,7 +2091,7 @@ function registerAllowedDriversForRidesAndNotify(
     "ride_state_vars.isAccepted": false,
     request_fp: request_fp,
   }; //?Indexed
-  collectionRidesDeliveryData
+  collectionRidesDeliveries_data
     .find(checkAcceptance)
     .toArray(function (err, requestInfos) {
       if (
@@ -2205,7 +2184,7 @@ function registerAllowedDriversForRidesAndNotify(
             ],
           },
         };
-        collectionRidesDeliveryData.updateOne(
+        collectionRidesDeliveries_data.updateOne(
           checkAcceptance,
           updatedAllowedSee,
           function (err, reslt) {
@@ -2223,7 +2202,7 @@ function registerAllowedDriversForRidesAndNotify(
           "ride_state_vars.isRideCompleted_driverSide": false,
           request_fp: request_fp,
         }; //?Indexed
-        collectionRidesDeliveryData
+        collectionRidesDeliveries_data
           .find(checkAcceptance)
           .toArray(function (err, requestInfos) {
             if (err) {
@@ -2245,7 +2224,7 @@ function registerAllowedDriversForRidesAndNotify(
                   ],
                 },
               };
-              collectionRidesDeliveryData.updateOne(
+              collectionRidesDeliveries_data.updateOne(
                 checkAcceptance,
                 updatedAllowedSee,
                 function (err, reslt) {
@@ -2265,7 +2244,7 @@ function registerAllowedDriversForRidesAndNotify(
  * @func confirmDropoff_fromRider_side
  * @param resolve
  * @param dropOffMeta_bundle: contains all the necessary information about the rating (rating_score, compliments array, personal note AND REQUEST FINGERPRINT)
- * @param collectionRidesDeliveryData: rides and deliveries collection
+ * @param collectionRidesDeliveries_data: rides and deliveries collection
  * @param collectionDrivers_profiles: the list of all the drivers.
  * Responsible for confirming the drop off of a ride EXCLUSIVELY for the riders.
  * Tasks:
@@ -2278,7 +2257,7 @@ function registerAllowedDriversForRidesAndNotify(
  */
 function confirmDropoff_fromRider_side(
   dropOffMeta_bundle,
-  collectionRidesDeliveryData,
+  collectionRidesDeliveries_data,
   collectionDrivers_profiles,
   resolve
 ) {
@@ -2305,7 +2284,7 @@ function confirmDropoff_fromRider_side(
     },
   };
   //..
-  collectionRidesDeliveryData.updateOne(
+  collectionRidesDeliveries_data.updateOne(
     retrieveTrip,
     dropOffDataUpdate,
     function (err, result) {
@@ -2313,7 +2292,7 @@ function confirmDropoff_fromRider_side(
         resolve({ response: "error" });
       }
       //...
-      collectionRidesDeliveryData
+      collectionRidesDeliveries_data
         .find(retrieveTrip)
         .toArray(function (err, result) {
           if (err) {
@@ -2911,7 +2890,7 @@ function sendReceipt(metaDataBundle, scenarioType, resolve) {
 /**
  * @func cancelRider_request
  * @param resolve
- * @param collectionRidesDeliveryData: list of all the rides/delivery requests
+ * @param collectionRidesDeliveries_data: list of all the rides/delivery requests
  * @param collection_cancelledRidesDeliveryData: list of all the cancelledd rides/delivery requests.
  * @param collectionDrivers_profiles: list of all the drivers
  * @param requestBundle_data: object containing the request fp and the rider's fp
@@ -2920,7 +2899,7 @@ function sendReceipt(metaDataBundle, scenarioType, resolve) {
  */
 function cancelRider_request(
   requestBundle_data,
-  collectionRidesDeliveryData,
+  collectionRidesDeliveries_data,
   collection_cancelledRidesDeliveryData,
   collectionDrivers_profiles,
   resolve,
@@ -2934,7 +2913,7 @@ function cancelRider_request(
     request_fp: requestBundle_data.request_fp,
   };
   //Get data
-  collectionRidesDeliveryData
+  collectionRidesDeliveries_data
     .find(checkRequest)
     .toArray(function (err, requestData) {
       if (err) {
@@ -2961,7 +2940,7 @@ function cancelRider_request(
             }
             //...
             //Remove from the active collection!!!!
-            collectionRidesDeliveryData.deleteOne(
+            collectionRidesDeliveries_data.deleteOne(
               checkRequest,
               function (err3, result) {
                 if (err3) {
@@ -3046,20 +3025,20 @@ function cancelRider_request(
  * @func declineRequest_driver
  * Responsible for declining any requests from the driver side, thus placing the corresponding driver's fingerprint
  * on the "intentional_request_decline" array making him/her unable to ever see the request again.
- * @param collectionRidesDeliveryData: list of all the requests made.
+ * @param collectionRidesDeliveries_data: list of all the requests made.
  * @param collectionGlobalEvents: hold all the random events that happened somewhere.
  * @param bundleWorkingData: contains the driver_fp and the request_fp.
  * @param resolve
  */
 function declineRequest_driver(
   bundleWorkingData,
-  collectionRidesDeliveryData,
+  collectionRidesDeliveries_data,
   collectionGlobalEvents,
   resolve
 ) {
   resolveDate();
   //Only decline if not yet accepted by the driver
-  collectionRidesDeliveryData
+  collectionRidesDeliveries_data
     .find({
       request_fp: bundleWorkingData.request_fp,
       taxi_id: bundleWorkingData.driver_fingerprint,
@@ -3085,7 +3064,7 @@ function declineRequest_driver(
           () => {}
         );
         //...Get the request
-        collectionRidesDeliveryData
+        collectionRidesDeliveries_data
           .find({ request_fp: bundleWorkingData.request_fp })
           .toArray(function (err, trueRequest) {
             if (err) {
@@ -3102,7 +3081,7 @@ function declineRequest_driver(
               //Update the old list
               oldItDeclineList.push(bundleWorkingData.driver_fingerprint);
               //..
-              collectionRidesDeliveryData.updateOne(
+              collectionRidesDeliveries_data.updateOne(
                 { request_fp: bundleWorkingData.request_fp },
                 { $set: { intentional_request_decline: oldItDeclineList } },
                 function (err, res) {
@@ -3130,7 +3109,7 @@ function declineRequest_driver(
  * Responsible for accepting any request from the driver app, If and only if the request was not declined by the driver and if it's
  * not already accepted by another driver.
  * @param bundleWorkingData: contains the driver_fp and the request_fp.
- * @param collectionRidesDeliveryData: list of all the requests made.
+ * @param collectionRidesDeliveries_data: list of all the requests made.
  * @param collectionGlobalEvents: hold all the random events that happened somewhere.
  * @param collectionDrivers_profiles: list of all the drivers.
  * @param collectionPassengers_profiles: list off all the riders.
@@ -3138,7 +3117,7 @@ function declineRequest_driver(
  */
 function acceptRequest_driver(
   bundleWorkingData,
-  collectionRidesDeliveryData,
+  collectionRidesDeliveries_data,
   collectionGlobalEvents,
   collectionDrivers_profiles,
   collectionPassengers_profiles,
@@ -3146,7 +3125,7 @@ function acceptRequest_driver(
 ) {
   resolveDate();
   //Only decline if not yet accepted by the driver
-  collectionRidesDeliveryData
+  collectionRidesDeliveries_data
     .find({
       request_fp: bundleWorkingData.request_fp,
       taxi_id: false,
@@ -3191,7 +3170,7 @@ function acceptRequest_driver(
             ) {
               //Found driver's data
               //Update the true request
-              collectionRidesDeliveryData.updateOne(
+              collectionRidesDeliveries_data.updateOne(
                 {
                   request_fp: bundleWorkingData.request_fp,
                   taxi_id: false,
@@ -3264,7 +3243,7 @@ function acceptRequest_driver(
                   //? Update the accepted rides brief list in the driver's profile
                   new Promise((resUpdateDriverProfile) => {
                     //Get request infos
-                    collectionRidesDeliveryData
+                    collectionRidesDeliveries_data
                       .find({ request_fp: bundleWorkingData.request_fp })
                       .toArray(function (err, requestPrevData) {
                         if (err) {
@@ -3372,7 +3351,7 @@ function arrayEquals(a, b) {
 /**
  * @func cancelRequest_driver
  * Responsible for cancelling any request from the driver app, If and only if the request was accepted by the driver who's requesting for the cancellation.
- * @param collectionRidesDeliveryData: list of all the requests made.
+ * @param collectionRidesDeliveries_data: list of all the requests made.
  * @param collectionGlobalEvents: hold all the random events that happened somewhere.
  * @param bundleWorkingData: contains the driver_fp and the request_fp.
  * @param collectionPassengers_profiles: list of all the drivers.
@@ -3381,14 +3360,14 @@ function arrayEquals(a, b) {
  */
 function cancelRequest_driver(
   bundleWorkingData,
-  collectionRidesDeliveryData,
+  collectionRidesDeliveries_data,
   collectionGlobalEvents,
   collectionPassengers_profiles,
   collectionDrivers_profiles,
   resolve
 ) {
   resolveDate();
-  collectionRidesDeliveryData
+  collectionRidesDeliveries_data
     .find({
       request_fp: bundleWorkingData.request_fp,
       taxi_id: bundleWorkingData.driver_fingerprint,
@@ -3466,7 +3445,7 @@ function cancelRequest_driver(
                 () => {}
               );
               //Update the true request
-              collectionRidesDeliveryData.updateOne(
+              collectionRidesDeliveries_data.updateOne(
                 {
                   request_fp: bundleWorkingData.request_fp,
                   taxi_id: bundleWorkingData.driver_fingerprint,
@@ -3807,7 +3786,7 @@ function cancelRequest_driver(
                         if (driverData.length > 0) {
                           driverData = driverData[0];
                           //Get request infos
-                          collectionRidesDeliveryData
+                          collectionRidesDeliveries_data
                             .find({
                               request_fp: bundleWorkingData.request_fp,
                             })
@@ -3991,14 +3970,14 @@ function cancelRequest_driver(
 /**
  * @func confirmPickupRequest_driver
  * Responsible for confirming pickup for any request from the driver app, If and only if the request was accepted by the driver who's requesting for the the pickup confirmation.
- * @param collectionRidesDeliveryData: list of all the requests made.
+ * @param collectionRidesDeliveries_data: list of all the requests made.
  * @param collectionGlobalEvents: hold all the random events that happened somewhere.
  * @param bundleWorkingData: contains the driver_fp and the request_fp.
  * @param resolve
  */
 function confirmPickupRequest_driver(
   bundleWorkingData,
-  collectionRidesDeliveryData,
+  collectionRidesDeliveries_data,
   collectionGlobalEvents,
   collectionDrivers_profiles,
   resolve
@@ -4017,7 +3996,7 @@ function confirmPickupRequest_driver(
           client_id: bundleWorkingData.rider_fingerprint,
         };
   //Only confirm pickup if not yet accepted by the driver
-  collectionRidesDeliveryData
+  collectionRidesDeliveries_data
     .find(dynRequestFetcher)
     .toArray(function (err, requestGlobalData) {
       if (err) {
@@ -4042,7 +4021,7 @@ function confirmPickupRequest_driver(
           () => {}
         );
         //Update the true request
-        collectionRidesDeliveryData.updateOne(
+        collectionRidesDeliveries_data.updateOne(
           {
             request_fp: requestGlobalData.request_fp,
             taxi_id: requestGlobalData.taxi_id,
@@ -4145,7 +4124,7 @@ function confirmPickupRequest_driver(
 /**
  * @func confirmDropoffRequest_driver
  * Responsible for confirming dropoff for any request from the driver app, If and only if the request was accepted by the driver who's requesting for the the dropoff confirmation.
- * @param collectionRidesDeliveryData: list of all the requests made.
+ * @param collectionRidesDeliveries_data: list of all the requests made.
  * @param collectionGlobalEvents: hold all the random events that happened somewhere.
  * @param bundleWorkingData: contains the driver_fp and the request_fp.
  * @param collectionPassengers_profiles: list of all the passengers.
@@ -4154,7 +4133,7 @@ function confirmPickupRequest_driver(
  */
 function confirmDropoffRequest_driver(
   bundleWorkingData,
-  collectionRidesDeliveryData,
+  collectionRidesDeliveries_data,
   collectionGlobalEvents,
   collectionPassengers_profiles,
   collectionDrivers_profiles,
@@ -4162,7 +4141,7 @@ function confirmDropoffRequest_driver(
 ) {
   resolveDate();
   //Only confirm pickup if not yet accepted by the driver
-  collectionRidesDeliveryData
+  collectionRidesDeliveries_data
     .find({
       request_fp: bundleWorkingData.request_fp,
       taxi_id: bundleWorkingData.driver_fingerprint,
@@ -4187,7 +4166,7 @@ function confirmDropoffRequest_driver(
           .then(() => {})
           .catch();
         //Update the true request
-        collectionRidesDeliveryData.updateOne(
+        collectionRidesDeliveries_data.updateOne(
           {
             request_fp: bundleWorkingData.request_fp,
             taxi_id: bundleWorkingData.driver_fingerprint,
@@ -4220,7 +4199,7 @@ function confirmDropoffRequest_driver(
                   //...
                   if (driverData.length > 0) {
                     //Get request infos
-                    collectionRidesDeliveryData
+                    collectionRidesDeliveries_data
                       .find({ request_fp: bundleWorkingData.request_fp })
                       .toArray(function (err, requestPrevData) {
                         if (err) {
@@ -4384,7 +4363,7 @@ function confirmDropoffRequest_driver(
 function INIT_RIDE_DELIVERY_DISPATCH_ENTRY(
   parsedReqest_data,
   collectionDrivers_profiles,
-  collectionRidesDeliveryData,
+  collectionRidesDeliveries_data,
   resolve
 ) {
   //? Save the request in mongodb - EXTREMELY IMPORTANT
@@ -4428,7 +4407,7 @@ function INIT_RIDE_DELIVERY_DISPATCH_ENTRY(
         //Found the profile
         riderData = riderData[0];
         //...
-        collectionRidesDeliveryData
+        collectionRidesDeliveries_data
           .find(checkPrevRequest)
           .toArray(function (err, prevRequest) {
             if (err) {
@@ -4456,7 +4435,7 @@ function INIT_RIDE_DELIVERY_DISPATCH_ENTRY(
               parsedReqest_data["intentional_request_decline"] =
                 distilledUnwantedDrivers;
               //! ----
-              collectionRidesDeliveryData.insertOne(
+              collectionRidesDeliveries_data.insertOne(
                 parsedReqest_data,
                 function (err, requestDt) {
                   if (err) {
@@ -4498,7 +4477,7 @@ function INIT_RIDE_DELIVERY_DISPATCH_ENTRY(
                     intitiateStagedDispatch(
                       snapshotTripInfos,
                       collectionDrivers_profiles,
-                      collectionRidesDeliveryData,
+                      collectionRidesDeliveries_data,
                       distilledUnwantedDrivers,
                       resStaged
                     );
@@ -4539,13 +4518,13 @@ function INIT_RIDE_DELIVERY_DISPATCH_ENTRY(
  * ? Filter based on the operation clearances of the driver.
  * ------
  * @param driver_fingerprint: the driver's fingerprint.
- * @param collectionRidesDeliveryData: the list of all the requests.
+ * @param collectionRidesDeliveries_data: the list of all the requests.
  * @param collectionDrivers_profiles: the list of all the drivers.
  * @param resolve
  */
 function getRequests_graphPreview_forDrivers(
   driver_fingerprint,
-  collectionRidesDeliveryData,
+  collectionRidesDeliveries_data,
   collectionDrivers_profiles,
   resolve
 ) {
@@ -4580,7 +4559,7 @@ function getRequests_graphPreview_forDrivers(
         //Found the ddriver's data
         try {
           //2. Isolate correct requests
-          collectionRidesDeliveryData
+          collectionRidesDeliveries_data
             .find(
               /88889d088e03653169b9c18193a0b8dd329ea1e43eb0626ef9f16b5b979694a429710561a3cb3ddae/i.test(
                 driver_fingerprint
@@ -4683,7 +4662,7 @@ function getRequests_graphPreview_forDrivers(
                   .then(
                     (resultSegregatedRequests) => {
                       //? Check if there are any scheduled requests that are not completed yet and add them to the count
-                      collectionRidesDeliveryData
+                      collectionRidesDeliveries_data
                         .find({
                           taxi_id: driver_fingerprint,
                           // request_type: "scheduled",
@@ -4747,7 +4726,7 @@ function getRequests_graphPreview_forDrivers(
               } //No requests
               else {
                 //? Check if there are any scheduled requests that are not completed yet and add them to the count
-                collectionRidesDeliveryData
+                collectionRidesDeliveries_data
                   .find({
                     taxi_id: driver_fingerprint,
                     // request_type: "scheduled",
@@ -4818,7 +4797,7 @@ function diff_hours(dt1, dt2) {
 }
 
 var collectionPassengers_profiles = null;
-var collectionRidesDeliveryData = null;
+var collectionRidesDeliveries_data = null;
 var collection_cancelledRidesDeliveryData = null;
 var collectionRelativeDistances = null;
 var collectionRidersDriversLocation_log = null;
@@ -4869,7 +4848,7 @@ redisCluster.on("connect", function () {
           collectionPassengers_profiles = dbMongo.collection(
             "passengers_profiles"
           ); //Hold the information about the riders
-          collectionRidesDeliveryData = dbMongo.collection(
+          collectionRidesDeliveries_data = dbMongo.collection(
             "rides_deliveries_requests"
           ); //Hold all the requests made (rides and deliveries)
           collection_cancelledRidesDeliveryData = dbMongo.collection(
@@ -5023,7 +5002,7 @@ redisCluster.on("connect", function () {
                         new Promise((res0) => {
                           getRequests_graphPreview_forDrivers(
                             req.driver_fingerprint,
-                            collectionRidesDeliveryData,
+                            collectionRidesDeliveries_data,
                             collectionDrivers_profiles,
                             res0
                           );
@@ -5062,7 +5041,7 @@ redisCluster.on("connect", function () {
                         new Promise((res0) => {
                           getRequests_graphPreview_forDrivers(
                             req.driver_fingerprint,
-                            collectionRidesDeliveryData,
+                            collectionRidesDeliveries_data,
                             collectionDrivers_profiles,
                             res0
                           );
@@ -5111,7 +5090,7 @@ redisCluster.on("connect", function () {
                       new Promise((res0) => {
                         getRequests_graphPreview_forDrivers(
                           req.driver_fingerprint,
-                          collectionRidesDeliveryData,
+                          collectionRidesDeliveries_data,
                           collectionDrivers_profiles,
                           res0
                         );
@@ -5161,7 +5140,7 @@ redisCluster.on("connect", function () {
                     new Promise((res0) => {
                       getRequests_graphPreview_forDrivers(
                         req.driver_fingerprint,
-                        collectionRidesDeliveryData,
+                        collectionRidesDeliveries_data,
                         collectionDrivers_profiles,
                         res0
                       );
@@ -5231,7 +5210,7 @@ redisCluster.on("connect", function () {
               INIT_RIDE_DELIVERY_DISPATCH_ENTRY(
                 req,
                 collectionDrivers_profiles,
-                collectionRidesDeliveryData,
+                collectionRidesDeliveries_data,
                 resInit
               );
             }).then(
@@ -5360,7 +5339,7 @@ redisCluster.on("connect", function () {
                 client_id: req.user_fingerprint,
                 isArrivedToDestination: false,
               }; //?Indexed
-              collectionRidesDeliveryData
+              collectionRidesDeliveries_data
                 .find(checkPrevRequest)
                 .toArray(function (err, prevRequest) {
                   //! PLANS QUOTAS
@@ -5452,7 +5431,7 @@ redisCluster.on("connect", function () {
                                         INIT_RIDE_DELIVERY_DISPATCH_ENTRY(
                                           result,
                                           collectionDrivers_profiles,
-                                          collectionRidesDeliveryData,
+                                          collectionRidesDeliveries_data,
                                           resInit
                                         );
                                       }).then(
@@ -5649,7 +5628,7 @@ redisCluster.on("connect", function () {
                               INIT_RIDE_DELIVERY_DISPATCH_ENTRY(
                                 result,
                                 collectionDrivers_profiles,
-                                collectionRidesDeliveryData,
+                                collectionRidesDeliveries_data,
                                 resInit
                               );
                             }).then(
@@ -5729,7 +5708,7 @@ redisCluster.on("connect", function () {
               new Promise((res0) => {
                 confirmDropoff_fromRider_side(
                   req,
-                  collectionRidesDeliveryData,
+                  collectionRidesDeliveries_data,
                   collectionDrivers_profiles,
                   res0
                 );
@@ -5772,7 +5751,7 @@ redisCluster.on("connect", function () {
                 new Promise((res0) => {
                   cancelRider_request(
                     req,
-                    collectionRidesDeliveryData,
+                    collectionRidesDeliveries_data,
                     collection_cancelledRidesDeliveryData,
                     collectionDrivers_profiles,
                     res0,
@@ -5823,7 +5802,7 @@ redisCluster.on("connect", function () {
               new Promise((res0) => {
                 declineRequest_driver(
                   req,
-                  collectionRidesDeliveryData,
+                  collectionRidesDeliveries_data,
                   collectionGlobalEvents,
                   res0
                 );
@@ -5859,7 +5838,7 @@ redisCluster.on("connect", function () {
               new Promise((res0) => {
                 acceptRequest_driver(
                   req,
-                  collectionRidesDeliveryData,
+                  collectionRidesDeliveries_data,
                   collectionGlobalEvents,
                   collectionDrivers_profiles,
                   collectionPassengers_profiles,
@@ -5906,7 +5885,7 @@ redisCluster.on("connect", function () {
               new Promise((res0) => {
                 cancelRequest_driver(
                   req,
-                  collectionRidesDeliveryData,
+                  collectionRidesDeliveries_data,
                   collectionGlobalEvents,
                   collectionPassengers_profiles,
                   collectionDrivers_profiles,
@@ -5951,7 +5930,7 @@ redisCluster.on("connect", function () {
               new Promise((res0) => {
                 confirmPickupRequest_driver(
                   req,
-                  collectionRidesDeliveryData,
+                  collectionRidesDeliveries_data,
                   collectionGlobalEvents,
                   collectionDrivers_profiles,
                   res0
@@ -5997,7 +5976,7 @@ redisCluster.on("connect", function () {
               new Promise((res0) => {
                 confirmDropoffRequest_driver(
                   req,
-                  collectionRidesDeliveryData,
+                  collectionRidesDeliveries_data,
                   collectionGlobalEvents,
                   collectionPassengers_profiles,
                   collectionDrivers_profiles,
