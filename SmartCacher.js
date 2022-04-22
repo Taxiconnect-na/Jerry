@@ -122,8 +122,6 @@ redisCluster.on("connect", function () {
       process.env.URL_MONGODB_DEV = body.URL_MONGODB_DEV;
       process.env.URL_MONGODB_PROD = body.URL_MONGODB_PROD;
 
-      logger.warn(process.env.URL_MONGODB_DEV);
-
       MongoClient.connect(
         /live/i.test(process.env.SERVER_TYPE)
           ? process.env.URL_MONGODB_PROD
@@ -188,126 +186,126 @@ redisCluster.on("connect", function () {
 
           //! OBSERVATORS
           //! 1. collectionWalletTransactions_logs
-          let stream_collectionWalletTransactions_logs =
-            collectionWalletTransactions_logs.watch();
-          stream_collectionWalletTransactions_logs.on("change", (next) => {
-            // process any change event
-            if (
-              next.operationType === "insert" ||
-              next.operationType === "delete" ||
-              next.operationType === "update"
-            ) {
-              if (next.operationType === "update") {
-                //Restrict updates
-                if (
-                  next.updateDescription.updatedFields.recipient_fp !==
-                    undefined &&
-                  next.updateDescription.updatedFields.recipient_fp !== null
-                ) {
-                  //Do the operations
-                  new Promise((resolve) => {
-                    cacheTheDataOrderly(
-                      collectionWalletTransactions_logs,
-                      "collectionWalletTransactions_logs",
-                      false,
-                      null,
-                      resolve
-                    );
-                  })
-                    .then((result) => logger.info(result))
-                    .catch((error) => logger.error(error));
-                } else {
-                  // logger.info("Skip the change");
-                }
-              } //Do the operation
-              else {
-                new Promise((resolve) => {
-                  cacheTheDataOrderly(
-                    collectionWalletTransactions_logs,
-                    "collectionWalletTransactions_logs",
-                    false,
-                    null,
-                    resolve
-                  );
-                })
-                  .then((result) => logger.info(result))
-                  .catch((error) => logger.error(error));
-              }
-            }
-          });
+          // let stream_collectionWalletTransactions_logs =
+          //   collectionWalletTransactions_logs.watch();
+          // stream_collectionWalletTransactions_logs.on("change", (next) => {
+          //   // process any change event
+          //   if (
+          //     next.operationType === "insert" ||
+          //     next.operationType === "delete" ||
+          //     next.operationType === "update"
+          //   ) {
+          //     if (next.operationType === "update") {
+          //       //Restrict updates
+          //       if (
+          //         next.updateDescription.updatedFields.recipient_fp !==
+          //           undefined &&
+          //         next.updateDescription.updatedFields.recipient_fp !== null
+          //       ) {
+          //         //Do the operations
+          //         new Promise((resolve) => {
+          //           cacheTheDataOrderly(
+          //             collectionWalletTransactions_logs,
+          //             "collectionWalletTransactions_logs",
+          //             false,
+          //             null,
+          //             resolve
+          //           );
+          //         })
+          //           .then((result) => logger.info(result))
+          //           .catch((error) => logger.error(error));
+          //       } else {
+          //         // logger.info("Skip the change");
+          //       }
+          //     } //Do the operation
+          //     else {
+          //       new Promise((resolve) => {
+          //         cacheTheDataOrderly(
+          //           collectionWalletTransactions_logs,
+          //           "collectionWalletTransactions_logs",
+          //           false,
+          //           null,
+          //           resolve
+          //         );
+          //       })
+          //         .then((result) => logger.info(result))
+          //         .catch((error) => logger.error(error));
+          //     }
+          //   }
+          // });
 
-          //! 2. collectionRidesDeliveries_data
-          let stream_collectionRidesDeliveries_data =
-            collectionRidesDeliveries_data.watch();
-          stream_collectionRidesDeliveries_data.on("change", (next) => {
-            // process any change event
-            if (
-              next.operationType === "insert" ||
-              next.operationType === "delete" ||
-              next.operationType === "update"
-            ) {
-              console.log(next);
-              new Promise((resolve) => {
-                cacheTheDataOrderly(
-                  collectionRidesDeliveries_data,
-                  "collectionRidesDeliveries_data",
-                  false,
-                  null,
-                  resolve
-                );
-              })
-                .then((result) => logger.info(result))
-                .catch((error) => logger.error(error));
-            }
-          });
+          // //! 2. collectionRidesDeliveries_data
+          // let stream_collectionRidesDeliveries_data =
+          //   collectionRidesDeliveries_data.watch();
+          // stream_collectionRidesDeliveries_data.on("change", (next) => {
+          //   // process any change event
+          //   if (
+          //     next.operationType === "insert" ||
+          //     next.operationType === "delete" ||
+          //     next.operationType === "update"
+          //   ) {
+          //     console.log(next);
+          //     new Promise((resolve) => {
+          //       cacheTheDataOrderly(
+          //         collectionRidesDeliveries_data,
+          //         "collectionRidesDeliveries_data",
+          //         false,
+          //         null,
+          //         resolve
+          //       );
+          //     })
+          //       .then((result) => logger.info(result))
+          //       .catch((error) => logger.error(error));
+          //   }
+          // });
 
-          //! 3. collectionDrivers_profiles
-          let stream_collectionDrivers_profiles =
-            collectionDrivers_profiles.watch();
-          stream_collectionDrivers_profiles.on("change", (next) => {
-            // process any change event
-            if (
-              next.operationType === "insert" ||
-              next.operationType === "delete" ||
-              next.operationType === "update"
-            ) {
-              new Promise((resolve) => {
-                cacheTheDataOrderly(
-                  collectionDrivers_profiles,
-                  "collectionDrivers_profiles",
-                  false,
-                  null,
-                  resolve
-                );
-              })
-                .then((result) => logger.info(result))
-                .catch((error) => logger.error(error));
-            }
-          });
+          // //! 3. collectionDrivers_profiles
+          // let stream_collectionDrivers_profiles =
+          //   collectionDrivers_profiles.watch();
+          // stream_collectionDrivers_profiles.on("change", (next) => {
+          //   // process any change event
+          //   if (
+          //     next.operationType === "insert" ||
+          //     next.operationType === "delete" ||
+          //     next.operationType === "update"
+          //   ) {
+          //     new Promise((resolve) => {
+          //       cacheTheDataOrderly(
+          //         collectionDrivers_profiles,
+          //         "collectionDrivers_profiles",
+          //         false,
+          //         null,
+          //         resolve
+          //       );
+          //     })
+          //       .then((result) => logger.info(result))
+          //       .catch((error) => logger.error(error));
+          //   }
+          // });
 
-          //! 4. collectionPassengers_profiles
-          let stream_collectionPassengers_profiles =
-            collectionPassengers_profiles.watch();
-          stream_collectionPassengers_profiles.on("change", (next) => {
-            // process any change event
-            if (
-              next.operationType === "insert" ||
-              next.operationType === "delete" ||
-              next.operationType === "update"
-            ) {
-              new Promise((resolve) => {
-                cacheTheDataOrderly(
-                  collectionPassengers_profiles,
-                  "collectionPassengers_profiles",
-                  false,
-                  null,
-                  resolve
-                );
-              })
-                .then((result) => logger.info(result))
-                .catch((error) => logger.error(error));
-            }
-          });
+          // //! 4. collectionPassengers_profiles
+          // let stream_collectionPassengers_profiles =
+          //   collectionPassengers_profiles.watch();
+          // stream_collectionPassengers_profiles.on("change", (next) => {
+          //   // process any change event
+          //   if (
+          //     next.operationType === "insert" ||
+          //     next.operationType === "delete" ||
+          //     next.operationType === "update"
+          //   ) {
+          //     new Promise((resolve) => {
+          //       cacheTheDataOrderly(
+          //         collectionPassengers_profiles,
+          //         "collectionPassengers_profiles",
+          //         false,
+          //         null,
+          //         resolve
+          //       );
+          //     })
+          //       .then((result) => logger.info(result))
+          //       .catch((error) => logger.error(error));
+          //   }
+          // });
         }
       );
     }

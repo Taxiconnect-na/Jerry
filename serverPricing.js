@@ -19,6 +19,9 @@ const urlParser = require("url");
 
 const { redisCluster, redisGet } = require("./RedisConnector");
 
+//! Attach DynamoDB helper
+const { dynamo_insert, dynamo_update } = require("./DynamoServiceManager");
+
 var chaineDateUTC = null;
 var dateObject = null;
 const moment = require("moment");
@@ -533,13 +536,18 @@ function estimateFullVehiclesCatPrices(
                     .toArray(function (err, resultX) {
                       if (resultX.length <= 0) {
                         //New record
-                        collectionNotFoundSubursPricesMap.insertOne(
-                          queryNoMatch,
-                          function (err, res) {
+                        dynamo_insert(
+                          "not_found_suburbs_prices_map",
+                          queryNoMatch
+                        )
+                          .then((result) => {
                             logger.info("New record added");
-                            resX(true);
-                          }
-                        );
+                            resX(result);
+                          })
+                          .catch((error) => {
+                            logger.error(error);
+                            resX(false);
+                          });
                       }
                     });
                 }).then(
@@ -1793,11 +1801,16 @@ redisCluster.on("connect", function () {
                     if (requestData !== undefined && requestData.length > 0) {
                       //Valid trip
                       requestData = requestData[0];
-                      collectionRidesDeliveries_data.updateOne(
-                        { request_fp: req.request_fp, client_id: req.user_fp },
-                        { $set: { fare: req.new_fare } },
-                        function (err, resltUpdate) {
-                          if (err) {
+                      dynamo_update(
+                        "rides_deliveries_requests",
+                        requestData._id,
+                        "set fare = :fare",
+                        {
+                          ":fare": req.new_fare,
+                        }
+                      )
+                        .then((result) => {
+                          if (result === false) {
                             logger.error(err);
                             resolve({
                               response: "error_unable_to_update_ride_infos",
@@ -1805,8 +1818,13 @@ redisCluster.on("connect", function () {
                           }
                           //...
                           resolve({ response: "successfullly_updated" });
-                        }
-                      );
+                        })
+                        .catch((error) => {
+                          logger.error(error);
+                          resolve({
+                            response: "error_unable_to_update_ride_infos",
+                          });
+                        });
                     } //Invalid trip
                     else {
                       resolve({ response: "error_unable_to_get_ride_infos" });
