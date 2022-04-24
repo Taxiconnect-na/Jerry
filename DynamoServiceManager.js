@@ -4,6 +4,7 @@
  * 1. Insert
  * 2. Delete
  * 3. Update
+ * 4. Find
  */
 
 const { logger } = require("./LogService");
@@ -110,11 +111,85 @@ async function update(
   });
 }
 
+/**
+ * ? Find - QUERY
+ * Find a record(s) from a desired table
+ * @param table_name: the name of the table from which the record(s) will be retrived
+ * @param _idKey: the filtering data to be updated
+ * @param FilterExpression: the filter expression schema to be found.
+ * @param KeyConditionExpression: the conditional expression to be found
+ * @param ExpressionAttributeValues: the attributes to complete the filter expression
+ * @param ExpressionAttributeNames: the names of the attributes, very useful for nested attributes.
+ * @param IndexName: the index name to search to results against
+ */
+async function find_query({
+  table_name,
+  _idKey,
+  KeyConditionExpression,
+  FilterExpression = {},
+  ExpressionAttributeValues = {},
+  ExpressionAttributeNames = {},
+  IndexName = null,
+}) {
+  let params =
+    IndexName !== undefined && IndexName !== null
+      ? {
+          KeyConditionExpression: KeyConditionExpression,
+          ExpressionAttributeValues: ExpressionAttributeValues,
+          ExpressionAttributeNames: ExpressionAttributeNames,
+          FilterExpression: FilterExpression,
+          TableName: table_name,
+        }
+      : {
+          KeyConditionExpression: KeyConditionExpression,
+          ExpressionAttributeValues: ExpressionAttributeValues,
+          ExpressionAttributeNames: ExpressionAttributeNames,
+          FilterExpression: FilterExpression,
+          TableName: table_name,
+          IndexName: IndexName,
+        };
+  //...
+  dynamoClient.query(params, function (err, resultFindget) {
+    if (err) {
+      logger.error(err);
+      return [];
+    }
+    //...
+    logger.info(resultFindget);
+    return resultFindget.Items;
+  });
+}
+
+/**
+ * ? Find - GET
+ * Find a record(s) from a desired table with an ASH key
+ * @param table_name: the name of the table from which the record(s) will be retrived
+ * @param _idKey: the filtering data to be updated
+ */
+async function find_get(table_name, _idKey) {
+  let params = {
+    TableName: table_name,
+    Key: _idKey,
+  };
+  //...
+  dynamoClient.get(params, function (err, resultFindget) {
+    if (err) {
+      logger.error(err);
+      return [];
+    }
+    //...
+    logger.info(resultFindget);
+    return resultFindget.Item;
+  });
+}
+
 //? Exports
 module.exports = {
   dynamo_insert: insert,
   dynamo_delete: delete_r,
   dynamo_update: update,
+  dynamo_find_get: find_get,
+  dynamo_find_query: find_query,
   get_newID: () => {
     return uuidv4();
   },
