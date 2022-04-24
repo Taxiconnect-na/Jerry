@@ -5942,10 +5942,11 @@ redisCluster.on("connect", function () {
 
             //Do basic checking
             if (
-              // req.driver_fingerprint !== undefined &&
-              // req.driver_fingerprint !== null &&
-              req.request_fp !== undefined &&
-              req.request_fp !== null
+              req.driver_fingerprint !== undefined &&
+              req.driver_fingerprint !== null 
+//               &&
+//               req.request_fp !== undefined &&
+//               req.request_fp !== null
             ) {
               //...
               new Promise((res0) => {
