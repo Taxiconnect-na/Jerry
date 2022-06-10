@@ -3072,14 +3072,14 @@ function execGet_driversDeepInsights_fromWalletData(
                     `);
                     //...
                     //! General left comission
-                    _GLOBAL_OBJECT.header.remaining_commission =
-                      Math.ceil(
-                        (totalEarnings -
-                          totalDues -
-                          totalComission +
-                          Number.EPSILON) *
-                          100
-                      ) / 100;
+                    _GLOBAL_OBJECT.header.remaining_commission =0;
+//                       Math.ceil(
+//                         (totalEarnings -
+//                           totalDues -
+//                           totalComission +
+//                           Number.EPSILON) *
+//                           100
+//                       ) / 100;
                     //! General left due to driver
                     _GLOBAL_OBJECT.header.remaining_due_to_driver =
                       Math.floor(
