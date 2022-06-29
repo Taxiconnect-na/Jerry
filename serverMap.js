@@ -5765,6 +5765,8 @@ redisCluster.on("connect", function () {
                 //Check for any existing ride
                 new Promise((res) => {
                   //logger.info("fetching data");
+                  if(req.user_nature==='driver') { res(false); }
+                  else {
                   tripChecker_Dispatcher(
                     req.avoidCached_data !== undefined &&
                       req.avoidCached_data !== null
@@ -5781,7 +5783,7 @@ redisCluster.on("connect", function () {
                       ? req.requestType
                       : "rides",
                     res
-                  );
+                  ); }
                 }).then(
                   (result) => {
                     //Update the rider
