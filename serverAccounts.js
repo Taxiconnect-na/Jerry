@@ -21,42 +21,32 @@ var accessLogStream = fs.createWriteStream(
   { flags: "a" }
 );
 const { logger } = require("./LogService");
+const {
+  provideDataForCollection,
+  filterDataBasedOnNeed,
+} = require("./SmartDataProvider");
 
 var app = express();
 var server = http.createServer(app);
 const requestAPI = require("request");
 const crypto = require("crypto");
 //....
-const { promisify } = require("util");
 const urlParser = require("url");
-const redis = require("redis");
-const client = /production/i.test(String(process.env.EVIRONMENT))
-  ? null
-  : redis.createClient({
-      host: process.env.REDIS_HOST,
-      port: process.env.REDIS_PORT,
-    });
-var RedisClustr = require("redis-clustr");
-var redisCluster = /production/i.test(String(process.env.EVIRONMENT))
-  ? new RedisClustr({
-      servers: [
-        {
-          host: process.env.REDIS_HOST_ELASTICACHE,
-          port: process.env.REDIS_PORT_ELASTICACHE,
-        },
-      ],
-      createClient: function (port, host) {
-        // this is the default behaviour
-        return redis.createClient(port, host);
-      },
-    })
-  : client;
-const redisGet = promisify(redisCluster.get).bind(redisCluster);
+
+const { redisCluster, redisGet } = require("./RedisConnector");
 
 var isBase64 = require("is-base64");
 var chaineDateUTC = null;
 const moment = require("moment");
 var otpGenerator = require("otp-generator");
+
+//! Attach DynamoDB helper
+const {
+  dynamo_insert,
+  dynamo_update,
+  dynamo_find_get,
+  dynamo_find_query,
+} = require("./DynamoServiceManager");
 
 var AWS_SMS = require("aws-sdk");
 function SendSMSTo(phone_number, message) {
@@ -251,9 +241,14 @@ function checkUserStatus(
       otp: parseInt(otp),
       date_sent: new Date(chaineDateUTC),
     };
-    collection_OTP_dispatch_map.insertOne(dispatchMap, function (error, reslt) {
-      res(true);
-    });
+    dynamo_insert("OTP_dispatch_map", dispatchMap)
+      .then((result) => {
+        res(result);
+      })
+      .catch((error) => {
+        logger.error(error);
+        res(false);
+      });
   }).then(
     () => {},
     () => {}
@@ -273,17 +268,20 @@ function checkUserStatus(
     userData.user_nature === null ||
     /passenger/i.test(userData.user_nature)
   ) {
-    collectionPassengers_profiles
-      .find(checkUser)
-      .toArray(function (error, result) {
-        if (error) {
-          resolve({ response: "error_checking_user" });
-        }
-        //..
+    dynamo_find_query({
+      table_name: "passengers_profiles",
+      IndexName: "phone_number",
+      KeyConditionExpression: "phone_number = :val1",
+      ExpressionAttributeValues: {
+        ":val1": checkUser.phone_number,
+      },
+    })
+      .then((result) => {
         if (result.length > 0) {
           //User already registered
           //Send the fingerprint
           resolve({
+            _id: result[0]._id,
             response: "registered",
             user_fp: result[0].user_fingerprint,
             name: result[0].name,
@@ -303,6 +301,10 @@ function checkUserStatus(
         else {
           resolve({ response: "not_yet_registered" });
         }
+      })
+      .catch((error) => {
+        logger.error(error);
+        resolve({ response: "error_checking_user" });
       });
   } else if (
     userData.user_nature !== undefined &&
@@ -317,20 +319,20 @@ function checkUserStatus(
      * ! }
      */
     //2. Drivers
-    collectionDrivers_profiles
-      .find(checkUser)
-      .toArray(function (error, result) {
-        logger.warn(checkUser);
-        logger.warn(error);
-        logger.warn(result);
-        if (error) {
-          resolve({ response: "error_checking_user" });
-        }
-        //..
+    dynamo_find_query({
+      table_name: "drivers_profiles",
+      IndexName: "phone_number",
+      KeyConditionExpression: "phone_number = :val1",
+      ExpressionAttributeValues: {
+        ":val1": checkUser.phone_number,
+      },
+    })
+      .then((result) => {
         if (result.length > 0) {
           //User already registered
           //Send the fingerprint
           resolve({
+            _id: result[0]._id,
             response: "registered",
             user_fp: result[0].driver_fingerprint,
             name: result[0].name,
@@ -352,13 +354,17 @@ function checkUserStatus(
           logger.warn("No yet registered driver");
           resolve({ response: "not_yet_registered" });
         }
+      })
+      .catch((error) => {
+        logger.error(error);
+        resolve({ response: "error_checking_user" });
       });
   }
 }
 
 /**
  * @func getBachRidesHistory
- * @param collectionRidesDeliveryData: list of all rides made
+ * @param collectionRidesDeliveries_data: list of all rides made
  * @param collectionDrivers_profiles: list of all drivers
  * @param resolve
  * @param req: the requests arguments : user_fp, ride_type, and/or the targeted argument
@@ -366,7 +372,7 @@ function checkUserStatus(
  */
 function getBachRidesHistory(
   req,
-  collectionRidesDeliveryData,
+  collectionRidesDeliveries_data,
   collectionDrivers_profiles,
   resolve
 ) {
@@ -381,12 +387,31 @@ function getBachRidesHistory(
           req.user_nature === null ||
           /rider/i.test(req.user_nature)
             ? {
-                client_id: req.user_fingerprint,
-                "ride_state_vars.isRideCompleted_riderSide": true,
+                table_name: "rides_deliveries_requests",
+                IndexName: "client_id",
+                KeyConditionExpression:
+                  "client_id = :val1, #r.#isCRider = :val2",
+                ExpressionAttributeValues: {
+                  ":val1": req.user_fingerprint,
+                  ":val2": true,
+                },
+                ExpressionAttributeNames: {
+                  "#r": "ride_state_vars",
+                  "#isCRider": "isRideCompleted_riderSide",
+                },
               }
             : {
-                taxi_id: req.user_fingerprint,
-                "ride_state_vars.isRideCompleted_riderSide": true,
+                table_name: "rides_deliveries_requests",
+                IndexName: "taxi_id",
+                KeyConditionExpression: "taxi_id = :val1, #r.#isCRider = :val2",
+                ExpressionAttributeValues: {
+                  ":val1": req.user_fingerprint,
+                  ":val2": true,
+                },
+                ExpressionAttributeNames: {
+                  "#r": "ride_state_vars",
+                  "#isCRider": "isRideCompleted_riderSide",
+                },
               };
         //...
         res0(resolveResponse);
@@ -397,12 +422,23 @@ function getBachRidesHistory(
           req.user_nature === null ||
           /rider/i.test(req.user_nature)
             ? {
-                client_id: req.user_fingerprint,
-                request_type: "scheduled",
+                table_name: "rides_deliveries_requests",
+                IndexName: "client_id",
+                KeyConditionExpression:
+                  "client_id = :val1, request_type = :val2",
+                ExpressionAttributeValues: {
+                  ":val1": req.user_fingerprint,
+                  ":val2": "scheduled",
+                },
               }
             : {
-                taxi_id: req.user_fingerprint,
-                request_type: "scheduled",
+                table_name: "rides_deliveries_requests",
+                IndexName: "taxi_id",
+                KeyConditionExpression: "taxi_id = :val1, request_type = :val2",
+                ExpressionAttributeValues: {
+                  ":val1": req.user_fingerprint,
+                  ":val2": "scheduled",
+                },
               };
         //...
         res0(resolveResponse);
@@ -413,12 +449,22 @@ function getBachRidesHistory(
           req.user_nature === null ||
           /rider/i.test(req.user_nature)
             ? {
-                client_id: req.user_fingerprint,
-                ride_flag: "business",
+                table_name: "rides_deliveries_requests",
+                IndexName: "client_id",
+                KeyConditionExpression: "client_id = :val1, ride_flag = :val2",
+                ExpressionAttributeValues: {
+                  ":val1": req.user_fingerprint,
+                  ":val2": "business",
+                },
               }
             : {
-                taxi_id: req.user_fingerprint,
-                ride_flag: "business",
+                table_name: "rides_deliveries_requests",
+                IndexName: "taxi_id",
+                KeyConditionExpression: "taxi_id = :val1, ride_flag = :val2",
+                ExpressionAttributeValues: {
+                  ":val1": req.user_fingerprint,
+                  ":val2": "business",
+                },
               };
         //...
         res0(resolveResponse);
@@ -449,13 +495,8 @@ function getBachRidesHistory(
       if (result !== false) {
         //Got some object
         //Get the mongodb data
-        collectionRidesDeliveryData
-          .find(result)
-          .toArray(function (error, ridesData) {
-            if (error) {
-              resolve({ response: "error_authentication_failed" });
-            }
-            //...
+        dynamo_find_query(result)
+          .then((ridesData) => {
             if (
               ridesData !== undefined &&
               ridesData !== null &&
@@ -493,15 +534,15 @@ function getBachRidesHistory(
             } //Empty
             else {
               //Get the rider's inos
-              collectionPassengers_profiles
-                .find({
-                  user_fingerprint: req.user_fingerprint.trim(),
-                })
-                .toArray(function (err, riderData) {
-                  if (err) {
-                    resolve(false);
-                  }
-                  //...
+              dynamo_find_query({
+                table_name: "passengers_profiles",
+                IndexName: "user_fingerprint",
+                KeyConditionExpression: "user_fingerprint = :val1",
+                ExpressionAttributeValues: {
+                  ":val1": req.user_fingerprint.trim(),
+                },
+              })
+                .then((riderData) => {
                   if (riderData !== undefined && riderData.length > 0) {
                     //Found something
                     //? Check if the user is part of a delivery request iin which he is the receiver.
@@ -516,7 +557,7 @@ function getBachRidesHistory(
                         riderData[0].phone_number.trim(),
                     }; //?Indexed
                     //...
-                    collectionRidesDeliveryData
+                    collectionRidesDeliveries_data
                       .find(rideChecker)
                       .toArray(function (err, tripData) {
                         if (err) {
@@ -583,8 +624,16 @@ function getBachRidesHistory(
                       data: [],
                     });
                   }
+                })
+                .catch((error) => {
+                  logger.error(error);
+                  resolve(false);
                 });
             }
+          })
+          .catch((error) => {
+            logger.error(error);
+            resolve({ response: "error_authentication_failed" });
           });
       } //invalid data
       else {
@@ -684,50 +733,65 @@ function shrinkDataSchema_forBatchRidesHistory(
       let findCar = {
         "cars_data.car_fingerprint": request.car_fingerprint,
       };
-      collectionDrivers_profiles.find(findCar).toArray(function (err, result) {
-        if (err) {
+
+      dynamo_find_query({
+        table_name: "drivers_profiles",
+        IndexName: "driver_fingerprint",
+        KeyConditionExpression: "driver_fingerprint = :val1",
+        ExpressionAttributeValues: {
+          ":val1": request.taxi_id,
+        },
+      })
+        .then((result) => {
+          logger.info(result);
+          if (result.length > 0) {
+            //FOund something
+            let car_brand = false;
+            //Get the car brand
+            result.map((driver) => {
+              driver.cars_data.map((car) => {
+                if (request.car_fingerprint === car.car_fingerprint) {
+                  car_brand = car.car_brand;
+                }
+              });
+            });
+            //...
+            res(car_brand);
+          } //Empty - strange
+          else {
+            //! Get the first car for the driver
+            dynamo_find_query({
+              table_name: "drivers_profiles",
+              IndexName: "driver_fingerprint",
+              KeyConditionExpression: "driver_fingerprint = :val1",
+              ExpressionAttributeValues: {
+                ":val1": request.taxi_id,
+              },
+            })
+              .then((driverProfile) => {
+                if (
+                  driverProfile.cars_data !== undefined &&
+                  driverProfile.cars_data !== null &&
+                  driverProfile.length > 0 &&
+                  driverProfile.cars_data.length > 0
+                ) {
+                  //Found something
+                  res(driverProfile.cars_data[0].car_brand);
+                } //No valid reccord found
+                else {
+                  res(false);
+                }
+              })
+              .catch((error) => {
+                logger.error(error);
+                res(false);
+              });
+          }
+        })
+        .catch((error) => {
+          logger.error(error);
           res(false);
-        }
-        //...
-        logger.info(result);
-        if (result.length > 0) {
-          //FOund something
-          let car_brand = false;
-          //Get the car brand
-          result.map((driver) => {
-            driver.cars_data.map((car) => {
-              if (request.car_fingerprint === car.car_fingerprint) {
-                car_brand = car.car_brand;
-              }
-            });
-          });
-          //...
-          res(car_brand);
-        } //Empty - strange
-        else {
-          //! Get the first car for the driver
-          collectionDrivers_profiles
-            .find({ driver_fingerprint: request.taxi_id })
-            .toArray(function (err, driverProfile) {
-              if (err) {
-                res(false);
-              }
-              ///.
-              if (
-                driverProfile.cars_data !== undefined &&
-                driverProfile.cars_data !== null &&
-                driverProfile.length > 0 &&
-                driverProfile.cars_data.length > 0
-              ) {
-                //Found something
-                res(driverProfile.cars_data[0].car_brand);
-              } //No valid reccord found
-              else {
-                res(false);
-              }
-            });
-        }
-      });
+        });
     }).then(
       (result) => {
         if (result !== false) {
@@ -928,60 +992,69 @@ function proceedTargeted_requestHistory_fetcher(
     let findCar = {
       "cars_data.car_fingerprint": request.car_fingerprint,
     };
-    collectionDrivers_profiles.find(findCar).toArray(function (err, result) {
-      if (err) {
-        res(false);
-      }
-      //...
-      if (result.length > 0) {
-        //FOund something
-        let car_brand = false;
-        let plate_number = false;
-        let car_picture = false;
-        let driver_name = false;
-        let taxi_number = false;
-        let vehicle_type = false;
-        let driver_picture = "default_driver.png";
-        //Get the car brand
-        result.map((driver) => {
-          driver.cars_data.map((car) => {
-            if (request.car_fingerprint === car.car_fingerprint) {
-              logger.info(car);
-              car_brand = car.car_brand;
-              car_picture = `${process.env.AWS_S3_VEHICLES_PICTURES_PATH}/${car.taxi_picture}`;
-              taxi_number = car.taxi_number;
-              vehicle_type = /Economy/i.test(car.vehicle_type)
-                ? "Economy"
-                : /Comfort/i.test(car.vehicle_type)
-                ? "Comfort"
-                : /Luxury/i.test(car.vehicle_type);
-              plate_number = car.plate_number.toUpperCase();
-              plate_number =
-                plate_number[0] +
-                " " +
-                plate_number.substring(1, plate_number.length - 1) +
-                " " +
-                plate_number[plate_number.length - 1];
-              driver_name = driver.name + " " + driver.surname;
-              driver_picture = `${process.env.AWS_S3_DRIVERS_PROFILE_PICTURES_PATH}/${driver.identification_data.profile_picture}`;
-            }
+
+    dynamo_find_query({
+      table_name: "drivers_profiles",
+      IndexName: "driver_fingerprint",
+      KeyConditionExpression: "driver_fingerprint = :val1",
+      ExpressionAttributeValues: {
+        ":val1": request.taxi_id,
+      },
+    })
+      .then((result) => {
+        if (result.length > 0) {
+          //FOund something
+          let car_brand = false;
+          let plate_number = false;
+          let car_picture = false;
+          let driver_name = false;
+          let taxi_number = false;
+          let vehicle_type = false;
+          let driver_picture = "default_driver.png";
+          //Get the car brand
+          result.map((driver) => {
+            driver.cars_data.map((car) => {
+              if (request.car_fingerprint === car.car_fingerprint) {
+                logger.info(car);
+                car_brand = car.car_brand;
+                car_picture = `${process.env.AWS_S3_VEHICLES_PICTURES_PATH}/${car.taxi_picture}`;
+                taxi_number = car.taxi_number;
+                vehicle_type = /Economy/i.test(car.vehicle_type)
+                  ? "Economy"
+                  : /Comfort/i.test(car.vehicle_type)
+                  ? "Comfort"
+                  : /Luxury/i.test(car.vehicle_type);
+                plate_number = car.plate_number.toUpperCase();
+                plate_number =
+                  plate_number[0] +
+                  " " +
+                  plate_number.substring(1, plate_number.length - 1) +
+                  " " +
+                  plate_number[plate_number.length - 1];
+                driver_name = driver.name + " " + driver.surname;
+                driver_picture = `${process.env.AWS_S3_DRIVERS_PROFILE_PICTURES_PATH}/${driver.identification_data.profile_picture}`;
+              }
+            });
           });
-        });
-        //...
-        res({
-          car_brand: car_brand,
-          plate_number: plate_number,
-          car_picture: car_picture,
-          taxi_number: taxi_number,
-          vehicle_type: vehicle_type,
-          driver_name: driver_name,
-          driver_picture: driver_picture,
-        });
-      } //Empty - strange
-      else {
+          //...
+          res({
+            car_brand: car_brand,
+            plate_number: plate_number,
+            car_picture: car_picture,
+            taxi_number: taxi_number,
+            vehicle_type: vehicle_type,
+            driver_name: driver_name,
+            driver_picture: driver_picture,
+          });
+        } //Empty - strange
+        else {
+          res(false);
+        }
+      })
+      .catch((error) => {
+        logger.error(error);
         res(false);
-      }
-    });
+      });
   }).then(
     (result) => {
       if (result !== false) {
@@ -1127,13 +1200,13 @@ function proceedTargeted_requestHistory_fetcher(
  * @func getDaily_requestAmount_driver
  * Responsible for getting the daily amount made so far for the driver at any given time.
  * CACHED.
- * @param collectionRidesDeliveryData: the list of all the rides/deliveries
+ * @param collectionRidesDeliveries_data: the list of all the rides/deliveries
  * @param collectionDrivers_profiles: the list of all the drivers profiles
  * @param avoidCached_data: to avoid the cached data
  * @param resolve
  */
 function getDaily_requestAmount_driver(
-  collectionRidesDeliveryData,
+  collectionRidesDeliveries_data,
   collectionDrivers_profiles,
   driver_fingerprint,
   avoidCached_data = false,
@@ -1151,7 +1224,7 @@ function getDaily_requestAmount_driver(
           //? Rehydrate
           new Promise((res) => {
             exec_computeDaily_amountMade(
-              collectionRidesDeliveryData,
+              collectionRidesDeliveries_data,
               collectionDrivers_profiles,
               driver_fingerprint,
               res
@@ -1171,7 +1244,7 @@ function getDaily_requestAmount_driver(
           //Errror - make a fresh request
           new Promise((res) => {
             exec_computeDaily_amountMade(
-              collectionRidesDeliveryData,
+              collectionRidesDeliveries_data,
               collectionDrivers_profiles,
               driver_fingerprint,
               res
@@ -1198,7 +1271,7 @@ function getDaily_requestAmount_driver(
       else {
         new Promise((res) => {
           exec_computeDaily_amountMade(
-            collectionRidesDeliveryData,
+            collectionRidesDeliveries_data,
             collectionDrivers_profiles,
             driver_fingerprint,
             res
@@ -1227,7 +1300,7 @@ function getDaily_requestAmount_driver(
       //Errror - make a fresh request
       new Promise((res) => {
         exec_computeDaily_amountMade(
-          collectionRidesDeliveryData,
+          collectionRidesDeliveries_data,
           collectionDrivers_profiles,
           driver_fingerprint,
           res
@@ -1271,12 +1344,12 @@ function checkIfSameDay(date1, date2) {
 /**
  * @func exec_computeDaily_amountMade
  * Responsible for executing all the operations related to the computation of the driver's daily amount.
- * @param collectionRidesDeliveryData: the list of all the rides/deliveries
+ * @param collectionRidesDeliveries_data: the list of all the rides/deliveries
  * @param collectionDrivers_profiles: the list of all the drivers profiles.
  * @param resolve
  */
 function exec_computeDaily_amountMade(
-  collectionRidesDeliveryData,
+  collectionRidesDeliveries_data,
   collectionDrivers_profiles,
   driver_fingerprint,
   resolve
@@ -1284,19 +1357,15 @@ function exec_computeDaily_amountMade(
   resolveDate();
   //...
   //Get the driver's requests operation clearances
-  collectionDrivers_profiles
-    .find({ driver_fingerprint: driver_fingerprint })
-    .toArray(function (error, driverProfile) {
-      if (error) {
-        logger.info("Here");
-        resolve({
-          amount: 0,
-          currency: "NAD",
-          currency_symbol: "N$",
-          supported_requests_types: "none",
-          response: "error",
-        });
-      }
+  dynamo_find_query({
+    table_name: "drivers_profiles",
+    IndexName: "driver_fingerprint",
+    KeyConditionExpression: "driver_fingerprint = :val1",
+    ExpressionAttributeValues: {
+      ":val1": driver_fingerprint,
+    },
+  })
+    .then((driverProfile) => {
       if (driverProfile !== undefined && driverProfile.length > 0) {
         driverProfile = driverProfile[0];
         //...
@@ -1306,22 +1375,23 @@ function exec_computeDaily_amountMade(
           "ride_state_vars.isRideCompleted_riderSide": true,
         };
 
-        collectionRidesDeliveryData
-          .find(filterRequest)
-          .toArray(function (err, requestsArray) {
-            if (err) {
-              resolve({
-                amount: 0,
-                currency: "NAD",
-                currency_symbol: "N$",
-                supported_requests_types:
-                  driverProfile !== undefined && driverProfile !== null
-                    ? driverProfile.operation_clearances.join("-")
-                    : "Ride",
-                response: "error",
-              });
-            }
-            //...
+        dynamo_find_query({
+          table_name: "rides_deliveries_requests",
+          IndexName: "taxi_id",
+          KeyConditionExpression:
+            "taxi_id = :val1, #r.#isCDriver = :val2, #r.#isCRider = :val3",
+          ExpressionAttributeValues: {
+            ":val1": driver_fingerprint,
+            ":val2": true,
+            ":val3": true,
+          },
+          ExpressionAttributeNames: {
+            "#r": "ride_state_vars",
+            "#isCDriver": "isRideCompleted_driverSide",
+            "#isCRider": "isRideCompleted_riderSide",
+          },
+        })
+          .then((requestsArray) => {
             let amount = 0;
             if (
               requestsArray !== null &&
@@ -1363,6 +1433,19 @@ function exec_computeDaily_amountMade(
                 response: "error",
               });
             }
+          })
+          .catch((error) => {
+            logger.error(error);
+            resolve({
+              amount: 0,
+              currency: "NAD",
+              currency_symbol: "N$",
+              supported_requests_types:
+                driverProfile !== undefined && driverProfile !== null
+                  ? driverProfile.operation_clearances.join("-")
+                  : "Ride",
+              response: "error",
+            });
           });
       } else {
         logger.info("Here3");
@@ -1374,6 +1457,16 @@ function exec_computeDaily_amountMade(
           response: "error",
         });
       }
+    })
+    .catch((error) => {
+      logger.error(error);
+      resolve({
+        amount: 0,
+        currency: "NAD",
+        currency_symbol: "N$",
+        supported_requests_types: "none",
+        response: "error",
+      });
     });
 }
 
@@ -1381,7 +1474,7 @@ function exec_computeDaily_amountMade(
  * @func getRiders_wallet_summary
  * Responsible for getting riders wallet informations.
  * @param requestObj: contains the user_fingerprint and the mode: total or detailed.
- * @param collectionRidesDeliveryData: the collection of all the requests.
+ * @param collectionRidesDeliveries_data: the collection of all the requests.
  * @param collectionWalletTransactions_logs: the collection of all the possible wallet transactions.
  * @param collectionDrivers_profiles: collection of all the drivers
  * @param collectionPassengers_profiles: collection of all the passengers.
@@ -1393,7 +1486,7 @@ function exec_computeDaily_amountMade(
  */
 function getRiders_wallet_summary(
   requestObj,
-  collectionRidesDeliveryData,
+  collectionRidesDeliveries_data,
   collectionWalletTransactions_logs,
   collectionDrivers_profiles,
   collectionPassengers_profiles,
@@ -1412,7 +1505,7 @@ function getRiders_wallet_summary(
           new Promise((res) => {
             execGet_ridersDrivers_walletSummary(
               requestObj,
-              collectionRidesDeliveryData,
+              collectionRidesDeliveries_data,
               collectionWalletTransactions_logs,
               collectionDrivers_profiles,
               collectionPassengers_profiles,
@@ -1439,7 +1532,7 @@ function getRiders_wallet_summary(
           new Promise((res) => {
             execGet_ridersDrivers_walletSummary(
               requestObj,
-              collectionRidesDeliveryData,
+              collectionRidesDeliveries_data,
               collectionWalletTransactions_logs,
               collectionDrivers_profiles,
               collectionPassengers_profiles,
@@ -1466,7 +1559,7 @@ function getRiders_wallet_summary(
         new Promise((res) => {
           execGet_ridersDrivers_walletSummary(
             requestObj,
-            collectionRidesDeliveryData,
+            collectionRidesDeliveries_data,
             collectionWalletTransactions_logs,
             collectionDrivers_profiles,
             collectionPassengers_profiles,
@@ -1494,7 +1587,7 @@ function getRiders_wallet_summary(
       new Promise((res) => {
         execGet_ridersDrivers_walletSummary(
           requestObj,
-          collectionRidesDeliveryData,
+          collectionRidesDeliveries_data,
           collectionWalletTransactions_logs,
           collectionDrivers_profiles,
           collectionPassengers_profiles,
@@ -1629,13 +1722,15 @@ function parseDetailed_walletGetData(
 
               if (/sentToFriend/i.test(tmpClean.transaction_nature)) {
                 //Check the name from the passenger collection
-                collectionPassengers_profiles
-                  .find({ user_fingerprint: transaction.recipient_fp })
-                  .toArray(function (err, recipientData) {
-                    if (err) {
-                      res(false);
-                    }
-                    //...
+                dynamo_find_query({
+                  table_name: "passengers_profiles",
+                  IndexName: "user_fingerprint",
+                  KeyConditionExpression: "user_fingerprint = :val1",
+                  ExpressionAttributeValues: {
+                    ":val1": transaction.recipient_fp,
+                  },
+                })
+                  .then((recipientData) => {
                     if (
                       recipientData.length > 0 &&
                       recipientData[0].user_fingerprint !== undefined &&
@@ -1649,18 +1744,24 @@ function parseDetailed_walletGetData(
                     else {
                       res(false);
                     }
+                  })
+                  .catch((error) => {
+                    logger.error(error);
+                    res(false);
                   });
               } else if (
                 /(paidDriver|sentToDriver)/i.test(tmpClean.transaction_nature)
               ) {
                 //Check from the driver collection
-                collectionDrivers_profiles
-                  .find({ driver_fingerprint: transaction.recipient_fp })
-                  .toArray(function (err, recipientData) {
-                    if (err) {
-                      res(false);
-                    }
-                    //...
+                dynamo_find_query({
+                  table_name: "drivers_profiles",
+                  IndexName: "driver_fingerprint",
+                  KeyConditionExpression: "driver_fingerprint = :val1",
+                  ExpressionAttributeValues: {
+                    ":val1": transaction.recipient_fp,
+                  },
+                })
+                  .then((recipientData) => {
                     if (
                       recipientData.length > 0 &&
                       recipientData[0].driver_fingerprint !== undefined &&
@@ -1674,6 +1775,10 @@ function parseDetailed_walletGetData(
                     else {
                       res(false);
                     }
+                  })
+                  .catch((error) => {
+                    logger.error(error);
+                    res(false);
                   });
               } else if (
                 /(onetime_voucher)/i.test(tmpClean.transaction_nature)
@@ -1734,7 +1839,7 @@ function parseDetailed_walletGetData(
  * @func execGet_ridersDrivers_walletSummary
  * Responsible for executing the requests and gather the rider's or driver's wallet complete infos.
  * @param requestObj: contains the user_fingerprint and the mode: total or detailed.
- * @param collectionRidesDeliveryData: the collection of all the requests.
+ * @param collectionRidesDeliveries_data: the collection of all the requests.
  * @param collectionWalletTransactions_logs: the collection of all the possible wallet transactions.
  * @param collectionDrivers_profiles: collection of all the drivers
  * @param collectionPassengers_profiles: collection of all the passengers.
@@ -1747,7 +1852,7 @@ function parseDetailed_walletGetData(
  */
 function execGet_ridersDrivers_walletSummary(
   requestObj,
-  collectionRidesDeliveryData,
+  collectionRidesDeliveries_data,
   collectionWalletTransactions_logs,
   collectionDrivers_profiles,
   collectionPassengers_profiles,
@@ -1765,7 +1870,7 @@ function execGet_ridersDrivers_walletSummary(
           new Promise((resFresh) => {
             truelyExec_ridersDrivers_walletSummary(
               requestObj,
-              collectionRidesDeliveryData,
+              collectionRidesDeliveries_data,
               collectionWalletTransactions_logs,
               collectionDrivers_profiles,
               collectionPassengers_profiles,
@@ -1789,7 +1894,7 @@ function execGet_ridersDrivers_walletSummary(
           new Promise((resFresh) => {
             truelyExec_ridersDrivers_walletSummary(
               requestObj,
-              collectionRidesDeliveryData,
+              collectionRidesDeliveries_data,
               collectionWalletTransactions_logs,
               collectionDrivers_profiles,
               collectionPassengers_profiles,
@@ -1818,7 +1923,7 @@ function execGet_ridersDrivers_walletSummary(
         new Promise((resFresh) => {
           truelyExec_ridersDrivers_walletSummary(
             requestObj,
-            collectionRidesDeliveryData,
+            collectionRidesDeliveries_data,
             collectionWalletTransactions_logs,
             collectionDrivers_profiles,
             collectionPassengers_profiles,
@@ -1847,7 +1952,7 @@ function execGet_ridersDrivers_walletSummary(
       new Promise((resFresh) => {
         truelyExec_ridersDrivers_walletSummary(
           requestObj,
-          collectionRidesDeliveryData,
+          collectionRidesDeliveries_data,
           collectionWalletTransactions_logs,
           collectionDrivers_profiles,
           collectionPassengers_profiles,
@@ -1875,7 +1980,7 @@ function execGet_ridersDrivers_walletSummary(
  * @func truelyExec_ridersDrivers_walletSummary
  * Responsible for truly run the get operations for the wallets summary for the riders and drivers.
  * @param requestObj: contains the user_fingerprint and the mode: total or detailed.
- * @param collectionRidesDeliveryData: the collection of all the requests.
+ * @param collectionRidesDeliveries_data: the collection of all the requests.
  * @param collectionWalletTransactions_logs: the collection of all the possible wallet transactions.
  * @param collectionDrivers_profiles: collection of all the drivers
  * @param collectionPassengers_profiles: collection of all the passengers.
@@ -1884,7 +1989,7 @@ function execGet_ridersDrivers_walletSummary(
  */
 function truelyExec_ridersDrivers_walletSummary(
   requestObj,
-  collectionRidesDeliveryData,
+  collectionRidesDeliveries_data,
   collectionWalletTransactions_logs,
   collectionDrivers_profiles,
   collectionPassengers_profiles,
@@ -1915,14 +2020,17 @@ function truelyExec_ridersDrivers_walletSummary(
         ],
       },
     }; //?Indexed
-    //...
-    collectionWalletTransactions_logs
-      .find(filterReceived)
-      .toArray(function (err, resultTransactionsReceived) {
-        if (err) {
-          logger.info(err);
-          resReceivedTransactions({ total: 0, transactions_data: null });
-        }
+
+    provideDataForCollection(
+      collectionWalletTransactions_logs,
+      "collectionWalletTransactions_logs",
+      filterReceived
+    )
+      .then((resultTransactionsReceived) => {
+        // console.log(resultTransactionsReceived);
+        logger.warn(
+          `[SOLVED] SUPER HEAVY RETRIEVAL 1 -> DATA : ${resultTransactionsReceived.length}`
+        );
         //...
         if (
           resultTransactionsReceived !== undefined &&
@@ -1958,6 +2066,10 @@ function truelyExec_ridersDrivers_walletSummary(
         else {
           resReceivedTransactions({ total: 0, transactions_data: null });
         }
+      })
+      .catch((error) => {
+        logger.error(error);
+        resReceivedTransactions({ total: 0, transactions_data: null });
       });
   })
     .then(
@@ -1978,13 +2090,15 @@ function truelyExec_ridersDrivers_walletSummary(
             },
           }; //?Indexed
           //...
-          collectionWalletTransactions_logs
-            .find(filterTopups)
-            .toArray(function (err, resultTransactions) {
-              if (err) {
-                logger.info(err);
-                res({ total: 0, transactions_data: null });
-              }
+          provideDataForCollection(
+            collectionWalletTransactions_logs,
+            "collectionWalletTransactions_logs",
+            filterTopups
+          )
+            .then((resultTransactions) => {
+              logger.warn(
+                `[SOLVED] SUPER HEAVY RETRIEVAL 2 -> DATA : ${resultTransactions.length}`
+              );
               //..
               if (
                 (resultTransactions !== undefined &&
@@ -2028,8 +2142,8 @@ function truelyExec_ridersDrivers_walletSummary(
                         : [];
                     //...
                     /*receivedTransactionsData.transactions_data.push(
-                      transaction
-                    );*/
+                    transaction
+                  );*/
                   }
                 });
                 //Find the sum of all the paid transactions (rides/deliveries) - for wallet only
@@ -2050,13 +2164,15 @@ function truelyExec_ridersDrivers_walletSummary(
                       },
                     };
                 //...Only consider the completed requests
-                collectionRidesDeliveryData
-                  .find(filterPaidRequests)
-                  .toArray(function (err, resultPaidRequests) {
-                    if (err) {
-                      logger.info(err);
-                      res({ total: 0, transactions_data: null });
-                    }
+                provideDataForCollection(
+                  collectionRidesDeliveries_data,
+                  "collectionRidesDeliveries_data",
+                  filterPaidRequests
+                )
+                  .then((resultPaidRequests) => {
+                    logger.warn(
+                      `[SOLVED] SUPER HEAVY RETRIEVAL 3 -> DATA : ${resultPaidRequests.length}`
+                    );
                     //...
                     if (
                       resultPaidRequests !== undefined &&
@@ -2068,19 +2184,16 @@ function truelyExec_ridersDrivers_walletSummary(
                         (paidRequests) => {
                           return new Promise((partialResolver) => {
                             //Get driver infos : for Taxis - taxi number / for private cars - drivers name
-                            collectionDrivers_profiles
-                              .find({
-                                driver_fingerprint: paidRequests.taxi_id,
-                              })
-                              .toArray(function (err, driverProfile) {
-                                if (err) {
-                                  logger.info(err);
-                                  partialResolver({
-                                    total: 0,
-                                    transactions_data: null,
-                                  });
-                                }
-                                //...
+                            dynamo_find_query({
+                              table_name: "drivers_profiles",
+                              IndexName: "driver_fingerprint",
+                              KeyConditionExpression:
+                                "driver_fingerprint = :val1",
+                              ExpressionAttributeValues: {
+                                ":val1": paidRequests.taxi_id,
+                              },
+                            })
+                              .then((driverProfile) => {
                                 //Gather driver data
                                 let driverData = {
                                   name: null,
@@ -2162,7 +2275,13 @@ function truelyExec_ridersDrivers_walletSummary(
                                       paidRequests.date_requested,
                                   });
                                 }
-                                //...
+                              })
+                              .catch((error) => {
+                                logger.error(error);
+                                partialResolver({
+                                  total: 0,
+                                  transactions_data: null,
+                                });
                               });
                           });
                         }
@@ -2233,6 +2352,10 @@ function truelyExec_ridersDrivers_walletSummary(
                             : detailsData.transactions_data,
                       });
                     }
+                  })
+                  .catch((err) => {
+                    logger.info(err);
+                    res({ total: 0, transactions_data: null });
                   });
               } //No topups records found - so return the transactions data
               else {
@@ -2248,13 +2371,15 @@ function truelyExec_ridersDrivers_walletSummary(
                       isArrivedToDestination: true,
                     };
                 //...Only consider the completed requests
-                collectionRidesDeliveryData
-                  .find(filterPaidRequests)
-                  .toArray(function (err, resultPaidRequests) {
-                    if (err) {
-                      logger.info(err);
-                      res({ total: 0, transactions_data: null });
-                    }
+                provideDataForCollection(
+                  collectionRidesDeliveries_data,
+                  "collectionRidesDeliveries_data",
+                  filterPaidRequests
+                )
+                  .then((resultPaidRequests) => {
+                    logger.warn(
+                      `[SOLVED] SUPER HEAVY RETRIEVAL 4 -> DATA : ${resultPaidRequests.length}`
+                    );
                     //...
                     if (
                       resultPaidRequests !== undefined &&
@@ -2266,19 +2391,16 @@ function truelyExec_ridersDrivers_walletSummary(
                         (paidRequests) => {
                           return new Promise((partialResolver) => {
                             //Get driver infos : for Taxis - taxi number / for private cars - drivers name
-                            collectionDrivers_profiles
-                              .find({
-                                driver_fingerprint: paidRequests.taxi_id,
-                              })
-                              .toArray(function (err, driverProfile) {
-                                if (err) {
-                                  logger.info(err);
-                                  partialResolver({
-                                    total: 0,
-                                    transactions_data: null,
-                                  });
-                                }
-                                //...
+                            dynamo_find_query({
+                              table_name: "drivers_profiles",
+                              IndexName: "driver_fingerprint",
+                              KeyConditionExpression:
+                                "driver_fingerprint = :val1",
+                              ExpressionAttributeValues: {
+                                ":val1": paidRequests.taxi_id,
+                              },
+                            })
+                              .then((driverProfile) => {
                                 //Gather driver data
                                 let driverData = {
                                   name: null,
@@ -2360,7 +2482,13 @@ function truelyExec_ridersDrivers_walletSummary(
                                       paidRequests.date_requested,
                                   });
                                 }
-                                //...
+                              })
+                              .catch((error) => {
+                                logger.error(error);
+                                partialResolver({
+                                  total: 0,
+                                  transactions_data: null,
+                                });
                               });
                           });
                         }
@@ -2445,8 +2573,16 @@ function truelyExec_ridersDrivers_walletSummary(
                         });
                       }
                     }
+                  })
+                  .catch((err) => {
+                    logger.info(err);
+                    res({ total: 0, transactions_data: null });
                   });
               }
+            })
+            .catch((err) => {
+              logger.info(err);
+              res({ total: 0, transactions_data: null });
             });
         }).then(
           (result) => {
@@ -3092,17 +3228,17 @@ function execGet_driversDeepInsights_fromWalletData(
                     new Promise((resFindNexyPayoutDate) => {
                       resolveDate(); //! Update the date
                       //? Find the last payout and from there - compute the next one
-                      collectionWalletTransactions_logs
-                        .find({
-                          transaction_nature: "startingPoint_forFreshPayouts",
-                          recipient_fp: driver_fingerprint,
-                        })
-                        //!.collation({ locale: "en", strength: 2 })
-                        .toArray(function (err, resultLastPayout) {
-                          if (err) {
-                            resFindNexyPayoutDate(false);
-                          }
-                          //...
+                      dynamo_find_query({
+                        table_name: "wallet_transactions_logs",
+                        IndexName: "recipient_fp",
+                        KeyConditionExpression:
+                          "transaction_nature = :val1, recipient_fp = :val2",
+                        ExpressionAttributeValues: {
+                          ":val1": "startingPoint_forFreshPayouts",
+                          ":val2": driver_fingerprint,
+                        },
+                      })
+                        .then((resultLastPayout) => {
                           if (
                             resultLastPayout !== undefined &&
                             resultLastPayout.length > 0 &&
@@ -3116,17 +3252,17 @@ function execGet_driversDeepInsights_fromWalletData(
                           else {
                             //!Check if a reference point exists - if not set one to NOW
                             //! Annotation string: startingPoint_forFreshPayouts
-                            collectionWalletTransactions_logs
-                              .find({
-                                flag_annotation:
-                                  "startingPoint_forFreshPayouts",
-                                user_fingerprint: driver_fingerprint,
-                              })
-                              .toArray(function (err, referenceData) {
-                                if (err) {
-                                  resFindNexyPayoutDate(false);
-                                }
-                                //...
+                            dynamo_find_query({
+                              table_name: "wallet_transactions_logs",
+                              IndexName: "user_fingerprint",
+                              KeyConditionExpression:
+                                "flag_annotation = :val1, user_fingerprint = :val2",
+                              ExpressionAttributeValues: {
+                                ":val1": "startingPoint_forFreshPayouts",
+                                ":val2": driver_fingerprint,
+                              },
+                            })
+                              .then((referenceData) => {
                                 if (
                                   referenceData !== undefined &&
                                   referenceData.length > 0 &&
@@ -3140,14 +3276,13 @@ function execGet_driversDeepInsights_fromWalletData(
                                   resFindNexyPayoutDate(lastPayoutDate);
                                 } //No annotation yet - create one
                                 else {
-                                  collectionWalletTransactions_logs.insertOne(
-                                    {
-                                      flag_annotation:
-                                        "startingPoint_forFreshPayouts",
-                                      user_fingerprint: driver_fingerprint,
-                                      date_captured: chaineDateUTC,
-                                    },
-                                    function (err, reslt) {
+                                  dynamo_insert("wallet_transactions_logs", {
+                                    flag_annotation:
+                                      "startingPoint_forFreshPayouts",
+                                    user_fingerprint: driver_fingerprint,
+                                    date_captured: chaineDateUTC,
+                                  })
+                                    .then((reslt) => {
                                       let lastPayoutDate = new Date(
                                         new Date(chaineDateUTC).getTime() +
                                           parseFloat(
@@ -3159,11 +3294,32 @@ function execGet_driversDeepInsights_fromWalletData(
                                       );
                                       //..
                                       resFindNexyPayoutDate(lastPayoutDate);
-                                    }
-                                  );
+                                    })
+                                    .catch((error) => {
+                                      logger.error(error);
+                                      let lastPayoutDate = new Date(
+                                        new Date(chaineDateUTC).getTime() +
+                                          parseFloat(
+                                            process.env
+                                              .TAXICONNECT_PAYMENT_FREQUENCY
+                                          ) *
+                                            24 *
+                                            3600000
+                                      );
+                                      //..
+                                      resFindNexyPayoutDate(lastPayoutDate);
+                                    });
                                 }
+                              })
+                              .catch((error) => {
+                                logger.error(error);
+                                resFindNexyPayoutDate(false);
                               });
                           }
+                        })
+                        .catch((error) => {
+                          logger.error(error);
+                          resFindNexyPayoutDate(false);
                         });
                     })
                       .then(
@@ -3266,16 +3422,17 @@ function execGet_driversDeepInsights_fromWalletData(
     new Promise((resFindNexyPayoutDate) => {
       resolveDate(); //! Update the date
       //? Find the last payout and from there - compute the next one
-      collectionWalletTransactions_logs
-        .find({
-          transaction_nature: "weeklyPaidDriverAutomatic",
-          recipient_fp: driver_fingerprint,
-        })
-        .toArray(function (err, resultLastPayout) {
-          if (err) {
-            resFindNexyPayoutDate(false);
-          }
-          //...
+      dynamo_find_query({
+        table_name: "wallet_transactions_logs",
+        IndexName: "recipient_fp",
+        KeyConditionExpression:
+          "transaction_nature = :val1, recipient_fp = :val2",
+        ExpressionAttributeValues: {
+          ":val1": "weeklyPaidDriverAutomatic",
+          ":val2": driver_fingerprint,
+        },
+      })
+        .then((resultLastPayout) => {
           if (
             resultLastPayout !== undefined &&
             resultLastPayout.length > 0 &&
@@ -3290,16 +3447,17 @@ function execGet_driversDeepInsights_fromWalletData(
           else {
             //!Check if a reference point exists - if not set one to NOW
             //! Annotation string: startingPoint_forFreshPayouts
-            collectionWalletTransactions_logs
-              .find({
-                flag_annotation: "startingPoint_forFreshPayouts",
-                user_fingerprint: driver_fingerprint,
-              })
-              .toArray(function (err, referenceData) {
-                if (err) {
-                  resFindNexyPayoutDate(false);
-                }
-                //...
+            dynamo_find_query({
+              table_name: "wallet_transactions_logs",
+              IndexName: "user_fingerprint",
+              KeyConditionExpression:
+                "flag_annotation = :val1, user_fingerprint = :val2",
+              ExpressionAttributeValues: {
+                ":val1": "startingPoint_forFreshPayouts",
+                ":val2": driver_fingerprint,
+              },
+            })
+              .then((referenceData) => {
                 if (
                   referenceData !== undefined &&
                   referenceData.length > 0 &&
@@ -3314,13 +3472,12 @@ function execGet_driversDeepInsights_fromWalletData(
                   resFindNexyPayoutDate(lastPayoutDate);
                 } //No annotation yet - create one
                 else {
-                  collectionWalletTransactions_logs.insertOne(
-                    {
-                      flag_annotation: "startingPoint_forFreshPayouts",
-                      user_fingerprint: driver_fingerprint,
-                      date_captured: chaineDateUTC,
-                    },
-                    function (err, reslt) {
+                  dynamo_insert("wallet_transactions_logs", {
+                    flag_annotation: "startingPoint_forFreshPayouts",
+                    user_fingerprint: driver_fingerprint,
+                    date_captured: chaineDateUTC,
+                  })
+                    .then(() => {
                       let lastPayoutDate = new Date(
                         new Date(chaineDateUTC).getTime() +
                           process.env.TAXICONNECT_PAYMENT_FREQUENCY *
@@ -3329,11 +3486,29 @@ function execGet_driversDeepInsights_fromWalletData(
                       );
                       //..
                       resFindNexyPayoutDate(lastPayoutDate);
-                    }
-                  );
+                    })
+                    .catch((error) => {
+                      logger.error(error);
+                      let lastPayoutDate = new Date(
+                        new Date(chaineDateUTC).getTime() +
+                          process.env.TAXICONNECT_PAYMENT_FREQUENCY *
+                            24 *
+                            3600000
+                      );
+                      //..
+                      resFindNexyPayoutDate(lastPayoutDate);
+                    });
                 }
+              })
+              .catch((error) => {
+                logger.error(error);
+                resFindNexyPayoutDate(false);
               });
           }
+        })
+        .catch((error) => {
+          logger.error(error);
+          resFindNexyPayoutDate(false);
         });
     })
       .then(
@@ -3448,18 +3623,27 @@ function updateRiders_generalProfileInfos(
       };
       //..
       //1. Get the old data
-      collectionPassengers_profiles
-        .find(filter)
-        .toArray(function (err, riderProfile) {
-          if (err) {
-            res.send({ response: "error", flag: "unexpected_error" });
-          }
+      dynamo_find_query({
+        table_name: "passengers_profiles",
+        IndexName: "user_fingerprint",
+        KeyConditionExpression: "user_fingerprint = :val1",
+        ExpressionAttributeValues: {
+          ":val1": requestData.user_fingerprint,
+        },
+      })
+        .then((riderProfile) => {
           //2. Update the new data
-          collectionPassengers_profiles.updateOne(
-            filter,
-            updateData,
-            function (err, result) {
-              if (err) {
+          dynamo_update(
+            "passengers_profiles",
+            riderProfile[0]._id,
+            "set name = :n, last_updated = :d",
+            {
+              ":n": ucFirst(requestData.dataToUpdate),
+              ":d": new Date(chaineDateUTC).toISOString(),
+            }
+          )
+            .then((result) => {
+              if (result === false) {
                 res.send({ response: "error", flag: "unexpected_error" });
               }
               //...Update the general event log
@@ -3469,22 +3653,32 @@ function updateRiders_generalProfileInfos(
                   user_fingerprint: requestData.user_fingerprint,
                   old_data: riderProfile[0].name,
                   new_data: requestData.dataToUpdate,
-                  date: new Date(chaineDateUTC),
+                  date: new Date(chaineDateUTC).toISOString(),
                 };
-                collectionGlobalEvents.insertOne(
-                  dataEvent,
-                  function (err, reslt) {
+
+                dynamo_insert("global_events", dataEvent)
+                  .then((result) => {
+                    res(result);
+                  })
+                  .catch((error) => {
+                    logger.error(error);
                     res(true);
-                  }
-                );
+                  });
               }).then(
                 () => {},
                 () => {}
               );
               //...
               resolve({ response: "success", flag: "operation successful" });
-            }
-          );
+            })
+            .catch((error) => {
+              logger.error(error);
+              res.send({ response: "error", flag: "unexpected_error" });
+            });
+        })
+        .catch((error) => {
+          logger.error(error);
+          res.send({ response: "error", flag: "unexpected_error" });
         });
     } //Name too short
     else {
@@ -3505,18 +3699,27 @@ function updateRiders_generalProfileInfos(
       };
       //..
       //1. Get the old data
-      collectionPassengers_profiles
-        .find(filter)
-        .toArray(function (err, riderProfile) {
-          if (err) {
-            res.send({ response: "error", flag: "unexpected_error" });
-          }
+      dynamo_find_query({
+        table_name: "passengers_profiles",
+        IndexName: "user_fingerprint",
+        KeyConditionExpression: "user_fingerprint = :val1",
+        ExpressionAttributeValues: {
+          ":val1": requestData.user_fingerprint,
+        },
+      })
+        .then((riderProfile) => {
           //2. Update the new data
-          collectionPassengers_profiles.updateOne(
-            filter,
-            updateData,
-            function (err, result) {
-              if (err) {
+          dynamo_update(
+            "passengers_profiles",
+            riderProfile[0]._id,
+            "set surname = :n, last_updated = :d",
+            {
+              ":n": ucFirst(requestData.dataToUpdate),
+              ":d": new Date(chaineDateUTC).toISOString(),
+            }
+          )
+            .then((result) => {
+              if (result === false) {
                 res.send({ response: "error", flag: "unexpected_error" });
               }
               //...Update the general event log
@@ -3526,22 +3729,31 @@ function updateRiders_generalProfileInfos(
                   user_fingerprint: requestData.user_fingerprint,
                   old_data: riderProfile[0].surname,
                   new_data: requestData.dataToUpdate,
-                  date: new Date(chaineDateUTC),
+                  date: new Date(chaineDateUTC).toISOString(),
                 };
-                collectionGlobalEvents.insertOne(
-                  dataEvent,
-                  function (err, reslt) {
+                dynamo_insert("global_events", dataEvent)
+                  .then((result) => {
+                    res(result);
+                  })
+                  .catch((error) => {
+                    logger.error(error);
                     res(true);
-                  }
-                );
+                  });
               }).then(
                 () => {},
                 () => {}
               );
               //...
               resolve({ response: "success", flag: "operation successful" });
-            }
-          );
+            })
+            .catch((error) => {
+              logger.error(error);
+              res.send({ response: "error", flag: "unexpected_error" });
+            });
+        })
+        .catch((error) => {
+          logger.error(error);
+          res.send({ response: "error", flag: "unexpected_error" });
         });
     } //Name too short
     else {
@@ -3571,18 +3783,27 @@ function updateRiders_generalProfileInfos(
       };
       //..
       //1. Get the old data
-      collectionPassengers_profiles
-        .find(filter)
-        .toArray(function (err, riderProfile) {
-          if (err) {
-            res.send({ response: "error", flag: "unexpected_error" });
-          }
+      dynamo_find_query({
+        table_name: "passengers_profiles",
+        IndexName: "user_fingerprint",
+        KeyConditionExpression: "user_fingerprint = :val1",
+        ExpressionAttributeValues: {
+          ":val1": requestData.user_fingerprint,
+        },
+      })
+        .then((riderProfile) => {
           //2. Update the new data
-          collectionPassengers_profiles.updateOne(
-            filter,
-            updateData,
-            function (err, result) {
-              if (err) {
+          dynamo_update(
+            "passengers_profiles",
+            riderProfile[0]._id,
+            "set gender = :n, last_updated = :d",
+            {
+              ":n": requestData.dataToUpdate.toUpperCase(),
+              ":d": new Date(chaineDateUTC).toISOString(),
+            }
+          )
+            .then((result) => {
+              if (result === false) {
                 res.send({ response: "error", flag: "unexpected_error" });
               }
               //...Update the general event log
@@ -3592,22 +3813,31 @@ function updateRiders_generalProfileInfos(
                   user_fingerprint: requestData.user_fingerprint,
                   old_data: riderProfile[0].gender,
                   new_data: requestData.dataToUpdate,
-                  date: new Date(chaineDateUTC),
+                  date: new Date(chaineDateUTC).toISOString(),
                 };
-                collectionGlobalEvents.insertOne(
-                  dataEvent,
-                  function (err, reslt) {
+                dynamo_insert("global_events", dataEvent)
+                  .then((result) => {
+                    res(result);
+                  })
+                  .catch((error) => {
+                    logger.error(error);
                     res(true);
-                  }
-                );
+                  });
               }).then(
                 () => {},
                 () => {}
               );
               //...
               resolve({ response: "success", flag: "operation successful" });
-            }
-          );
+            })
+            .catch((error) => {
+              logger.error(error);
+              res.send({ response: "error", flag: "unexpected_error" });
+            });
+        })
+        .catch((error) => {
+          logger.error(error);
+          res.send({ response: "error", flag: "unexpected_error" });
         });
     } //Invalid gender
     else {
@@ -3631,18 +3861,27 @@ function updateRiders_generalProfileInfos(
       };
       //..
       //1. Get the old data
-      collectionPassengers_profiles
-        .find(filter)
-        .toArray(function (err, riderProfile) {
-          if (err) {
-            res.send({ response: "error", flag: "unexpected_error" });
-          }
+      dynamo_find_query({
+        table_name: "passengers_profiles",
+        IndexName: "user_fingerprint",
+        KeyConditionExpression: "user_fingerprint = :val1",
+        ExpressionAttributeValues: {
+          ":val1": requestData.user_fingerprint,
+        },
+      })
+        .then((riderProfile) => {
           //2. Update the new data
-          collectionPassengers_profiles.updateOne(
-            filter,
-            updateData,
-            function (err, result) {
-              if (err) {
+          dynamo_update(
+            "passengers_profiles",
+            riderProfile[0]._id,
+            "set email = :n, last_updated = :d",
+            {
+              ":n": requestData.dataToUpdate.trim().toLowerCase(),
+              ":d": new Date(chaineDateUTC).toISOString(),
+            }
+          )
+            .then((result) => {
+              if (result === false) {
                 res.send({ response: "error", flag: "unexpected_error" });
               }
               //...Update the general event log
@@ -3652,22 +3891,31 @@ function updateRiders_generalProfileInfos(
                   user_fingerprint: requestData.user_fingerprint,
                   old_data: riderProfile[0].email.trim().toLowerCase(),
                   new_data: requestData.dataToUpdate,
-                  date: new Date(chaineDateUTC),
+                  date: new Date(chaineDateUTC).toISOString(),
                 };
-                collectionGlobalEvents.insertOne(
-                  dataEvent,
-                  function (err, reslt) {
+                dynamo_insert("global_events", dataEvent)
+                  .then((result) => {
+                    res(result);
+                  })
+                  .catch((error) => {
+                    logger.error(error);
                     res(true);
-                  }
-                );
+                  });
               }).then(
                 () => {},
                 () => {}
               );
               //...
               resolve({ response: "success", flag: "operation successful" });
-            }
-          );
+            })
+            .catch((error) => {
+              logger.error(error);
+              res.send({ response: "error", flag: "unexpected_error" });
+            });
+        })
+        .catch((error) => {
+          logger.error(error);
+          res.send({ response: "error", flag: "unexpected_error" });
         });
     } //Invalid email
     else {
@@ -3758,18 +4006,29 @@ function updateRiders_generalProfileInfos(
               };
               //..
               //1. Get the old data
-              collectionPassengers_profiles
-                .find(filter)
-                .toArray(function (err, riderProfile) {
-                  if (err) {
-                    res.send({ response: "error", flag: "unexpected_error" });
-                  }
+              dynamo_find_query({
+                table_name: "passengers_profiles",
+                IndexName: "user_fingerprint",
+                KeyConditionExpression: "user_fingerprint = :val1",
+                ExpressionAttributeValues: {
+                  ":val1": requestData.user_fingerprint,
+                },
+              })
+                .then((riderProfile) => {
                   //2. Update the new data
-                  collectionPassengers_profiles.updateOne(
-                    filter,
-                    updateData,
-                    function (err, result) {
-                      if (err) {
+                  dynamo_update(
+                    "passengers_profiles",
+                    riderProfile[0]._id,
+                    "set phone_number = :n, last_updated = :d",
+                    {
+                      ":n": /^\+/i.test(requestData.dataToUpdate.trim())
+                        ? requestData.dataToUpdate.trim()
+                        : `+${requestData.dataToUpdate.trim()}`,
+                      ":d": new Date(chaineDateUTC).toISOString(),
+                    }
+                  )
+                    .then((result) => {
+                      if (result === false) {
                         res.send({
                           response: "error",
                           flag: "unexpected_error",
@@ -3782,14 +4041,16 @@ function updateRiders_generalProfileInfos(
                           user_fingerprint: requestData.user_fingerprint,
                           old_data: riderProfile[0].phone_number,
                           new_data: requestData.dataToUpdate,
-                          date: new Date(chaineDateUTC),
+                          date: new Date(chaineDateUTC).toISOString(),
                         };
-                        collectionGlobalEvents.insertOne(
-                          dataEvent,
-                          function (err, reslt) {
+                        dynamo_insert("global_events", dataEvent)
+                          .then((result) => {
+                            res(result);
+                          })
+                          .catch((error) => {
+                            logger.error(error);
                             res(true);
-                          }
-                        );
+                          });
                       }).then(
                         () => {},
                         () => {}
@@ -3799,8 +4060,18 @@ function updateRiders_generalProfileInfos(
                         response: "success",
                         flag: "operation successful",
                       });
-                    }
-                  );
+                    })
+                    .catch((error) => {
+                      logger.error(error);
+                      res.send({
+                        response: "error",
+                        flag: "unexpected_error",
+                      });
+                    });
+                })
+                .catch((error) => {
+                  logger.error(error);
+                  res.send({ response: "error", flag: "unexpected_error" });
                 });
             } //Error
             else {
@@ -3899,11 +4170,21 @@ function updateRiders_generalProfileInfos(
                       },
                     };
                     //...
-                    collectionPassengers_profiles.updateOne(
-                      { user_fingerprint: requestData.user_fingerprint },
-                      updatedData,
-                      function (err, reslt) {
-                        if (err) {
+                    dynamo_update(
+                      "passengers_profiles",
+                      riderProfile[0]._id,
+                      "set #m.#p = :n, last_updated = :d",
+                      {
+                        ":n": tmpPicture_name,
+                        ":d": new Date(chaineDateUTC),
+                      },
+                      {
+                        "#m": "media",
+                        "#p": "profile_picture",
+                      }
+                    )
+                      .then((result) => {
+                        if (result === false) {
                           resolve({
                             response: "error",
                             flag: "unexpected_conversion_error_",
@@ -3911,15 +4192,15 @@ function updateRiders_generalProfileInfos(
                         }
                         //...Update the general event log
                         new Promise((res) => {
-                          collectionPassengers_profiles
-                            .find({
-                              user_fingerprint: requestData.user_fingerprint,
-                            })
-                            .toArray(function (error, riderData) {
-                              if (error) {
-                                res(false);
-                              }
-                              //...
+                          dynamo_find_query({
+                            table_name: "passengers_profiles",
+                            IndexName: "user_fingerprint",
+                            KeyConditionExpression: "user_fingerprint = :val1",
+                            ExpressionAttributeValues: {
+                              ":val1": requestData.user_fingerprint,
+                            },
+                          })
+                            .then((riderData) => {
                               if (riderData.length > 0) {
                                 //Valid
                                 let dataEvent = {
@@ -3928,18 +4209,24 @@ function updateRiders_generalProfileInfos(
                                     requestData.user_fingerprint,
                                   old_data: riderData[0].media.profile_picture,
                                   new_data: tmpPicture_name,
-                                  date: new Date(chaineDateUTC),
+                                  date: new Date(chaineDateUTC).toISOString(),
                                 };
-                                collectionGlobalEvents.insertOne(
-                                  dataEvent,
-                                  function (err, reslt) {
+                                dynamo_insert("global_events", dataEvent)
+                                  .then((result) => {
+                                    res(result);
+                                  })
+                                  .catch((error) => {
+                                    logger.error(error);
                                     res(true);
-                                  }
-                                );
+                                  });
                               } //No riders with the providedd fingerprint
                               else {
                                 res(false);
                               }
+                            })
+                            .catch((error) => {
+                              logger.error(error);
+                              res(false);
                             });
                         }).then(
                           () => {},
@@ -3952,8 +4239,14 @@ function updateRiders_generalProfileInfos(
                           flag: "operation successful",
                           picture_name: `${process.env.AWS_S3_RIDERS_PROFILE_PICTURES_PATH}/${tmpPicture_name}`,
                         });
-                      }
-                    );
+                      })
+                      .catch((error) => {
+                        logger.error(error);
+                        resolve({
+                          response: "error",
+                          flag: "unexpected_conversion_error_",
+                        });
+                      });
                   } //! Was unable to upload to S3 - conversion error
                   else {
                     resolve({
@@ -4007,14 +4300,15 @@ function updateRiders_generalProfileInfos(
 function getDriver_onlineOffline_status(req, resolve) {
   //Get information about the state
   new Promise((res0) => {
-    collectionDrivers_profiles
-      .find({ driver_fingerprint: req.driver_fingerprint })
-      .toArray(function (err, driverData) {
-        if (err) {
-          logger.info(err);
-          res0({ response: "error_invalid_request" });
-        }
-        //...
+    dynamo_find_query({
+      table_name: "drivers_profiles",
+      IndexName: "driver_fingerprint",
+      KeyConditionExpression: "driver_fingerprint = :val1",
+      ExpressionAttributeValues: {
+        ":val1": req.driver_fingerprint,
+      },
+    })
+      .then((driverData) => {
         if (
           driverData !== undefined &&
           driverData !== null &&
@@ -4059,6 +4353,10 @@ function getDriver_onlineOffline_status(req, resolve) {
             flag: driverData.operational_state.status,
           });
         }
+      })
+      .catch((error) => {
+        logger.error(error);
+        res0({ response: "error_invalid_request" });
       });
   }).then(
     (result) => {
@@ -4172,13 +4470,14 @@ function getAdsManagerRunningInfos(req, resolve) {
       date: new Date(chaineDateUTC),
     };
     //! -----
-    collectionGlobalEvents.insertOne(eventBundle, function (err, result) {
-      if (err) {
-        logger.info(err);
-      }
-      //...
-      resSaveRecord(true);
-    });
+    dynamo_insert("global_events", eventBundle)
+      .then((result) => {
+        resSaveRecord(result);
+      })
+      .catch((error) => {
+        logger.error(error);
+        resSaveRecord(true);
+      });
   }).then(
     () => {},
     () => {}
@@ -4282,14 +4581,17 @@ function getReferredDrivers_list(
       user_referrer_nature: req.user_nature,
     };
     //...
-    collectionReferralsInfos
-      .find(finderNarrower)
-      //!.collation({ locale: "en", strength: 2 })
-      .toArray(function (err, result) {
-        if (err) {
-          resCompute({ response: "error_unexpected" });
-        }
-        //...
+    dynamo_find_query({
+      table_name: "referrals_information_global",
+      IndexName: "user_referrer",
+      KeyConditionExpression:
+        "user_referrer = :val1, user_referrer_nature = :val2",
+      ExpressionAttributeValues: {
+        ":val1": req.user_fingerprint,
+        ":val2": req.user_nature,
+      },
+    })
+      .then((result) => {
         if (result !== undefined && result.length > 0) {
           //! Remove irrelevant infos
           result = result.map((itemReferral, index) => {
@@ -4434,6 +4736,10 @@ function getReferredDrivers_list(
             response: "no_data",
           });
         }
+      })
+      .catch((error) => {
+        logger.error(error);
+        resCompute({ response: "error_unexpected" });
       });
   })
     .then((result) => {
@@ -4540,14 +4846,16 @@ function ExecgetDriversGlobalAccountNumbers(
   redisKey,
   resolve
 ) {
-  collectionRidesDeliveryData
-    .find({ taxi_id: driver_fingerprint, isArrivedToDestination: true })
-    .toArray(function (err, tripsData) {
-      if (err) {
-        logger.error(err);
-        resolve({ response: "error_getting_data" });
-      }
-      //..
+  dynamo_find_query({
+    table_name: "rides_deliveries_requests",
+    IndexName: "taxi_id",
+    KeyConditionExpression: "taxi_id = :val1, isArrivedToDestination = :val2",
+    ExpressionAttributeValues: {
+      ":val1": driver_fingerprint,
+      ":val2": true,
+    },
+  })
+    .then((tripsData) => {
       if (
         tripsData !== undefined &&
         tripsData !== null &&
@@ -4603,6 +4911,10 @@ function ExecgetDriversGlobalAccountNumbers(
           },
         });
       }
+    })
+    .catch((error) => {
+      logger.error(error);
+      resolve({ response: "error_getting_data" });
     });
 }
 
@@ -4638,17 +4950,16 @@ function performCorporateDeliveryAccountAuthOps(inputData, resolve) {
         inputData.email = inputData.email.trim().toLowerCase();
         //Good data received
         //? Check if no similar company already exists
-        collectionDedicatedServices_accounts
-          .find({
-            company_name: companyName,
-            email: inputData.email,
-          })
-          .toArray(function (err, resltCheck) {
-            if (err) {
-              logger.error(err);
-              resolve({ response: "error_creating_account" });
-            }
-            //...
+        dynamo_find_query({
+          table_name: "dedicated_services_accounts",
+          IndexName: "company_name",
+          KeyConditionExpression: "company_name = :val1, email = :val2",
+          ExpressionAttributeValues: {
+            ":val1": companyName,
+            ":val2": inputData.email,
+          },
+        })
+          .then((resltCheck) => {
             if (resltCheck !== undefined && resltCheck.length > 0) {
               //Account already exist
               logger.warn("Account already exists");
@@ -4701,10 +5012,9 @@ function performCorporateDeliveryAccountAuthOps(inputData, resolve) {
                         last_updated: new Date(chaineDateUTC),
                       };
                       //...Save
-                      collectionDedicatedServices_accounts.insertOne(
-                        accountObj,
-                        function (err, reslt) {
-                          if (err) {
+                      dynamo_insert("dedicated_services_accounts", accountObj)
+                        .then((reslt) => {
+                          if (reslt === false) {
                             logger.error(err);
                             resolve({ response: "error_creating_account" });
                           }
@@ -4734,8 +5044,11 @@ function performCorporateDeliveryAccountAuthOps(inputData, resolve) {
                               },
                             },
                           });
-                        }
-                      );
+                        })
+                        .catch((error) => {
+                          logger.error(error);
+                          resolve({ response: "error_creating_account" });
+                        });
                     })
                     .catch((error) => {
                       logger.error(error);
@@ -4747,6 +5060,10 @@ function performCorporateDeliveryAccountAuthOps(inputData, resolve) {
                   resolve({ response: "error_creating_account" });
                 });
             }
+          })
+          .catch((error) => {
+            logger.error(error);
+            resolve({ response: "error_creating_account" });
           });
       } //Invalid signup data provided
       else {
@@ -4765,17 +5082,16 @@ function performCorporateDeliveryAccountAuthOps(inputData, resolve) {
           generateUniqueFingerprint(inputData.password.trim(), false, resFp);
         })
           .then((passwordHash) => {
-            collectionDedicatedServices_accounts
-              .find({
-                email: inputData.email.trim(),
-                password: passwordHash,
-              })
-              .toArray(function (err, companyData) {
-                if (err) {
-                  logger.error(err);
-                  resolve({ response: "error_logging_in" });
-                }
-                //...
+            dynamo_find_query({
+              table_name: "dedicated_services_accounts",
+              IndexName: "email",
+              KeyConditionExpression: "password = :val1, email = :val2",
+              ExpressionAttributeValues: {
+                ":val1": passwordHash,
+                ":val2": inputData.email.trim(),
+              },
+            })
+              .then((companyData) => {
                 if (companyData !== undefined && companyData.length > 0) {
                   //Valid company
                   companyData = companyData[0];
@@ -4796,6 +5112,10 @@ function performCorporateDeliveryAccountAuthOps(inputData, resolve) {
                 else {
                   resolve({ response: "error_logging_in_notFoundAccount" });
                 }
+              })
+              .catch((error) => {
+                logger.error(error);
+                resolve({ response: "error_logging_in" });
               });
           })
           .catch((error) => {
@@ -4809,17 +5129,16 @@ function performCorporateDeliveryAccountAuthOps(inputData, resolve) {
     } else if (/resendConfirmationSMS/i.test(inputData.op)) {
       if (inputData.company_fp !== undefined && inputData.phone !== undefined) {
         //Check if the company exists
-        collectionDedicatedServices_accounts
-          .find({
-            company_fp: inputData.company_fp,
-            phone: inputData.phone,
-          })
-          .toArray(function (err, companyData) {
-            if (err) {
-              logger.error(err);
-              resolve({ response: "error" });
-            }
-            //...
+        dynamo_find_query({
+          table_name: "dedicated_services_accounts",
+          IndexName: "company_fp",
+          KeyConditionExpression: "company_fp = :val1, phone = :val2",
+          ExpressionAttributeValues: {
+            ":val1": inputData.company_fp,
+            ":val2": inputData.phone,
+          },
+        })
+          .then((companyData) => {
             if (companyData !== undefined && companyData.length > 0) {
               //Company exists
               let onlyDigitsPhone = inputData.phone.replace("+", "").trim(); //Critical, should only contain digits
@@ -4854,36 +5173,45 @@ function performCorporateDeliveryAccountAuthOps(inputData, resolve) {
                 }
               );
               //? SAve the OTP in the user's profile
-              collectionDedicatedServices_accounts.updateOne(
+              dynamo_update(
+                "dedicated_services_accounts",
+                companyData[0]._id,
+                "set last_updated = :val1, #a.#s = :val2",
                 {
-                  company_fp: inputData.company_fp,
-                  phone: inputData.phone,
-                },
-                {
-                  $set: {
-                    last_updated: new Date(chaineDateUTC),
-                    "account.smsVerifications": {
-                      otp: {
-                        otp: parseInt(otp),
-                        date_created: new Date(chaineDateUTC),
-                      },
+                  ":val1": new Date(chaineDateUTC).toISOString(),
+                  ":val2": {
+                    otp: {
+                      otp: parseInt(otp),
+                      date_created: new Date(chaineDateUTC),
                     },
                   },
                 },
-                function (err, reslt) {
-                  if (err) {
-                    logger.error(err);
+                {
+                  "#a": "account",
+                  "#s": "smsVerifications",
+                }
+              )
+                .then((result) => {
+                  if (result === false) {
+                    logger.error(result);
                     resolve({ response: "error" });
                   }
                   //...
                   //DONE
                   resolve({ response: "successfully_sent" });
-                }
-              );
+                })
+                .catch((error) => {
+                  logger.error(error);
+                  resolve({ response: "error" });
+                });
             } //Unknown company
             else {
               resolve({ response: "error" });
             }
+          })
+          .catch((error) => {
+            logger.error(error);
+            resolve({ response: "error" });
           });
       } //Invalid data
       else {
@@ -4900,32 +5228,30 @@ function performCorporateDeliveryAccountAuthOps(inputData, resolve) {
       ) {
         //Proceed
         //Check if the company exists
-        collectionDedicatedServices_accounts
-          .find({
-            company_fp: inputData.company_fp,
-          })
-          .toArray(function (err, companyData) {
-            if (err) {
-              logger.error(err);
-              resolve({ response: "error" });
-            }
-            //...
+        dynamo_find_query({
+          table_name: "dedicated_services_accounts",
+          IndexName: "company_fp",
+          KeyConditionExpression: "company_fp = :val1",
+          ExpressionAttributeValues: {
+            ":val1": inputData.company_fp,
+          },
+        })
+          .then((companyData) => {
             if (companyData !== undefined && companyData.length > 0) {
               companyData = companyData[0];
               //Company exists
               //? Update the comapny's phone
-              collectionDedicatedServices_accounts.updateOne(
+              dynamo_update(
+                "dedicated_services_accounts",
+                companyData[0]._id,
+                "set phone = :p, last_updated = :l",
                 {
-                  company_fp: inputData.company_fp,
-                },
-                {
-                  $set: {
-                    phone: inputData.phone,
-                    last_updated: new Date(chaineDateUTC),
-                  },
-                },
-                function (err, reslt) {
-                  if (err) {
+                  ":p": inputData.phone,
+                  ":l": new Date(chaineDateUTC).toISOString(),
+                }
+              )
+                .then((result) => {
+                  if (result === false) {
                     logger.error(err);
                     resolve({ response: "error" });
                   }
@@ -4943,12 +5269,19 @@ function performCorporateDeliveryAccountAuthOps(inputData, resolve) {
                       account: companyData.account,
                     },
                   });
-                }
-              );
+                })
+                .catch((error) => {
+                  logger.error(error);
+                  resolve({ response: "error" });
+                });
             } //Unknown company
             else {
               resolve({ response: "error" });
             }
+          })
+          .catch((error) => {
+            logger.error(error);
+            resolve({ response: "error" });
           });
       } //Invalid data
       else {
@@ -4965,35 +5298,45 @@ function performCorporateDeliveryAccountAuthOps(inputData, resolve) {
         inputData.otp !== undefined &&
         inputData.otp !== null
       ) {
-        collectionDedicatedServices_accounts
-          .find({
-            company_fp: inputData.company_fp,
-            phone: inputData.phone,
-            "account.smsVerifications.otp.otp": parseInt(inputData.otp),
-          })
-          .toArray(function (err, checkData) {
-            if (err) {
-              logger.error(err);
-              resolve({ response: "error" });
-            }
-            //...
+        dynamo_find_query({
+          table_name: "dedicated_services_accounts",
+          IndexName: "company_fp",
+          KeyConditionExpression:
+            "company_fp = :val1, phone = :val2, #a.#s.#ot.#o = :val3",
+          ExpressionAttributeValues: {
+            ":val1": inputData.company_fp,
+            ":val2": inputData.phone,
+            ":val3": parseInt(inputData.otp),
+          },
+          ExpressionAttributeNames: {
+            "#a": "account",
+            "#s": "smsVerifications",
+            "#ot": "otp",
+            "#o": "otp",
+          },
+        })
+          .then((checkData) => {
             if (checkData !== undefined && checkData.length > 0) {
               let companyData = checkData[0];
               //Valid number
               //? Update the account vars
-              collectionDedicatedServices_accounts.updateOne(
+              dynamo_update(
+                "dedicated_services_accounts",
+                companyData._id,
+                "set #a.#c.#i = :val1, last_updated = :val2",
                 {
-                  company_fp: inputData.company_fp,
+                  ":val1": true,
+                  ":val2": new Date(chaineDateUTC).toISOString(),
                 },
                 {
-                  $set: {
-                    "account.confirmations.isPhoneConfirmed": true,
-                    last_updated: new Date(chaineDateUTC),
-                  },
-                },
-                function (err, reslt) {
-                  if (err) {
-                    logger.error(err);
+                  "#a": "account",
+                  "#c": "confirmations",
+                  "#i": "isPhoneConfirmed",
+                }
+              )
+                .then((result) => {
+                  if (result === false) {
+                    logger.error(result);
                     resolve({ response: "error" });
                   }
                   //...
@@ -5010,12 +5353,19 @@ function performCorporateDeliveryAccountAuthOps(inputData, resolve) {
                       account: companyData.account,
                     },
                   });
-                }
-              );
+                })
+                .catch((error) => {
+                  logger.error(error);
+                  resolve({ response: "error" });
+                });
             } //Invalid code
             else {
               resolve({ response: "invalid_code" });
             }
+          })
+          .catch((error) => {
+            logger.error(error);
+            resolve({ response: "error" });
           });
       } //Invalid data
       else {
@@ -5126,15 +5476,15 @@ function execCorporateAccountData(inputData, resolve) {
     PRSNLD: 15,
   };
 
-  collectionDedicatedServices_accounts
-    .find({ company_fp: inputData.company_fp })
-    .toArray(function (err, companyData) {
-      if (err) {
-        logger.error(err);
-        resolve({ response: "error" });
-      }
-      //...
-
+  dynamo_find_query({
+    table_name: "dedicated_services_accounts",
+    IndexName: "company_fp",
+    KeyConditionExpression: "company_fp = :val1",
+    ExpressionAttributeValues: {
+      ":val1": inputData.company_fp,
+    },
+  })
+    .then((companyData) => {
       if (companyData !== undefined && companyData.length > 0) {
         //Valid account
         companyData = companyData[0];
@@ -5163,7 +5513,7 @@ function execCorporateAccountData(inputData, resolve) {
         }:${
           process.env.ACCOUNTS_SERVICE_PORT
         }/getWalletSummaryForCorps?company_fp=${companyData.company_fp}
-                      `;
+                    `;
         //!----
         requestAPI(url, function (error, response, body) {
           logger.error(error);
@@ -5193,6 +5543,10 @@ function execCorporateAccountData(inputData, resolve) {
       else {
         resolve({ response: "error" });
       }
+    })
+    .catch((error) => {
+      logger.error(error);
+      resolve({ response: "error" });
     });
 }
 
@@ -5322,20 +5676,16 @@ function getWalletSummaryForDeliveryCorps(
 function execGetWalletSummaryForDeliveryCorps(company_fp, resolve) {
   //Get all the topups first
   //! transaction_nature: topups-corporate
-  collectionWalletTransactions_logs
-    .find({
-      company_fp: company_fp,
-      transaction_nature: "topups-corporate",
-    })
-    .toArray(function (err, transactionData) {
-      if (err) {
-        logger.error(err);
-        resolve({
-          balance: 0,
-          usage: 0,
-        });
-      }
-      //...
+  dynamo_find_query({
+    table_name: "wallet_transactions_logs",
+    IndexName: "company_fp",
+    KeyConditionExpression: "compnay_fp = :val1, transaction_nature = :val2",
+    ExpressionAttributeValues: {
+      ":val1": company_fp,
+      ":val2": "topups-corporate",
+    },
+  })
+    .then((transactionData) => {
       if (transactionData !== undefined && transactionData.length > 0) {
         //Found some transactions data
         let total_topups = 0; //! TOPUPS
@@ -5346,19 +5696,15 @@ function execGetWalletSummaryForDeliveryCorps(company_fp, resolve) {
         });
         //...
         //Get the total usage amount
-        collectionRidesDeliveryData
-          .find({
-            client_id: company_fp,
-          })
-          .toArray(function (err, tripData) {
-            if (err) {
-              logger.error(err);
-              resolve({
-                balance: 0,
-                usage: 0,
-              });
-            }
-            ///...
+        dynamo_find_query({
+          table_name: "rides_deliveries_requests",
+          IndexName: "client_id",
+          KeyConditionExpression: "client_id = :val1",
+          ExpressionAttributeValues: {
+            ":val1": company_fp,
+          },
+        })
+          .then((tripData) => {
             if (tripData !== undefined && tripData.length > 0) {
               //Found some trip data
               //Compute all the usage
@@ -5378,6 +5724,13 @@ function execGetWalletSummaryForDeliveryCorps(company_fp, resolve) {
                 usage: 0,
               });
             }
+          })
+          .catch((error) => {
+            logger.error(error);
+            resolve({
+              balance: 0,
+              usage: 0,
+            });
           });
       } //No transactions data - so zero balance
       else {
@@ -5386,6 +5739,13 @@ function execGetWalletSummaryForDeliveryCorps(company_fp, resolve) {
           usage: 0,
         });
       }
+    })
+    .catch((error) => {
+      logger.error(error);
+      resolve({
+        balance: 0,
+        usage: 0,
+      });
     });
 }
 
@@ -5479,6 +5839,15 @@ function getTargetedNotificationsOps(requestData, resolve) {
  * @param resolve
  */
 function execGetTargetedNotificationsOps(requestData, redisKey, resolve) {
+  // dynamo_find_query({
+  //   table_name: "notifications_communications_central",
+  //   IndexName: "client_id",
+  //   KeyConditionExpression: "client_id = :val1",
+  //   ExpressionAttributeValues: {
+  //     ":val1": company_fp,
+  //   },
+  // })
+
   collectionNotificationsComm_central
     .find({
       allowed_users_see: requestData.user_fingerprint,
@@ -5555,7 +5924,7 @@ function execGetTargetedNotificationsOps(requestData, redisKey, resolve) {
  * MAIN
  */
 var collectionPassengers_profiles = null;
-var collectionRidesDeliveryData = null;
+var collectionRidesDeliveries_data = null;
 var collection_OTP_dispatch_map = null;
 var collectionDrivers_profiles = null;
 var collectionGlobalEvents = null;
@@ -5603,7 +5972,7 @@ redisCluster.on("connect", function () {
           collectionPassengers_profiles = dbMongo.collection(
             "passengers_profiles"
           ); //Hold all the passengers profiles
-          collectionRidesDeliveryData = dbMongo.collection(
+          collectionRidesDeliveries_data = dbMongo.collection(
             "rides_deliveries_requests"
           ); //Hold all the requests made (rides and deliveries)
           collection_OTP_dispatch_map = dbMongo.collection("OTP_dispatch_map");
@@ -5696,31 +6065,29 @@ redisCluster.on("connect", function () {
 
                 let refDate = new Date(chaineDateUTC);
 
-                collectionGlobalEvents
-                  .find({
-                    event_name: "SMS_dispatch_otp",
+                dynamo_find_query({
+                  table_name: "global_events",
+                  IndexName: "phone_number",
+                  KeyConditionExpression:
+                    "event_name = :val1, phone_number = :val2, date >= :val3",
+                  ExpressionAttributeValues: {
+                    ":val1": "SMS_dispatch_otp",
                     phone_number: onlyDigitsPhone,
-                    date: {
-                      $gte: new Date(
-                        `${refDate.getFullYear()}-${
-                          String(refDate.getMonth() + 1).length > 1
-                            ? `${refDate.getMonth() + 1}`
-                            : `0${refDate.getMonth() + 1}`
-                        }-${
-                          String(refDate.getDate()).length > 1
-                            ? `${refDate.getDate()}`
-                            : `0${refDate.getDate()}`
-                        }T00:00:00.000Z`
-                      ),
-                    },
-                  })
-                  .sort({ date: -1 })
-                  .toArray(function (err, eventData) {
-                    if (err) {
-                      logger.error(err);
-                      res0(false);
-                    }
-                    //....
+                    date: new Date(
+                      `${refDate.getFullYear()}-${
+                        String(refDate.getMonth() + 1).length > 1
+                          ? `${refDate.getMonth() + 1}`
+                          : `0${refDate.getMonth() + 1}`
+                      }-${
+                        String(refDate.getDate()).length > 1
+                          ? `${refDate.getDate()}`
+                          : `0${refDate.getDate()}`
+                      }T00:00:00.000Z`
+                    ).toISOString(),
+                  },
+                })
+                  .then((eventData) => {
+                    //!.sort({ date: -1 })
                     if (eventData !== undefined && eventData.length > 0) {
                       //Check the time of the last sent sms
                       let smsDayCount = eventData.length;
@@ -5739,17 +6106,19 @@ redisCluster.on("connect", function () {
                           logger.warn("Sending the SMS");
                           //!Save dispatch event
                           new Promise((resSave) => {
-                            collectionGlobalEvents.insertOne(
-                              {
-                                event_name: "SMS_dispatch_otp",
-                                phone_number: onlyDigitsPhone,
-                                otp: otp,
-                                date: new Date(chaineDateUTC),
-                              },
-                              function (err, rslt) {
+                            dynamo_insert("global_events", {
+                              event_name: "SMS_dispatch_otp",
+                              phone_number: onlyDigitsPhone,
+                              otp: otp,
+                              date: new Date(chaineDateUTC).toISOString(),
+                            })
+                              .then((result) => {
+                                resSave(result);
+                              })
+                              .catch((error) => {
+                                logger.error(error);
                                 resSave(true);
-                              }
-                            );
+                              });
                           })
                             .then()
                             .catch();
@@ -5761,17 +6130,19 @@ redisCluster.on("connect", function () {
                       else {
                         //!Save abuse event
                         new Promise((resSave) => {
-                          collectionGlobalEvents.insertOne(
-                            {
-                              event_name: "SMS_dispatch_otp_abuse_event",
-                              phone_number: onlyDigitsPhone,
-                              otp: otp,
-                              date: new Date(chaineDateUTC),
-                            },
-                            function (err, rslt) {
+                          dynamo_insert("global_events", {
+                            event_name: "SMS_dispatch_otp_abuse_event",
+                            phone_number: onlyDigitsPhone,
+                            otp: otp,
+                            date: new Date(chaineDateUTC).toISOString(),
+                          })
+                            .then((result) => {
+                              resSave(result);
+                            })
+                            .catch((error) => {
+                              logger.error(error);
                               resSave(true);
-                            }
-                          );
+                            });
                         })
                           .then()
                           .catch();
@@ -5784,17 +6155,19 @@ redisCluster.on("connect", function () {
                         logger.warn("Sending the SMS");
                         //!Save dispatch event
                         new Promise((resSave) => {
-                          collectionGlobalEvents.insertOne(
-                            {
-                              event_name: "SMS_dispatch_otp",
-                              phone_number: onlyDigitsPhone,
-                              otp: otp,
-                              date: new Date(chaineDateUTC),
-                            },
-                            function (err, rslt) {
+                          dynamo_insert("global_events", {
+                            event_name: "SMS_dispatch_otp",
+                            phone_number: onlyDigitsPhone,
+                            otp: otp,
+                            date: new Date(chaineDateUTC).toISOString(),
+                          })
+                            .then((result) => {
+                              resSave(result);
+                            })
+                            .catch((error) => {
+                              logger.error(error);
                               resSave(true);
-                            }
-                          );
+                            });
                         })
                           .then()
                           .catch();
@@ -5803,6 +6176,10 @@ redisCluster.on("connect", function () {
                       }
                       res0(true);
                     }
+                  })
+                  .catch((error) => {
+                    logger.error(error);
+                    res0(false);
                   });
                 //SMS
               }).then(
@@ -5848,15 +6225,32 @@ redisCluster.on("connect", function () {
                             req.user_nature === null ||
                             /passenger/i.test(req.user_nature)
                           ) {
-                            collectionPassengers_profiles.updateOne(
-                              { user_fingerprint: result.user_fp },
-                              secretData,
-                              function (err, reslt) {
-                                logger.info(err);
+                            dynamo_update(
+                              "passengers_profiles",
+                              req._id,
+                              "set #a.#p = :val1",
+                              {
+                                ":val1": {
+                                  otp: parseInt(otp),
+                                  date_sent: new Date(
+                                    chaineDateUTC
+                                  ).toISOString(),
+                                },
+                              },
+                              {
+                                "#a": "account_verifications",
+                                "#p": "phone_verification_secrets",
+                              }
+                            )
+                              .then((result) => {
+                                logger.info(result);
                                 logger.warn(`OTP -> ${otp}`);
                                 res2(true);
-                              }
-                            );
+                              })
+                              .catch((error) => {
+                                logger.error(error);
+                                res2(true);
+                              });
                           } else if (
                             req.user_nature !== undefined &&
                             req.user_nature !== null &&
@@ -5864,14 +6258,32 @@ redisCluster.on("connect", function () {
                           ) {
                             logger.info("DRIVER HERE DETECCTEDD");
                             //2. Drivers
-                            collectionDrivers_profiles.updateOne(
-                              { driver_fingerprint: result.user_fp },
-                              secretData,
-                              function (err, reslt) {
-                                logger.info(err);
-                                res2(true);
+                            dynamo_update(
+                              "drivers_profiles",
+                              req._id,
+                              "set #a.#p = :val1",
+                              {
+                                ":val1": {
+                                  otp: parseInt(otp),
+                                  date_sent: new Date(
+                                    chaineDateUTC
+                                  ).toISOString(),
+                                },
+                              },
+                              {
+                                "#a": "account_verifications",
+                                "#p": "phone_verification_secrets",
                               }
-                            );
+                            )
+                              .then((result) => {
+                                logger.info(result);
+                                logger.warn(`OTP -> ${otp}`);
+                                res2(true);
+                              })
+                              .catch((error) => {
+                                logger.error(error);
+                                res2(true);
+                              });
                           }
                         })
                           .then(
@@ -5941,13 +6353,16 @@ redisCluster.on("connect", function () {
                   logger.info("unregistered");
                   logger.warn(checkOTP);
                   //Check if it exists for this number
-                  collection_OTP_dispatch_map
-                    .find(checkOTP)
-                    .toArray(function (error, result) {
-                      if (error) {
-                        res0({ response: "error_checking_otp" });
-                      }
-                      //...
+                  dynamo_find_query({
+                    table_name: "OTP_dispatch_map",
+                    IndexName: "phone_number",
+                    KeyConditionExpression: "phone_number = :val1, otp = :val2",
+                    ExpressionAttributeValues: {
+                      ":val1": checkOTP.phone_number,
+                      ":val2": parseInt(req.otp),
+                    },
+                  })
+                    .then((result) => {
                       if (result.length > 0) {
                         //True OTP
                         res0({ response: true });
@@ -5955,6 +6370,10 @@ redisCluster.on("connect", function () {
                       else {
                         res0({ response: false });
                       }
+                    })
+                    .catch((error) => {
+                      logger.error(error);
+                      res0({ response: "error_checking_otp" });
                     });
                 } //Checking for registered user - check the OTP secrets binded to the profile
                 else {
@@ -5974,13 +6393,23 @@ redisCluster.on("connect", function () {
                         parseInt(req.otp),
                     }; //?Indexed
                     //Check if it exists for this number
-                    collectionPassengers_profiles
-                      .find(checkOTP)
-                      .toArray(function (error, result) {
-                        if (error) {
-                          res0({ response: "error_checking_otp" });
-                        }
-                        //...
+                    dynamo_find_query({
+                      table_name: "passengers_profiles",
+                      IndexName: "user_fingerprint",
+                      KeyConditionExpression:
+                        "user_fingerprint = :val1, phone_number = :val2, #a.#p.#o = :val3",
+                      ExpressionAttributeValues: {
+                        ":val1": req.user_fingerprint,
+                        ":val2": checkOTP.phone_number,
+                        ":val3": parseInt(req.otp),
+                      },
+                      ExpressionAttributeNames: {
+                        "#a": "account_verifications",
+                        "#p": "phone_verification_secrets",
+                        "#o": "otp",
+                      },
+                    })
+                      .then((result) => {
                         if (result.length > 0) {
                           //True OTP
                           res0({ response: true });
@@ -5988,6 +6417,10 @@ redisCluster.on("connect", function () {
                         else {
                           res0({ response: true }); //! BUG
                         }
+                      })
+                      .catch((error) => {
+                        logger.error(error);
+                        res0({ response: "error_checking_otp" });
                       });
                   } else if (
                     req.user_nature !== undefined &&
@@ -6005,14 +6438,23 @@ redisCluster.on("connect", function () {
                     };
                     logger.info(checkOTP);
                     //Check if it exists for this number
-                    collectionDrivers_profiles
-                      .find(checkOTP)
-                      .toArray(function (error, result) {
-                        if (error) {
-                          logger.info(error);
-                          res0({ response: "error_checking_otp" });
-                        }
-                        //...
+                    dynamo_find_query({
+                      table_name: "drivers_profiles",
+                      IndexName: "driver_fingerprint",
+                      KeyConditionExpression:
+                        "driver_fingerprint = :val1, phone_number = :val2, #a.#p.#o = :val3",
+                      ExpressionAttributeValues: {
+                        ":val1": req.user_fingerprint,
+                        ":val2": checkOTP.phone_number,
+                        ":val3": parseInt(req.otp),
+                      },
+                      ExpressionAttributeNames: {
+                        "#a": "account_verifications",
+                        "#p": "phone_verification_secrets",
+                        "#o": "otp",
+                      },
+                    })
+                      .then((result) => {
                         if (result.length > 0) {
                           //True OTP
                           res0({ response: true });
@@ -6020,6 +6462,10 @@ redisCluster.on("connect", function () {
                         else {
                           res0({ response: false });
                         }
+                      })
+                      .catch((error) => {
+                        logger.error(error);
+                        res0({ response: "error_checking_otp" });
                       });
                   }
                 }
@@ -6089,10 +6535,9 @@ redisCluster.on("connect", function () {
                     };
                     // logger.info(minimalAccount);
                     //..
-                    collectionPassengers_profiles.insertOne(
-                      minimalAccount,
-                      function (error, result) {
-                        if (error) {
+                    dynamo_insert("passengers_profiles", minimalAccount)
+                      .then((result) => {
+                        if (result === false) {
                           res0({ response: "error_creating_account" });
                         }
                         //...Send back the status and fingerprint
@@ -6100,8 +6545,11 @@ redisCluster.on("connect", function () {
                           response: "successfully_created",
                           user_fp: user_fingerprint,
                         });
-                      }
-                    );
+                      })
+                      .catch((error) => {
+                        logger.error(error);
+                        res0({ response: "error_creating_account" });
+                      });
                   },
                   (error) => {
                     res0({ response: "error_creating_account" });
@@ -6167,30 +6615,36 @@ redisCluster.on("connect", function () {
                       },
                     };
                     //Update
-                    collectionPassengers_profiles.updateOne(
-                      findProfile,
-                      updateProfile,
-                      function (error, result) {
-                        if (error) {
-                          logger.info(error);
+                    dynamo_update(
+                      "passengers_profiles",
+                      { user_fingerprint: req.user_fingerprint },
+                      "set name = :val1, email = :val2, gender = :val3, account_state = :val4, last_updated = :val5",
+                      {
+                        ":val1": req.name,
+                        ":val2": req.email,
+                        ":val3": req.gender,
+                        ":val4": "full",
+                        ":val5": new Date(chaineDateUTC).toISOString(),
+                      }
+                    )
+                      .then((result) => {
+                        if (result === false) {
+                          logger.info(result);
                           res0({
                             response:
                               "error_adding_additional_profile_details_new_account",
                           });
                         }
                         //Get the profile details
-                        collectionPassengers_profiles
-                          .find(findProfile)
-                          .toArray(function (err, riderProfile) {
-                            if (err) {
-                              logger.info(err);
-                              res0({
-                                response:
-                                  "error_adding_additional_profile_details_new_account",
-                              });
-                            }
-                            logger.info(riderProfile);
-                            //...
+                        dynamo_find_query({
+                          table_name: "passengers_profiles",
+                          IndexName: "user_fingerprint",
+                          KeyConditionExpression: "user_fingerprint = :val1",
+                          ExpressionAttributeValues: {
+                            ":val1": req.user_fingerprint,
+                          },
+                        })
+                          .then((riderProfile) => {
                             if (riderProfile.length > 0) {
                               //Found something
                               res0({
@@ -6213,9 +6667,22 @@ redisCluster.on("connect", function () {
                                   "error_adding_additional_profile_details_new_account",
                               });
                             }
+                          })
+                          .catch((error) => {
+                            logger.error(error);
+                            res0({
+                              response:
+                                "error_adding_additional_profile_details_new_account",
+                            });
                           });
-                      }
-                    );
+                      })
+                      .catch((error) => {
+                        logger.error(error);
+                        res0({
+                          response:
+                            "error_adding_additional_profile_details_new_account",
+                        });
+                      });
                   }).then(
                     (result) => {
                       res.send(result);
@@ -6276,7 +6743,7 @@ redisCluster.on("connect", function () {
                 new Promise((res0) => {
                   getBachRidesHistory(
                     req,
-                    collectionRidesDeliveryData,
+                    collectionRidesDeliveries_data,
                     collectionDrivers_profiles,
                     res0
                   );
@@ -6298,7 +6765,7 @@ redisCluster.on("connect", function () {
                 new Promise((res0) => {
                   getBachRidesHistory(
                     req,
-                    collectionRidesDeliveryData,
+                    collectionRidesDeliveries_data,
                     collectionDrivers_profiles,
                     res0
                   );
@@ -6338,7 +6805,7 @@ redisCluster.on("connect", function () {
               ) {
                 new Promise((res0) => {
                   getDaily_requestAmount_driver(
-                    collectionRidesDeliveryData,
+                    collectionRidesDeliveries_data,
                     collectionDrivers_profiles,
                     req.driver_fingerprint,
                     req.avoidCached_data !== undefined &&
@@ -6435,13 +6902,15 @@ redisCluster.on("connect", function () {
                   //Valid data received
                   new Promise((res0) => {
                     //Check the driver
-                    collectionDrivers_profiles
-                      .find({ driver_fingerprint: req.driver_fingerprint })
-                      .toArray(function (err, driverData) {
-                        if (err) {
-                          res0({ response: "error_invalid_request" });
-                        }
-                        //...
+                    dynamo_find_query({
+                      table_name: "drivers_profiles",
+                      IndexName: "driver_fingerprint",
+                      KeyConditionExpression: "driver_fingerprint = :val1",
+                      ExpressionAttributeValues: {
+                        ":val1": req.driver_fingerprint,
+                      },
+                    })
+                      .then((driverData) => {
                         if (driverData.length > 0) {
                           //! GET THE SUSPENSION INFOS
                           let suspensionInfos = {
@@ -6470,25 +6939,43 @@ redisCluster.on("connect", function () {
                             "ride_state_vars.isRideCompleted_driverSide": false,
                           };
                           //check
-                          collectionRidesDeliveryData
-                            .find(checkActiveRequests)
-                            .toArray(function (err, currentActiveRequests) {
-                              if (err) {
-                                res0({ response: "error_invalid_request" });
-                              }
-                              //...
+                          dynamo_find_query({
+                            table_name: "rides_deliveries_requests",
+                            IndexName: "taxi_id",
+                            KeyConditionExpression:
+                              "taxi_id = :val1, #r.#ia = :val2, #r.#isCDriver = :val3",
+                            ExpressionAttributeValues: {
+                              ":val1": req.driver_fingerprint,
+                              ":val2": true,
+                              ":val3": false,
+                            },
+                            ExpressionAttributeNames: {
+                              "#r": "ride_state_vars",
+                              "#ia": "isAccepted",
+                              "#isCDriver": "isRideCompleted_driverSide",
+                            },
+                          })
+                            .then((currentActiveRequests) => {
                               if (/offline/i.test(req.state)) {
                                 //Only if the driver wants to go out
                                 if (currentActiveRequests.length <= 0) {
                                   //No active requests - proceed
-                                  collectionDrivers_profiles.updateOne(
+                                  dynamo_update(
+                                    "drivers_profiles",
+                                    driverData[0]._id,
+                                    "set #o.#s = :val1",
                                     {
-                                      driver_fingerprint:
-                                        req.driver_fingerprint,
+                                      ":val1": /online/i.test(req.state)
+                                        ? "online"
+                                        : "offline",
                                     },
-                                    updateData,
-                                    function (err, reslt) {
-                                      if (err) {
+                                    {
+                                      "#o": "operational_state",
+                                      "#s": "status",
+                                    }
+                                  )
+                                    .then((result) => {
+                                      if (result === false) {
                                         res0({
                                           response: "error_invalid_request",
                                         });
@@ -6496,7 +6983,7 @@ redisCluster.on("connect", function () {
                                       //...
                                       //Save the going offline event
                                       new Promise((res) => {
-                                        collectionGlobalEvents.insertOne({
+                                        dynamo_insert("global_events", {
                                           event_name:
                                             "driver_switching_status_request",
                                           status: /online/i.test(req.state)
@@ -6505,7 +6992,12 @@ redisCluster.on("connect", function () {
                                           driver_fingerprint:
                                             req.driver_fingerprint,
                                           date: new Date(chaineDateUTC),
-                                        });
+                                        })
+                                          .then()
+                                          .catch((error) => {
+                                            logger.error(error);
+                                          });
+                                        //...
                                         res(true);
                                       }).then(
                                         () => {},
@@ -6541,8 +7033,13 @@ redisCluster.on("connect", function () {
                                           : "offline",
                                         suspension_infos: suspensionInfos,
                                       });
-                                    }
-                                  );
+                                    })
+                                    .catch((error) => {
+                                      logger.error(error);
+                                      res0({
+                                        response: "error_invalid_request",
+                                      });
+                                    });
                                 } //Has an active request - abort going offline
                                 else {
                                   res0({
@@ -6552,13 +7049,22 @@ redisCluster.on("connect", function () {
                                 }
                               } //If the driver want to go online - proceed
                               else {
-                                collectionDrivers_profiles.updateOne(
+                                dynamo_update(
+                                  "drivers_profiles",
+                                  driverData[0]._id,
+                                  "set #o.#s = :val1",
                                   {
-                                    driver_fingerprint: req.driver_fingerprint,
+                                    ":val1": /online/i.test(req.state)
+                                      ? "online"
+                                      : "offline",
                                   },
-                                  updateData,
-                                  function (err, reslt) {
-                                    if (err) {
+                                  {
+                                    "#o": "operational_state",
+                                    "#s": "status",
+                                  }
+                                )
+                                  .then((result) => {
+                                    if (result === false) {
                                       res0({
                                         response: "error_invalid_request",
                                       });
@@ -6566,7 +7072,7 @@ redisCluster.on("connect", function () {
                                     //...
                                     //Save the going offline event
                                     new Promise((res) => {
-                                      collectionGlobalEvents.insertOne({
+                                      dynamo_insert("global_events", {
                                         event_name:
                                           "driver_switching_status_request",
                                         status: /online/i.test(req.state)
@@ -6574,8 +7080,13 @@ redisCluster.on("connect", function () {
                                           : "offline",
                                         driver_fingerprint:
                                           req.driver_fingerprint,
-                                        date: new Date(chaineDateUTC),
-                                      });
+                                        date: new Date(
+                                          chaineDateUTC
+                                        ).toISOString(),
+                                      })
+                                        .then()
+                                        .catch((error) => logger.error(error));
+                                      //...
                                       res(true);
                                     }).then(
                                       () => {},
@@ -6610,14 +7121,27 @@ redisCluster.on("connect", function () {
                                         : "offline",
                                       suspension_infos: suspensionInfos,
                                     });
-                                  }
-                                );
+                                  })
+                                  .catch((error) => {
+                                    logger.error(error);
+                                    res0({
+                                      response: "error_invalid_request",
+                                    });
+                                  });
                               }
+                            })
+                            .catch((error) => {
+                              logger.error(error);
+                              res0({ response: "error_invalid_request" });
                             });
                         } //Error - unknown driver
                         else {
                           res0({ response: "error_invalid_request" });
                         }
+                      })
+                      .catch((error) => {
+                        logger.error(error);
+                        res0({ response: "error_invalid_request" });
                       });
                   }).then(
                     (result) => {
@@ -6787,7 +7311,7 @@ redisCluster.on("connect", function () {
               new Promise((resolve) => {
                 getRiders_wallet_summary(
                   req,
-                  collectionRidesDeliveryData,
+                  collectionRidesDeliveries_data,
                   collectionWalletTransactions_logs,
                   collectionDrivers_profiles,
                   collectionPassengers_profiles,
@@ -7204,12 +7728,11 @@ redisCluster.on("connect", function () {
                 date: new Date(chaineDateUTC),
               };
               //! -----
-              collectionGlobalEvents.insertOne(eventBundle, function (err, result) {
-                if (err) {
-                  logger.warn(err);
-                }
-                //...
-                resolve(true);
+              dynamo_insert('global_events', eventBundle).then((result) => {
+                resolve(result);
+              }).catch((error) => {
+                logger.error(error);
+                resolve(false);
               });
             } catch (error) {
               logger.warn(error);
@@ -7316,12 +7839,14 @@ redisCluster.on("connect", function () {
                     date: new Date(chaineDateUTC),
                   };
                   //...
-                  collectionGlobalEvents.insertOne(
-                    eventSaverObj,
-                    function (err, reslt) {
+                  dynamo_insert("global_events", eventSaverObj)
+                    .then((result) => {
+                      resEvent(result);
+                    })
+                    .catch((error) => {
+                      logger.error(error);
                       resEvent(true);
-                    }
-                  );
+                    });
                 });
                 //? --------------------
                 let redisKey = `${req.user_fingerprint}-referredDriversList-CACHE`;
@@ -7393,29 +7918,40 @@ redisCluster.on("connect", function () {
                     date: new Date(chaineDateUTC),
                   };
                   //...
-                  collectionGlobalEvents.insertOne(
-                    eventSaverObj,
-                    function (err, reslt) {
+                  dynamo_insert("global_events", eventSaverObj)
+                    .then((result) => {
+                      resEvent(result);
+                    })
+                    .catch((error) => {
+                      logger.error(error);
                       resEvent(true);
-                    }
-                  );
+                    });
                 });
                 //? --------------------
                 //! Check that the user is authentic
                 let collectionToCheck = /rider/i.test(req.user_nature)
-                  ? collectionPassengers_profiles
-                  : collectionDrivers_profiles;
+                  ? {
+                      table_name: "passengers_profiles",
+                      IndexName: "user_fingerprint",
+                      KeyConditionExpression: "user_fingerprint = :val1",
+                      ExpressionAttributeValues: {
+                        ":val1": req.user_fingerprint,
+                      },
+                    }
+                  : {
+                      table_name: "drivers_profiles",
+                      IndexName: "driver_fingerprint",
+                      KeyConditionExpression: "driver_fingerprint = :val1",
+                      ExpressionAttributeValues: {
+                        ":val1": req.user_fingerprint,
+                      },
+                    };
                 let finderUserQuery = /rider/i.test(req.user_nature)
                   ? { user_fingerprint: req.user_fingerprint }
                   : { driver_fingerprint: req.user_fingerprint };
 
-                collectionToCheck
-                  .find(finderUserQuery)
-                  .toArray(function (err, userData) {
-                    if (err) {
-                      res.send({ response: "error_unexpected_auth" });
-                    }
-                    //...
+                dynamo_find_query(collectionToCheck)
+                  .then((userData) => {
                     if (userData !== undefined && userData.length > 0) {
                       //? Authentic user
                       //! Format the driver's taxi number
@@ -7426,14 +7962,16 @@ redisCluster.on("connect", function () {
                         let finderQuery = {
                           "cars_data.taxi_number": req.taxi_number,
                         };
-                        collectionDrivers_profiles
-                          .find(finderQuery)
-                          //!.collation({ locale: "en", strength: 2 })
-                          .toArray(function (err, reslt) {
-                            if (err) {
-                              resCompute({ response: "error_unexpected" });
-                            }
-                            //...
+
+                        dynamo_find_query({
+                          table_name: "drivers_profiles",
+                          IndexName: "driver_fingerprint",
+                          KeyConditionExpression: "driver_fingerprint = :val1",
+                          ExpressionAttributeValues: {
+                            ":val1": req.user_fingerprint,
+                          },
+                        })
+                          .then((reslt) => {
                             if (reslt !== undefined && reslt.length > 0) {
                               //Driver already registered
                               resCompute({
@@ -7447,16 +7985,17 @@ redisCluster.on("connect", function () {
                                 is_referralExpired: false,
                               };
                               //...
-                              collectionReferralsInfos
-                                .find(finderNarrower)
-                                //!.collation({ locale: "en", strength: 2 })
-                                .toArray(function (err, result) {
-                                  if (err) {
-                                    resCompute({
-                                      response: "error_unexpected",
-                                    });
-                                  }
-                                  //...
+                              dynamo_find_query({
+                                table_name: "referrals_information_global",
+                                IndexName: "taxi_number",
+                                KeyConditionExpression:
+                                  "taxi_number = :val1, is_referralExpired = :val2",
+                                ExpressionAttributeValues: {
+                                  ":val1": req.taxi_number,
+                                  ":val2": false,
+                                },
+                              })
+                                .then((result) => {
                                   if (
                                     result !== undefined &&
                                     result.length > 0
@@ -7471,8 +8010,18 @@ redisCluster.on("connect", function () {
                                       response: "driver_freeForReferral",
                                     });
                                   }
+                                })
+                                .catch((error) => {
+                                  logger.error(error);
+                                  resCompute({
+                                    response: "error_unexpected",
+                                  });
                                 });
                             }
+                          })
+                          .catch((error) => {
+                            logger.error(error);
+                            resCompute({ response: "error_unexpected" });
                           });
                       })
                         .then((result) => {
@@ -7486,6 +8035,10 @@ redisCluster.on("connect", function () {
                     else {
                       res.send({ response: "error_unexpected_auth" });
                     }
+                  })
+                  .catch((error) => {
+                    logger.error(error);
+                    res.send({ response: "error_unexpected_auth" });
                   });
               } else if (
                 /submit/i.test(req.action) &&
@@ -7509,14 +8062,19 @@ redisCluster.on("connect", function () {
                     is_referralExpired: false,
                   };
                   //...
-                  collectionReferralsInfos
-                    .find(finderNarrower)
-                    //!.collation({ locale: "en", strength: 2 })
-                    .toArray(function (err, result) {
-                      if (err) {
-                        resCompute({ response: "error_unexpected" });
-                      }
-                      //...
+                  dynamo_find_query({
+                    table_name: "referrals_information_global",
+                    IndexName: "taxi_number",
+                    KeyConditionExpression:
+                      "taxi_number = :val1, user_referrer = :val2, user_referrer_nature = :val3, is_referralExpired = :val4",
+                    ExpressionAttributeValues: {
+                      ":val1": req.taxi_number,
+                      ":val2": req.user_fingerprint,
+                      ":val3": req.user_nature,
+                      ":val4": false,
+                    },
+                  })
+                    .then((result) => {
                       if (result !== undefined && result.length > 0) {
                         //! Found an active referral
                         resCompute({
@@ -7563,20 +8121,29 @@ redisCluster.on("connect", function () {
                           )
                           .finally(() => {
                             //...
-                            collectionReferralsInfos.insertOne(
-                              referralObject,
-                              function (err, result) {
-                                if (err) {
+                            dynamo_insert(
+                              "referrals_information_global",
+                              referralObject
+                            )
+                              .then((result) => {
+                                if (result === false) {
                                   resCompute({ response: "error_unexpected" });
                                 }
                                 //...
                                 resCompute({
                                   response: "successfully_referred",
                                 });
-                              }
-                            );
+                              })
+                              .catch((error) => {
+                                logger.error(error);
+                                resCompute({ response: "error_unexpected" });
+                              });
                           });
                       }
+                    })
+                    .catch((error) => {
+                      logger.error(error);
+                      resCompute({ response: "error_unexpected" });
                     });
                 })
                   .then((result) => {
@@ -7609,14 +8176,15 @@ redisCluster.on("connect", function () {
                 req.referrer_fingerprint !== null
               ) {
                 //Get the referrer's details
-                collectionPassengers_profiles
-                  .find({ user_fingerprint: req.referrer_fingerprint })
-                  .toArray(function (err, userData) {
-                    if (err) {
-                      logger.error(err);
-                      resCompute({ response: "error" });
-                    }
-                    //...
+                dynamo_find_query({
+                  table_name: "passengers_profiles",
+                  IndexName: "user_fingerprint",
+                  KeyConditionExpression: "user_fingerprint = :val1",
+                  ExpressionAttributeValues: {
+                    ":val1": req.referrer_fingerprint,
+                  },
+                })
+                  .then((userData) => {
                     if (
                       userData !== undefined &&
                       userData !== null &&
@@ -7711,6 +8279,10 @@ redisCluster.on("connect", function () {
                     else {
                       resCompute({ response: "error" });
                     }
+                  })
+                  .catch((error) => {
+                    logger.error(error);
+                    resCompute({ response: "error" });
                   });
               } //Invalid data
               else {
@@ -7795,14 +8367,15 @@ redisCluster.on("connect", function () {
                   req.driver_phoneNumber !== null
                 ) {
                   //Has the data
-                  collectionDrivers_profiles
-                    .find({ phone_number: req.driver_phoneNumber.trim() })
-                    .toArray(function (err, driverData) {
-                      if (err) {
-                        logger.error(err);
-                        resolve({ response: "error_invalid_data" });
-                      }
-                      //...
+                  dynamo_find_query({
+                    table_name: "drivers_profiles",
+                    IndexName: "phone_number",
+                    KeyConditionExpression: "phone_number = :val1",
+                    ExpressionAttributeValues: {
+                      ":val1": req.driver_phoneNumber.trim(),
+                    },
+                  })
+                    .then((driverData) => {
                       if (driverData !== undefined && driverData.length > 0) {
                         //Found the driver
                         driverData = driverData[0];
@@ -7819,6 +8392,10 @@ redisCluster.on("connect", function () {
                       else {
                         resolve({ response: "error_no_driver" });
                       }
+                    })
+                    .catch((error) => {
+                      logger.error(error);
+                      resolve({ response: "error_invalid_data" });
                     });
                 } else if (
                   req.op === "block" &&
@@ -7830,16 +8407,15 @@ redisCluster.on("connect", function () {
                   req.driver_data.driver_fp !== null
                 ) {
                   //Block the driver effectively
-                  collectionPassengers_profiles
-                    .find({
-                      user_fingerprint: req.user_fp,
-                    })
-                    .toArray(function (err, userData) {
-                      if (err) {
-                        logger.error(err);
-                        resolve({ response: "error_unable_to_block" });
-                      }
-                      //...
+                  dynamo_find_query({
+                    table_name: "passengers_profiles",
+                    IndexName: "user_fingerprint",
+                    KeyConditionExpression: "user_fingerprint = :val1",
+                    ExpressionAttributeValues: {
+                      ":val1": req.user_fp,
+                    },
+                  })
+                    .then((userData) => {
                       if (userData !== undefined && userData.length > 0) {
                         userData = userData[0];
                         //Valid user
@@ -7866,11 +8442,16 @@ redisCluster.on("connect", function () {
                           }
                         });
                         //? Update
-                        collectionPassengers_profiles.updateOne(
-                          { user_fingerprint: req.user_fp },
-                          { $set: { drivers_blacklist: blockedListUnique } },
-                          function (err, resltUpdate) {
-                            if (err) {
+                        dynamo_update(
+                          "passengers_profiles",
+                          userData._id,
+                          "set drivers_blacklist = :val1",
+                          {
+                            ":val1": blockedListUnique,
+                          }
+                        )
+                          .then((result) => {
+                            if (result === false) {
                               logger.error(err);
                               resolve({ response: "error_unable_to_block" });
                             }
@@ -7884,12 +8465,19 @@ redisCluster.on("connect", function () {
                             );
                             //...
                             resolve({ response: "successfully_blocked" });
-                          }
-                        );
+                          })
+                          .catch((error) => {
+                            logger.error(error);
+                            resolve({ response: "error_unable_to_block" });
+                          });
                       } //Invalid user?
                       else {
                         resolve({ response: "error_unable_to_block_iv_user" });
                       }
+                    })
+                    .catch((error) => {
+                      logger.error(error);
+                      resolve({ response: "error_unable_to_block" });
                     });
                 } else if (
                   req.op === "unblock" &&
@@ -7900,16 +8488,15 @@ redisCluster.on("connect", function () {
                 ) {
                   //Just unlock
                   //Block the driver effectively
-                  collectionPassengers_profiles
-                    .find({
-                      user_fingerprint: req.user_fp,
-                    })
-                    .toArray(function (err, userData) {
-                      if (err) {
-                        logger.error(err);
-                        resolve({ response: "error_unable_to_unblock" });
-                      }
-                      //...
+                  dynamo_find_query({
+                    table_name: "passengers_profiles",
+                    IndexName: "user_fingerprint",
+                    KeyConditionExpression: "user_fingerprint = :val1",
+                    ExpressionAttributeValues: {
+                      ":val1": req.user_fp,
+                    },
+                  })
+                    .then((userData) => {
                       if (userData !== undefined && userData.length > 0) {
                         userData = userData[0];
                         //Valid user
@@ -7929,29 +8516,42 @@ redisCluster.on("connect", function () {
                           }
                         });
                         //? Update
-                        collectionPassengers_profiles.updateOne(
-                          { user_fingerprint: req.user_fp },
-                          { $set: { drivers_blacklist: updatedBlockedList } },
-                          function (err, resltUpdate) {
-                            if (err) {
+                        dynamo_update(
+                          "passengers_profiles",
+                          userData._id,
+                          "set drivers_blacklist = :val1",
+                          {
+                            ":val1": updatedBlockedList,
+                          }
+                        )
+                          .then((result) => {
+                            if (result === false) {
                               logger.error(err);
-                              resolve({ response: "error_unable_to_unblock" });
+                              resolve({ response: "error_unable_to_block" });
                             }
+                            //...
                             //Cache it
                             let RIDE_REDIS_KEY = `${req.user_fp}-getListOfBlockedDrivers`;
                             redisCluster.setex(
                               RIDE_REDIS_KEY,
                               parseInt(process.env.REDIS_EXPIRATION_5MIN) * 120,
-                              JSON.stringify(updatedBlockedList)
+                              JSON.stringify(blockedList)
                             );
                             //...
-                            resolve({ response: "successfully_unblocked" });
-                          }
-                        );
+                            resolve({ response: "successfully_blocked" });
+                          })
+                          .catch((error) => {
+                            logger.error(error);
+                            resolve({ response: "error_unable_to_block" });
+                          });
                       } //Invalid user?
                       else {
                         resolve({ response: "error_unable_to_block_iv_user" });
                       }
+                    })
+                    .catch((error) => {
+                      logger.error(error);
+                      resolve({ response: "error_unable_to_unblock" });
                     });
                 } else if (
                   req.op === "getList" &&
@@ -7967,16 +8567,15 @@ redisCluster.on("connect", function () {
                       try {
                         //? Rehydrate
                         new Promise((resCompute) => {
-                          collectionPassengers_profiles
-                            .find({
-                              user_fingerprint: req.user_fp,
-                            })
-                            .toArray(function (err, userData) {
-                              if (err) {
-                                logger.error(err);
-                                resCompute(true);
-                              }
-                              //...
+                          dynamo_find_query({
+                            table_name: "passengers_profiles",
+                            IndexName: "user_fingerprint",
+                            KeyConditionExpression: "user_fingerprint = :val1",
+                            ExpressionAttributeValues: {
+                              ":val1": req.user_fp,
+                            },
+                          })
+                            .then((userData) => {
                               if (
                                 userData !== undefined &&
                                 userData.length > 0
@@ -8003,6 +8602,10 @@ redisCluster.on("connect", function () {
                               else {
                                 resCompute(true);
                               }
+                            })
+                            .catch((error) => {
+                              logger.error(error);
+                              resCompute(true);
                             });
                         })
                           .then()
@@ -8010,16 +8613,15 @@ redisCluster.on("connect", function () {
                         //? ---
                         resolve({ response: JSON.parse(resp) });
                       } catch (error) {
-                        collectionPassengers_profiles
-                          .find({
-                            user_fingerprint: req.user_fp,
-                          })
-                          .toArray(function (err, userData) {
-                            if (err) {
-                              logger.error(err);
-                              resolve({ response: [] });
-                            }
-                            //...
+                        dynamo_find_query({
+                          table_name: "passengers_profiles",
+                          IndexName: "user_fingerprint",
+                          KeyConditionExpression: "user_fingerprint = :val1",
+                          ExpressionAttributeValues: {
+                            ":val1": req.user_fp,
+                          },
+                        })
+                          .then((userData) => {
                             if (userData !== undefined && userData.length > 0) {
                               userData = userData[0];
                               //Valid user
@@ -8043,20 +8645,23 @@ redisCluster.on("connect", function () {
                             else {
                               resolve({ response: [] });
                             }
+                          })
+                          .catch((error) => {
+                            logger.error(error);
+                            resolve({ response: [] });
                           });
                       }
                     } //No cached data
                     else {
-                      collectionPassengers_profiles
-                        .find({
-                          user_fingerprint: req.user_fp,
-                        })
-                        .toArray(function (err, userData) {
-                          if (err) {
-                            logger.error(err);
-                            resolve({ response: [] });
-                          }
-                          //...
+                      dynamo_find_query({
+                        table_name: "passengers_profiles",
+                        IndexName: "user_fingerprint",
+                        KeyConditionExpression: "user_fingerprint = :val1",
+                        ExpressionAttributeValues: {
+                          ":val1": req.user_fp,
+                        },
+                      })
+                        .then((userData) => {
                           if (userData !== undefined && userData.length > 0) {
                             userData = userData[0];
                             //Valid user
@@ -8079,6 +8684,10 @@ redisCluster.on("connect", function () {
                           else {
                             resolve({ response: [] });
                           }
+                        })
+                        .catch((error) => {
+                          logger.error(error);
+                          resolve({ response: [] });
                         });
                     }
                   });
@@ -8223,14 +8832,15 @@ redisCluster.on("connect", function () {
                 //All the data received
                 try {
                   //! Check that the person is not applying twice
-                  collectionDriversApplication
-                    .find({ phone_number: req.phone.replace("+", "") })
-                    .toArray(function (err, driverData) {
-                      if (err) {
-                        logger.error(err);
-                        resolve({ response: "error_failed_integrity_checks" });
-                      }
-                      //...
+                  dynamo_find_query({
+                    table_name: "drivers_application_central",
+                    IndexName: "phone_number",
+                    KeyConditionExpression: "phone_number = :val1",
+                    ExpressionAttributeValues: {
+                      ":val1": req.phone.replace("+", ""),
+                    },
+                  })
+                    .then((driverData) => {
                       if (driverData !== undefined && driverData.length > 0) {
                         //Already applied
                         resolve({ response: "error_duplicate_application" });
@@ -8428,11 +9038,12 @@ redisCluster.on("connect", function () {
                                           date_applied: new Date(chaineDateUTC),
                                         };
                                         //...
-                                        collectionDriversApplication.insertOne(
-                                          applicationBundle,
-                                          function (err, resApplication) {
-                                            if (err) {
-                                              logger.error(err);
+                                        dynamo_insert(
+                                          "drivers_application_central",
+                                          applicationBundle
+                                        )
+                                          .then((result) => {
+                                            if (result === false) {
                                               resolve({
                                                 response:
                                                   "error_failed_application",
@@ -8443,8 +9054,14 @@ redisCluster.on("connect", function () {
                                               response:
                                                 "successful_application",
                                             });
-                                          }
-                                        );
+                                          })
+                                          .catch((error) => {
+                                            logger.error(error);
+                                            resolve({
+                                              response:
+                                                "error_failed_application",
+                                            });
+                                          });
                                       } //! At least one document failed to be reformed
                                       else {
                                         //Delete local file
@@ -8519,6 +9136,10 @@ redisCluster.on("connect", function () {
                             resolve({ response: "error_parsing_data" });
                           });
                       }
+                    })
+                    .catch((error) => {
+                      logger.error(error);
+                      resolve({ response: "error_failed_integrity_checks" });
                     });
                 } catch (error) {
                   logger.error(error);
@@ -8587,14 +9208,15 @@ redisCluster.on("connect", function () {
                 //All the data received
                 try {
                   //! Check that the person is not applying twice
-                  collectionDriversApplication
-                    .find({ phone_number: req.phone.replace("+", "") })
-                    .toArray(function (err, driverData) {
-                      if (err) {
-                        logger.error(err);
-                        resolve({ response: "error_failed_integrity_checks" });
-                      }
-                      //...
+                  dynamo_find_query({
+                    table_name: "drivers_application_central",
+                    IndexName: "phone_number",
+                    KeyConditionExpression: "phone_number = :val1",
+                    ExpressionAttributeValues: {
+                      ":val1": req.phone.replace("+", ""),
+                    },
+                  })
+                    .then((driverData) => {
                       if (driverData !== undefined && driverData.length > 0) {
                         //Already applied
                         resolve({ response: "error_duplicate_application" });
@@ -8809,11 +9431,12 @@ redisCluster.on("connect", function () {
                                           date_applied: new Date(chaineDateUTC),
                                         };
                                         //...
-                                        collectionDriversApplication.insertOne(
-                                          applicationBundle,
-                                          function (err, resApplication) {
-                                            if (err) {
-                                              logger.error(err);
+                                        dynamo_insert(
+                                          "drivers_application_central",
+                                          applicationBundle
+                                        )
+                                          .then((result) => {
+                                            if (result === false) {
                                               resolve({
                                                 response:
                                                   "error_failed_application",
@@ -8824,8 +9447,14 @@ redisCluster.on("connect", function () {
                                               response:
                                                 "successful_application",
                                             });
-                                          }
-                                        );
+                                          })
+                                          .catch((error) => {
+                                            logger.error(error);
+                                            resolve({
+                                              response:
+                                                "error_failed_application",
+                                            });
+                                          });
                                       } //! At least one document failed to be reformed
                                       else {
                                         //Delete local file
@@ -8900,6 +9529,10 @@ redisCluster.on("connect", function () {
                             resolve({ response: "error_parsing_data" });
                           });
                       }
+                    })
+                    .catch((error) => {
+                      logger.error(error);
+                      resolve({ response: "error_failed_integrity_checks" });
                     });
                 } catch (error) {
                   logger.error(error);

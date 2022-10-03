@@ -16,29 +16,11 @@ const { parse, stringify } = require("flatted");
 //....
 const { promisify } = require("util");
 const urlParser = require("url");
-const redis = require("redis");
-const client = /production/i.test(String(process.env.EVIRONMENT))
-  ? null
-  : redis.createClient({
-      host: process.env.REDIS_HOST,
-      port: process.env.REDIS_PORT,
-    });
-var RedisClustr = require("redis-clustr");
-var redisCluster = /production/i.test(String(process.env.EVIRONMENT))
-  ? new RedisClustr({
-      servers: [
-        {
-          host: process.env.REDIS_HOST_ELASTICACHE,
-          port: process.env.REDIS_PORT_ELASTICACHE,
-        },
-      ],
-      createClient: function (port, host) {
-        // this is the default behaviour
-        return redis.createClient(port, host);
-      },
-    })
-  : client;
-const redisGet = promisify(redisCluster.get).bind(redisCluster);
+
+const { redisCluster, redisGet } = require("./RedisConnector");
+
+//! Attach DynamoDB helper
+const { dynamo_insert, dynamo_update } = require("./DynamoServiceManager");
 
 var chaineDateUTC = null;
 var dateObject = null;
@@ -554,13 +536,18 @@ function estimateFullVehiclesCatPrices(
                     .toArray(function (err, resultX) {
                       if (resultX.length <= 0) {
                         //New record
-                        collectionNotFoundSubursPricesMap.insertOne(
-                          queryNoMatch,
-                          function (err, res) {
+                        dynamo_insert(
+                          "not_found_suburbs_prices_map",
+                          queryNoMatch
+                        )
+                          .then((result) => {
                             logger.info("New record added");
-                            resX(true);
-                          }
-                        );
+                            resX(result);
+                          })
+                          .catch((error) => {
+                            logger.error(error);
+                            resX(false);
+                          });
                       }
                     });
                 }).then(
@@ -1506,7 +1493,7 @@ function parsePricingInputData(resolve, inputData) {
   }
 }
 
-var collectionRidesDeliveryData = null;
+var collectionRidesDeliveries_data = null;
 
 /**
  * Pricing service
@@ -1550,7 +1537,7 @@ redisCluster.on("connect", function () {
           if (err) throw err;
           logger.info("[+] Pricing service active");
           const dbMongo = clientMongo.db(process.env.DB_NAME_MONGODDB);
-          collectionRidesDeliveryData = dbMongo.collection(
+          collectionRidesDeliveries_data = dbMongo.collection(
             "rides_deliveries_requests"
           ); //Hold all the requests made (rides and deliveries)
           const collectionVehiclesInfos = dbMongo.collection(
@@ -1803,7 +1790,7 @@ redisCluster.on("connect", function () {
                 req.new_fare !== undefined &&
                 req.new_fare !== null
               ) {
-                collectionRidesDeliveryData
+                collectionRidesDeliveries_data
                   .find({ request_fp: req.request_fp, client_id: req.user_fp })
                   .toArray(function (err, requestData) {
                     if (err) {
@@ -1814,11 +1801,16 @@ redisCluster.on("connect", function () {
                     if (requestData !== undefined && requestData.length > 0) {
                       //Valid trip
                       requestData = requestData[0];
-                      collectionRidesDeliveryData.updateOne(
-                        { request_fp: req.request_fp, client_id: req.user_fp },
-                        { $set: { fare: req.new_fare } },
-                        function (err, resltUpdate) {
-                          if (err) {
+                      dynamo_update(
+                        "rides_deliveries_requests",
+                        requestData._id,
+                        "set fare = :fare",
+                        {
+                          ":fare": req.new_fare,
+                        }
+                      )
+                        .then((result) => {
+                          if (result === false) {
                             logger.error(err);
                             resolve({
                               response: "error_unable_to_update_ride_infos",
@@ -1826,8 +1818,13 @@ redisCluster.on("connect", function () {
                           }
                           //...
                           resolve({ response: "successfullly_updated" });
-                        }
-                      );
+                        })
+                        .catch((error) => {
+                          logger.error(error);
+                          resolve({
+                            response: "error_unable_to_update_ride_infos",
+                          });
+                        });
                     } //Invalid trip
                     else {
                       resolve({ response: "error_unable_to_get_ride_infos" });

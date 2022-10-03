@@ -17,35 +17,22 @@ const requestAPI = require("request");
 //....
 const { promisify, inspect } = require("util");
 const urlParser = require("url");
-const redis = require("redis");
-const client = /production/i.test(String(process.env.EVIRONMENT))
-  ? null
-  : redis.createClient({
-      host: process.env.REDIS_HOST,
-      port: process.env.REDIS_PORT,
-    });
-var RedisClustr = require("redis-clustr");
-var redisCluster = /production/i.test(String(process.env.EVIRONMENT))
-  ? new RedisClustr({
-      servers: [
-        {
-          host: process.env.REDIS_HOST_ELASTICACHE,
-          port: process.env.REDIS_PORT_ELASTICACHE,
-        },
-      ],
-      createClient: function (port, host) {
-        // this is the default behaviour
-        return redis.createClient(port, host);
-      },
-    })
-  : client;
-const redisGet = promisify(redisCluster.get).bind(redisCluster);
+
+const { redisCluster, redisGet } = require("./RedisConnector");
 
 var chaineDateUTC = null;
 var dateObject = null;
 const moment = require("moment");
 const { stringify, parse } = require("flatted");
 const { resolvePtr } = require("dns");
+
+//! Attach DynamoDB helper
+const {
+  dynamo_insert,
+  dynamo_update,
+  dynamo_find_get,
+  dynamo_find_query,
+} = require("./DynamoServiceManager");
 
 function resolveDate() {
   //Resolve date
@@ -472,28 +459,30 @@ function execGetObservabilityDataForDeliveryWeb(requestData, resolve) {
     busiest_destination_suburbs: {},
   };
 
-  collectionDedicatedServices_accounts
-    .find({ company_fp: requestData.user_fp })
-    .toArray(function (err, companyData) {
-      if (err) {
-        logger.error(err);
-        resolve({ response: "error" });
-      }
-      //....
+  dynamo_find_query({
+    table_name: "dedicated_services_accounts",
+    IndexName: "company_fp",
+    KeyConditionExpression: "company_fp = :val1",
+    ExpressionAttributeValues: {
+      ":val1": requestData.user_fp,
+    },
+  })
+    .then((companyData) => {
       if (companyData !== undefined && companyData.length > 0) {
         //Valid company
         companyData = companyData[0];
         //...
         //Get the rides history data
-        collectionRidesDeliveries_data
-          .find({ client_id: requestData.user_fp })
-          .sort({ date_requested: -1 })
-          .toArray(function (err, tripData) {
-            if (err) {
-              logger.error(err);
-              resolve({ response: "error" });
-            }
-            //...
+        dynamo_find_query({
+          table_name: "rides_deliveries_requests",
+          IndexName: "client_id",
+          KeyConditionExpression: "client_id = :val1",
+          ExpressionAttributeValues: {
+            ":val1": requestData.user_fp,
+          },
+        })
+          .then((tripData) => {
+            //! .sort({ date_requested: -1 })
             if (tripData !== undefined && tripData.length > 0) {
               //Found some trips
               modelMetaDataResponse.genericGlobalStats.tripInsight.total_deliveries =
@@ -600,19 +589,16 @@ function execGetObservabilityDataForDeliveryWeb(requestData, resolve) {
               });
               //...
               //? Get all the cancellled trips
-              collection_cancelledRidesDeliveryData
-                .find({ client_id: requestData.user_fp })
-                .sort({ date_requested: -1 })
-                .toArray(function (err, cancelledTripData) {
-                  if (err) {
-                    logger.error(err);
-                    resolve({
-                      response: "success",
-                      data: modelMetaDataResponse,
-                    });
-                  }
-                  logger.error(JSON.stringify(cancelledTripData));
-                  //...
+              dynamo_find_query({
+                table_name: "cancelled_rides_deliveries_requests",
+                IndexName: "client_id",
+                KeyConditionExpression: "client_id = :val1",
+                ExpressionAttributeValues: {
+                  ":val1": requestData.user_fp,
+                },
+              })
+                .then((cancelledTripData) => {
+                  //! .sort({ date_requested: -1 })
                   if (
                     cancelledTripData !== undefined &&
                     cancelledTripData.length > 0
@@ -738,16 +724,31 @@ function execGetObservabilityDataForDeliveryWeb(requestData, resolve) {
                       data: modelMetaDataResponse,
                     });
                   }
+                })
+                .catch((error) => {
+                  logger.error(error);
+                  resolve({
+                    response: "success",
+                    data: modelMetaDataResponse,
+                  });
                 });
             } //no trips
             else {
               resolve({ response: "no_data" });
             }
+          })
+          .catch((error) => {
+            logger.error(error);
+            resolve({ response: "error" });
           });
       } //Unknown company
       else {
         resolve({ response: "error" });
       }
+    })
+    .catch((error) => {
+      logger.error(error);
+      resolve({ response: "error" });
     });
 }
 

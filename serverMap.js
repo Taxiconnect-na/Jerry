@@ -8,6 +8,7 @@ const MongoClient = require("mongodb").MongoClient;
 const certFile = fs.readFileSync("./rds-combined-ca-bundle.pem");
 
 const { logger } = require("./LogService");
+const { provideDataForCollection } = require("./SmartDataProvider");
 
 var app = express();
 var server = http.createServer(app);
@@ -16,34 +17,17 @@ const requestAPI = require("request");
 //....
 const { promisify, inspect } = require("util");
 const urlParser = require("url");
-const redis = require("redis");
-const client = /production/i.test(String(process.env.EVIRONMENT))
-  ? null
-  : redis.createClient({
-      host: process.env.REDIS_HOST,
-      port: process.env.REDIS_PORT,
-    });
-var RedisClustr = require("redis-clustr");
-var redisCluster = /production/i.test(String(process.env.EVIRONMENT))
-  ? new RedisClustr({
-      servers: [
-        {
-          host: process.env.REDIS_HOST_ELASTICACHE,
-          port: process.env.REDIS_PORT_ELASTICACHE,
-        },
-      ],
-      createClient: function (port, host) {
-        // this is the default behaviour
-        return redis.createClient(port, host);
-      },
-    })
-  : client;
-const redisGet = promisify(redisCluster.get).bind(redisCluster);
+
+const { redisCluster, redisGet } = require("./RedisConnector");
 
 var chaineDateUTC = null;
 var dateObject = null;
 const moment = require("moment");
 const { stringify, parse } = require("flatted");
+
+//! Attach DynamoDB helper
+const { dynamo_insert, dynamo_update } = require("./DynamoServiceManager");
+const { filter } = require("compression");
 
 function resolveDate() {
   //Resolve date
@@ -574,9 +558,15 @@ function updateRiderLocationsLog(
       },
       date_logged: new Date(chaineDateUTC),
     };
-    collectionRidersLocation_log.insertOne(dataBundle, function (err, res) {
-      resCompute(true);
-    });
+
+    dynamo_insert("historical_positioning_logs", dataBundle)
+      .then((result) => {
+        resCompute(result);
+      })
+      .catch((error) => {
+        logger.error(error);
+        resCompute(false);
+      });
   })
     .then(() => {})
     .catch((error) => logger.error(error));
@@ -585,23 +575,23 @@ function updateRiderLocationsLog(
   if (/rider/i.test(locationData.user_nature)) {
     //Riders handler
     //! Update the pushnotfication token
-    collectionPassengers_profiles.updateOne(
+    dynamo_insert(
+      "passengers_profiles",
       {
         user_fingerprint: locationData.user_fingerprint,
       },
+      "set pushnotif_token = :val1",
       {
-        $set: {
-          pushnotif_token: locationData.pushnotif_token,
-        },
-      },
-      function (err, res) {
-        if (err) {
-          //logger.info(err);
-        }
-        //...
-        resolve(true);
+        ":val1": locationData.pushnotif_token,
       }
-    );
+    )
+      .then((result) => {
+        resolve(result);
+      })
+      .catch((error) => {
+        logger.error(error);
+        resolve(false);
+      });
   } else if (/driver/i.test(locationData.user_nature)) {
     //Drivers handler
     //Update the driver's operstional position
@@ -609,20 +599,23 @@ function updateRiderLocationsLog(
       driver_fingerprint: locationData.user_fingerprint,
     };
     //! Update the pushnotfication token
-    collectionDrivers_profiles.updateOne(
+    dynamo_update(
+      "drivers_profiles",
       filterDriver,
+      "set #o.#p = :val1",
       {
-        $set: {
-          "operational_state.push_notification_token":
-            locationData.pushnotif_token,
-        },
+        ":val1": locationData.pushnotif_token,
       },
-      function (err, res) {
-        if (err) {
-          //logger.info(err);
-        }
+      {
+        "#o": "operational_state",
+        "#p": "push_notification_token",
       }
-    );
+    )
+      .then((result) => {})
+      .catch((error) => {
+        logger.error(error);
+      });
+
     //First get the current coordinate
     collectionDrivers_profiles
       .find(filterDriver)
@@ -668,10 +661,28 @@ function updateRiderLocationsLog(
                   date_updated: new Date(chaineDateUTC),
                 },
               };
-              collectionDrivers_profiles.updateOne(
+
+              dynamo_update(
+                "drivers_profiles",
                 filterDriver,
-                dataBundle,
-                function (err, res) {
+                "set #o.#l.#c = :val1, #o.#l.#prv = :val2, #o.#l.#d = :val3, date_updated = :val4",
+                {
+                  ":val1": {
+                    latitude: locationData.latitude,
+                    longitude: locationData.longitude,
+                  },
+                  ":val2": prevCoordsWhichWasNewHere,
+                  ":val3": new Date(chaineDateUTC).toISOString(),
+                  ":val4": new Date(chaineDateUTC).toISOString(),
+                },
+                {
+                  "#o": "operational_state",
+                  "#l": "last_location",
+                  "#prv": "prev_coordinates",
+                  "#d": "date_updated",
+                }
+              )
+                .then((result) => {
                   //! Update the city and the country
                   new Promise((resUpdateRest) => {
                     completeLastLoccation_infosSubsAndRest(
@@ -683,9 +694,12 @@ function updateRiderLocationsLog(
                     () => {},
                     () => {}
                   );
-                  resolve(true);
-                }
-              );
+                  resolve(result);
+                })
+                .catch((error) => {
+                  logger.error(error);
+                  resolve(false);
+                });
             } //No previous location -- update current location and prev to the same value
             else {
               let dataBundle = {
@@ -704,10 +718,31 @@ function updateRiderLocationsLog(
                   },
                 },
               };
-              collectionDrivers_profiles.updateOne(
+
+              dynamo_update(
+                "drivers_profiles",
                 filterDriver,
-                dataBundle,
-                function (err, res) {
+                "set #o.#l = :val1",
+                {
+                  ":val1": {
+                    coordinates: {
+                      latitude: locationData.latitude,
+                      longitude: locationData.longitude,
+                    },
+                    prev_coordinates: {
+                      latitude: locationData.latitude,
+                      longitude: locationData.longitude,
+                    },
+                    date_updated: new Date(chaineDateUTC).toISOString(),
+                    date_logged: new Date(chaineDateUTC).toISOString(),
+                  },
+                },
+                {
+                  "#o": "operational_state",
+                  "#l": "last_location",
+                }
+              )
+                .then((result) => {
                   //! Update the city and the country
                   new Promise((resUpdateRest) => {
                     completeLastLoccation_infosSubsAndRest(
@@ -719,9 +754,12 @@ function updateRiderLocationsLog(
                     () => {},
                     () => {}
                   );
-                  resolve(true);
-                }
-              );
+                  resolve(result);
+                })
+                .catch((error) => {
+                  logger.error(error);
+                  resolve(false);
+                });
             }
           } //No location data yet - update the previous location and current to the same value
           else {
@@ -742,11 +780,31 @@ function updateRiderLocationsLog(
                 },
               },
             };
-            collectionDrivers_profiles.updateOne(
+
+            dynamo_update(
+              "drivers_profiles",
               filterDriver,
-              dataBundle,
-              function (err, res) {
-                //logger.info(err);
+              "set #o.#l = :val1",
+              {
+                ":val1": {
+                  coordinates: {
+                    latitude: locationData.latitude,
+                    longitude: locationData.longitude,
+                  },
+                  prev_coordinates: {
+                    latitude: locationData.latitude,
+                    longitude: locationData.longitude,
+                  },
+                  date_updated: new Date(chaineDateUTC).toISOString(),
+                  date_logged: new Date(chaineDateUTC).toISOString(),
+                },
+              },
+              {
+                "#o": "operational_state",
+                "#l": "last_location",
+              }
+            )
+              .then((result) => {
                 //! Update the city and the country
                 new Promise((resUpdateRest) => {
                   completeLastLoccation_infosSubsAndRest(
@@ -758,9 +816,12 @@ function updateRiderLocationsLog(
                   () => {},
                   () => {}
                 );
-                resolve(true);
-              }
-            );
+                resolve(result);
+              })
+              .catch((error) => {
+                logger.error(error);
+                resolve(false);
+              });
           }
         } //No record - strange
         else {
@@ -866,30 +927,38 @@ function completeLastLoccation_infosSubsAndRest(
                   objFinal.country !== "undefined"
                 ) {
                   //! Avoid to overwrite good values by nulls
-                  collectionDrivers_profiles.updateOne(
+                  dynamo_update(
+                    "drivers_profiles",
                     {
                       driver_fingerprint: locationData.user_fingerprint,
                     },
+                    "set #o.#l.#c = :val1, #o.#l.#cou = :val2, #o.#l.#sub = :val3, #o.#l.#str = :val4, #o.#l.#loc = :val5, #o.#l.#geo = :val6",
                     {
-                      $set: {
-                        "operational_state.last_location.city": objFinal.city,
-                        "operational_state.last_location.country":
-                          objFinal.country,
-                        "operational_state.last_location.suburb":
-                          objFinal.suburb,
-                        "operational_state.last_location.street":
-                          objFinal.street,
-                        "operational_state.last_location.location_name":
-                          objFinal.location_name,
-                        "operational_state.last_location.geographic_extent":
-                          objFinal.geographic_extent,
-                      },
+                      ":val1": objFinal.city,
+                      ":val2": objFinal.country,
+                      ":val3": objFinal.suburb,
+                      ":val4": objFinal.street,
+                      ":val5": objFinal.location_name,
+                      ":val6": objFinal.geographic_extent,
                     },
-                    function (err, res) {
-                      //logger.info(err);
-                      resolve(true);
+                    {
+                      "#o": "operational_state",
+                      "#l": "last_location",
+                      "#c": "city",
+                      "#cou": "country",
+                      "#sub": "suburb",
+                      "#str": "street",
+                      "#loc": "location_name",
+                      "#geo": "geographic_extent",
                     }
-                  );
+                  )
+                    .then((result) => {
+                      resolve(result);
+                    })
+                    .catch((error) => {
+                      logger.error(error);
+                      resolve(false);
+                    });
                 } else {
                   resolve(false);
                 }
@@ -1065,32 +1134,22 @@ function execTripChecker_Dispatcher(
       "ride_state_vars.isRideCompleted_riderSide": false,
     };
 
-    collectionRidesDeliveries_data
-      .find(rideChecker)
-      .toArray(function (err, userDataRepr) {
-        if (err) {
-          resolve(false);
-          throw err;
-        }
+    provideDataForCollection(
+      collectionRidesDeliveries_data,
+      "collectionRidesDeliveries_data",
+      rideChecker
+    )
+      .then((userDataRepr) => {
         if (userDataRepr.length <= 0) {
           //Get the user's data First
-          collectionPassengers_profiles
-            .find({
+          provideDataForCollection(
+            collectionPassengers_profiles,
+            "collectionPassengers_profiles",
+            {
               user_fingerprint: user_fingerprint,
-            })
-            .toArray(function (err, riderData) {
-              if (err) {
-                logger.error(err);
-                //! SAVE THE FINAL FULL RESULT - for 15 min ------
-                redisCluster.setex(
-                  RIDE_REDIS_KEY,
-                  parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
-                  JSON.stringify(false)
-                );
-                resolve(false);
-                //! ----------------------------------------------
-              }
-              //...
+            }
+          )
+            .then((riderData) => {
               if (riderData !== undefined && riderData.length > 0) {
                 //Valid rider
                 //!Check for the deliveries
@@ -1099,14 +1158,13 @@ function execTripChecker_Dispatcher(
                     riderData[0].phone_number,
                   "ride_state_vars.isRideCompleted_riderSide": false,
                 };
-                collectionRidesDeliveries_data
-                  .find(deliveryChecker)
-                  .toArray(function (err, userDataRepr) {
-                    if (err) {
-                      resolve(false);
-                      throw err;
-                    }
-                    //...
+
+                provideDataForCollection(
+                  collectionRidesDeliveries_data,
+                  "collectionRidesDeliveries_data",
+                  deliveryChecker
+                )
+                  .then((userDataRepr) => {
                     if (userDataRepr.length <= 0) {
                       redisCluster.setex(
                         RIDE_REDIS_KEY,
@@ -1143,8 +1201,11 @@ function execTripChecker_Dispatcher(
                         resolve("no_rides");
                       }
                     }
+                  })
+                  .catch((err) => {
+                    logger.error(err);
+                    resolve(false);
                   });
-                resolve(false);
               } else {
                 //Invalid user
                 redisCluster.setex(
@@ -1154,6 +1215,17 @@ function execTripChecker_Dispatcher(
                 );
                 resolve(false);
               }
+            })
+            .catch((err) => {
+              logger.error(err);
+              //! SAVE THE FINAL FULL RESULT - for 15 min ------
+              redisCluster.setex(
+                RIDE_REDIS_KEY,
+                parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
+                JSON.stringify(false)
+              );
+              resolve(false);
+              //! ----------------------------------------------
             });
         } //Found a user record
         else {
@@ -1244,21 +1316,23 @@ function execTripChecker_Dispatcher(
               });
           }
         }
+      })
+      .catch((err) => {
+        logger.error(err);
+        resolve(false);
       });
   } else if (/^driver$/i.test(user_nature)) {
     //Get the driver's details
-    collectionDrivers_profiles
-      .find({
+    provideDataForCollection(
+      collectionDrivers_profiles,
+      "collectionDrivers_profiles",
+      {
         driver_fingerprint: user_fingerprint,
         isDriverSuspended: false, //! When a driver is suspended - lock all requests.
         "operational_state.status": "online",
-      })
-      .toArray(function (err, driverData) {
-        if (err) {
-          resolve(false);
-        }
-        logger.error(driverData);
-        //
+      }
+    )
+      .then((driverData) => {
         if (driverData === undefined || driverData.length <= 0) {
           //! SAVE THE FINAL FULL RESULT - for 15 min ------
           redisCluster.setex(
@@ -1544,6 +1618,10 @@ function execTripChecker_Dispatcher(
               }
             });
         }
+      })
+      .catch((err) => {
+        logger.error(err);
+        resolve(false);
       });
   }
   //Malformed
@@ -1672,13 +1750,12 @@ function execGetDrivers_requests_and_provide(
             request_type: request_type_regex, //Shceduled or now rides/deliveries
           };
     //...
-    collectionRidesDeliveries_data
-      .find(requestFilter)
-      .toArray(function (err, requestsData) {
-        if (err) {
-          resolve(false);
-        }
-        //...
+    provideDataForCollection(
+      collectionRidesDeliveries_data,
+      "collectionRidesDeliveries_data",
+      requestFilter
+    )
+      .then((requestsData) => {
         if (requestsData !== undefined && requestsData.length > 0) {
           //Found some data
           //1. Filter the requests based on the clearances of the driver - ride/delivery
@@ -1737,6 +1814,10 @@ function execGetDrivers_requests_and_provide(
             }
           );
         }
+      })
+      .catch((err) => {
+        logger.error(err);
+        resolve(false);
       });
   } else if (/FULL_ALLLOWEDTOSEE_REQUESTS/i.test(scenarioString)) {
     logger.warn("FULL_ALLLOWEDTOSEE_REQUESTS");
@@ -1873,15 +1954,12 @@ function execGetDrivers_requests_and_provide(
       request_type: { $regex: request_type_regex, $options: "i" }, //Shceduled or immediate rides/deliveries
     };*/
     //...
-    collectionRidesDeliveries_data
-      .find(requestFilter)
-      //!.collation({ locale: "en", strength: 2 })
-      .toArray(function (err, requestsData) {
-        if (err) {
-          resolve(false);
-        }
-        logger.error(requestsData);
-        //...
+    provideDataForCollection(
+      collectionRidesDeliveries_data,
+      "collectionRidesDeliveries_data",
+      requestFilter
+    )
+      .then((requestsData) => {
         if (requestsData !== undefined && requestsData.length > 0) {
           //Found some data
           //! 1. Filter the requests based on the clearances of the driver - ride/delivery
@@ -1922,6 +2000,10 @@ function execGetDrivers_requests_and_provide(
         else {
           resolve({ response: "no_requests" });
         }
+      })
+      .catch((err) => {
+        logger.error(err);
+        resolve(false);
       });
   } else if (/ONLY_ACCEPTED_REQUESTS/i.test(scenarioString)) {
     //FOr only the accepted requests
@@ -2757,14 +2839,12 @@ function computeRouteDetails_skeleton(
     if (rideHistory.ride_state_vars.isAccepted) {
       //Get all the driver's informations
       //? Indexed
-      collectionDrivers_profiles
-        .find({ driver_fingerprint: rideHistory.taxi_id })
-        .toArray(function (err, driverProfile) {
-          if (err) {
-            //logger.info(err);
-            resolve(false); //An error happened
-          }
-
+      provideDataForCollection(
+        collectionDrivers_profiles,
+        "collectionDrivers_profiles",
+        { driver_fingerprint: rideHistory.taxi_id }
+      )
+        .then((driverProfile) => {
           if (driverProfile.length > 0) {
             //Found the driver's profile
             driverProfile = driverProfile[0];
@@ -3287,6 +3367,10 @@ function computeRouteDetails_skeleton(
             );
             //! ----------------------------------------------
           }
+        })
+        .catch((err) => {
+          logger.error(err);
+          resolve(false);
         });
     } //Request pending
     else {
@@ -4612,13 +4696,17 @@ function updateRelativeDistancesRiderDrivers(
           country: relativeHeader.country,
           eta: relativeHeader.eta,
           distance: relativeHeader.distance,
-          date_updated: new Date(chaineDateUTC),
+          date_updated: new Date(chaineDateUTC).toISOString(),
         };
         //...
-        collectionRelativeDistances.insertOne(record, function (err, res) {
-          //logger.info("New relative distance record added.");
-          resolve(true);
-        });
+        dynamo_insert("relative_distances_riders_drivers", record)
+          .then((result) => {
+            resolve(result);
+          })
+          .catch((error) => {
+            logger.error(error);
+            resolve(false);
+          });
       } //Not empty - just update
       else {
         let updatedRecord = {
@@ -4632,14 +4720,26 @@ function updateRelativeDistancesRiderDrivers(
           },
         };
         //...
-        collectionRelativeDistances.updateOne(
-          queryChecker,
-          updatedRecord,
-          function (err, res) {
-            ////logger.info("Updated relative distance record.");
-            resolve(true);
+        dynamo_update(
+          "relative_distances_riders_drivers",
+          record._id,
+          "set driver_coordinates = :val1, city = :val2, country = :val3, eta = :val4, distance = :val5, date_updated = :val6",
+          {
+            ":val1": relativeHeader.driver_coordinates,
+            ":val2": relativeHeader.city,
+            ":val3": relativeHeader.country,
+            ":val4": relativeHeader.eta,
+            ":val5": relativeHeader.distance,
+            ":val6": new Date(chaineDateUTC).toISOString(),
           }
-        );
+        )
+          .then((result) => {
+            resolve(result);
+          })
+          .catch((error) => {
+            logger.error(error);
+            resolve(false);
+          });
       }
     });
 }
@@ -5569,18 +5669,21 @@ redisCluster.on("connect", function () {
                           ) {
                             //Found a rule
                             //? Update the rule to the driver's profile
-                            collectionDrivers_profiles.updateOne(
-                              { driver_fingerprint: req.user_fingerprint },
+                            dynamo_update(
+                              "drivers_profiles",
                               {
-                                $set: {
-                                  regional_clearances:
-                                    static_regional_assigner[driverCity]
-                                      .regional_clearances,
-                                },
+                                driver_fingerprint: req.user_fingerprint,
                               },
-                              function (error, reslt) {
-                                if (err) {
-                                  logger.error(err);
+                              "set regional_clearances = :val1",
+                              {
+                                ":val1":
+                                  static_regional_assigner[driverCity]
+                                    .regional_clearances,
+                              }
+                            )
+                              .then((result) => {
+                                if (result === false) {
+                                  logger.error(result);
                                   resRegionalClrs(false);
                                 }
                                 //...
@@ -5591,8 +5694,11 @@ redisCluster.on("connect", function () {
                                   )}]`
                                 );
                                 resRegionalClrs(true);
-                              }
-                            );
+                              })
+                              .catch((error) => {
+                                logger.error(error);
+                                resRegionalClrs(false);
+                              });
                           } //No static rule for a probably invalid city
                           else {
                             resRegionalClrs(false);
@@ -5629,24 +5735,24 @@ redisCluster.on("connect", function () {
                     //Got something - can update
                     if (/^rider$/i.test(req.user_nature)) {
                       //Rider
-                      collectionPassengers_profiles.updateOne(
-                        { user_fingerprint: req.user_fingerprint },
+                      dynamo_update(
+                        "passengers_profiles",
                         {
-                          $set: {
-                            pushnotif_token: JSON.parse(req.pushnotif_token),
-                            last_updated: new Date(chaineDateUTC),
-                          },
+                          user_fingerprint: req.user_fingerprint,
                         },
-                        function (err, reslt) {
-                          //logger.info("HERE");
-                          if (err) {
-                            //logger.info(err);
-                            resUpdateNotifToken(false);
-                          }
-                          //...
-                          resUpdateNotifToken(true);
+                        "set pushnotif_token = :val1, last_updated = :val2",
+                        {
+                          ":val1": JSON.parse(req.pushnotif_token),
+                          ":val2": new Date(chaineDateUTC).toISOString(),
                         }
-                      );
+                      )
+                        .then((result) => {
+                          resUpdateNotifToken(result);
+                        })
+                        .catch((error) => {
+                          logger.error(error);
+                          resUpdateNotifToken(false);
+                        });
                     } else if (/^driver$/i.test(req.user_nature)) {
                       //Driver
                       //! Update the payment cycle starting point if not set yet
@@ -5689,17 +5795,21 @@ redisCluster.on("connect", function () {
                                       1000
                                 ).toISOString();
                                 //...
-                                collectionWalletTransactions_logs.insertOne(
-                                  {
-                                    flag_annotation:
-                                      "startingPoint_forFreshPayouts",
-                                    user_fingerprint: req.user_fingerprint,
-                                    date_captured: new Date(tmpNextDate),
-                                  },
-                                  function (err, reslt) {
-                                    resPaymentCycle(true);
-                                  }
-                                );
+                                dynamo_insert("wallet_transactions_logs", {
+                                  flag_annotation:
+                                    "startingPoint_forFreshPayouts",
+                                  user_fingerprint: req.user_fingerprint,
+                                  date_captured: new Date(
+                                    tmpNextDate
+                                  ).toISOString(),
+                                })
+                                  .then((result) => {
+                                    resPaymentCycle(result);
+                                  })
+                                  .catch((error) => {
+                                    logger.error(error);
+                                    resPaymentCycle(false);
+                                  });
                               } //After wednesday - OK
                               else {
                                 //ADD THE PAYMENT CYCLE
@@ -5713,17 +5823,22 @@ redisCluster.on("connect", function () {
                                         1000
                                     )
                                 ).toISOString();
-                                collectionWalletTransactions_logs.insertOne(
-                                  {
-                                    flag_annotation:
-                                      "startingPoint_forFreshPayouts",
-                                    user_fingerprint: req.user_fingerprint,
-                                    date_captured: new Date(tmpNextDate),
-                                  },
-                                  function (err, reslt) {
-                                    resPaymentCycle(true);
-                                  }
-                                );
+
+                                dynamo_insert("wallet_transactions_logs", {
+                                  flag_annotation:
+                                    "startingPoint_forFreshPayouts",
+                                  user_fingerprint: req.user_fingerprint,
+                                  date_captured: new Date(
+                                    tmpNextDate
+                                  ).toISOString(),
+                                })
+                                  .then((result) => {
+                                    resPaymentCycle(result);
+                                  })
+                                  .catch((error) => {
+                                    logger.error(error);
+                                    resPaymentCycle(false);
+                                  });
                               }
                             }
                           });
@@ -5732,23 +5847,28 @@ redisCluster.on("connect", function () {
                         () => {}
                       );
                       //...
-                      collectionDrivers_profiles.updateOne(
-                        { driver_fingerprint: req.user_fingerprint },
+                      dynamo_update(
+                        "drivers_profiles",
                         {
-                          $set: {
-                            "operational_state.push_notification_token":
-                              JSON.parse(req.pushnotif_token),
-                            date_updated: new Date(chaineDateUTC),
-                          },
+                          driver_fingerprint: req.user_fingerprint,
                         },
-                        function (err, reslt) {
-                          if (err) {
-                            resUpdateNotifToken(false);
-                          }
-                          //...
-                          resUpdateNotifToken(true);
+                        "set #o.#p = :val1, date_updated = :val2",
+                        {
+                          ":val1": JSON.parse(req.pushnotif_token),
+                          ":val2": new Date(chaineDateUTC).toISOString(),
+                        },
+                        {
+                          "#o": "operational_state",
+                          "#p": "push_notification_token",
                         }
-                      );
+                      )
+                        .then((result) => {
+                          resUpdateNotifToken(result);
+                        })
+                        .catch((error) => {
+                          logger.error(error);
+                          resUpdateNotifToken(false);
+                        });
                     } //Invalid user nature - skip
                     else {
                       resUpdateNotifToken(false);
@@ -5914,18 +6034,19 @@ redisCluster.on("connect", function () {
                       date: new Date(chaineDateUTC),
                     };
                     //..
-                    collectionHistoricalGPS.insertOne(
-                      bundleData,
-                      function (err, reslt) {
-                        if (err) {
-                          logger.error(err);
+                    dynamo_insert("historical_gps_positioning", bundleData)
+                      .then((result) => {
+                        if (result === false) {
                           resHistory(false);
                         }
                         //...
                         logger.info("Saved GPS data");
                         resHistory(true);
-                      }
-                    );
+                      })
+                      .catch((error) => {
+                        logger.error(error);
+                        resHistory(false);
+                      });
                   } //No required data
                   else {
                     logger.info("No required GPS data for logs");
@@ -6713,12 +6834,14 @@ redisCluster.on("connect", function () {
                         new Promise((resSharedEvent) => {
                           //Complete the event bundle with the response of the request
                           eventBundle.response_got = result;
-                          collectionGlobalEvents.insertOne(
-                            eventBundle,
-                            function (err, reslt) {
-                              resSharedEvent(true);
-                            }
-                          );
+                          dynamo_insert("global_events", eventBundle)
+                            .then((result) => {
+                              resSharedEvent(result);
+                            })
+                            .catch((error) => {
+                              logger.error(error);
+                              resSharedEvent(false);
+                            });
                         }).then(
                           () => {
                             //logger.info("Save the shared ride event");

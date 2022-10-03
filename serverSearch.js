@@ -13,29 +13,11 @@ var server = http.createServer(app);
 const requestAPI = require("request");
 //---center
 const { promisify, inspect } = require("util");
-const redis = require("redis");
-const client = /production/i.test(String(process.env.EVIRONMENT))
-  ? null
-  : redis.createClient({
-      host: process.env.REDIS_HOST,
-      port: process.env.REDIS_PORT,
-    });
-var RedisClustr = require("redis-clustr");
-var redisCluster = /production/i.test(String(process.env.EVIRONMENT))
-  ? new RedisClustr({
-      servers: [
-        {
-          host: process.env.REDIS_HOST_ELASTICACHE,
-          port: process.env.REDIS_PORT_ELASTICACHE,
-        },
-      ],
-      createClient: function (port, host) {
-        // this is the default behaviour
-        return redis.createClient(port, host);
-      },
-    })
-  : client;
-const redisGet = promisify(redisCluster.get).bind(redisCluster);
+
+const { redisCluster, redisGet } = require("./RedisConnector");
+
+//! Attach DynamoDB helper
+const { dynamo_insert, dynamo_update } = require("./DynamoServiceManager");
 //....
 var fastFilter = require("fast-filter");
 const escapeStringRegexp = require("escape-string-regexp");
@@ -571,17 +553,15 @@ function attachCoordinatesAndRegion(littlePack, resolve) {
             //..Save the body in mongo
             body["date_updated"] = new Date(chaineDateUTC);
             new Promise((resSave) => {
-              collectionEnrichedLocationPersist.updateOne(
-                { "result.place_id": littlePack.place_id },
-                {
-                  $set: body,
-                },
-                { upsert: true },
-                function (err, res) {
-                  logger.error(err);
-                  resSave(true);
-                }
-              );
+              //! Update using insert - dynamo
+              dynamo_insert("enriched_locationSearch_persist", body)
+                .then((result) => {
+                  resSave(result);
+                })
+                .catch((error) => {
+                  logger.error(error);
+                  resSave(false);
+                });
             })
               .then()
               .catch();
@@ -645,15 +625,14 @@ function doFreshGoogleSearchAndReturn(littlePack, redisKey, resolve) {
         //..Save the body in mongo
         body["date_updated"] = new Date(chaineDateUTC);
         new Promise((resSave) => {
-          collectionEnrichedLocationPersist.updateOne(
-            { "result.place_id": littlePack.place_id },
-            { $set: body },
-            { upsert: true },
-            function (err, res) {
-              logger.error(err);
-              resSave(true);
-            }
-          );
+          dynamo_insert("enriched_locationSearch_persist", body)
+            .then((result) => {
+              resSave(result);
+            })
+            .catch((error) => {
+              logger.error(error);
+              resSave(false);
+            });
         })
           .then()
           .catch();
@@ -1361,12 +1340,14 @@ function makeFreshOpenCageRequests(coordinates, osm_id, redisKey, resolve) {
           //?Save in Mongo
           new Promise((resSaveMongo) => {
             body["osm_id"] = osm_id; //! Add osm id
-            collectionAutoCompletedSuburbs.insertOne(
-              body,
-              function (err, reslt) {
-                resSaveMongo(true);
-              }
-            );
+            dynamo_insert("autocompleted_location_suburbs", body)
+              .then((result) => {
+                resSaveMongo(result);
+              })
+              .then((error) => {
+                logger.error(error);
+                resSaveMongo(false);
+              });
           })
             .then()
             .catch();

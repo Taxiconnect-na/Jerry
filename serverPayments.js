@@ -17,6 +17,13 @@ const requestAPI = require("request");
 const crypto = require("crypto");
 //...
 
+//! Attach DynamoDB helper
+const {
+  dynamo_insert,
+  get_newID,
+  dynamo_update,
+} = require("./DynamoServiceManager");
+
 const urlParser = require("url");
 var chaineDateUTC = null;
 var dateObject = null;
@@ -430,13 +437,14 @@ function saveLogForTopups(
     date_captured: new Date(chaineDateUTC),
     timestamp: tmpDate.getTime(),
   };
-  collectionWalletTransactions_logs.insertOne(dataBundle, function (err, res) {
-    if (err) {
-      logger.info(err);
+  dynamo_insert("wallet_transactions_logs", dataBundle)
+    .then((result) => {
+      resolve(result);
+    })
+    .catch((error) => {
+      logger.error(error);
       resolve(false);
-    }
-    resolve(true);
-  });
+    });
 }
 
 /**
@@ -493,16 +501,14 @@ function saveLogForTopupsSuccess(
       timestamp: tmpDate.getTime(),
     };
     //...
-    collectionWalletTransactions_logs.insertOne(
-      dataBundle,
-      function (err, res) {
-        if (err) {
-          logger.info("error");
-          resolve(false);
-        }
-        resolve(true);
-      }
-    );
+    dynamo_insert("wallet_transactions_logs", dataBundle)
+      .then((result) => {
+        resolve(result);
+      })
+      .catch((error) => {
+        logger.error(error);
+        resolve(false);
+      });
   } //!Corporate globality
   else {
     const PLAN_CODES = {
@@ -532,6 +538,7 @@ function saveLogForTopupsSuccess(
     ); //! VERY IMPORTANT - REMOVE DPO AND TAXICONNECT DEDUCTIONS
     //...
     let dataBundle = {
+      _id: get_newID(),
       company_fp: user_fp,
       plan_name: trailingData.plan_name,
       plan_code: PLAN_CODES[trailingData.plan_name],
@@ -548,33 +555,40 @@ function saveLogForTopupsSuccess(
       timestamp: tmpDate.getTime(),
     };
     //...
-    collectionWalletTransactions_logs.insertOne(
-      dataBundle,
-      function (err, res) {
-        if (err) {
+    dynamo_insert("wallet_transactions_logs", dataBundle)
+      .then((result) => {
+        if (result === false) {
           logger.info("error");
           resolve(false);
         }
         //!Update the the corporate profile with the new plan details
         //! ONLY USE THE PLAN CODE
-        collectionDedicatedServices_accounts.updateOne(
-          { company_fp: user_fp },
+        dynamo_update(
+          "dedicated_services_accounts",
+          dataBundle._id,
+          "set #p.#s = :val1, #p.#i = :val2",
           {
-            $set: {
-              "plans.subscribed_plan": PLAN_CODES[trailingData.plan_name],
-              "plans.isPlan_active": true,
-            },
+            ":val1": PLAN_CODES[trailingData.plan_name],
+            ":val2": true,
           },
-          function (err, res) {
-            if (err) {
-              logger.info("error");
-              resolve(false);
-            }
-            resolve(true);
+          {
+            "#p": "plans",
+            "#s": "subscribed_plan",
+            "#i": "isPlan_active",
           }
-        );
-      }
-    );
+        )
+          .then((result) => {
+            resolve(result);
+          })
+          .catch((error) => {
+            logger.error(error);
+            resolve(false);
+          });
+      })
+      .catch((error) => {
+        logger.error(error);
+        resolve(false);
+      });
   }
 }
 
@@ -808,12 +822,14 @@ function processExecute_paymentCardWallet_topup(
                         date_captured: new Date(chaineDateUTC),
                       };
                       //...
-                      collectionGlobalEvents.insertOne(
-                        faildTransObj,
-                        function (err, resltx) {
-                          resFailedTransaction(true);
-                        }
-                      );
+                      dynamo_insert("global_events", faildTransObj)
+                        .then((result) => {
+                          resFailedTransaction(result);
+                        })
+                        .catch((error) => {
+                          logger.error(error);
+                          resFailedTransaction(false);
+                        });
                     }).then(
                       () => {},
                       () => {}
@@ -928,12 +944,14 @@ function checkReceipient_walletTransaction(
               date_captured: new Date(chaineDateUTC),
             };
             //...
-            collectionGlobalEvents.insertOne(
-              eventSaverObj,
-              function (err, reslt) {
-                resEventSave(true);
-              }
-            );
+            dynamo_insert("global_events", eventSaverObj)
+              .then((result) => {
+                resEventSave(result);
+              })
+              .catch((error) => {
+                logger.error(error);
+                resEventSave(false);
+              });
           }).then(
             () => {},
             () => {}
@@ -987,12 +1005,14 @@ function checkReceipient_walletTransaction(
               date_captured: new Date(chaineDateUTC),
             };
             //...
-            collectionGlobalEvents.insertOne(
-              eventSaverObj,
-              function (err, reslt) {
-                resEventSave(true);
-              }
-            );
+            dynamo_insert("global_events", eventSaverObj)
+              .then((result) => {
+                resEventSave(result);
+              })
+              .catch((error) => {
+                logger.error(error);
+                resEventSave(false);
+              });
           }).then(
             () => {},
             () => {}
@@ -1038,12 +1058,14 @@ function checkReceipient_walletTransaction(
                     date_captured: new Date(chaineDateUTC),
                   };
                   //...
-                  collectionGlobalEvents.insertOne(
-                    eventSaverObj,
-                    function (err, reslt) {
-                      resEventSave(true);
-                    }
-                  );
+                  dynamo_insert("global_events", eventSaverObj)
+                    .then((result) => {
+                      resEventSave(result);
+                    })
+                    .catch((error) => {
+                      logger.error(error);
+                      resEventSave(false);
+                    });
                 }).then(
                   () => {},
                   () => {}
@@ -1096,40 +1118,42 @@ function execSendMoney_fromRiderWallet_transaction(
       timestamp: dateTmp.getTime(),
     };
     //...
-    collectionWalletTransactions_logs.insertOne(
-      transaction_obj,
-      function (err, result) {
-        if (err) {
+    dynamo_insert("wallet_transactions_logs", transaction_obj)
+      .then((result) => {
+        if (result === false) {
           resolve({ response: "error", flag: "transaction_error" });
         }
         //? NOTIFY THE RECEIVER
         //Send the push notifications
         /*let message = {
-          app_id: process.env.RIDERS_APP_ID_ONESIGNAL,
-          android_channel_id:
-            process.env
-              .RIDERS_ONESIGNAL_CHANNEL_ACCEPTTEDD_REQUEST, //Wallet transaction
-          priority: 10,
-          contents: {
-            en:
-              "Your wallet ",
-          },
-          headings: { en: "Unable to find a ride" },
-          content_available: true,
-          include_player_ids: [
-            recordData.pushNotif_token,
-          ],
-        };
-        //Send
-        sendPushUPNotification(message);*/
+        app_id: process.env.RIDERS_APP_ID_ONESIGNAL,
+        android_channel_id:
+          process.env
+            .RIDERS_ONESIGNAL_CHANNEL_ACCEPTTEDD_REQUEST, //Wallet transaction
+        priority: 10,
+        contents: {
+          en:
+            "Your wallet ",
+        },
+        headings: { en: "Unable to find a ride" },
+        content_available: true,
+        include_player_ids: [
+          recordData.pushNotif_token,
+        ],
+      };
+      //Send
+      sendPushUPNotification(message);*/
         //...
         resolve({
           response: "successful",
           amount: dataBundle.amount,
           payment_currency: process.env.PAYMENT_CURRENCY,
         });
-      }
-    );
+      })
+      .catch((error) => {
+        logger.error(error);
+        resolve({ response: "error", flag: "transaction_error" });
+      });
   } else if (/driver/i.test(dataBundle.user_nature)) {
     //Driver
     let transaction_obj = {
@@ -1142,20 +1166,42 @@ function execSendMoney_fromRiderWallet_transaction(
       timestamp: dateTmp.getTime(),
     };
     //...
-    collectionWalletTransactions_logs.insertOne(
-      transaction_obj,
-      function (err, result) {
-        if (err) {
+    dynamo_insert("wallet_transactions_logs", transaction_obj)
+      .then((result) => {
+        if (result === false) {
           resolve({ response: "error", flag: "transaction_error" });
         }
+        //? NOTIFY THE RECEIVER
+        //Send the push notifications
+        /*let message = {
+        app_id: process.env.RIDERS_APP_ID_ONESIGNAL,
+        android_channel_id:
+          process.env
+            .RIDERS_ONESIGNAL_CHANNEL_ACCEPTTEDD_REQUEST, //Wallet transaction
+        priority: 10,
+        contents: {
+          en:
+            "Your wallet ",
+        },
+        headings: { en: "Unable to find a ride" },
+        content_available: true,
+        include_player_ids: [
+          recordData.pushNotif_token,
+        ],
+      };
+      //Send
+      sendPushUPNotification(message);*/
         //...
         resolve({
           response: "successful",
           amount: dataBundle.amount,
           payment_currency: process.env.PAYMENT_CURRENCY,
         });
-      }
-    );
+      })
+      .catch((error) => {
+        logger.error(error);
+        resolve({ response: "error", flag: "transaction_error" });
+      });
   }
 }
 
@@ -1691,17 +1737,14 @@ function sendReceipt(metaDataBundle, scenarioType, resolve) {
                   date: new Date(chaineDateUTC),
                 };
                 //...
-                collectionGlobalEvents.insertOne(
-                  eventBundle,
-                  function (err, reslt) {
-                    if (err) {
-                      logger.error(err);
-                      saveEvent(false);
-                    }
-                    //...
-                    saveEvent(true);
-                  }
-                );
+                dynamo_insert("global_events", eventBundle)
+                  .then((result) => {
+                    saveEvent(result);
+                  })
+                  .catch((error) => {
+                    logger.error(error);
+                    saveEvent(false);
+                  });
               })
                 .then()
                 .catch((error) => logger.error(error));
@@ -1737,7 +1780,7 @@ var collectionDedicatedServices_accounts = null;
 var collectionPassengers_profiles = null;
 var collectionDrivers_profiles = null;
 var collectionWalletTransactions_logs = null;
-var collectionRidesDeliveryData = null;
+var collectionRidesDeliveries_data = null;
 var collectionGlobalEvents = null;
 
 requestAPI(
@@ -1781,7 +1824,7 @@ requestAPI(
         collectionWalletTransactions_logs = dbMongo.collection(
           "wallet_transactions_logs"
         ); //Hold the latest information about the riders topups
-        collectionRidesDeliveryData = dbMongo.collection(
+        collectionRidesDeliveries_data = dbMongo.collection(
           "rides_deliveries_requests"
         ); //Hold all the requests made (rides and deliveries)
         collectionGlobalEvents = dbMongo.collection("global_events"); //Hold all the random events that happened somewhere.
@@ -2077,12 +2120,14 @@ requestAPI(
                     date_captured: new Date(chaineDateUTC),
                   };
                   //...
-                  collectionGlobalEvents.insertOne(
-                    faildTransObj,
-                    function (err, reslt) {
-                      resFailedTransaction(true);
-                    }
-                  );
+                  dynamo_insert("global_events", faildTransObj)
+                    .then((result) => {
+                      resFailedTransaction(result);
+                    })
+                    .catch((error) => {
+                      logger.error(error);
+                      resFailedTransaction(false);
+                    });
                 }).then(
                   () => {},
                   () => {}
@@ -2429,10 +2474,9 @@ requestAPI(
                         date_captured: new Date(chaineDateUTC),
                       };
                       //...
-                      collectionWalletTransactions_logs.insertOne(
-                        bundleReward,
-                        function (err, insrtData) {
-                          if (err) {
+                      dynamo_insert("wallet_transactions_logs", bundleReward)
+                        .then((result) => {
+                          if (result === false) {
                             logger.error(err);
                             resolve({
                               response:
@@ -2448,8 +2492,14 @@ requestAPI(
                               time_signature: bundleReward.timestamp,
                             },
                           });
-                        }
-                      );
+                        })
+                        .catch((error) => {
+                          logger.error(error);
+                          resolve({
+                            response:
+                              "Unable to create the one-time reward, it this error perists contact support@taxiconnectna.com",
+                          });
+                        });
                     } else if (
                       req.reward_type === "recursive" &&
                       req.apply_after !== undefined &&
@@ -2479,10 +2529,9 @@ requestAPI(
                         date_captured: new Date(chaineDateUTC),
                       };
                       //...
-                      collectionWalletTransactions_logs.insertOne(
-                        bundleReward,
-                        function (err, insrtData) {
-                          if (err) {
+                      dynamo_insert("wallet_transactions_logs", bundleReward)
+                        .then((result) => {
+                          if (result === false) {
                             logger.error(err);
                             resolve({
                               response:
@@ -2500,8 +2549,14 @@ requestAPI(
                               time_signature: bundleReward.timestamp,
                             },
                           });
-                        }
-                      );
+                        })
+                        .catch((error) => {
+                          logger.error(error);
+                          resolve({
+                            response:
+                              "Unable to create the one-time reward, it this error perists contact support@taxiconnectna.com",
+                          });
+                        });
                     } //No type specified
                     else {
                       resolve({
@@ -2710,20 +2765,21 @@ requestAPI(
                             voucherData = voucherData[0];
                             //Has data
                             //? Apply this voucher to the user
-                            collectionWalletTransactions_logs.updateOne(
+                            dynamo_update(
+                              "wallet_transactions_logs",
                               {
-                                ref_phone_number: userData.phone_number,
+                                _id: voucherData._id,
                                 recipient_fp: "",
                               },
+                              "set recipient_fp = :val1, date_applied = :val2",
                               {
-                                $set: {
-                                  recipient_fp: req.user_fp,
-                                  date_applied: new Date(chaineDateUTC),
-                                },
-                              },
-                              function (err, resltUpdate) {
-                                if (err) {
-                                  logger.error(err);
+                                ":val1": req.user_fp,
+                                ":val2": new Date(chaineDateUTC).toISOString(),
+                              }
+                            )
+                              .then((result) => {
+                                if (result) {
+                                  logger.error(result);
                                   resolve({
                                     response: "error_unable_to_apply_voucher",
                                   });
@@ -2747,8 +2803,13 @@ requestAPI(
                                     }/Rewards_organizations/${voucherData.organization.name.toLowerCase()}.png`,
                                   },
                                 });
-                              }
-                            );
+                              })
+                              .catch((error) => {
+                                logger.error(error);
+                                resolve({
+                                  response: "error_unable_to_apply_voucher",
+                                });
+                              });
                           } //No voucher available
                           else {
                             resolve({ response: "error_invalid_voucher" });
