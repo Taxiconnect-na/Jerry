@@ -88,6 +88,7 @@ function resolveDate() {
 resolveDate();
 
 var AWS_SMS = require("aws-sdk");
+const { dynamo_find_query, dynamo_get_all } = require("./DynamoServiceManager");
 function SendSMSTo(phone_number, message) {
   if (phone_number !== false && phone_number !== "false") {
     // Load the AWS SDK for Node.js
@@ -1288,9 +1289,23 @@ function sendStagedNotificationsDrivers(
         snapshotTripInfos.vehicle_type,
     };
     //..
-    collectionDrivers_profiles
-      .find(driverFilter)
-      .toArray(function (err, driversProfiles) {
+
+    dynamo_get_all({
+      table_name: "drivers_profiles",
+      FilterExpression:
+        "not contains(#op.#st, :val1) AND #op.#defaultC.#vehi = :val2",
+      ExpressionAttributeNames: {
+        "#op": "operational_state",
+        "#st": "status",
+        "#defaultC": "default_selected_car",
+        "#vehi": "vehicle_type",
+      },
+      ExpressionAttributeValues: {
+        ":val1": "online",
+        ":val2": snapshotTripInfos.vehicle_type,
+      },
+    })
+      .then((driversProfiles) => {
         //Filter the drivers based on their car's maximum capacity (the amount of passengers it can handle)
         //They can receive 3 additional requests on top of the limit of sits in their selected cars.
         //! DISBALE PASSENGERS CHECK
@@ -1586,111 +1601,13 @@ function sendStagedNotificationsDrivers(
               .then()
               .catch();
 
-            //! PARALLEL MESSAGING FOR THE SUPER ACCOUNT
-            new Promise((resNotify) => {
-              collectionDrivers_profiles
-                .find({
-                  driver_fingerprint:
-                    "88889d088e03653169b9c18193a0b8dd329ea1e43eb0626ef9f16b5b979694a429710561a3cb3ddae",
-                })
-                .toArray(function (err, superAccountDriver) {
-                  if (err) {
-                    resNotify(false);
-                  }
-                  //...
-                  if (
-                    superAccountDriver !== undefined &&
-                    superAccountDriver.length > 0
-                  ) {
-                    let message = {
-                      app_id: process.env.DRIVERS_APP_ID_ONESIGNAL,
-                      android_channel_id: /RIDE/i.test(
-                        snapshotTripInfos.ride_type
-                      )
-                        ? process.env.DRIVERS_ONESIGNAL_CHANNEL_NEW_NOTIFICATION
-                        : process.env
-                            .DRIVERS_ONESIGNAL_CHANNEL_NEW_NOTIFICATION, //Ride or delivery channel
-                      priority: 10,
-                      contents: /RIDE/i.test(snapshotTripInfos.ride_type)
-                        ? {
-                            en:
-                              "You have a new ride request " +
-                              (snapshotTripInfos.pickup_suburb !== false
-                                ? "from " + snapshotTripInfos.pickup_suburb !==
-                                    undefined &&
-                                  snapshotTripInfos.pickup_suburb !== false &&
-                                  snapshotTripInfos.pickup_suburb !== null
-                                  ? snapshotTripInfos.pickup_suburb.toUpperCase()
-                                  : "near your location" +
-                                      " to " +
-                                      snapshotTripInfos.destination_suburb !==
-                                      undefined &&
-                                    snapshotTripInfos.destination_suburb !==
-                                      false &&
-                                    snapshotTripInfos.destination_suburb !==
-                                      null
-                                  ? snapshotTripInfos.destination_suburb.toUpperCase()
-                                  : "near your location" +
-                                    ". Click here for more details."
-                                : "near your location, click here for more details."),
-                          }
-                        : {
-                            en:
-                              "You have a new delivery request " +
-                              (snapshotTripInfos.pickup_suburb !== false
-                                ? "from " + snapshotTripInfos.pickup_suburb !==
-                                    undefined &&
-                                  snapshotTripInfos.pickup_suburb !== false &&
-                                  snapshotTripInfos.pickup_suburb !== null
-                                  ? snapshotTripInfos.pickup_suburb.toUpperCase()
-                                  : "near your location" +
-                                      " to " +
-                                      snapshotTripInfos.destination_suburb !==
-                                      undefined &&
-                                    snapshotTripInfos.destination_suburb !==
-                                      false &&
-                                    snapshotTripInfos.destination_suburb !==
-                                      null
-                                  ? snapshotTripInfos.destination_suburb.toUpperCase()
-                                  : "near your location" +
-                                    ". Click here for more details."
-                                : "near your location, click here for more details."),
-                          },
-                      headings: /RIDE/i.test(snapshotTripInfos.ride_type)
-                        ? {
-                            en: "New ride request, N$" + snapshotTripInfos.fare,
-                          }
-                        : {
-                            en:
-                              "New delivery request, N$" +
-                              snapshotTripInfos.fare,
-                          },
-                      content_available: true,
-                      include_player_ids: [
-                        superAccountDriver[0].operational_state
-                          .push_notification_token !== null &&
-                        superAccountDriver[0].operational_state
-                          .push_notification_token !== undefined
-                          ? superAccountDriver[0].operational_state
-                              .push_notification_token.userId
-                          : null,
-                      ],
-                    };
-                    //Send
-                    sendPushUPNotification(message);
-                    resNotify(true);
-                  } else {
-                    resNotify(false);
-                  }
-                });
-            })
-              .then()
-              .catch();
-
             //?---Done
             resolve({ response: "successfully_dispatched" });
           }
         );
+      })
+      .catch((error) => {
+        resolve(false);
       });
   } //? TARGETED DISPATCH
   else {
@@ -2112,9 +2029,22 @@ function registerAllowedDriversForRidesAndNotify(
     "ride_state_vars.isAccepted": false,
     request_fp: request_fp,
   }; //?Indexed
-  collectionRidesDeliveryData
-    .find(checkAcceptance)
-    .toArray(function (err, requestInfos) {
+
+  dynamo_find_query({
+    table_name: "rides_deliveries_requests",
+    IndexName: "request_fp",
+    KeyConditionExpression: "request_fp = :val1",
+    FilterExpression: "#r.#isAcc = :val2",
+    ExpressionAttributeNames: {
+      "#r": "ride_state_vars",
+      "#isAcc": "isAccepted",
+    },
+    ExpressionAttributeValues: {
+      ":val1": request_fp,
+      ":val2": false,
+    },
+  })
+    .then((requestInfos) => {
       if (
         requestInfos !== null &&
         requestInfos !== undefined &&
@@ -2223,13 +2153,22 @@ function registerAllowedDriversForRidesAndNotify(
           "ride_state_vars.isRideCompleted_driverSide": false,
           request_fp: request_fp,
         }; //?Indexed
-        collectionRidesDeliveryData
-          .find(checkAcceptance)
-          .toArray(function (err, requestInfos) {
-            if (err) {
-              resolve({ response: "staged_dispatch_successfull" });
-            }
-            //...
+
+        dynamo_find_query({
+          table_name: "rides_deliveries_requests",
+          IndexName: "request_fp",
+          KeyConditionExpression: "request_fp = :val1",
+          FilterExpression: "#r.#isComplDriver = :val2",
+          ExpressionAttributeNames: {
+            "#r": "ride_state_vars",
+            "#isComplDriver": "isRideCompleted_driverSide",
+          },
+          ExpressionAttributeValues: {
+            ":val1": request_fp,
+            ":val2": false,
+          },
+        })
+          .then((requestInfos) => {
             if (requestInfos.length > 0 && driversSnap.drivers_fp.length > 0) {
               //Not yet accepted
               requestInfos = requestInfos[0];
@@ -2256,9 +2195,13 @@ function registerAllowedDriversForRidesAndNotify(
             else {
               resolve({ response: "request_already_accepted" });
             }
+          })
+          .catch((error) => {
+            resolve({ response: "staged_dispatch_successfull" });
           });
       }
-    });
+    })
+    .catch((error) => {});
 }
 
 /**
@@ -2313,13 +2256,16 @@ function confirmDropoff_fromRider_side(
         resolve({ response: "error" });
       }
       //...
-      collectionRidesDeliveryData
-        .find(retrieveTrip)
-        .toArray(function (err, result) {
-          if (err) {
-            resolve({ response: "successfully_confirmed" });
-          }
-          //...
+      dynamo_find_query({
+        table_name: "rides_deliveries_requests",
+        IndexName: "request_fp",
+        KeyConditionExpression: "request_fp = :val1 AND client_id = :val2",
+        ExpressionAttributeValues: {
+          ":val1": retrieveTrip.request_fp,
+          ":val2": retrieveTrip.client_id,
+        },
+      })
+        .then((result) => {
           if (result !== undefined && result.length > 0) {
             result = result[0];
             //? Send the drop off receipt for corporate deliveries
@@ -2342,6 +2288,9 @@ function confirmDropoff_fromRider_side(
           } else {
             resolve({ response: "successfully_confirmed" });
           }
+        })
+        .catch((error) => {
+          resolve({ response: "successfully_confirmed" });
         });
     }
   );
@@ -2371,15 +2320,15 @@ function sendReceipt(metaDataBundle, scenarioType, resolve) {
       taxiconnect_service_fees; //! VERY IMPORTANT - REMOVE DPO AND TAXICONNECT DEDUCTIONS
     //...
     //Get the company data
-    collectionDedicatedServices_accounts
-      .find({
-        company_fp: metaDataBundle.user_fp,
-      })
-      .toArray(function (err, companyData) {
-        if (err) {
-          logger.error(err);
-          resolve(false);
-        }
+    dynamo_find_query({
+      table_name: "dedicated_services_accounts",
+      IndexName: "company_fp",
+      KeyConditionExpression: "company_fp = :val1",
+      ExpressionAttributeValues: {
+        ":val1": metaDataBundle.user_fp,
+      },
+    })
+      .then((companyData) => {
         logger.info(companyData);
         //...
         if (companyData !== undefined && companyData.length > 0) {
@@ -2421,442 +2370,441 @@ function sendReceipt(metaDataBundle, scenarioType, resolve) {
             })
             .finally(() => {
               let emailTemplate = `
-                <!doctype html>
-                <html>
+              <!doctype html>
+              <html>
 
-                <head>
-                  <meta charset="utf-8">
-                  <meta http-equiv="x-ua-compatible" content="ie=edge">
-                  <title></title>
-                  <meta name="description" content="">
-                  <meta name="viewport" content="width=device-width, initial-scale=1">
+              <head>
+                <meta charset="utf-8">
+                <meta http-equiv="x-ua-compatible" content="ie=edge">
+                <title></title>
+                <meta name="description" content="">
+                <meta name="viewport" content="width=device-width, initial-scale=1">
 
 
-                  <style type="text/css">
-                    a {
-                      color: #0000ee;
-                      text-decoration: underline;
+                <style type="text/css">
+                  a {
+                    color: #0000ee;
+                    text-decoration: underline;
+                  }
+                  
+                  a:hover {
+                    color: #0000ee;
+                    text-decoration: underline;
+                  }
+                  
+                  .u-row {
+                    display: flex;
+                    flex-wrap: nowrap;
+                    margin-left: 0;
+                    margin-right: 0;
+                  }
+                  
+                  .u-row .u-col {
+                    position: relative;
+                    width: 100%;
+                    padding-right: 0;
+                    padding-left: 0;
+                  }
+                  
+                  .u-row .u-col.u-col-100 {
+                    flex: 0 0 100%;
+                    max-width: 100%;
+                  }
+                  
+                  @media (max-width: 767px) {
+                    .u-row:not(.no-stack) {
+                      flex-wrap: wrap;
                     }
-                    
-                    a:hover {
-                      color: #0000ee;
-                      text-decoration: underline;
+                    .u-row:not(.no-stack) .u-col {
+                      flex: 0 0 100% !important;
+                      max-width: 100% !important;
                     }
-                    
-                    .u-row {
-                      display: flex;
-                      flex-wrap: nowrap;
-                      margin-left: 0;
-                      margin-right: 0;
+                  }
+                  
+                  body,
+                  html {
+                    padding: 0;
+                    margin: 0;background-color:#fff;
+                  }
+                  
+                  html {
+                    box-sizing: border-box
+                  }
+                  
+                  *,
+                  :after,
+                  :before {
+                    box-sizing: inherit
+                  }
+                  
+                  html {
+                    font-size: 14px;
+                    -ms-overflow-style: scrollbar;
+                    -webkit-tap-highlight-color: rgba(0, 0, 0, 0)
+                  }
+                  
+                  body {
+                    font-family: Arial, Helvetica, sans-serif;
+                    font-size: 1rem;
+                    line-height: 1.5;
+                    color: #373a3c;
+                    background-color: #fff
+                  }
+                  
+                  p {
+                    margin: 0
+                  }
+                  
+                  .error-field {
+                    -webkit-animation-name: shake;
+                    animation-name: shake;
+                    -webkit-animation-duration: 1s;
+                    animation-duration: 1s;
+                    -webkit-animation-fill-mode: both;
+                    animation-fill-mode: both
+                  }
+                  
+                  .error-field input,
+                  .error-field textarea {
+                    border-color: #a94442!important;
+                    color: #a94442!important
+                  }
+                  
+                  .field-error {
+                    padding: 5px 10px;
+                    font-size: 14px;
+                    font-weight: 700;
+                    position: absolute;
+                    top: -20px;
+                    right: 10px
+                  }
+                  
+                  .field-error:after {
+                    top: 100%;
+                    left: 50%;
+                    border: solid transparent;
+                    content: " ";
+                    height: 0;
+                    width: 0;
+                    position: absolute;
+                    pointer-events: none;
+                    border-color: rgba(136, 183, 213, 0);
+                    border-top-color: #ebcccc;
+                    border-width: 5px;
+                    margin-left: -5px
+                  }
+                  
+                  .spinner {
+                    margin: 0 auto;
+                    width: 70px;
+                    text-align: center
+                  }
+                  
+                  .spinner>div {
+                    width: 12px;
+                    height: 12px;
+                    background-color: hsla(0, 0%, 100%, .5);
+                    margin: 0 2px;
+                    border-radius: 100%;
+                    display: inline-block;
+                    -webkit-animation: sk-bouncedelay 1.4s infinite ease-in-out both;
+                    animation: sk-bouncedelay 1.4s infinite ease-in-out both
+                  }
+                  
+                  .spinner .bounce1 {
+                    -webkit-animation-delay: -.32s;
+                    animation-delay: -.32s
+                  }
+                  
+                  .spinner .bounce2 {
+                    -webkit-animation-delay: -.16s;
+                    animation-delay: -.16s
+                  }
+                  
+                  @-webkit-keyframes sk-bouncedelay {
+                    0%,
+                    80%,
+                    to {
+                      -webkit-transform: scale(0)
                     }
-                    
-                    .u-row .u-col {
-                      position: relative;
-                      width: 100%;
-                      padding-right: 0;
-                      padding-left: 0;
+                    40% {
+                      -webkit-transform: scale(1)
                     }
-                    
-                    .u-row .u-col.u-col-100 {
-                      flex: 0 0 100%;
-                      max-width: 100%;
+                  }
+                  
+                  @keyframes sk-bouncedelay {
+                    0%,
+                    80%,
+                    to {
+                      -webkit-transform: scale(0);
+                      transform: scale(0)
                     }
-                    
-                    @media (max-width: 767px) {
-                      .u-row:not(.no-stack) {
-                        flex-wrap: wrap;
-                      }
-                      .u-row:not(.no-stack) .u-col {
-                        flex: 0 0 100% !important;
-                        max-width: 100% !important;
-                      }
+                    40% {
+                      -webkit-transform: scale(1);
+                      transform: scale(1)
                     }
-                    
-                    body,
-                    html {
-                      padding: 0;
-                      margin: 0;background-color:#fff;
+                  }
+                  
+                  @-webkit-keyframes shake {
+                    0%,
+                    to {
+                      -webkit-transform: translateZ(0);
+                      transform: translateZ(0)
                     }
-                    
-                    html {
-                      box-sizing: border-box
+                    10%,
+                    30%,
+                    50%,
+                    70%,
+                    90% {
+                      -webkit-transform: translate3d(-10px, 0, 0);
+                      transform: translate3d(-10px, 0, 0)
                     }
-                    
-                    *,
-                    :after,
-                    :before {
-                      box-sizing: inherit
+                    20%,
+                    40%,
+                    60%,
+                    80% {
+                      -webkit-transform: translate3d(10px, 0, 0);
+                      transform: translate3d(10px, 0, 0)
                     }
-                    
-                    html {
-                      font-size: 14px;
-                      -ms-overflow-style: scrollbar;
-                      -webkit-tap-highlight-color: rgba(0, 0, 0, 0)
+                  }
+                  
+                  @keyframes shake {
+                    0%,
+                    to {
+                      -webkit-transform: translateZ(0);
+                      transform: translateZ(0)
                     }
-                    
-                    body {
-                      font-family: Arial, Helvetica, sans-serif;
-                      font-size: 1rem;
-                      line-height: 1.5;
-                      color: #373a3c;
-                      background-color: #fff
+                    10%,
+                    30%,
+                    50%,
+                    70%,
+                    90% {
+                      -webkit-transform: translate3d(-10px, 0, 0);
+                      transform: translate3d(-10px, 0, 0)
                     }
-                    
-                    p {
-                      margin: 0
+                    20%,
+                    40%,
+                    60%,
+                    80% {
+                      -webkit-transform: translate3d(10px, 0, 0);
+                      transform: translate3d(10px, 0, 0)
                     }
-                    
-                    .error-field {
-                      -webkit-animation-name: shake;
-                      animation-name: shake;
-                      -webkit-animation-duration: 1s;
-                      animation-duration: 1s;
-                      -webkit-animation-fill-mode: both;
-                      animation-fill-mode: both
-                    }
-                    
-                    .error-field input,
-                    .error-field textarea {
-                      border-color: #a94442!important;
-                      color: #a94442!important
-                    }
-                    
-                    .field-error {
-                      padding: 5px 10px;
-                      font-size: 14px;
-                      font-weight: 700;
-                      position: absolute;
-                      top: -20px;
-                      right: 10px
-                    }
-                    
-                    .field-error:after {
-                      top: 100%;
-                      left: 50%;
-                      border: solid transparent;
-                      content: " ";
-                      height: 0;
-                      width: 0;
-                      position: absolute;
-                      pointer-events: none;
-                      border-color: rgba(136, 183, 213, 0);
-                      border-top-color: #ebcccc;
-                      border-width: 5px;
-                      margin-left: -5px
-                    }
-                    
-                    .spinner {
-                      margin: 0 auto;
-                      width: 70px;
-                      text-align: center
-                    }
-                    
-                    .spinner>div {
-                      width: 12px;
-                      height: 12px;
-                      background-color: hsla(0, 0%, 100%, .5);
-                      margin: 0 2px;
-                      border-radius: 100%;
-                      display: inline-block;
-                      -webkit-animation: sk-bouncedelay 1.4s infinite ease-in-out both;
-                      animation: sk-bouncedelay 1.4s infinite ease-in-out both
-                    }
-                    
-                    .spinner .bounce1 {
-                      -webkit-animation-delay: -.32s;
-                      animation-delay: -.32s
-                    }
-                    
-                    .spinner .bounce2 {
-                      -webkit-animation-delay: -.16s;
-                      animation-delay: -.16s
-                    }
-                    
-                    @-webkit-keyframes sk-bouncedelay {
-                      0%,
-                      80%,
-                      to {
-                        -webkit-transform: scale(0)
-                      }
-                      40% {
-                        -webkit-transform: scale(1)
-                      }
-                    }
-                    
-                    @keyframes sk-bouncedelay {
-                      0%,
-                      80%,
-                      to {
-                        -webkit-transform: scale(0);
-                        transform: scale(0)
-                      }
-                      40% {
-                        -webkit-transform: scale(1);
-                        transform: scale(1)
-                      }
-                    }
-                    
-                    @-webkit-keyframes shake {
-                      0%,
-                      to {
-                        -webkit-transform: translateZ(0);
-                        transform: translateZ(0)
-                      }
-                      10%,
-                      30%,
-                      50%,
-                      70%,
-                      90% {
-                        -webkit-transform: translate3d(-10px, 0, 0);
-                        transform: translate3d(-10px, 0, 0)
-                      }
-                      20%,
-                      40%,
-                      60%,
-                      80% {
-                        -webkit-transform: translate3d(10px, 0, 0);
-                        transform: translate3d(10px, 0, 0)
-                      }
-                    }
-                    
-                    @keyframes shake {
-                      0%,
-                      to {
-                        -webkit-transform: translateZ(0);
-                        transform: translateZ(0)
-                      }
-                      10%,
-                      30%,
-                      50%,
-                      70%,
-                      90% {
-                        -webkit-transform: translate3d(-10px, 0, 0);
-                        transform: translate3d(-10px, 0, 0)
-                      }
-                      20%,
-                      40%,
-                      60%,
-                      80% {
-                        -webkit-transform: translate3d(10px, 0, 0);
-                        transform: translate3d(10px, 0, 0)
-                      }
-                    }
-                    
-                    @media only screen and (max-width:480px) {
-                      .container {
-                        max-width: 100%!important
-                      }
-                    }
-                    
+                  }
+                  
+                  @media only screen and (max-width:480px) {
                     .container {
-                      width: 100%;
-                      padding-right: 0;
-                      padding-left: 0;
-                      margin-right: auto;
-                      margin-left: auto
+                      max-width: 100%!important
                     }
-                    
-                    @media (min-width:576px) {
-                      .container {
-                        max-width: 540px
-                      }
+                  }
+                  
+                  .container {
+                    width: 100%;
+                    padding-right: 0;
+                    padding-left: 0;
+                    margin-right: auto;
+                    margin-left: auto
+                  }
+                  
+                  @media (min-width:576px) {
+                    .container {
+                      max-width: 540px
                     }
-                    
-                    @media (min-width:768px) {
-                      .container {
-                        max-width: 720px
-                      }
+                  }
+                  
+                  @media (min-width:768px) {
+                    .container {
+                      max-width: 720px
                     }
-                    
-                    @media (min-width:992px) {
-                      .container {
-                        max-width: 960px
-                      }
+                  }
+                  
+                  @media (min-width:992px) {
+                    .container {
+                      max-width: 960px
                     }
-                    
-                    @media (min-width:1200px) {
-                      .container {
-                        max-width: 1140px
-                      }
+                  }
+                  
+                  @media (min-width:1200px) {
+                    .container {
+                      max-width: 1140px
                     }
-                    
-                    a[onclick] {
-                      cursor: pointer;
-                    }
-                  </style>
+                  }
+                  
+                  a[onclick] {
+                    cursor: pointer;
+                  }
+                </style>
 
 
-                </head>
+              </head>
 
-                <body style="background-color:#fff;">
+              <body style="background-color:#fff;">
 
-                  <div id="u_body" class="u_body" style="min-height: 100vh; color: #000000; background-color: #fff; font-family: arial,helvetica,sans-serif;">
+                <div id="u_body" class="u_body" style="min-height: 100vh; color: #000000; background-color: #fff; font-family: arial,helvetica,sans-serif;">
 
-                    <div id="u_row_1" class="u_row" style="padding: 0px;">
-                      <div class="container" style="max-width: 700px;margin: 0 auto;">
-                        <div class="u-row">
+                  <div id="u_row_1" class="u_row" style="padding: 0px;">
+                    <div class="container" style="max-width: 700px;margin: 0 auto;">
+                      <div class="u-row">
 
-                          <div id="u_column_1" class="u-col u-col-100 u_column">
-                            <div style="padding: 0px;border-top: 0px solid transparent;border-left: 0px solid transparent;border-right: 0px solid transparent;border-bottom: 0px solid transparent;">
+                        <div id="u_column_1" class="u-col u-col-100 u_column">
+                          <div style="padding: 0px;border-top: 0px solid transparent;border-left: 0px solid transparent;border-right: 0px solid transparent;border-bottom: 0px solid transparent;">
 
-                              <div id="u_content_html_1" class="u_content_html" style="overflow-wrap: break-word;padding: 10px;">
-                              <div class="u-col u_column style="display: flex;flex-direction: column;align-items: flex-start;justify-content: center;padding:20px;padding-left:5%;padding-right:5%;font-family:Arial, Helvetica, sans-serif;font-size: 15px;flex:1">
-                              <div style="width: 100px;height:100px;bottom:20px;position: relative;margin:auto">
-                                  <img alt="TaxiConnect" src="https://ads-central-tc.s3.us-west-1.amazonaws.com/logo_ios.png" style="width: 100%;height: 100%;object-fit: contain;" />
-                              </div>
-                              <div style="border-bottom:1px solid #d0d0d0;display: flex;flex-direction: row;justify-content: space-between;margin-bottom: 15px;width: 100%;">
-                                  <div style="display: flex;flex-direction: row;">
-                                      <div style="margin-left: 2%;">
-                                          <div style="font-weight: bold;font-size: 17px;">Posterity TaxiConnect Technologies CC</div>
-                                          <div style="font-size: 14px;margin-top: 5px;color:#272626bb">
-                                          <div>17 Schinz street</div>
-                                          <div>Windhoek</div>
-                                          <div>+264814400089</div>
-                                          <div>support@taxiconnectna.com</div>
-                                          </div>
-                                      </div>
-                                  </div>
-                                  <div style="text-align: right;width:100%">
-                                      <div style="margin-bottom: 13px;">
-                                          <div style="font-weight: bold;font-size: 11px;">RECEIPT</div>
-                                          <div style="font-size: 14px;color:#272626bb;margin-top: 4px;">${receiptFp}</div>
-                                      </div>
-                                      <div style="margin-bottom: 13px;">
-                                          <div style="font-weight: bold;font-size: 11px;">DATE</div>
-                                          <div style="font-size: 14px;color:#272626bb;margin-top: 4px;">${
-                                            new Date(chaineDateUTC)
-                                              .toDateString()
-                                              .split(" ")[1]
-                                          } ${new Date(
+                            <div id="u_content_html_1" class="u_content_html" style="overflow-wrap: break-word;padding: 10px;">
+                            <div class="u-col u_column style="display: flex;flex-direction: column;align-items: flex-start;justify-content: center;padding:20px;padding-left:5%;padding-right:5%;font-family:Arial, Helvetica, sans-serif;font-size: 15px;flex:1">
+                            <div style="width: 100px;height:100px;bottom:20px;position: relative;margin:auto">
+                                <img alt="TaxiConnect" src="https://ads-central-tc.s3.us-west-1.amazonaws.com/logo_ios.png" style="width: 100%;height: 100%;object-fit: contain;" />
+                            </div>
+                            <div style="border-bottom:1px solid #d0d0d0;display: flex;flex-direction: row;justify-content: space-between;margin-bottom: 15px;width: 100%;">
+                                <div style="display: flex;flex-direction: row;">
+                                    <div style="margin-left: 2%;">
+                                        <div style="font-weight: bold;font-size: 17px;">Posterity TaxiConnect Technologies CC</div>
+                                        <div style="font-size: 14px;margin-top: 5px;color:#272626bb">
+                                        <div>17 Schinz street</div>
+                                        <div>Windhoek</div>
+                                        <div>+264814400089</div>
+                                        <div>support@taxiconnectna.com</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div style="text-align: right;width:100%">
+                                    <div style="margin-bottom: 13px;">
+                                        <div style="font-weight: bold;font-size: 11px;">RECEIPT</div>
+                                        <div style="font-size: 14px;color:#272626bb;margin-top: 4px;">${receiptFp}</div>
+                                    </div>
+                                    <div style="margin-bottom: 13px;">
+                                        <div style="font-weight: bold;font-size: 11px;">DATE</div>
+                                        <div style="font-size: 14px;color:#272626bb;margin-top: 4px;">${
+                                          new Date(chaineDateUTC)
+                                            .toDateString()
+                                            .split(" ")[1]
+                                        } ${new Date(
                 chaineDateUTC
               ).getDate()}, ${new Date(chaineDateUTC).getFullYear()}</div>
-                                      </div>
-                                      <div style="margin-bottom: 25px;min-width: 100px;">
-                                          <div style="font-weight: bold;font-size: 11px;">BALANCE DUE</div>
-                                          <div style="font-size: 14px;color:#272626bb;margin-top: 4px;">NAD $${parseFloat(
-                                            metaDataBundle.amount
-                                          ).toFixed(2)}</div>
-                                      </div>
-                                  </div>
-                              </div>
-                          
-                              <div style="border:1px solid #fff;margin-top: 10px;width:100%">
-                                  <div  style="font-size: 11px;margin-top: 5px;color:#272626bb">BILL TO</div>
-                                  <div  style="font-weight: bold;font-size: 17px;margin-top: 10px;margin-bottom: 20px;">${companyData.company_name.toUpperCase()}</div>
-                                  <div style="font-size: 14px;margin-top: 5px;color:#272626bb;line-height: 20px;">
-                                      <div>Windhoek</div>
-                                      <div>${companyData.phone}</div>
-                                      </div>
-                              </div>
-                          
-                              <div style="border-top:1px solid #272626bb;border-bottom:1px solid #272626bb; display: flex;flex-direction: row;color:#000;padding-bottom: 10px;padding-top:10px;margin-top: 40px;width:100%">
-                                  <div style="flex:1;align-items: flex-end;font-weight: bold;font-size: 12px;width:50%;">DESCRIPTION</div>
-                                  <div style="display: flex;flex-direction: row;text-align: right;font-size: 12px;font-weight: bold;flex:1;justify-content: space-between;width:50%">
-                                      <div style="flex:1;width:33%;">RATE</div>
-                                      <div style="flex:1;width:33%">QTY</div>
-                                      <div style="flex:1;width:33%">AMOUNT</div>
-                                  </div>
-                              </div>
-
-
-                              ${metaDataBundle.tripHistory.destinationData
-                                .map((destination, index) => {
-                                  let dest_location_name =
-                                    destination.location_name !== undefined &&
-                                    destination.location_name !== false
-                                      ? destination.location_name
-                                      : destination.street_name;
-
-                                  let dest_street_name =
-                                    destination.street_name;
-                                  //...
-                                  let dest_suburb = destination.suburb;
-                                  let singlePrice =
-                                    /Elisenheim/i.test(pickup_suburb) ||
-                                    /Elisenheim/i.test(dest_suburb)
-                                      ? 70
-                                      : 50;
-
-                                  return `<div style="border-bottom:1px dashed #272626bb; display: flex;flex-direction: row;color:#000;padding-bottom: 10px;padding-top:10px;margin-top: 10px;width:100%">
-                                      <div style="flex:1;width:50%;">
-                                      <div style="align-items: flex-end;font-weight: bold;font-size: 15px;margin-bottom: 5px;">Delivery</div>
-                                      <div style="color: #272626bb;font-size: 13px;">
-                                        Pickup: ${pickup_location_name}, ${pickup_suburb}<br />
-                                        Drop off: ${dest_location_name}, ${dest_suburb}
-                                      </div>
-                                      </div>
-                                      <div style="display: flex;flex-direction: row;text-align: right;font-size: 14px;color:#272626bb;flex:1;justify-content: space-between;width:50%">
-                                          <div style="flex:1;width:33%;">$${parseFloat(
-                                            singlePrice
-                                          ).toFixed(2)}</div>
-                                          <div style="flex:1;width:33%;">1</div>
-                                          <div style="flex:1;width:33%;">$${parseFloat(
-                                            singlePrice
-                                          ).toFixed(2)}</div>
-                                      </div>
-                                    </div>`;
-                                })
-                                .toString()
-                                .replace(/,/g, "")}
-                          
-                              <div style="display: flex;flex-direction: row;justify-content: space-between;margin-top: 30px;align-items: center;width:100%">
-                                  <div style="flex:1;color:#272626bb;font-size: 12px;padding-right: 30px;min-width:150px;">Thank you for choosing TaxiConnect for all your business delivery needs.</div>
-                                  
-                                  <di class="u-col u_column" style="flex:2;display:flex;flex-direction:column;width:70%;">
-                                    <table style="width:100%;">
-                                        <tr>
-                                            <div style="display:flex;flex-direction:row;justify-content: space-between;align-items: center;margin-bottom: 5px;width:100%;">
-                                                <div style="font-weight: bold;font-size:11px;width:50%;position:relative;top:5px;text-align:left;">SUBTOTAL</div>
-                                                <div style="font-size: 14px;color:#272626bb;width:50%;text-align:right;position:relative;bottom:3px">$${parseFloat(
-                                                  metaDataBundle.amount
-                                                ).toFixed(2)}</div>
-                                            </div>
-                                        </tr>
-                                        <tr>
-                                            <div style="border-bottom:1px solid #d0d0d0;padding-bottom:10px;display:flex;flex-direction:row;justify-content: space-between;align-items: center;margin-bottom: 10px;">
-                                                <div style="font-weight: bold;font-size:11px;width:50%;position:relative;top:5px">SERVICE FEE (4%)</div>
-                                                <div style="font-size: 14px;color:#272626bb;width:50%;text-align:right;position:relative;bottom:3px">$${(
-                                                  parseFloat(
-                                                    metaDataBundle.amount
-                                                  ) * 0.04
-                                                ).toFixed(2)}</div>
-                                            </div>
-                                        </tr>
-                                        <tr>
-                                            <div style="border-bottom:1px solid #d0d0d0;padding-bottom:10px;display:flex;flex-direction:row;justify-content: space-between;align-items: center;margin-bottom: 15px;">
-                                                <div style="font-weight: bold;font-size:11px;width:50%;position:relative;top:5px">TOTAL</div>
-                                                <div style="font-size: 14px;color:#272626bb;width:50%;text-align:right;position:relative;bottom:3px">$${parseFloat(
-                                                  metaDataBundle.amount
-                                                ).toFixed(2)}</div>
-                                            </div>
-                                        </tr>
-                                        <tr>
-                                            <div style="border-bottom:1px solid #d0d0d0;padding-bottom:10px;display:flex;flex-direction:row;justify-content: space-between;align-items: center;margin-bottom: 5px;">
-                                                <div style="font-weight: bold;font-size:12px;flex:1;width:50%;position:relative;top:5px">BALANCE PAID</div>
-                                                <div style="font-size: 15px;color:#272626bb;font-weight: bold;width:50%;text-align:right;position:relative;bottom:3px">NAD $${parseFloat(
-                                                  metaDataBundle.amount
-                                                ).toFixed(2)}</div>
-                                            </div>
-                                        </tr>
-                                    </table>
-                                  </div>
-                              </div>
-                          </div>
-                              </div>
-
+                                    </div>
+                                    <div style="margin-bottom: 25px;min-width: 100px;">
+                                        <div style="font-weight: bold;font-size: 11px;">BALANCE DUE</div>
+                                        <div style="font-size: 14px;color:#272626bb;margin-top: 4px;">NAD $${parseFloat(
+                                          metaDataBundle.amount
+                                        ).toFixed(2)}</div>
+                                    </div>
+                                </div>
                             </div>
-                          </div>
+                        
+                            <div style="border:1px solid #fff;margin-top: 10px;width:100%">
+                                <div  style="font-size: 11px;margin-top: 5px;color:#272626bb">BILL TO</div>
+                                <div  style="font-weight: bold;font-size: 17px;margin-top: 10px;margin-bottom: 20px;">${companyData.company_name.toUpperCase()}</div>
+                                <div style="font-size: 14px;margin-top: 5px;color:#272626bb;line-height: 20px;">
+                                    <div>Windhoek</div>
+                                    <div>${companyData.phone}</div>
+                                    </div>
+                            </div>
+                        
+                            <div style="border-top:1px solid #272626bb;border-bottom:1px solid #272626bb; display: flex;flex-direction: row;color:#000;padding-bottom: 10px;padding-top:10px;margin-top: 40px;width:100%">
+                                <div style="flex:1;align-items: flex-end;font-weight: bold;font-size: 12px;width:50%;">DESCRIPTION</div>
+                                <div style="display: flex;flex-direction: row;text-align: right;font-size: 12px;font-weight: bold;flex:1;justify-content: space-between;width:50%">
+                                    <div style="flex:1;width:33%;">RATE</div>
+                                    <div style="flex:1;width:33%">QTY</div>
+                                    <div style="flex:1;width:33%">AMOUNT</div>
+                                </div>
+                            </div>
 
+
+                            ${metaDataBundle.tripHistory.destinationData
+                              .map((destination, index) => {
+                                let dest_location_name =
+                                  destination.location_name !== undefined &&
+                                  destination.location_name !== false
+                                    ? destination.location_name
+                                    : destination.street_name;
+
+                                let dest_street_name = destination.street_name;
+                                //...
+                                let dest_suburb = destination.suburb;
+                                let singlePrice =
+                                  /Elisenheim/i.test(pickup_suburb) ||
+                                  /Elisenheim/i.test(dest_suburb)
+                                    ? 70
+                                    : 50;
+
+                                return `<div style="border-bottom:1px dashed #272626bb; display: flex;flex-direction: row;color:#000;padding-bottom: 10px;padding-top:10px;margin-top: 10px;width:100%">
+                                    <div style="flex:1;width:50%;">
+                                    <div style="align-items: flex-end;font-weight: bold;font-size: 15px;margin-bottom: 5px;">Delivery</div>
+                                    <div style="color: #272626bb;font-size: 13px;">
+                                      Pickup: ${pickup_location_name}, ${pickup_suburb}<br />
+                                      Drop off: ${dest_location_name}, ${dest_suburb}
+                                    </div>
+                                    </div>
+                                    <div style="display: flex;flex-direction: row;text-align: right;font-size: 14px;color:#272626bb;flex:1;justify-content: space-between;width:50%">
+                                        <div style="flex:1;width:33%;">$${parseFloat(
+                                          singlePrice
+                                        ).toFixed(2)}</div>
+                                        <div style="flex:1;width:33%;">1</div>
+                                        <div style="flex:1;width:33%;">$${parseFloat(
+                                          singlePrice
+                                        ).toFixed(2)}</div>
+                                    </div>
+                                  </div>`;
+                              })
+                              .toString()
+                              .replace(/,/g, "")}
+                        
+                            <div style="display: flex;flex-direction: row;justify-content: space-between;margin-top: 30px;align-items: center;width:100%">
+                                <div style="flex:1;color:#272626bb;font-size: 12px;padding-right: 30px;min-width:150px;">Thank you for choosing TaxiConnect for all your business delivery needs.</div>
+                                
+                                <di class="u-col u_column" style="flex:2;display:flex;flex-direction:column;width:70%;">
+                                  <table style="width:100%;">
+                                      <tr>
+                                          <div style="display:flex;flex-direction:row;justify-content: space-between;align-items: center;margin-bottom: 5px;width:100%;">
+                                              <div style="font-weight: bold;font-size:11px;width:50%;position:relative;top:5px;text-align:left;">SUBTOTAL</div>
+                                              <div style="font-size: 14px;color:#272626bb;width:50%;text-align:right;position:relative;bottom:3px">$${parseFloat(
+                                                metaDataBundle.amount
+                                              ).toFixed(2)}</div>
+                                          </div>
+                                      </tr>
+                                      <tr>
+                                          <div style="border-bottom:1px solid #d0d0d0;padding-bottom:10px;display:flex;flex-direction:row;justify-content: space-between;align-items: center;margin-bottom: 10px;">
+                                              <div style="font-weight: bold;font-size:11px;width:50%;position:relative;top:5px">SERVICE FEE (4%)</div>
+                                              <div style="font-size: 14px;color:#272626bb;width:50%;text-align:right;position:relative;bottom:3px">$${(
+                                                parseFloat(
+                                                  metaDataBundle.amount
+                                                ) * 0.04
+                                              ).toFixed(2)}</div>
+                                          </div>
+                                      </tr>
+                                      <tr>
+                                          <div style="border-bottom:1px solid #d0d0d0;padding-bottom:10px;display:flex;flex-direction:row;justify-content: space-between;align-items: center;margin-bottom: 15px;">
+                                              <div style="font-weight: bold;font-size:11px;width:50%;position:relative;top:5px">TOTAL</div>
+                                              <div style="font-size: 14px;color:#272626bb;width:50%;text-align:right;position:relative;bottom:3px">$${parseFloat(
+                                                metaDataBundle.amount
+                                              ).toFixed(2)}</div>
+                                          </div>
+                                      </tr>
+                                      <tr>
+                                          <div style="border-bottom:1px solid #d0d0d0;padding-bottom:10px;display:flex;flex-direction:row;justify-content: space-between;align-items: center;margin-bottom: 5px;">
+                                              <div style="font-weight: bold;font-size:12px;flex:1;width:50%;position:relative;top:5px">BALANCE PAID</div>
+                                              <div style="font-size: 15px;color:#272626bb;font-weight: bold;width:50%;text-align:right;position:relative;bottom:3px">NAD $${parseFloat(
+                                                metaDataBundle.amount
+                                              ).toFixed(2)}</div>
+                                          </div>
+                                      </tr>
+                                  </table>
+                                </div>
+                            </div>
                         </div>
+                            </div>
+
+                          </div>
+                        </div>
+
                       </div>
                     </div>
-
                   </div>
 
-                </body>
+                </div>
 
-                </html>
-              `;
+              </body>
+
+              </html>
+            `;
 
               //? Save the email dispatch event
               new Promise((saveEvent) => {
@@ -2902,6 +2850,10 @@ function sendReceipt(metaDataBundle, scenarioType, resolve) {
         else {
           resolve(false);
         }
+      })
+      .catch((error) => {
+        logger.error(err);
+        resolve(false);
       });
   } else {
     resolve(false);
@@ -2934,13 +2886,16 @@ function cancelRider_request(
     request_fp: requestBundle_data.request_fp,
   };
   //Get data
-  collectionRidesDeliveryData
-    .find(checkRequest)
-    .toArray(function (err, requestData) {
-      if (err) {
-        resolve({ response: "error_cancelling" });
-      }
-      //...
+  dynamo_find_query({
+    table_name: "rides_deliveries_requests",
+    IndexName: "request_fp",
+    KeyConditionExpression: "request_fp = :val1 AND client_id = :val2",
+    ExpressionAttributeValues: {
+      ":val1": requestBundle_data.request_fp,
+      ":val2": requestBundle_data.user_fingerprint,
+    },
+  })
+    .then((requestData) => {
       if (requestData.length > 0) {
         let driver_fp = requestData[0].taxi_id; //If any
         let pickup_suburb = requestData[0].pickup_location_infos.suburb;
@@ -2979,14 +2934,15 @@ function cancelRider_request(
                     //Has a linked driver
                     //? Get the driver's notification ID
                     //? Get the rider's details
-                    collectionDrivers_profiles
-                      .find({
-                        driver_fingerprint: driver_fp,
-                      })
-                      .toArray(function (err, driverDetails) {
-                        if (err) {
-                          resSendNotif(false);
-                        }
+                    dynamo_find_query({
+                      table_name: "drivers_profiles",
+                      IndexName: "driver_fingerprint",
+                      KeyConditionExpression: "driver_fingerprint = :val1",
+                      ExpressionAttributeValues: {
+                        ":val1": driver_fp,
+                      },
+                    })
+                      .then((driverDetails) => {
                         //...push_notification_token
                         if (
                           driverDetails.length > 0 &&
@@ -3023,6 +2979,9 @@ function cancelRider_request(
                         } else {
                           resSendNotif(false);
                         }
+                      })
+                      .catch((error) => {
+                        resSendNotif(false);
                       });
                   }
                 }).then(
@@ -3039,6 +2998,9 @@ function cancelRider_request(
       else {
         resolve({ response: "error_cancelling" });
       }
+    })
+    .catch((error) => {
+      resolve({ response: "error_cancelling" });
     });
 }
 
@@ -3059,16 +3021,16 @@ function declineRequest_driver(
 ) {
   resolveDate();
   //Only decline if not yet accepted by the driver
-  collectionRidesDeliveryData
-    .find({
-      request_fp: bundleWorkingData.request_fp,
-      taxi_id: bundleWorkingData.driver_fingerprint,
-    })
-    .toArray(function (err, result) {
-      if (err) {
-        resolve({ response: "unable_to_decline_request_error" });
-      }
-      //...
+  dynamo_find_query({
+    table_name: "rides_deliveries_requests",
+    IndexName: "request_fp",
+    KeyConditionExpression: "request_fp = :val1 AND taxi_id = :val2",
+    ExpressionAttributeValues: {
+      ":val1": bundleWorkingData.request_fp,
+      ":val2": bundleWorkingData.driver_fingerprint,
+    },
+  })
+    .then((result) => {
       if (result.length <= 0) {
         //Wasn't accepted by this driver - proceed to the declining
         //Save the declining event
@@ -3085,13 +3047,15 @@ function declineRequest_driver(
           () => {}
         );
         //...Get the request
-        collectionRidesDeliveryData
-          .find({ request_fp: bundleWorkingData.request_fp })
-          .toArray(function (err, trueRequest) {
-            if (err) {
-              resolve({ response: "unable_to_decline_request_error" });
-            }
-            //...
+        dynamo_find_query({
+          table_name: "rides_deliveries_requests",
+          IndexName: "request_fp",
+          KeyConditionExpression: "request_fp = :val1",
+          ExpressionAttributeValues: {
+            ":val1": bundleWorkingData.request_fp,
+          },
+        })
+          .then((trueRequest) => {
             if (trueRequest.length > 0) {
               //Request still exists - proceed
               let oldItDeclineList =
@@ -3117,11 +3081,17 @@ function declineRequest_driver(
             else {
               resolve({ response: "unable_to_decline_request_error_notExist" });
             }
+          })
+          .catch((error) => {
+            resolve({ response: "unable_to_decline_request_error" });
           });
       } //Ride accepted by this driver previously - abort the declining
       else {
         resolve({ response: "unable_to_decline_request_prev_accepted" });
       }
+    })
+    .catch((error) => {
+      resolve({ response: "unable_to_decline_request_error" });
     });
 }
 
@@ -3146,20 +3116,16 @@ function acceptRequest_driver(
 ) {
   resolveDate();
   //Only decline if not yet accepted by the driver
-  collectionRidesDeliveryData
-    .find({
-      request_fp: bundleWorkingData.request_fp,
-      taxi_id: false,
-      /*intentional_request_decline: {
-        $not: bundleWorkingData.driver_fingerprint,
-      },*/
-    })
-    .toArray(function (err, result) {
-      if (err) {
-        //logger.info(err);
-        resolve({ response: "unable_to_accept_request_error" });
-      }
-      //...
+  dynamo_find_query({
+    table_name: "rides_deliveries_requests",
+    IndexName: "request_fp",
+    KeyConditionExpression: "request_fp = :val1 AND taxi_id = :val2",
+    ExpressionAttributeValues: {
+      ":val1": bundleWorkingData.request_fp,
+      ":val2": false,
+    },
+  })
+    .then((result) => {
       if (result !== undefined && result !== null && result.length > 0) {
         //Wasn't accepted by a driver yet - proceed to the accepting
         //Save the accepting event
@@ -3176,14 +3142,15 @@ function acceptRequest_driver(
           () => {}
         );
         //! Get the driver's details - to fetch the car's fingerprint
-        collectionDrivers_profiles
-          .find({ driver_fingerprint: bundleWorkingData.driver_fingerprint })
-          .toArray(function (err, driverData) {
-            if (err) {
-              //logger.info(err);
-              resolve({ response: "unable_to_accept_request_error" });
-            }
-            //...
+        dynamo_find_query({
+          table_name: "drivers_profiles",
+          IndexName: "driver_fingerprint",
+          KeyConditionExpression: "driver_fingerprint = :val1",
+          ExpressionAttributeValues: {
+            ":val1": bundleWorkingData.driver_fingerprint,
+          },
+        })
+          .then((driverData) => {
             if (
               driverData !== undefined &&
               driverData !== null &&
@@ -3196,8 +3163,8 @@ function acceptRequest_driver(
                   request_fp: bundleWorkingData.request_fp,
                   taxi_id: false,
                   /*intentional_request_decline: {
-                    $not: bundleWorkingData.driver_fingerprint,
-                  },*/
+                $not: bundleWorkingData.driver_fingerprint,
+              },*/
                 },
                 {
                   $set: {
@@ -3219,15 +3186,15 @@ function acceptRequest_driver(
                   //Send the push notifications - FOR Passengers
                   new Promise((resSendNotif) => {
                     //? Get the rider's details
-                    collectionPassengers_profiles
-                      .find({
-                        user_fingerprint: result[0].client_id,
-                      })
-                      .toArray(function (err, ridersDetails) {
-                        if (err) {
-                          resSendNotif(false);
-                        }
-                        //...
+                    dynamo_find_query({
+                      table_name: "passengers_profiles",
+                      IndexName: "user_fingerprint",
+                      KeyConditionExpression: "user_fingerprint = :val1",
+                      ExpressionAttributeValues: {
+                        ":val1": result[0].client_id,
+                      },
+                    })
+                      .then((ridersDetails) => {
                         if (
                           ridersDetails.length > 0 &&
                           ridersDetails[0].user_fingerprint !== undefined &&
@@ -3256,6 +3223,9 @@ function acceptRequest_driver(
                         } else {
                           resSendNotif(false);
                         }
+                      })
+                      .catch((error) => {
+                        resSendNotif(false);
                       });
                   }).then(
                     () => {},
@@ -3264,13 +3234,15 @@ function acceptRequest_driver(
                   //? Update the accepted rides brief list in the driver's profile
                   new Promise((resUpdateDriverProfile) => {
                     //Get request infos
-                    collectionRidesDeliveryData
-                      .find({ request_fp: bundleWorkingData.request_fp })
-                      .toArray(function (err, requestPrevData) {
-                        if (err) {
-                          resUpdateDriverProfile(false);
-                        }
-                        //...
+                    dynamo_find_query({
+                      table_name: "rides_deliveries_requests",
+                      IndexName: "request_fp",
+                      KeyConditionExpression: "request_fp = :val1",
+                      ExpressionAttributeValues: {
+                        ":val1": bundleWorkingData.request_fp,
+                      },
+                    })
+                      .then((requestPrevData) => {
                         if (
                           requestPrevData !== null &&
                           requestPrevData !== undefined &&
@@ -3327,6 +3299,9 @@ function acceptRequest_driver(
                         else {
                           resUpdateDriverProfile(true);
                         }
+                      })
+                      .catch((error) => {
+                        resUpdateDriverProfile(false);
                       });
                   })
                     .then(
@@ -3348,11 +3323,19 @@ function acceptRequest_driver(
             else {
               resolve({ response: "unable_to_accept_request_error" });
             }
+          })
+          .catch((error) => {
+            //logger.info(error);
+            resolve({ response: "unable_to_accept_request_error" });
           });
       } //abort the accepting
       else {
         resolve({ response: "unable_to_accept_request_already_taken" });
       }
+    })
+    .catch((error) => {
+      //logger.info(error);
+      resolve({ response: "unable_to_accept_request_error" });
     });
 }
 
@@ -3388,43 +3371,43 @@ function cancelRequest_driver(
   resolve
 ) {
   resolveDate();
-  collectionRidesDeliveryData
-    .find({
-      request_fp: bundleWorkingData.request_fp,
-      taxi_id: bundleWorkingData.driver_fingerprint,
-    })
-    .toArray(function (err, result) {
-      if (err) {
-        resolve({ response: "unable_to_cancel_request_error" });
-      }
-      //...
+  dynamo_find_query({
+    table_name: "rides_deliveries_requests",
+    IndexName: "request_fp",
+    KeyConditionExpression: "request_fp = :val1 AND taxi_id = :val2",
+    ExpressionAttributeValues: {
+      ":val1": bundleWorkingData.request_fp,
+      ":val2": bundleWorkingData.driver_fingerprint,
+    },
+  })
+    .then((result) => {
       if (result.length > 0) {
         let tripData = result[0];
         //...
         let tmpRefDate = new Date(chaineDateUTC);
         //! Check if the driver did not cancel more than MAXIMUM_CANCELLATION_DRIVER_REQUESTS_LIMIT requests today
-        collectionGlobalEvents
-          .find({
-            event_name: "driver_cancelling_request",
-            driver_fingerprint: bundleWorkingData.driver_fingerprint,
-            date: {
-              $gte: new Date(
-                `${tmpRefDate.getFullYear()}-${
-                  tmpRefDate.getMonth() + 1
-                }-${tmpRefDate.getDate()} 00:00:00.00`
-              ),
-              $lte: new Date(
-                `${tmpRefDate.getFullYear()}-${
-                  tmpRefDate.getMonth() + 1
-                }-${tmpRefDate.getDate()} 23:59:59.59`
-              ),
-            },
-          })
-          .toArray(function (err, resultCancelledRequests) {
-            if (err) {
-              logger.warn(error);
-              resolve({ response: "unable_to_cancel_request_error" });
-            }
+        dynamo_find_query({
+          table_name: "global_events",
+          IndexName: "event_name",
+          KeyConditionExpression: "event_name = :val1",
+          FilterExpression:
+            "driver_fingerprint = :val2 AND date BETWEEN :val3 AND :val4",
+          ExpressionAttributeValues: {
+            ":val1": "driver_cancelling_request",
+            ":val2": bundleWorkingData.driver_fingerprint,
+            ":val3": new Date(
+              `${tmpRefDate.getFullYear()}-${
+                tmpRefDate.getMonth() + 1
+              }-${tmpRefDate.getDate()} 23:59:59.59`
+            ).toISOString(),
+            ":val4": new Date(
+              `${tmpRefDate.getFullYear()}-${
+                tmpRefDate.getMonth() + 1
+              }-${tmpRefDate.getDate()} 00:00:00.00`
+            ).toISOString(),
+          },
+        })
+          .then((resultCancelledRequests) => {
             // logger.info(resultCancelledRequests);
             // logger.info(resultCancelledRequests.length);
             // logger.info(
@@ -3491,7 +3474,7 @@ function cancelRequest_driver(
                       // "operational_state.last_location.city":
                       //   result[0].pickup_location_infos.city,
                       /*"operational_state.last_location.country": snapshotTripInfos.country,
-                operation_clearances: snapshotTripInfos.ride_type,*/
+              operation_clearances: snapshotTripInfos.ride_type,*/
                       //Filter the drivers based on the vehicle type if provided
                       "operational_state.default_selected_car.vehicle_type":
                         result[0].carTypeSelected,
@@ -3504,18 +3487,18 @@ function cancelRequest_driver(
                         //They can receive 3 additional requests on top of the limit of sits in their selected cars.
                         //! DISBALE PASSENGERS CHECK
                         /*driversProfiles = driversProfiles.filter(
-                    (dData) =>
-                      dData.operational_state.accepted_requests_infos === null ||
-                      dData.operational_state.accepted_requests_infos
-                        .total_passengers_number <=
-                        dData.operational_state.default_selected_car.max_passengers + 3 ||
-                      dData.operational_state.accepted_requests_infos === undefined ||
-                      dData.operational_state.accepted_requests_infos === null ||
-                      dData.operational_state.accepted_requests_infos
-                        .total_passengers_number === undefined ||
-                      dData.operational_state.accepted_requests_infos
-                        .total_passengers_number === null
-                  );*/
+                  (dData) =>
+                    dData.operational_state.accepted_requests_infos === null ||
+                    dData.operational_state.accepted_requests_infos
+                      .total_passengers_number <=
+                      dData.operational_state.default_selected_car.max_passengers + 3 ||
+                    dData.operational_state.accepted_requests_infos === undefined ||
+                    dData.operational_state.accepted_requests_infos === null ||
+                    dData.operational_state.accepted_requests_infos
+                      .total_passengers_number === undefined ||
+                    dData.operational_state.accepted_requests_infos
+                      .total_passengers_number === null
+                );*/
 
                         //...Register the drivers fp so that thei can see tne requests
                         let driversPushNotif_token = driversProfiles.map(
@@ -3794,28 +3777,27 @@ function cancelRequest_driver(
                   //? Update the accepted rides brief list in the driver's profile
                   new Promise((resUpdateDriverProfile) => {
                     //! Get the driver's details - to fetch the car's fingerprint
-                    collectionDrivers_profiles
-                      .find({
-                        driver_fingerprint:
-                          bundleWorkingData.driver_fingerprint,
-                      })
-                      .toArray(function (err, driverData) {
-                        if (err) {
-                          resUpdateDriverProfile(false);
-                        }
-                        //...
+                    dynamo_find_query({
+                      table_name: "drivers_profiles",
+                      IndexName: "driver_fingerprint",
+                      KeyConditionExpression: "driver_fingerprint = :val1",
+                      ExpressionAttributeValues: {
+                        ":val1": bundleWorkingData.driver_fingerprint,
+                      },
+                    })
+                      .then((driverData) => {
                         if (driverData.length > 0) {
                           driverData = driverData[0];
                           //Get request infos
-                          collectionRidesDeliveryData
-                            .find({
-                              request_fp: bundleWorkingData.request_fp,
-                            })
-                            .toArray(function (err, requestPrevData) {
-                              if (err) {
-                                resUpdateDriverProfile(false);
-                              }
-                              //...
+                          dynamo_find_query({
+                            table_name: "rides_deliveries_requests",
+                            IndexName: "request_fp",
+                            KeyConditionExpression: "request_fp = :val1",
+                            ExpressionAttributeValues: {
+                              ":val1": bundleWorkingData.request_fp,
+                            },
+                          })
+                            .then((requestPrevData) => {
                               if (
                                 requestPrevData !== undefined &&
                                 requestPrevData.length > 0 &&
@@ -3890,16 +3872,16 @@ function cancelRequest_driver(
                                 //Send the push notifications - FOR Passengers
                                 new Promise((resSendNotif) => {
                                   //? Get the rider's details
-                                  collectionPassengers_profiles
-                                    .find({
-                                      user_fingerprint:
-                                        requestPrevData[0].client_id,
-                                    })
-                                    .toArray(function (err, ridersDetails) {
-                                      if (err) {
-                                        resSendNotif(false);
-                                      }
-                                      //...
+                                  dynamo_find_query({
+                                    table_name: "passengers_profiles",
+                                    IndexName: "user_fingerprint",
+                                    KeyConditionExpression:
+                                      "user_fingerprint = :val1",
+                                    ExpressionAttributeValues: {
+                                      ":val1": requestPrevData[0].client_id,
+                                    },
+                                  })
+                                    .then((ridersDetails) => {
                                       if (
                                         ridersDetails.length > 0 &&
                                         ridersDetails[0].user_fingerprint !==
@@ -3938,6 +3920,9 @@ function cancelRequest_driver(
                                       } else {
                                         resSendNotif(false);
                                       }
+                                    })
+                                    .catch((error) => {
+                                      resSendNotif(false);
                                     });
                                 }).then(
                                   () => {},
@@ -3947,11 +3932,17 @@ function cancelRequest_driver(
                               else {
                                 resUpdateDriverProfile(true);
                               }
+                            })
+                            .catch((error) => {
+                              resUpdateDriverProfile(false);
                             });
                         } //No driver found
                         else {
                           resUpdateDriverProfile(false);
                         }
+                      })
+                      .catch((error) => {
+                        resUpdateDriverProfile(false);
                       });
                   })
                     .then(
@@ -3980,11 +3971,18 @@ function cancelRequest_driver(
                 limit: process.env.MAXIMUM_CANCELLATION_DRIVER_REQUESTS_LIMIT,
               });
             }
+          })
+          .catch((error) => {
+            logger.warn(error);
+            resolve({ response: "unable_to_cancel_request_error" });
           });
       } //abort the cancelling
       else {
         resolve({ response: "unable_to_cancel_request_not_owned" });
       }
+    })
+    .catch((error) => {
+      resolve({ response: "unable_to_cancel_request_error" });
     });
 }
 
@@ -4008,22 +4006,28 @@ function confirmPickupRequest_driver(
   let dynRequestFetcher =
     bundleWorkingData.driver_fingerprint !== undefined &&
     bundleWorkingData.driver_fingerprint !== null
-      ? {
-          request_fp: bundleWorkingData.request_fp,
-          taxi_id: bundleWorkingData.driver_fingerprint,
-        }
-      : {
-          request_fp: bundleWorkingData.request_fp,
-          client_id: bundleWorkingData.rider_fingerprint,
-        };
+      ? dynamo_find_query({
+          table_name: "rides_deliveries_requests",
+          IndexName: "request_fp",
+          KeyConditionExpression: "request_fp = :val1 AND taxi_id = :val2",
+          ExpressionAttributeValues: {
+            ":val1": bundleWorkingData.request_fp,
+            ":val2": bundleWorkingData.driver_fingerprint,
+          },
+        })
+      : dynamo_find_query({
+          table_name: "rides_deliveries_requests",
+          IndexName: "request_fp",
+          KeyConditionExpression: "request_fp = :val1 AND client_id = :val2",
+          ExpressionAttributeValues: {
+            ":val1": bundleWorkingData.request_fp,
+            ":val2": bundleWorkingData.rider_fingerprint,
+          },
+        });
   //Only confirm pickup if not yet accepted by the driver
-  collectionRidesDeliveryData
-    .find(dynRequestFetcher)
-    .toArray(function (err, requestGlobalData) {
-      if (err) {
-        resolve({ response: "unable_to_confirm_pickup_request_error" });
-      }
-      //...
+
+  dynRequestFetcher
+    .then((requestGlobalData) => {
       if (requestGlobalData.length > 0) {
         requestGlobalData = requestGlobalData[0];
         //The driver requesting for the confirm pickup is the one who's currently associated to the request - proceed to the pickup confirmation.
@@ -4070,16 +4074,15 @@ function confirmPickupRequest_driver(
             ) {
               logger.warn("CORPORATE DELIVERY");
               new Promise((resSub) => {
-                collectionDedicatedServices_accounts
-                  .find({
-                    company_fp: parsedRequest.client_id,
-                  })
-                  .toArray(function (err, companyData) {
-                    if (err) {
-                      logger.error(err);
-                      resSub(false);
-                    }
-                    //...
+                dynamo_find_query({
+                  table_name: "dedicated_services_accounts",
+                  IndexName: "company_fp",
+                  KeyConditionExpression: "company_fp = :val1",
+                  ExpressionAttributeValues: {
+                    ":val1": parsedRequest.client_id,
+                  },
+                })
+                  .then((companyData) => {
                     if (companyData !== undefined && companyData.length > 0) {
                       parsedRequest = parsedRequest.destinationData.map(
                         (el) => {
@@ -4122,6 +4125,10 @@ function confirmPickupRequest_driver(
                     else {
                       resSub(false);
                     }
+                  })
+                  .catch((error) => {
+                    logger.error(error);
+                    resSub(false);
                   });
               })
                 .then()
@@ -4139,6 +4146,9 @@ function confirmPickupRequest_driver(
       else {
         resolve({ response: "unable_to_confirm_pickup_request_not_owned" });
       }
+    })
+    .catch((error) => {
+      resolve({ response: "unable_to_confirm_pickup_request_error" });
     });
 }
 
@@ -4162,16 +4172,16 @@ function confirmDropoffRequest_driver(
 ) {
   resolveDate();
   //Only confirm pickup if not yet accepted by the driver
-  collectionRidesDeliveryData
-    .find({
-      request_fp: bundleWorkingData.request_fp,
-      taxi_id: bundleWorkingData.driver_fingerprint,
-    })
-    .toArray(function (err, result) {
-      if (err) {
-        resolve({ response: "unable_to_confirm_dropoff_request_error" });
-      }
-      //...
+  dynamo_find_query({
+    table_name: "rides_deliveries_requests",
+    IndexName: "request_fp",
+    KeyConditionExpression: "request_fp = :val1 AND taxi_id = :val2",
+    ExpressionAttributeValues: {
+      ":val1": bundleWorkingData.request_fp,
+      ":val2": bundleWorkingData.driver_fingerprint,
+    },
+  })
+    .then((result) => {
       if (result.length > 0) {
         //The driver requesting for the confirm dropoff is the one who's currently associated to the request - proceed to the dropoff confirmation.
         //Save the dropoff confirmation event
@@ -4209,24 +4219,26 @@ function confirmDropoffRequest_driver(
             //? Update the accepted rides brief list in the driver's profile
             new Promise((resUpdateDriverProfile) => {
               //! Get the driver's details - to fetch the car's fingerprint
-              collectionDrivers_profiles
-                .find({
-                  driver_fingerprint: bundleWorkingData.driver_fingerprint,
-                })
-                .toArray(function (err, driverData) {
-                  if (err) {
-                    resUpdateDriverProfile(false);
-                  }
-                  //...
+              dynamo_find_query({
+                table_name: "drivers_profiles",
+                IndexName: "driver_fingerprint",
+                KeyConditionExpression: "driver_fingerprint = :val1",
+                ExpressionAttributeValues: {
+                  ":val1": bundleWorkingData.driver_fingerprint,
+                },
+              })
+                .then((driverData) => {
                   if (driverData.length > 0) {
                     //Get request infos
-                    collectionRidesDeliveryData
-                      .find({ request_fp: bundleWorkingData.request_fp })
-                      .toArray(function (err, requestPrevData) {
-                        if (err) {
-                          resUpdateDriverProfile(false);
-                        }
-                        //...
+                    dynamo_find_query({
+                      table_name: "rides_deliveries_requests",
+                      IndexName: "request_fp",
+                      KeyConditionExpression: "request_fp = :val1",
+                      ExpressionAttributeValues: {
+                        ":val1": bundleWorkingData.request_fp,
+                      },
+                    })
+                      .then((requestPrevData) => {
                         if (
                           requestPrevData !== undefined &&
                           requestPrevData.length > 0 &&
@@ -4293,15 +4305,16 @@ function confirmDropoffRequest_driver(
                           //Send the push notifications - FOR Passengers
                           new Promise((resSendNotif) => {
                             //? Get the rider's details
-                            collectionPassengers_profiles
-                              .find({
-                                user_fingerprint: requestPrevData[0].client_id,
-                              })
-                              .toArray(function (err, ridersDetails) {
-                                if (err) {
-                                  resSendNotif(false);
-                                }
-                                //...
+                            dynamo_find_query({
+                              table_name: "passengers_profiles",
+                              IndexName: "user_fingerprint",
+                              KeyConditionExpression:
+                                "user_fingerprint = :val1",
+                              ExpressionAttributeValues: {
+                                ":val1": requestPrevData[0].client_id,
+                              },
+                            })
+                              .then((ridersDetails) => {
                                 if (
                                   ridersDetails.length > 0 &&
                                   ridersDetails[0].user_fingerprint !==
@@ -4335,6 +4348,9 @@ function confirmDropoffRequest_driver(
                                 } else {
                                   resSendNotif(false);
                                 }
+                              })
+                              .catch((error) => {
+                                resSendNotif(false);
                               });
                           }).then(
                             () => {},
@@ -4344,11 +4360,17 @@ function confirmDropoffRequest_driver(
                         else {
                           resUpdateDriverProfile(true);
                         }
+                      })
+                      .catch((error) => {
+                        resUpdateDriverProfile(false);
                       });
                   } //No driver
                   else {
                     resUpdateDriverProfile(false);
                   }
+                })
+                .catch((error) => {
+                  resUpdateDriverProfile(false);
                 });
             })
               .then(
@@ -4369,6 +4391,9 @@ function confirmDropoffRequest_driver(
       else {
         resolve({ response: "unable_to_confirm_dropoff_request_not_owned" });
       }
+    })
+    .catch((error) => {
+      resolve({ response: "unable_to_confirm_dropoff_request_error" });
     });
 }
 
@@ -4414,28 +4439,36 @@ function INIT_RIDE_DELIVERY_DISPATCH_ENTRY(
   //! ----
 
   //! Get the list of blocked drivers set by the rider
-  collectionPassengers_profiles
-    .find({
-      user_fingerprint: parsedReqest_data.client_id,
-    })
-    .toArray(function (err, riderData) {
-      if (err) {
-        //logger.info(err);
-        resolve({ response: "Unable_to_make_the_request" });
-      }
-      //...
+  dynamo_find_query({
+    table_name: "passengers_profiles",
+    IndexName: "user_fingerprint",
+    KeyConditionExpression: "user_fingerprint = :val1",
+    ExpressionAttributeValues: {
+      ":val1": parsedReqest_data.client_id,
+    },
+  })
+    .then((riderData) => {
       if (riderData !== undefined && riderData.length > 0) {
         //Found the profile
         riderData = riderData[0];
         //...
-        collectionRidesDeliveryData
-          .find(checkPrevRequest)
-          .toArray(function (err, prevRequest) {
-            if (err) {
-              logger.error(err);
-              resolve({ response: "Unable_to_make_the_request" });
-            }
-            //....
+        dynamo_find_query({
+          table_name: "rides_deliveries_requests",
+          IndexName: "client_id",
+          KeyConditionExpression: "client_id = :val1",
+          FilterExpression:
+            "#r.#isComplRider = :val2 AND isArrivedToDestination = :val3",
+          ExpressionAttributeNames: {
+            "#r": "ride_state_vars",
+            "#isComplRider": "isRideCompleted_riderSide",
+          },
+          ExpressionAttributeValues: {
+            ":val1": parsedReqest_data.client_id,
+            ":val2": false,
+            ":val3": false,
+          },
+        })
+          .then((prevRequest) => {
             if (
               prevRequest === undefined ||
               prevRequest === null ||
@@ -4519,11 +4552,19 @@ function INIT_RIDE_DELIVERY_DISPATCH_ENTRY(
               //logger.info("ALEADY HAS A REQUEST");
               resolve({ response: "already_have_a_pending_request" });
             }
+          })
+          .catch((error) => {
+            logger.error(error);
+            resolve({ response: "Unable_to_make_the_request" });
           });
       } //No profile found
       else {
         resolve({ response: "Unable_to_make_the_request" });
       }
+    })
+    .catch((error) => {
+      //logger.info(error);
+      resolve({ response: "Unable_to_make_the_request" });
     });
 }
 
@@ -4558,18 +4599,15 @@ function getRequests_graphPreview_forDrivers(
   };
   //...
   //1. Get the driver's data
-  collectionDrivers_profiles
-    .find({ driver_fingerprint: driver_fingerprint })
-    .toArray(function (err, driverData) {
-      if (err) {
-        resolve({
-          rides: 0,
-          deliveries: 0,
-          scheduled: 0,
-          accepted: 0,
-        });
-      }
-      //...
+  dynamo_find_query({
+    table_name: "drivers_profiles",
+    IndexName: "driver_fingerprint",
+    KeyConditionExpression: "driver_fingerprint = :val1",
+    ExpressionAttributeValues: {
+      ":val1": driver_fingerprint,
+    },
+  })
+    .then((driverData) => {
       if (
         driverData !== undefined &&
         driverData !== null &&
@@ -4580,78 +4618,48 @@ function getRequests_graphPreview_forDrivers(
         //Found the ddriver's data
         try {
           //2. Isolate correct requests
-          collectionRidesDeliveryData
-            .find(
-              /88889d088e03653169b9c18193a0b8dd329ea1e43eb0626ef9f16b5b979694a429710561a3cb3ddae/i.test(
-                driver_fingerprint
-              )
-                ? {
-                    taxi_id: false,
-                    "pickup_location_infos.city":
-                      driverData[0].operational_state.last_location !== null &&
-                      driverData[0].operational_state.last_location.city &&
-                      driverData[0].operational_state.last_location.city !==
-                        undefined
-                        ? driverData[0].operational_state.last_location.city
-                        : "Windhoek",
-                    country:
-                      driverData[0].operational_state.last_location !== null &&
-                      driverData[0].operational_state.last_location.country &&
-                      driverData[0].operational_state.last_location.country !==
-                        undefined
-                        ? driverData[0].operational_state.last_location.country
-                        : "Namibia",
-                    intentional_request_decline: {
-                      $not: { $in: [driver_fingerprint] },
-                    },
-                  }
-                : {
-                    taxi_id: false,
-                    "pickup_location_infos.city":
-                      driverData[0].operational_state.last_location !== null &&
-                      driverData[0].operational_state.last_location.city &&
-                      driverData[0].operational_state.last_location.city !==
-                        undefined
-                        ? driverData[0].operational_state.last_location.city
-                        : "Windhoek",
-                    country:
-                      driverData[0].operational_state.last_location !== null &&
-                      driverData[0].operational_state.last_location.country &&
-                      driverData[0].operational_state.last_location.country !==
-                        undefined
-                        ? driverData[0].operational_state.last_location.country
-                        : "Namibia",
-                    carTypeSelected:
-                      driverData[0].operational_state.default_selected_car
-                        .vehicle_type,
-                    ride_mode: {
-                      $in: driverData[0].operation_clearances.map(
-                        (clearance) => [
-                          `${clearance[0].toUpperCase().trim()}${clearance
-                            .substr(1)
-                            .toLowerCase()
-                            .trim()}`,
-                          clearance.toUpperCase().trim(),
-                          clearance[0],
-                        ]
-                      )[0],
-                    },
-                    // allowed_drivers_see: driver_fingerprint,
-                    intentional_request_decline: {
-                      $not: { $in: [driver_fingerprint] },
-                    },
-                  }
-            )
-            .toArray(function (err, filteredRequests) {
-              if (err) {
-                resolve({
-                  rides: 0,
-                  deliveries: 0,
-                  scheduled: 0,
-                  accepted: 0,
-                });
-              }
-              //...
+          dynamo_find_query({
+            table_name: "rides_deliveries_requests",
+            IndexName: "taxi_id",
+            KeyConditionExpression: "taxi_id = :val1",
+            FilterExpression:
+              "#p.#ct = :val2 AND country = :val3 AND carTypeSelected = :val4 AND ride_mode IN (:type1, :type2) AND not contains(#intention, :val5)",
+            ExpressionAttributeNames: {
+              "#intention": "intentional_request_decline",
+              "#p": "pickup_location_infos",
+              "#ct": "city",
+            },
+            ExpressionAttributeValues: {
+              ":val1": false,
+              ":val2":
+                driverData[0].operational_state.last_location !== null &&
+                driverData[0].operational_state.last_location.city &&
+                driverData[0].operational_state.last_location.city !== undefined
+                  ? driverData[0].operational_state.last_location.city
+                  : "Windhoek",
+              ":val3":
+                driverData[0].operational_state.last_location !== null &&
+                driverData[0].operational_state.last_location.country &&
+                driverData[0].operational_state.last_location.country !==
+                  undefined
+                  ? driverData[0].operational_state.last_location.country
+                  : "Namibia",
+              ":val4":
+                driverData[0].operational_state.default_selected_car
+                  .vehicle_type,
+              ":type1": `${driverData[0].operation_clearances[0]
+                .toUpperCase()
+                .trim()}${driverData[0].operation_clearances[0]
+                .substr(1)
+                .toLowerCase()
+                .trim()}`,
+              ":type2": driverData[0].operation_clearances[0]
+                .toUpperCase()
+                .trim(),
+              ":val5": driver_fingerprint,
+            },
+          })
+            .then((filteredRequests) => {
               if (
                 filteredRequests !== undefined &&
                 filteredRequests !== null &&
@@ -4683,22 +4691,27 @@ function getRequests_graphPreview_forDrivers(
                   .then(
                     (resultSegregatedRequests) => {
                       //? Check if there are any scheduled requests that are not completed yet and add them to the count
-                      collectionRidesDeliveryData
-                        .find({
-                          taxi_id: driver_fingerprint,
-                          // request_type: "scheduled",
-                          "ride_state_vars.isAccepted": true,
-                          "ride_state_vars.isRideCompleted_driverSide": false,
-                          isArrivedToDestination: false,
-                          intentional_request_decline: {
-                            $not: { $in: [driver_fingerprint] },
-                          },
-                        })
-                        .toArray(function (err, scheduledAcceptedTripData) {
-                          if (err) {
-                            resolve(requestsGraph);
-                          }
-                          //...
+                      dynamo_find_query({
+                        table_name: "rides_deliveries_requests",
+                        IndexName: "taxi_id",
+                        KeyConditionExpression: "taxi_id = :val1",
+                        FilterExpression:
+                          "#r.#isAcc = :val2 AND #r.#isComplDriver = :val3 AND isArrivedToDestination = :val4 AND not contains(#intentional, :val5)",
+                        ExpressionAttributeNames: {
+                          "#r": "ride_state_vars",
+                          "#isAcc": "isAccepted",
+                          "#isComplDriver": "isRideCompleted_driverSide",
+                          "#intentional": "intentional_request_decline",
+                        },
+                        ExpressionAttributeValues: {
+                          ":val1": driver_fingerprint,
+                          ":val2": true,
+                          ":val3": false,
+                          ":val4": false,
+                          ":val5": driver_fingerprint,
+                        },
+                      })
+                        .then((scheduledAcceptedTripData) => {
                           if (
                             scheduledAcceptedTripData !== undefined &&
                             scheduledAcceptedTripData !== null &&
@@ -4723,6 +4736,9 @@ function getRequests_graphPreview_forDrivers(
                           else {
                             resolve(requestsGraph);
                           }
+                        })
+                        .catch((error) => {
+                          resolve(requestsGraph);
                         });
                     },
                     (error) => {
@@ -4747,22 +4763,27 @@ function getRequests_graphPreview_forDrivers(
               } //No requests
               else {
                 //? Check if there are any scheduled requests that are not completed yet and add them to the count
-                collectionRidesDeliveryData
-                  .find({
-                    taxi_id: driver_fingerprint,
-                    // request_type: "scheduled",
-                    "ride_state_vars.isAccepted": true,
-                    "ride_state_vars.isRideCompleted_driverSide": false,
-                    isArrivedToDestination: false,
-                    intentional_request_decline: {
-                      $not: { $in: [driver_fingerprint] },
-                    },
-                  })
-                  .toArray(function (err, scheduledAcceptedTripData) {
-                    if (err) {
-                      resolve(requestsGraph);
-                    }
-                    //...
+                dynamo_find_query({
+                  table_name: "rides_deliveries_requests",
+                  IndexName: "taxi_id",
+                  KeyConditionExpression: "taxi_id = :val1",
+                  FilterExpression:
+                    "#r.#isAcc = :val2 AND #r.#isComplDriver = :val3 AND isArrivedToDestination = :val4 AND not contains(#intentional, :val5)",
+                  ExpressionAttributeNames: {
+                    "#r": "ride_state_vars",
+                    "#isAcc": "isAccepted",
+                    "#isComplDriver": "isRideCompleted_driverSide",
+                    "#intentional": "intentional_request_decline",
+                  },
+                  ExpressionAttributeValues: {
+                    ":val1": driver_fingerprint,
+                    ":val2": true,
+                    ":val3": false,
+                    ":val4": false,
+                    ":val5": driver_fingerprint,
+                  },
+                })
+                  .then((scheduledAcceptedTripData) => {
                     if (
                       scheduledAcceptedTripData !== undefined &&
                       scheduledAcceptedTripData !== null &&
@@ -4785,8 +4806,19 @@ function getRequests_graphPreview_forDrivers(
                     else {
                       resolve(requestsGraph);
                     }
+                  })
+                  .catch((error) => {
+                    resolve(requestsGraph);
                   });
               }
+            })
+            .catch((error) => {
+              resolve({
+                rides: 0,
+                deliveries: 0,
+                scheduled: 0,
+                accepted: 0,
+              });
             });
         } catch (error) {
           //logger.info(error);
@@ -4806,6 +4838,14 @@ function getRequests_graphPreview_forDrivers(
           accepted: 0,
         });
       }
+    })
+    .catch((error) => {
+      resolve({
+        rides: 0,
+        deliveries: 0,
+        scheduled: 0,
+        accepted: 0,
+      });
     });
 }
 
@@ -5360,9 +5400,18 @@ redisCluster.on("connect", function () {
                 client_id: req.user_fingerprint,
                 isArrivedToDestination: false,
               }; //?Indexed
-              collectionRidesDeliveryData
-                .find(checkPrevRequest)
-                .toArray(function (err, prevRequest) {
+
+              dynamo_find_query({
+                table_name: "rides_deliveries_requests",
+                IndexName: "client_id",
+                KeyConditionExpression: "client_id = :val1",
+                FilterExpression: "isArrivedToDestination = :val2",
+                ExpressionAttributeValues: {
+                  ":val1": req.user_fingerprint,
+                  ":val2": false,
+                },
+              })
+                .then((prevRequest) => {
                   //! PLANS QUOTAS
                   //! Batches
                   let QUOTAS_BATCHES = {
@@ -5481,53 +5530,100 @@ redisCluster.on("connect", function () {
                                                   );
                                                   let message = `Hello ${receiverName}, a package is being delivered to you via TaxiConnect, you can track it by creating a TaxiConnect account with your current number.\n\nThe TaxiConnect teams.`;
                                                   //!Check if the receiver is a current user
-                                                  collectionPassengers_profiles
-                                                    .find({
-                                                      phone_number:
+                                                  dynamo_find_query({
+                                                    table_name:
+                                                      "passengers_profiles",
+                                                    IndexName: "phone_number",
+                                                    KeyConditionExpression:
+                                                      "phone_number = :val1",
+                                                    ExpressionAttributeValues: {
+                                                      ":val1":
                                                         parsedRequest.delivery_infos.receiverPhone_delivery.trim(),
-                                                    })
-                                                    .toArray(function (
-                                                      err,
-                                                      userReceiverData
-                                                    ) {
-                                                      if (err) {
-                                                        resNotifyReceiver(
-                                                          false
-                                                        );
-                                                      }
-                                                      //...
-                                                      if (
-                                                        userReceiverData !==
-                                                          undefined &&
-                                                        userReceiverData.length >
-                                                          0
-                                                      ) {
-                                                        //Is a TaxiConnect user, check for how long the app has not been used.
-                                                        resolveDate();
+                                                    },
+                                                  })
+                                                    .then(
+                                                      (userReceiverData) => {
                                                         if (
-                                                          userReceiverData.last_updated !==
+                                                          userReceiverData !==
                                                             undefined &&
-                                                          userReceiverData.last_updated !==
-                                                            null
+                                                          userReceiverData.length >
+                                                            0
                                                         ) {
-                                                          //Check the time
-                                                          let lastUserUpdated =
-                                                            new Date(
-                                                              userReceiverData.last_updated
-                                                            );
-                                                          let refNowDate =
-                                                            new Date(
-                                                              chaineDateUTC
-                                                            );
-                                                          //...
+                                                          //Is a TaxiConnect user, check for how long the app has not been used.
+                                                          resolveDate();
                                                           if (
-                                                            diff_hours(
-                                                              refNowDate,
-                                                              lastUserUpdated
-                                                            ).difference >
-                                                            7 * 24
+                                                            userReceiverData.last_updated !==
+                                                              undefined &&
+                                                            userReceiverData.last_updated !==
+                                                              null
                                                           ) {
-                                                            //If greater than 7 days - send SMS
+                                                            //Check the time
+                                                            let lastUserUpdated =
+                                                              new Date(
+                                                                userReceiverData.last_updated
+                                                              );
+                                                            let refNowDate =
+                                                              new Date(
+                                                                chaineDateUTC
+                                                              );
+                                                            //...
+                                                            if (
+                                                              diff_hours(
+                                                                refNowDate,
+                                                                lastUserUpdated
+                                                              ).difference >
+                                                              7 * 24
+                                                            ) {
+                                                              //If greater than 7 days - send SMS
+                                                              SendSMSTo(
+                                                                receiversPhone,
+                                                                message
+                                                              );
+                                                              resNotifyReceiver(
+                                                                true
+                                                              );
+                                                            } //Send push notification
+                                                            else {
+                                                              let messageNotify =
+                                                                {
+                                                                  app_id:
+                                                                    process.env
+                                                                      .RIDERS_APP_ID_ONESIGNAL,
+                                                                  android_channel_id:
+                                                                    process.env
+                                                                      .RIDERS_ONESIGNAL_CHANNEL_ACCEPTTEDD_REQUEST, //Ride - Accepted request
+                                                                  priority: 10,
+                                                                  contents: {
+                                                                    en: message,
+                                                                  },
+                                                                  headings: {
+                                                                    en: "Delivery in progress",
+                                                                  },
+                                                                  content_available: true,
+                                                                  include_player_ids:
+                                                                    [
+                                                                      userReceiverData.pushnotif_token !==
+                                                                        false &&
+                                                                      userReceiverData.pushnotif_token !==
+                                                                        null &&
+                                                                      userReceiverData.pushnotif_token !==
+                                                                        "false"
+                                                                        ? userReceiverData
+                                                                            .pushnotif_token
+                                                                            .userId
+                                                                        : null,
+                                                                    ],
+                                                                };
+                                                              //Send
+                                                              sendPushUPNotification(
+                                                                messageNotify
+                                                              );
+                                                              resNotifyReceiver(
+                                                                true
+                                                              );
+                                                            }
+                                                          } //Send an SMS, not logged in yet
+                                                          else {
                                                             SendSMSTo(
                                                               receiversPhone,
                                                               message
@@ -5535,47 +5631,8 @@ redisCluster.on("connect", function () {
                                                             resNotifyReceiver(
                                                               true
                                                             );
-                                                          } //Send push notification
-                                                          else {
-                                                            let messageNotify =
-                                                              {
-                                                                app_id:
-                                                                  process.env
-                                                                    .RIDERS_APP_ID_ONESIGNAL,
-                                                                android_channel_id:
-                                                                  process.env
-                                                                    .RIDERS_ONESIGNAL_CHANNEL_ACCEPTTEDD_REQUEST, //Ride - Accepted request
-                                                                priority: 10,
-                                                                contents: {
-                                                                  en: message,
-                                                                },
-                                                                headings: {
-                                                                  en: "Delivery in progress",
-                                                                },
-                                                                content_available: true,
-                                                                include_player_ids:
-                                                                  [
-                                                                    userReceiverData.pushnotif_token !==
-                                                                      false &&
-                                                                    userReceiverData.pushnotif_token !==
-                                                                      null &&
-                                                                    userReceiverData.pushnotif_token !==
-                                                                      "false"
-                                                                      ? userReceiverData
-                                                                          .pushnotif_token
-                                                                          .userId
-                                                                      : null,
-                                                                  ],
-                                                              };
-                                                            //Send
-                                                            sendPushUPNotification(
-                                                              messageNotify
-                                                            );
-                                                            resNotifyReceiver(
-                                                              true
-                                                            );
                                                           }
-                                                        } //Send an SMS, not logged in yet
+                                                        } //Not a TaxiConnect user, Send an SMS
                                                         else {
                                                           SendSMSTo(
                                                             receiversPhone,
@@ -5585,14 +5642,10 @@ redisCluster.on("connect", function () {
                                                             true
                                                           );
                                                         }
-                                                      } //Not a TaxiConnect user, Send an SMS
-                                                      else {
-                                                        SendSMSTo(
-                                                          receiversPhone,
-                                                          message
-                                                        );
-                                                        resNotifyReceiver(true);
                                                       }
+                                                    )
+                                                    .catch((error) => {
+                                                      resNotifyReceiver(false);
                                                     });
                                                 }
                                               )
@@ -5678,6 +5731,9 @@ redisCluster.on("connect", function () {
                   else {
                     res.send({ response: "already_have_a_pending_request" });
                   }
+                })
+                .catch((error) => {
+                  res.send({ response: "Unable_to_make_the_request" });
                 });
             } //Invalid user fp
             else {
@@ -5943,10 +5999,10 @@ redisCluster.on("connect", function () {
             //Do basic checking
             if (
               req.driver_fingerprint !== undefined &&
-              req.driver_fingerprint !== null 
-//               &&
-//               req.request_fp !== undefined &&
-//               req.request_fp !== null
+              req.driver_fingerprint !== null
+              //               &&
+              //               req.request_fp !== undefined &&
+              //               req.request_fp !== null
             ) {
               //...
               new Promise((res0) => {

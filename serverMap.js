@@ -44,6 +44,8 @@ var chaineDateUTC = null;
 var dateObject = null;
 const moment = require("moment");
 const { stringify, parse } = require("flatted");
+const { dynamo_find_query } = require("./DynamoServiceManager");
+const { table } = require("console");
 
 function resolveDate() {
   //Resolve date
@@ -624,14 +626,15 @@ function updateRiderLocationsLog(
       }
     );
     //First get the current coordinate
-    collectionDrivers_profiles
-      .find(filterDriver)
-      .toArray(function (err, driverData) {
-        if (err) {
-          //logger.info(err);
-          resolve(false);
-        }
-        //...
+    dynamo_find_query({
+      table_name: "drivers_profiles",
+      IndexName: "driver_fingerprint",
+      KeyConditionExpression: "driver_fingerprint = :val1",
+      ExpressionAttributeValues: {
+        ":val1": locationData.user_fingerprint,
+      },
+    })
+      .then((driverData) => {
         if (driverData !== undefined && driverData.length > 0) {
           if (
             driverData !== undefined &&
@@ -766,6 +769,10 @@ function updateRiderLocationsLog(
         else {
           resolve(false);
         }
+      })
+      .catch((error) => {
+        //logger.info(error);
+        resolve(false);
       });
   }
 }
@@ -1065,96 +1072,115 @@ function execTripChecker_Dispatcher(
       "ride_state_vars.isRideCompleted_riderSide": false,
     };
 
-    collectionRidesDeliveries_data
-      .find(rideChecker)
-      .toArray(function (err, userDataRepr) {
-        if (err) {
-          resolve(false);
-          throw err;
-        }
+    dynamo_find_query({
+      table_name: "rides_deliveries_requests",
+      IndexName: "client_id",
+      KeyConditionExpression: "client_id = :val1",
+      FilterExpression: "#r.#isComplRider = :val2",
+      ExpressionAttributeNames: {
+        "#r": "ride_state_vars",
+        "#isComplRider": "isRideCompleted_riderSide",
+      },
+      ExpressionAttributeValues: {
+        ":val1": user_fingerprint,
+        ":val2": false,
+      },
+    })
+      .then((userDataRepr) => {
         if (userDataRepr.length <= 0) {
+          //! SAVE THE FINAL FULL RESULT - for 15 min ------
+          redisCluster.setex(
+            RIDE_REDIS_KEY,
+            parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
+            JSON.stringify(false)
+          );
+          resolve(false);
+          //! ----------------------------------------------
           //Get the user's data First
-          collectionPassengers_profiles
-            .find({
-              user_fingerprint: user_fingerprint,
-            })
-            .toArray(function (err, riderData) {
-              if (err) {
-                logger.error(err);
-                //! SAVE THE FINAL FULL RESULT - for 15 min ------
-                redisCluster.setex(
-                  RIDE_REDIS_KEY,
-                  parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
-                  JSON.stringify(false)
-                );
-                resolve(false);
-                //! ----------------------------------------------
-              }
-              //...
-              if (riderData !== undefined && riderData.length > 0) {
-                //Valid rider
-                //!Check for the deliveries
-                let deliveryChecker = {
-                  "destinationData.receiver_infos.receiver_phone":
-                    riderData[0].phone_number,
-                  "ride_state_vars.isRideCompleted_riderSide": false,
-                };
-                collectionRidesDeliveries_data
-                  .find(deliveryChecker)
-                  .toArray(function (err, userDataRepr) {
-                    if (err) {
-                      resolve(false);
-                      throw err;
-                    }
-                    //...
-                    if (userDataRepr.length <= 0) {
-                      redisCluster.setex(
-                        RIDE_REDIS_KEY,
-                        parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
-                        JSON.stringify(false)
-                      );
-                      resolve(false);
-                    } else {
-                      if (
-                        userDataRepr[0].ride_state_vars
-                          .isRideCompleted_riderSide === false
-                      ) {
-                        //REQUEST FP
-                        let request_fp = userDataRepr[0].request_fp;
-                        //Check if there are any requests cached
-                        getMongoRecordTrip_cacheLater(
-                          collectionRidesDeliveries_data,
-                          collectionDrivers_profiles,
-                          userDataRepr[0].client_id,
-                          user_nature,
-                          request_fp,
-                          RIDE_REDIS_KEY,
-                          resolve
-                        );
-                      } //No rides recorded
-                      else {
-                        //! SAVE THE FINAL FULL RESULT - for 15 min ------
-                        redisCluster.setex(
-                          RIDE_REDIS_KEY,
-                          parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
-                          JSON.stringify("no_rides")
-                        );
-                        //! ----------------------------------------------
-                        resolve("no_rides");
-                      }
-                    }
-                  });
-                resolve(false);
-              } else {
-                //Invalid user
-                redisCluster.setex(
-                  RIDE_REDIS_KEY,
-                  parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
-                  JSON.stringify(false)
-                );
-                resolve(false);
-              }
-            });
+          // dynamo_find_query({
+          //   table_name: "passengers_profiles",
+          //   IndexName: "user_fingerprint",
+          //   KeyConditionExpression: "user_fingerprint = :val1",
+          //   ExpressionAttributeValues: {
+          //     ":val1": user_fingerprint,
+          //   },
+          // })
+          //   .then((riderData) => {
+          //     if (riderData !== undefined && riderData.length > 0) {
+          //       //Valid rider
+          //       //!Check for the deliveries
+          //       let deliveryChecker = {
+          //         "destinationData.receiver_infos.receiver_phone":
+          //           riderData[0].phone_number,
+          //         "ride_state_vars.isRideCompleted_riderSide": false,
+          //       };
+          //       collectionRidesDeliveries_data
+          //         .fin/d(deliveryChecker)
+          //         .toArray(function (err, userDataRepr) {
+          //           if (err) {
+          //             resolve(false);
+          //             throw err;
+          //           }
+          //           //...
+          //           if (userDataRepr.length <= 0) {
+          //             redisCluster.setex(
+          //               RIDE_REDIS_KEY,
+          //               parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
+          //               JSON.stringify(false)
+          //             );
+          //             resolve(false);
+          //           } else {
+          //             if (
+          //               userDataRepr[0].ride_state_vars
+          //                 .isRideCompleted_riderSide === false
+          //             ) {
+          //               //REQUEST FP
+          //               let request_fp = userDataRepr[0].request_fp;
+          //               //Check if there are any requests cached
+          //               getMongoRecordTrip_cacheLater(
+          //                 collectionRidesDeliveries_data,
+          //                 collectionDrivers_profiles,
+          //                 userDataRepr[0].client_id,
+          //                 user_nature,
+          //                 request_fp,
+          //                 RIDE_REDIS_KEY,
+          //                 resolve
+          //               );
+          //             } //No rides recorded
+          //             else {
+          //               //! SAVE THE FINAL FULL RESULT - for 15 min ------
+          //               redisCluster.setex(
+          //                 RIDE_REDIS_KEY,
+          //                 parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
+          //                 JSON.stringify("no_rides")
+          //               );
+          //               //! ----------------------------------------------
+          //               resolve("no_rides");
+          //             }
+          //           }
+          //         });
+          //       resolve(false);
+          //     } else {
+          //       //Invalid user
+          //       redisCluster.setex(
+          //         RIDE_REDIS_KEY,
+          //         parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
+          //         JSON.stringify(false)
+          //       );
+          //       resolve(false);
+          //     }
+          //   })
+          //   .catch((error) => {
+          //     logger.error(err);
+          //     //! SAVE THE FINAL FULL RESULT - for 15 min ------
+          //     redisCluster.setex(
+          //       RIDE_REDIS_KEY,
+          //       parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
+          //       JSON.stringify(false)
+          //     );
+          //     resolve(false);
+          //     //! ----------------------------------------------
+          //   });
         } //Found a user record
         else {
           //? Segregate based on the request globality
@@ -1244,21 +1270,25 @@ function execTripChecker_Dispatcher(
               });
           }
         }
+      })
+      .catch((error) => {
+        resolve(false);
+        throw error;
       });
   } else if (/^driver$/i.test(user_nature)) {
     //Get the driver's details
-    collectionDrivers_profiles
-      .find({
-        driver_fingerprint: user_fingerprint,
-        isDriverSuspended: false, //! When a driver is suspended - lock all requests.
-        "operational_state.status": "online",
-      })
-      .toArray(function (err, driverData) {
-        if (err) {
-          resolve(false);
-        }
-        logger.error(driverData);
-        //
+    dynamo_find_query({
+      table_name: "drivers_profiles",
+      IndexName: "driver_fingerprint",
+      KeyConditionExpression: "driver_fingerprint = :val1",
+      FilterExpression: "isDriverSuspended = :val2 AND #op.#st = :val3",
+      ExpressionAttributeValues: {
+        ":val1": user_fingerprint,
+        ":val2": false, //! When a driver is suspended - lock all requests.
+        ":val3": "online",
+      },
+    })
+      .then((driverData) => {
         if (driverData === undefined || driverData.length <= 0) {
           //! SAVE THE FINAL FULL RESULT - for 15 min ------
           redisCluster.setex(
@@ -1280,42 +1310,32 @@ function execTripChecker_Dispatcher(
           //? Deduct the ride mode -> RIDE or DELIVERY -> Code inline
           //Check if the driver has an accepted and not completed request already
           //! OVERRIDE FOR THE DRIVER'S SUPER ACCOUNT
-          let checkRide0 =
-            /88889d088e03653169b9c18193a0b8dd329ea1e43eb0626ef9f16b5b979694a429710561a3cb3ddae/i.test(
-              user_fingerprint
-            )
-              ? {
-                  taxi_id: user_fingerprint,
-                  "ride_state_vars.isAccepted": true,
-                  "ride_state_vars.isRideCompleted_driverSide": false,
-                  isArrivedToDestination: false,
-                }
-              : {
-                  taxi_id: user_fingerprint,
-                  "ride_state_vars.isAccepted": true,
-                  "ride_state_vars.isRideCompleted_driverSide": false,
-                  isArrivedToDestination: false,
-                  ride_mode: {
-                    $in: [
-                      ...driverData.operation_clearances,
-                      ...driverData.operation_clearances.map(
-                        (mode) =>
-                          `${mode[0].toUpperCase().trim()}${mode
-                            .substr(1)
-                            .toLowerCase()
-                            .trim()}`
-                      ),
-                      ...driverData.operation_clearances.map((mode) =>
-                        mode.toUpperCase().trim()
-                      ),
-                    ],
-                  },
-                  request_type: request_type_regex, //Shceduled or now rides/deliveries
-                  //allowed_drivers_see: user_fingerprint,
-                  intentional_request_decline: {
-                    $not: { $in: [user_fingerprint] },
-                  },
-                };
+          let checkRide0 = {
+            taxi_id: user_fingerprint,
+            "ride_state_vars.isAccepted": true,
+            "ride_state_vars.isRideCompleted_driverSide": false,
+            isArrivedToDestination: false,
+            ride_mode: {
+              $in: [
+                ...driverData.operation_clearances,
+                ...driverData.operation_clearances.map(
+                  (mode) =>
+                    `${mode[0].toUpperCase().trim()}${mode
+                      .substr(1)
+                      .toLowerCase()
+                      .trim()}`
+                ),
+                ...driverData.operation_clearances.map((mode) =>
+                  mode.toUpperCase().trim()
+                ),
+              ],
+            },
+            request_type: request_type_regex, //Shceduled or now rides/deliveries
+            //allowed_drivers_see: user_fingerprint,
+            intentional_request_decline: {
+              $not: { $in: [user_fingerprint] },
+            },
+          };
           //-----
           logger.warn(checkRide0);
 
@@ -1368,55 +1388,32 @@ function execTripChecker_Dispatcher(
                   //1. Check if he has accepted an unconfirmed driver's side connectMe request or not.
                   //a. If yes, only send the uncompleted connectMe request
                   //b. If not, send the current accepted requests AND add on top additional new allowed see rides.
-                  let checkRide1 =
-                    /88889d088e03653169b9c18193a0b8dd329ea1e43eb0626ef9f16b5b979694a429710561a3cb3ddae/i.test(
-                      user_fingerprint
-                    )
-                      ? {
-                          taxi_id: user_fingerprint,
-                          connect_type: "ConnectMe",
-                          "ride_state_vars.isRideCompleted_driverSide": false,
-                          ride_mode: {
-                            $in: [
-                              ...driverData.operation_clearances,
-                              ...driverData.operation_clearances.map(
-                                (mode) =>
-                                  `${mode[0].toUpperCase().trim()}${mode
-                                    .substr(1)
-                                    .toLowerCase()
-                                    .trim()}`
-                              ),
-                              ...driverData.operation_clearances.map((mode) =>
-                                mode.toUpperCase().trim()
-                              ),
-                            ],
-                          },
-                        }
-                      : {
-                          taxi_id: user_fingerprint,
-                          connect_type: "ConnectMe",
-                          "ride_state_vars.isRideCompleted_driverSide": false,
-                          //request_type: "immediate", //? To check
-                          ride_mode: {
-                            $in: [
-                              ...driverData.operation_clearances,
-                              ...driverData.operation_clearances.map(
-                                (mode) =>
-                                  `${mode[0].toUpperCase().trim()}${mode
-                                    .substr(1)
-                                    .toLowerCase()
-                                    .trim()}`
-                              ),
-                              ...driverData.operation_clearances.map((mode) =>
-                                mode.toUpperCase().trim()
-                              ),
-                            ],
-                          },
-                          // allowed_drivers_see: user_fingerprint,
-                          intentional_request_decline: {
-                            $not: { $in: [user_fingerprint] },
-                          },
-                        };
+                  let checkRide1 = {
+                    taxi_id: user_fingerprint,
+                    connect_type: "ConnectMe",
+                    "ride_state_vars.isRideCompleted_driverSide": false,
+                    //request_type: "immediate", //? To check
+                    ride_mode: {
+                      $in: [
+                        ...driverData.operation_clearances,
+                        ...driverData.operation_clearances.map(
+                          (mode) =>
+                            `${mode[0].toUpperCase().trim()}${mode
+                              .substr(1)
+                              .toLowerCase()
+                              .trim()}`
+                        ),
+                        ...driverData.operation_clearances.map((mode) =>
+                          mode.toUpperCase().trim()
+                        ),
+                      ],
+                    },
+                    // allowed_drivers_see: user_fingerprint,
+                    intentional_request_decline: {
+                      $not: { $in: [user_fingerprint] },
+                    },
+                  };
+
                   collectionRidesDeliveries_data
                     .find(checkRide1)
                     .toArray(function (err, result1) {
@@ -1544,6 +1541,9 @@ function execTripChecker_Dispatcher(
               }
             });
         }
+      })
+      .catch((error) => {
+        resolve(false);
       });
   }
   //Malformed
@@ -1633,52 +1633,48 @@ function execGetDrivers_requests_and_provide(
       ? "scheduled"
       : "immediate"; //For scheduled requests display or not.
 
-    //!ALLOW SUPER ACCOUNT ALL THE PRIVILEGES
-    let requestFilter =
-      /88889d088e03653169b9c18193a0b8dd329ea1e43eb0626ef9f16b5b979694a429710561a3cb3ddae/i.test(
-        driverData.driver_fingerprint
-      )
-        ? {
-            taxi_id: false,
-            // "pickup_location_infos.city":
-            //   driverData.operational_state.last_location !== null &&
-            //   driverData.operational_state.last_location.city &&
-            //   driverData.operational_state.last_location.city !== undefined
-            //     ? driverData.operational_state.last_location.city
-            //     : "Windhoek",
-            country:
-              driverData.operational_state.last_location !== null &&
-              driverData.operational_state.last_location.country &&
-              driverData.operational_state.last_location.country !== undefined
-                ? driverData.operational_state.last_location.country
-                : "Namibia",
-            request_type: request_type_regex, //Shceduled or now rides/deliveries
-          }
-        : {
-            taxi_id: false,
-            "ride_state_vars.isAccepted": false,
-            "ride_state_vars.isRideCompleted_driverSide": false,
-            isArrivedToDestination: false,
-            // allowed_drivers_see: driverData.driver_fingerprint,
-            intentional_request_decline: {
-              $not: { $in: [driverData.driver_fingerprint] },
-            },
-            carTypeSelected:
-              driverData.operational_state.default_selected_car.vehicle_type,
-            country: driverData.operational_state.last_location.country,
-            // "pickup_location_infos.city":
-            //   driverData.operational_state.last_location.city,
-            //ride_mode: { $regex: requestType, $options: "i" }, //ride, delivery
-            request_type: request_type_regex, //Shceduled or now rides/deliveries
-          };
+    let requestFilter = {
+      taxi_id: false,
+      "ride_state_vars.isAccepted": false,
+      "ride_state_vars.isRideCompleted_driverSide": false,
+      isArrivedToDestination: false,
+      // allowed_drivers_see: driverData.driver_fingerprint,
+      intentional_request_decline: {
+        $not: { $in: [driverData.driver_fingerprint] },
+      },
+      carTypeSelected:
+        driverData.operational_state.default_selected_car.vehicle_type,
+      country: driverData.operational_state.last_location.country,
+      // "pickup_location_infos.city":
+      //   driverData.operational_state.last_location.city,
+      //ride_mode: { $regex: requestType, $options: "i" }, //ride, delivery
+      request_type: request_type_regex, //Shceduled or now rides/deliveries
+    };
     //...
-    collectionRidesDeliveries_data
-      .find(requestFilter)
-      .toArray(function (err, requestsData) {
-        if (err) {
-          resolve(false);
-        }
-        //...
+    dynamo_find_query({
+      table_name: "rides_deliveries_requests",
+      IndexName: "taxi_id",
+      KeyConditionExpression: "taxi_id = :val1",
+      FilterExpression:
+        "#r.#isAcc = :val2 AND #r.#isComplDriver = :val3 AND isArrivedToDestination = :val4 AND not contains(#intention, :val5) AND carTypeSelected = :val6 AND country = :val7 AND request_type = :val8",
+      ExpressionAttributeNames: {
+        "#r": "ride_state_vars",
+        "#isAcc": "isAccepted",
+        "#isComplDriver": "isRideCompleted_driverSide",
+        "#intention": "intentional_request_decline",
+      },
+      ExpressionAttributeValues: {
+        ":val1": false,
+        ":val2": false,
+        ":val3": false,
+        ":val4": false,
+        ":val5": driverData.driver_fingerprint,
+        ":val6": driverData.operational_state.default_selected_car.vehicle_type,
+        ":val7": driverData.operational_state.last_location.country,
+        ":val8": request_type_regex,
+      },
+    })
+      .then((requestsData) => {
         if (requestsData !== undefined && requestsData.length > 0) {
           //Found some data
           //1. Filter the requests based on the clearances of the driver - ride/delivery
@@ -1737,6 +1733,9 @@ function execGetDrivers_requests_and_provide(
             }
           );
         }
+      })
+      .catch((error) => {
+        resolve(false);
       });
   } else if (/FULL_ALLLOWEDTOSEE_REQUESTS/i.test(scenarioString)) {
     logger.warn("FULL_ALLLOWEDTOSEE_REQUESTS");
@@ -1780,59 +1779,39 @@ function execGetDrivers_requests_and_provide(
         $options: "i",
       }, //Shceduled or immediate rides/deliveries
     };*/
-    //!ALLOW SUPER ACCOUNT ALL THE PRIVILEGES
-    let requestFilter =
-      /88889d088e03653169b9c18193a0b8dd329ea1e43eb0626ef9f16b5b979694a429710561a3cb3ddae/i.test(
-        driverData.driver_fingerprint
-      )
-        ? {
-            taxi_id: false,
-            // "pickup_location_infos.city":
-            //   driverData.operational_state.last_location !== null &&
-            //   driverData.operational_state.last_location.city &&
-            //   driverData.operational_state.last_location.city !== undefined
-            //     ? driverData.operational_state.last_location.city
-            //     : "Windhoek",
-            country:
-              driverData.operational_state.last_location !== null &&
-              driverData.operational_state.last_location.country &&
-              driverData.operational_state.last_location.country !== undefined
-                ? driverData.operational_state.last_location.country
-                : "Namibia",
-            request_type: request_type_regex, //Shceduled or now rides/deliveries
-          }
-        : {
-            taxi_id: false,
-            // "pickup_location_infos.city":
-            //   driverData.operational_state.last_location !== null &&
-            //   driverData.operational_state.last_location.city &&
-            //   driverData.operational_state.last_location.city !== undefined
-            //     ? driverData.operational_state.last_location.city
-            //     : "Windhoek",
-            country:
-              driverData.operational_state.last_location !== null &&
-              driverData.operational_state.last_location.country &&
-              driverData.operational_state.last_location.country !== undefined
-                ? driverData.operational_state.last_location.country
-                : "Namibia",
-            // allowed_drivers_see: driverData.driver_fingerprint,
-            intentional_request_decline: {
-              $not: { $in: [driverData.driver_fingerprint] },
-            },
-            carTypeSelected:
-              driverData.operational_state.default_selected_car.vehicle_type,
-            ride_mode: {
-              $in: driverData.operation_clearances.map((clearance) => [
-                `${clearance[0].toUpperCase().trim()}${clearance
-                  .substr(1)
-                  .toLowerCase()
-                  .trim()}`,
-                clearance.toUpperCase().trim(),
-              ])[0],
-            },
-            //ride_mode: { $regex: requestType, $options: "i" }, //ride, delivery
-            request_type: request_type_regex, //Shceduled or now rides/deliveries
-          };
+
+    let requestFilter = {
+      taxi_id: false,
+      // "pickup_location_infos.city":
+      //   driverData.operational_state.last_location !== null &&
+      //   driverData.operational_state.last_location.city &&
+      //   driverData.operational_state.last_location.city !== undefined
+      //     ? driverData.operational_state.last_location.city
+      //     : "Windhoek",
+      country:
+        driverData.operational_state.last_location !== null &&
+        driverData.operational_state.last_location.country &&
+        driverData.operational_state.last_location.country !== undefined
+          ? driverData.operational_state.last_location.country
+          : "Namibia",
+      // allowed_drivers_see: driverData.driver_fingerprint,
+      intentional_request_decline: {
+        $not: { $in: [driverData.driver_fingerprint] },
+      },
+      carTypeSelected:
+        driverData.operational_state.default_selected_car.vehicle_type,
+      ride_mode: {
+        $in: driverData.operation_clearances.map((clearance) => [
+          `${clearance[0].toUpperCase().trim()}${clearance
+            .substr(1)
+            .toLowerCase()
+            .trim()}`,
+          clearance.toUpperCase().trim(),
+        ])[0],
+      },
+      //ride_mode: { $regex: requestType, $options: "i" }, //ride, delivery
+      request_type: request_type_regex, //Shceduled or now rides/deliveries
+    };
 
     logger.warn(requestFilter);
 
@@ -2381,215 +2360,257 @@ function execDriver_requests_parsing(
     request.request_globality === undefined;
   //...
   let dynamicRequesterFetcher = isNormalrequestScope
-    ? collectionPassengers_profiles.find({
-        user_fingerprint: request.client_id,
+    ? dynamo_find_query({
+        table_name: "passengers_profiles",
+        IndexName: "user_fingerprint",
+        KeyConditionExpression: "user_fingerprint = :val1",
+        ExpressionAttributeValues: {
+          ":val1": request.client_id,
+        },
       })
-    : collectionDedicatedServices_accounts.find({
-        company_fp: request.client_id,
+    : dynamo_find_query({
+        table_name: "dedicated_services_accounts",
+        IndexName: "company_fp",
+        KeyConditionExpression: "company_fp = :val1",
+        ExpressionAttributeValues: {
+          ":val1": request.client_id,
+        },
       });
   //1. Add the passenger infos
-  dynamicRequesterFetcher.toArray(function (err, passengerData) {
-    if (err) {
-      //logger.info(err);
-      res(false);
-    }
-
-    if (passengerData !== undefined && passengerData.length > 0) {
-      //Found some data
-      //...
-      passengerData = passengerData[0];
-      //...
-      parsedRequestsArray.passenger_infos.name = request.ride_state_vars
-        .isAccepted
-        ? isNormalrequestScope
-          ? passengerData.name
-          : passengerData.company_name
-        : null;
-      parsedRequestsArray.passenger_infos.phone_number = request.ride_state_vars
-        .isAccepted
-        ? isNormalrequestScope
-          ? passengerData.phone_number
-          : passengerData.phone
-        : null;
-      //2. Add the basic trip infos
-      parsedRequestsArray.ride_basic_infos.payment_method =
-        request.payment_method;
-      parsedRequestsArray.ride_basic_infos.wished_pickup_time =
-        request.wished_pickup_time;
-      //? Check if Today or Tomorrow Only for scheduled requests
-      if (/scheduled/i.test(request.request_type)) {
-        //Scheduled request
-        parsedRequestsArray.ride_basic_infos.date_state_wishedPickup_time =
-          new Date(request.wished_pickup_time).getDate() ===
-          new Date(chaineDateUTC).getDate()
-            ? "Today"
-            : new Date(request.wished_pickup_time).getDate() >
-              new Date(chaineDateUTC).getDate()
-            ? "Tomorrow"
-            : "Yesterday";
-      } //Immediate request
-      else {
-        parsedRequestsArray.ride_basic_infos.date_state_wishedPickup_time =
-          null;
-      }
-      //! Attach intercity state
-      parsedRequestsArray.isIntercity_trip =
-        request.isIntercity_trip !== undefined &&
-        request.isIntercity_trip !== null
-          ? request.isIntercity_trip
-          : false;
-      //?---
-      parsedRequestsArray.ride_basic_infos.fare_amount = parseFloat(
-        request.fare
-      );
-      parsedRequestsArray.ride_basic_infos.passengers_number = parseInt(
-        request.passengers_number
-      );
-      parsedRequestsArray.ride_basic_infos.request_type = request.request_type;
-      parsedRequestsArray.ride_basic_infos.ride_mode = request.ride_mode;
-      parsedRequestsArray.ride_basic_infos.connect_type = request.connect_type;
-      parsedRequestsArray.ride_basic_infos.isAccepted =
-        request.ride_state_vars.isAccepted;
-      parsedRequestsArray.ride_basic_infos.inRideToDestination =
-        request.ride_state_vars.inRideToDestination;
-      parsedRequestsArray.ride_basic_infos.isRideCompleted_driverSide =
-        request.ride_state_vars.isRideCompleted_driverSide;
-      //...
-      parsedRequestsArray.ride_basic_infos.rider_infos = request.rider_infos;
-      parsedRequestsArray.ride_basic_infos.pickup_note =
-        /false/i.test(request.pickup_location_infos.pickup_note) ||
-        request.pickup_location_infos.pickup_note === "false" ||
-        request.pickup_location_infos.pickup_note === false
-          ? null
-          : request.pickup_location_infos.pickup_note;
-      //...
-      parsedRequestsArray.ride_basic_infos.receiver_infos =
-        request.delivery_infos;
-      //3. Compute the ETA to passenger
-      new Promise((res0) => {
-        getRouteInfosDestination(
-          {
-            destination: {
-              latitude: parseFloat(
-                driverData.operational_state.last_location.coordinates.latitude
-              ),
-              longitude: parseFloat(
-                driverData.operational_state.last_location.coordinates.longitude
-              ),
-            },
-            passenger: {
-              latitude: parseFloat(
-                request.pickup_location_infos.coordinates.latitude
-              ),
-              longitude: parseFloat(
-                request.pickup_location_infos.coordinates.longitude
-              ),
-            },
-          },
-          res0,
-          true,
-          request.request_fp + "-cached-etaToPassenger-requests"
+  dynamicRequesterFetcher
+    .then((passengerData) => {
+      if (passengerData !== undefined && passengerData.length > 0) {
+        //Found some data
+        //...
+        passengerData = passengerData[0];
+        //...
+        parsedRequestsArray.passenger_infos.name = request.ride_state_vars
+          .isAccepted
+          ? isNormalrequestScope
+            ? passengerData.name
+            : passengerData.company_name
+          : null;
+        parsedRequestsArray.passenger_infos.phone_number = request
+          .ride_state_vars.isAccepted
+          ? isNormalrequestScope
+            ? passengerData.phone_number
+            : passengerData.phone
+          : null;
+        //2. Add the basic trip infos
+        parsedRequestsArray.ride_basic_infos.payment_method =
+          request.payment_method;
+        parsedRequestsArray.ride_basic_infos.wished_pickup_time =
+          request.wished_pickup_time;
+        //? Check if Today or Tomorrow Only for scheduled requests
+        if (/scheduled/i.test(request.request_type)) {
+          //Scheduled request
+          parsedRequestsArray.ride_basic_infos.date_state_wishedPickup_time =
+            new Date(request.wished_pickup_time).getDate() ===
+            new Date(chaineDateUTC).getDate()
+              ? "Today"
+              : new Date(request.wished_pickup_time).getDate() >
+                new Date(chaineDateUTC).getDate()
+              ? "Tomorrow"
+              : "Yesterday";
+        } //Immediate request
+        else {
+          parsedRequestsArray.ride_basic_infos.date_state_wishedPickup_time =
+            null;
+        }
+        //! Attach intercity state
+        parsedRequestsArray.isIntercity_trip =
+          request.isIntercity_trip !== undefined &&
+          request.isIntercity_trip !== null
+            ? request.isIntercity_trip
+            : false;
+        //?---
+        parsedRequestsArray.ride_basic_infos.fare_amount = parseFloat(
+          request.fare
         );
-      })
-        .then(
-          (resultEtaToPassenger) => {
-            //Save the eta and distancee
-            parsedRequestsArray.eta_to_passenger_infos.eta =
-              resultEtaToPassenger !== false
-                ? resultEtaToPassenger.eta
-                : "Awaiting";
-            parsedRequestsArray.eta_to_passenger_infos.distance =
-              resultEtaToPassenger !== false
-                ? resultEtaToPassenger.distance
-                : "Awaiting";
-            //4. Add the destination informations
-            parsedRequestsArray.origin_destination_infos.pickup_infos.location_name =
-              request.pickup_location_infos.location_name !== undefined &&
-              request.pickup_location_infos.location_name !== false
-                ? request.pickup_location_infos.location_name
-                : request.pickup_location_infos.street_name;
-            parsedRequestsArray.origin_destination_infos.pickup_infos.street_name =
-              request.pickup_location_infos.street_name;
-            parsedRequestsArray.origin_destination_infos.pickup_infos.suburb =
-              request.pickup_location_infos.suburb;
-            parsedRequestsArray.origin_destination_infos.pickup_infos.coordinates =
-              request.pickup_location_infos.coordinates;
-            //?Attach region, city and country for the pickup
-            parsedRequestsArray.origin_destination_infos.pickup_infos.city =
-              request.pickup_location_infos.city;
-            parsedRequestsArray.origin_destination_infos.pickup_infos.country =
-              request.country;
-            parsedRequestsArray.origin_destination_infos.pickup_infos.region =
-              request.pickup_location_infos.state
-                .replace(/ Region/i, "")
-                .trim()
-                .toUpperCase();
+        parsedRequestsArray.ride_basic_infos.passengers_number = parseInt(
+          request.passengers_number
+        );
+        parsedRequestsArray.ride_basic_infos.request_type =
+          request.request_type;
+        parsedRequestsArray.ride_basic_infos.ride_mode = request.ride_mode;
+        parsedRequestsArray.ride_basic_infos.connect_type =
+          request.connect_type;
+        parsedRequestsArray.ride_basic_infos.isAccepted =
+          request.ride_state_vars.isAccepted;
+        parsedRequestsArray.ride_basic_infos.inRideToDestination =
+          request.ride_state_vars.inRideToDestination;
+        parsedRequestsArray.ride_basic_infos.isRideCompleted_driverSide =
+          request.ride_state_vars.isRideCompleted_driverSide;
+        //...
+        parsedRequestsArray.ride_basic_infos.rider_infos = request.rider_infos;
+        parsedRequestsArray.ride_basic_infos.pickup_note =
+          /false/i.test(request.pickup_location_infos.pickup_note) ||
+          request.pickup_location_infos.pickup_note === "false" ||
+          request.pickup_location_infos.pickup_note === false
+            ? null
+            : request.pickup_location_infos.pickup_note;
+        //...
+        parsedRequestsArray.ride_basic_infos.receiver_infos =
+          request.delivery_infos;
+        //3. Compute the ETA to passenger
+        new Promise((res0) => {
+          getRouteInfosDestination(
+            {
+              destination: {
+                latitude: parseFloat(
+                  driverData.operational_state.last_location.coordinates
+                    .latitude
+                ),
+                longitude: parseFloat(
+                  driverData.operational_state.last_location.coordinates
+                    .longitude
+                ),
+              },
+              passenger: {
+                latitude: parseFloat(
+                  request.pickup_location_infos.coordinates.latitude
+                ),
+                longitude: parseFloat(
+                  request.pickup_location_infos.coordinates.longitude
+                ),
+              },
+            },
+            res0,
+            true,
+            request.request_fp + "-cached-etaToPassenger-requests"
+          );
+        })
+          .then(
+            (resultEtaToPassenger) => {
+              //Save the eta and distancee
+              parsedRequestsArray.eta_to_passenger_infos.eta =
+                resultEtaToPassenger !== false
+                  ? resultEtaToPassenger.eta
+                  : "Awaiting";
+              parsedRequestsArray.eta_to_passenger_infos.distance =
+                resultEtaToPassenger !== false
+                  ? resultEtaToPassenger.distance
+                  : "Awaiting";
+              //4. Add the destination informations
+              parsedRequestsArray.origin_destination_infos.pickup_infos.location_name =
+                request.pickup_location_infos.location_name !== undefined &&
+                request.pickup_location_infos.location_name !== false
+                  ? request.pickup_location_infos.location_name
+                  : request.pickup_location_infos.street_name;
+              parsedRequestsArray.origin_destination_infos.pickup_infos.street_name =
+                request.pickup_location_infos.street_name;
+              parsedRequestsArray.origin_destination_infos.pickup_infos.suburb =
+                request.pickup_location_infos.suburb;
+              parsedRequestsArray.origin_destination_infos.pickup_infos.coordinates =
+                request.pickup_location_infos.coordinates;
+              //?Attach region, city and country for the pickup
+              parsedRequestsArray.origin_destination_infos.pickup_infos.city =
+                request.pickup_location_infos.city;
+              parsedRequestsArray.origin_destination_infos.pickup_infos.country =
+                request.country;
+              parsedRequestsArray.origin_destination_infos.pickup_infos.region =
+                request.pickup_location_infos.state
+                  .replace(/ Region/i, "")
+                  .trim()
+                  .toUpperCase();
 
-            //ADD THE REQUEST TYPE
-            parsedRequestsArray.request_type = /(now|immediate)/i.test(
-              request.request_type
-            )
-              ? request.ride_mode
-              : "scheduled";
+              //ADD THE REQUEST TYPE
+              parsedRequestsArray.request_type = /(now|immediate)/i.test(
+                request.request_type
+              )
+                ? request.ride_mode
+                : "scheduled";
 
-            //Compute the ETA to destination details
-            new Promise((res1) => {
-              getRouteInfosDestination(
-                {
-                  destination: {
-                    latitude: parseFloat(
-                      request.destinationData[0].coordinates.longitude
-                    ),
-                    longitude: parseFloat(
-                      request.destinationData[0].coordinates.latitude
-                    ),
+              //Compute the ETA to destination details
+              new Promise((res1) => {
+                getRouteInfosDestination(
+                  {
+                    destination: {
+                      latitude: parseFloat(
+                        request.destinationData[0].coordinates.longitude
+                      ),
+                      longitude: parseFloat(
+                        request.destinationData[0].coordinates.latitude
+                      ),
+                    },
+                    passenger: {
+                      latitude: parseFloat(
+                        request.pickup_location_infos.coordinates.latitude
+                      ),
+                      longitude: parseFloat(
+                        request.pickup_location_infos.coordinates.longitude
+                      ),
+                    },
                   },
-                  passenger: {
-                    latitude: parseFloat(
-                      request.pickup_location_infos.coordinates.latitude
-                    ),
-                    longitude: parseFloat(
-                      request.pickup_location_infos.coordinates.longitude
-                    ),
-                  },
-                },
-                res1,
-                true,
-                request.request_fp + "-cached-etaToDestination-requests"
-              );
-            })
-              .then(
-                (resultETAToDestination) => {
-                  if (resultETAToDestination !== false) {
-                    //Save the ETA to destination data
-                    parsedRequestsArray.origin_destination_infos.eta_to_destination_infos.eta =
-                      resultETAToDestination.eta;
-                    parsedRequestsArray.origin_destination_infos.eta_to_destination_infos.distance =
-                      resultETAToDestination.distance;
-                    //4. Save the destination data
-                    parsedRequestsArray.origin_destination_infos.destination_infos =
-                      request.destinationData;
-                    //Add the request fingerprint
-                    parsedRequestsArray.request_fp = request.request_fp;
-                    //DONE
-                    //CACHE
-                    new Promise((resCache) => {
-                      redisCluster.setex(
-                        redisKey,
-                        process.env.REDIS_EXPIRATION_5MIN,
-                        JSON.stringify(parsedRequestsArray)
+                  res1,
+                  true,
+                  request.request_fp + "-cached-etaToDestination-requests"
+                );
+              })
+                .then(
+                  (resultETAToDestination) => {
+                    if (resultETAToDestination !== false) {
+                      //Save the ETA to destination data
+                      parsedRequestsArray.origin_destination_infos.eta_to_destination_infos.eta =
+                        resultETAToDestination.eta;
+                      parsedRequestsArray.origin_destination_infos.eta_to_destination_infos.distance =
+                        resultETAToDestination.distance;
+                      //4. Save the destination data
+                      parsedRequestsArray.origin_destination_infos.destination_infos =
+                        request.destinationData;
+                      //Add the request fingerprint
+                      parsedRequestsArray.request_fp = request.request_fp;
+                      //DONE
+                      //CACHE
+                      new Promise((resCache) => {
+                        redisCluster.setex(
+                          redisKey,
+                          process.env.REDIS_EXPIRATION_5MIN,
+                          JSON.stringify(parsedRequestsArray)
+                        );
+                        resCache(true);
+                      }).then(
+                        () => {
+                          //logger.info("Single processing cached!");
+                        },
+                        () => {}
                       );
-                      resCache(true);
-                    }).then(
-                      () => {
-                        //logger.info("Single processing cached!");
-                      },
-                      () => {}
-                    );
-                    //Return the answer
-                    res(parsedRequestsArray);
-                  } //! Error - Salvage anyway
-                  else {
+                      //Return the answer
+                      res(parsedRequestsArray);
+                    } //! Error - Salvage anyway
+                    else {
+                      //Save the ETA to destination data
+                      parsedRequestsArray.origin_destination_infos.eta_to_destination_infos.eta =
+                        "Awaiting";
+                      parsedRequestsArray.origin_destination_infos.eta_to_destination_infos.distance =
+                        "Awaiting";
+                      //4. Save the destination data
+                      parsedRequestsArray.origin_destination_infos.destination_infos =
+                        request.destinationData;
+                      //Add the request fingerprint
+                      parsedRequestsArray.request_fp = request.request_fp;
+                      //DONE
+                      //CACHE
+                      new Promise((resCache) => {
+                        redisCluster.setex(
+                          redisKey,
+                          process.env.REDIS_EXPIRATION_5MIN,
+                          JSON.stringify(parsedRequestsArray)
+                        );
+                        resCache(true);
+                      }).then(
+                        () => {
+                          //logger.info("Single processing cached!");
+                        },
+                        () => {}
+                      );
+                      //Return the answer
+                      res(parsedRequestsArray);
+                    }
+                  },
+                  (error) => {
+                    //logger.warn(error);
+                    //! Salvage anyway
                     //Save the ETA to destination data
                     parsedRequestsArray.origin_destination_infos.eta_to_destination_infos.eta =
                       "Awaiting";
@@ -2618,8 +2639,8 @@ function execDriver_requests_parsing(
                     //Return the answer
                     res(parsedRequestsArray);
                   }
-                },
-                (error) => {
+                )
+                .catch((error) => {
                   //logger.warn(error);
                   //! Salvage anyway
                   //Save the ETA to destination data
@@ -2649,54 +2670,26 @@ function execDriver_requests_parsing(
                   );
                   //Return the answer
                   res(parsedRequestsArray);
-                }
-              )
-              .catch((error) => {
-                //logger.warn(error);
-                //! Salvage anyway
-                //Save the ETA to destination data
-                parsedRequestsArray.origin_destination_infos.eta_to_destination_infos.eta =
-                  "Awaiting";
-                parsedRequestsArray.origin_destination_infos.eta_to_destination_infos.distance =
-                  "Awaiting";
-                //4. Save the destination data
-                parsedRequestsArray.origin_destination_infos.destination_infos =
-                  request.destinationData;
-                //Add the request fingerprint
-                parsedRequestsArray.request_fp = request.request_fp;
-                //DONE
-                //CACHE
-                new Promise((resCache) => {
-                  redisCluster.setex(
-                    redisKey,
-                    process.env.REDIS_EXPIRATION_5MIN,
-                    JSON.stringify(parsedRequestsArray)
-                  );
-                  resCache(true);
-                }).then(
-                  () => {
-                    //logger.info("Single processing cached!");
-                  },
-                  () => {}
-                );
-                //Return the answer
-                res(parsedRequestsArray);
-              });
-          },
-          (error) => {
+                });
+            },
+            (error) => {
+              //logger.info(error);
+              res(false);
+            }
+          )
+          .catch((error) => {
             //logger.info(error);
-            res(false);
-          }
-        )
-        .catch((error) => {
-          //logger.info(error);
-          resolve(false);
-        });
-    } //No data found - strange
-    else {
-      resolve(false);
-    }
-  });
+            resolve(false);
+          });
+      } //No data found - strange
+      else {
+        resolve(false);
+      }
+    })
+    .catch((error) => {
+      //logger.info(error);
+      res(false);
+    });
 }
 
 /**
@@ -2720,13 +2713,17 @@ function getMongoRecordTrip_cacheLater(
     client_id: user_fingerprint,
     request_fp: request_fp,
   }; //? Indexed
-  collectionRidesDeliveries_data
-    .find(queryFilter)
-    .toArray(function (err, result) {
-      if (err) {
-        resolve(false);
-        throw err;
-      }
+
+  dynamo_find_query({
+    table_name: "rides_deliveries_requests",
+    IndexName: "client_id",
+    KeyConditionExpression: "client_id = :val1 AND request_fp = :val2",
+    ExpressionAttributeValues: {
+      ":val1": queryFilter.client_id,
+      ":val2": queryFilter.request_fp,
+    },
+  })
+    .then((result) => {
       //Compute route via compute skeleton
       computeRouteDetails_skeleton(
         result,
@@ -2734,6 +2731,10 @@ function getMongoRecordTrip_cacheLater(
         RIDE_REDIS_KEY,
         resolve
       );
+    })
+    .catch((error) => {
+      resolve(false);
+      throw error;
     });
 }
 /**
@@ -2757,14 +2758,15 @@ function computeRouteDetails_skeleton(
     if (rideHistory.ride_state_vars.isAccepted) {
       //Get all the driver's informations
       //? Indexed
-      collectionDrivers_profiles
-        .find({ driver_fingerprint: rideHistory.taxi_id })
-        .toArray(function (err, driverProfile) {
-          if (err) {
-            //logger.info(err);
-            resolve(false); //An error happened
-          }
-
+      dynamo_find_query({
+        table_name: "drivers_profiles",
+        IndexName: "driver_fingerprint",
+        KeyConditionExpression: "driver_fingerprint = :val1",
+        ExpressionAttributeValues: {
+          ":val1": rideHistory.taxi_id,
+        },
+      })
+        .then((driverProfile) => {
           if (driverProfile.length > 0) {
             //Found the driver's profile
             driverProfile = driverProfile[0];
@@ -3287,6 +3289,10 @@ function computeRouteDetails_skeleton(
             );
             //! ----------------------------------------------
           }
+        })
+        .catch((error) => {
+          //logger.info(error);
+          resolve(false); //An error happened
         });
     } //Request pending
     else {
@@ -3668,97 +3674,119 @@ function computeAndCacheRouteDestination(
         rideHistory.request_globality === undefined;
       //...
       let dynamicRequesterFetcher = isNormalrequestScope
-        ? collectionPassengers_profiles.find({
-            user_fingerprint: rideHistory.client_id,
-          })
-        : collectionDedicatedServices_accounts.find({
-            company_fp: rideHistory.client_id,
-          });
+        ? {
+            table_name: "passengers_profiles",
+            IndexName: "user_fingerprint",
+            KeyConditionExpression: "user_fingerprint = :val1",
+            ExpressionAttributeValues: {
+              ":val1": rideHistory.client_id,
+            },
+          }
+        : {
+            table_name: "dedicated_services_accounts",
+            IndexName: "company_fp",
+            KeyConditionExpression: "company_fp = :val1",
+            ExpressionAttributeValues: {
+              ":val1": rideHistory.client_id,
+            },
+          };
 
-      dynamicRequesterFetcher.toArray(function (err, requesterData) {
-        if (requesterData !== undefined && requesterData.length > 0) {
-          //? Add the requester's name and phone
-          additionalInfos["requester_infos"] = {};
-          additionalInfos.requester_infos.requester_name = isNormalrequestScope
-            ? requesterData[0].name
-            : requesterData[0].company_name;
-          additionalInfos.requester_infos.requester_surname =
-            isNormalrequestScope
-              ? requesterData[0].surname
-              : requesterData[0].user_registerer.last_name;
-          additionalInfos.requester_infos.phone = isNormalrequestScope
-            ? requesterData[0].phone_number
-            : requesterData[0].phone;
-          //? --------
-          //? Add the delivery details
-          additionalInfos["delivery_information"] = {};
-          additionalInfos["delivery_information"]["packageSize"] =
-            rideHistory.delivery_infos.packageSize !== undefined &&
-            rideHistory.delivery_infos.packageSize !== null
-              ? rideHistory.delivery_infos.packageSize
-              : null;
-          additionalInfos.delivery_information.receiver_infos =
-            rideHistory.delivery_infos;
-          //Found the requester data
-          //Get the estimated time TO the destination (from the current's user position)
-          new Promise((res4) => {
-            let url =
-              `${
-                /production/i.test(process.env.EVIRONMENT)
-                  ? `http://${process.env.INSTANCE_PRIVATE_IP}`
-                  : process.env.LOCAL_URL
-              }` +
-              ":" +
-              process.env.MAP_SERVICE_PORT +
-              "/getRouteToDestinationSnapshot?org_latitude=" +
-              rideHistory.pickup_location_infos.coordinates.latitude +
-              "&org_longitude=" +
-              rideHistory.pickup_location_infos.coordinates.longitude +
-              "&dest_latitude=" +
-              rideHistory.destinationData[0].coordinates.longitude +
-              "&dest_longitude=" +
-              rideHistory.destinationData[0].coordinates.latitude +
-              "&user_fingerprint=" +
-              rideHistory.client_id;
-            requestAPI(url, function (error, response, body) {
-              if (error === null) {
-                try {
-                  body = JSON.parse(body);
-                  res4(body.eta);
-                } catch (error) {
+      dynamo_find_query(dynamicRequesterFetcher)
+        .then((requesterData) => {
+          if (requesterData !== undefined && requesterData.length > 0) {
+            //? Add the requester's name and phone
+            additionalInfos["requester_infos"] = {};
+            additionalInfos.requester_infos.requester_name =
+              isNormalrequestScope
+                ? requesterData[0].name
+                : requesterData[0].company_name;
+            additionalInfos.requester_infos.requester_surname =
+              isNormalrequestScope
+                ? requesterData[0].surname
+                : requesterData[0].user_registerer.last_name;
+            additionalInfos.requester_infos.phone = isNormalrequestScope
+              ? requesterData[0].phone_number
+              : requesterData[0].phone;
+            //? --------
+            //? Add the delivery details
+            additionalInfos["delivery_information"] = {};
+            additionalInfos["delivery_information"]["packageSize"] =
+              rideHistory.delivery_infos.packageSize !== undefined &&
+              rideHistory.delivery_infos.packageSize !== null
+                ? rideHistory.delivery_infos.packageSize
+                : null;
+            additionalInfos.delivery_information.receiver_infos =
+              rideHistory.delivery_infos;
+            //Found the requester data
+            //Get the estimated time TO the destination (from the current's user position)
+            new Promise((res4) => {
+              let url =
+                `${
+                  /production/i.test(process.env.EVIRONMENT)
+                    ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+                    : process.env.LOCAL_URL
+                }` +
+                ":" +
+                process.env.MAP_SERVICE_PORT +
+                "/getRouteToDestinationSnapshot?org_latitude=" +
+                rideHistory.pickup_location_infos.coordinates.latitude +
+                "&org_longitude=" +
+                rideHistory.pickup_location_infos.coordinates.longitude +
+                "&dest_latitude=" +
+                rideHistory.destinationData[0].coordinates.longitude +
+                "&dest_longitude=" +
+                rideHistory.destinationData[0].coordinates.latitude +
+                "&user_fingerprint=" +
+                rideHistory.client_id;
+              requestAPI(url, function (error, response, body) {
+                if (error === null) {
+                  try {
+                    body = JSON.parse(body);
+                    res4(body.eta);
+                  } catch (error) {
+                    res4(false);
+                  }
+                } else {
                   res4(false);
                 }
-              } else {
-                res4(false);
-              }
-            });
-          })
-            .then(
-              (estimated_travel_time) => {
-                //Add the eta to destination
-                //? Change the ETA based on the request status
-                additionalInfos.ETA_toDestination = /inRouteToPickup/i.test(
-                  request_status
-                )
-                  ? result.eta
-                  : estimated_travel_time;
-                additionalInfos.request_status = request_status;
-                //?---
-                result = { ...result, ...additionalInfos }; //Merge all the data
-                //Cache-
-                //Cache computed result
-                new Promise((resPromiseresult) => {
-                  redisGet(rideHistory.request_fp).then(
-                    (cachedTripData) => {
-                      if (cachedTripData !== null) {
-                        redisCluster.setex(
-                          rideHistory.request_fp,
-                          process.env.REDIS_EXPIRATION_5MIN,
-                          JSON.stringify(result)
-                        );
-                        resPromiseresult(true);
-                      } //Update cache anyways
-                      else {
+              });
+            })
+              .then(
+                (estimated_travel_time) => {
+                  //Add the eta to destination
+                  //? Change the ETA based on the request status
+                  additionalInfos.ETA_toDestination = /inRouteToPickup/i.test(
+                    request_status
+                  )
+                    ? result.eta
+                    : estimated_travel_time;
+                  additionalInfos.request_status = request_status;
+                  //?---
+                  result = { ...result, ...additionalInfos }; //Merge all the data
+                  //Cache-
+                  //Cache computed result
+                  new Promise((resPromiseresult) => {
+                    redisGet(rideHistory.request_fp).then(
+                      (cachedTripData) => {
+                        if (cachedTripData !== null) {
+                          redisCluster.setex(
+                            rideHistory.request_fp,
+                            process.env.REDIS_EXPIRATION_5MIN,
+                            JSON.stringify(result)
+                          );
+                          resPromiseresult(true);
+                        } //Update cache anyways
+                        else {
+                          ////logger.info("Update cache");
+                          redisCluster.setex(
+                            rideHistory.request_fp,
+                            process.env.REDIS_EXPIRATION_5MIN,
+                            JSON.stringify(result)
+                          );
+                          resPromiseresult(true);
+                        }
+                      },
+                      (errorGet) => {
                         ////logger.info("Update cache");
                         redisCluster.setex(
                           rideHistory.request_fp,
@@ -3767,103 +3795,96 @@ function computeAndCacheRouteDestination(
                         );
                         resPromiseresult(true);
                       }
-                    },
-                    (errorGet) => {
-                      ////logger.info("Update cache");
-                      redisCluster.setex(
-                        rideHistory.request_fp,
-                        process.env.REDIS_EXPIRATION_5MIN,
-                        JSON.stringify(result)
-                      );
-                      resPromiseresult(true);
-                    }
+                    );
+                  }).then(
+                    () => {},
+                    () => {}
                   );
-                }).then(
-                  () => {},
-                  () => {}
-                );
-                //...
-                //! SAVE THE FINAL FULL RESULT - for 15 min ------
-                if (
-                  rideHistory.request_globality === undefined ||
-                  rideHistory.request_globality === "normal"
-                ) {
-                  redisCluster.setex(
-                    RIDE_REDIS_KEY,
-                    parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
-                    JSON.stringify(result)
+                  //...
+                  //! SAVE THE FINAL FULL RESULT - for 15 min ------
+                  if (
+                    rideHistory.request_globality === undefined ||
+                    rideHistory.request_globality === "normal"
+                  ) {
+                    redisCluster.setex(
+                      RIDE_REDIS_KEY,
+                      parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
+                      JSON.stringify(result)
+                    );
+                  }
+                  //! ----------------------------------------------
+                  ///DONE
+                  resolve(result);
+                },
+                (error) => {
+                  //logger.warn(error);
+                  //If couldn't get the ETA to destination - just leave it as null
+                  result = { ...result, ...additionalInfos }; //Merge all the data
+                  //Cache-
+                  //Cache computed result
+                  new Promise((resPromiseresult) => {
+                    redisGet(rideHistory.request_fp).then(
+                      (cachedTripData) => {
+                        if (cachedTripData !== null) {
+                          redisCluster.setex(
+                            rideHistory.request_fp,
+                            process.env.REDIS_EXPIRATION_5MIN,
+                            JSON.stringify(result)
+                          );
+                          resPromiseresult(true);
+                        } //Update cache anyways
+                        else {
+                          ////logger.info("Update cache");
+                          redisCluster.setex(
+                            rideHistory.request_fp,
+                            process.env.REDIS_EXPIRATION_5MIN,
+                            JSON.stringify(result)
+                          );
+                          resPromiseresult(true);
+                        }
+                      },
+                      (errorGet) => {
+                        ////logger.info("Update cache");
+                        redisCluster.setex(
+                          rideHistory.request_fp,
+                          process.env.REDIS_EXPIRATION_5MIN,
+                          JSON.stringify(result)
+                        );
+                        resPromiseresult(true);
+                      }
+                    );
+                  }).then(
+                    () => {},
+                    () => {}
                   );
+                  //...
+                  //! SAVE THE FINAL FULL RESULT - for 15 min ------
+                  if (
+                    rideHistory.request_globality === undefined ||
+                    rideHistory.request_globality === "normal"
+                  ) {
+                    redisCluster.setex(
+                      RIDE_REDIS_KEY,
+                      parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
+                      JSON.stringify(result)
+                    );
+                  }
+                  //! ----------------------------------------------
+                  ///DONE
+                  resolve(result);
                 }
-                //! ----------------------------------------------
-                ///DONE
-                resolve(result);
-              },
-              (error) => {
+              )
+              .catch((error) => {
                 //logger.warn(error);
-                //If couldn't get the ETA to destination - just leave it as null
-                result = { ...result, ...additionalInfos }; //Merge all the data
-                //Cache-
-                //Cache computed result
-                new Promise((resPromiseresult) => {
-                  redisGet(rideHistory.request_fp).then(
-                    (cachedTripData) => {
-                      if (cachedTripData !== null) {
-                        redisCluster.setex(
-                          rideHistory.request_fp,
-                          process.env.REDIS_EXPIRATION_5MIN,
-                          JSON.stringify(result)
-                        );
-                        resPromiseresult(true);
-                      } //Update cache anyways
-                      else {
-                        ////logger.info("Update cache");
-                        redisCluster.setex(
-                          rideHistory.request_fp,
-                          process.env.REDIS_EXPIRATION_5MIN,
-                          JSON.stringify(result)
-                        );
-                        resPromiseresult(true);
-                      }
-                    },
-                    (errorGet) => {
-                      ////logger.info("Update cache");
-                      redisCluster.setex(
-                        rideHistory.request_fp,
-                        process.env.REDIS_EXPIRATION_5MIN,
-                        JSON.stringify(result)
-                      );
-                      resPromiseresult(true);
-                    }
-                  );
-                }).then(
-                  () => {},
-                  () => {}
-                );
-                //...
-                //! SAVE THE FINAL FULL RESULT - for 15 min ------
-                if (
-                  rideHistory.request_globality === undefined ||
-                  rideHistory.request_globality === "normal"
-                ) {
-                  redisCluster.setex(
-                    RIDE_REDIS_KEY,
-                    parseInt(process.env.REDIS_EXPIRATION_5MIN) * 3,
-                    JSON.stringify(result)
-                  );
-                }
-                //! ----------------------------------------------
-                ///DONE
-                resolve(result);
-              }
-            )
-            .catch((error) => {
-              //logger.warn(error);
-            });
-        } //No requester data found
-        else {
+              });
+          } //No requester data found
+          else {
+            resolve(false);
+          }
+        })
+        .catch((error) => {
           resolve(false);
-        }
-      });
+        });
     },
     (error) => {
       //logger.warn(error);
@@ -3904,13 +3925,15 @@ function storedUpDriversGeospatialData(req, resolve) {
         } //No data - set
         else {
           //Get the driver's data
-          collectionDrivers_profiles
-            .find({ driver_fingerprint: req.user_fingerprint })
-            .toArray(function (err, driverData) {
-              if (err) {
-                resolve(false);
-              }
-              //...
+          dynamo_find_query({
+            table_name: "drivers_profiles",
+            IndexName: "driver_fingerprint",
+            KeyConditionExpression: "driver_fingerprint = :val1",
+            ExpressionAttributeValues: {
+              ":val1": req.user_fingerprint,
+            },
+          })
+            .then((driverData) => {
               if (driverData !== undefined && driverData.length > 0) {
                 //Found some data
                 driverData = driverData[0];
@@ -3933,6 +3956,9 @@ function storedUpDriversGeospatialData(req, resolve) {
               else {
                 resolve(false);
               }
+            })
+            .catch((error) => {
+              resolve(false);
             });
         }
       },
@@ -4599,49 +4625,50 @@ function updateRelativeDistancesRiderDrivers(
     user_fingerprint: relativeHeader.user_fingerprint,
     driver_fingerprint: relativeHeader.driver_fingerprint,
   };
-  collectionRelativeDistances
-    .find(queryChecker)
-    .toArray(function (err, record) {
-      if (record.length === 0) {
-        //Empty - create a new record
-        let record = {
-          user_fingerprint: relativeHeader.user_fingerprint,
-          driver_fingerprint: relativeHeader.driver_fingerprint,
-          driver_coordinates: relativeHeader.driver_coordinates,
-          city: relativeHeader.city,
-          country: relativeHeader.country,
-          eta: relativeHeader.eta,
-          distance: relativeHeader.distance,
-          date_updated: new Date(chaineDateUTC),
-        };
-        //...
-        collectionRelativeDistances.insertOne(record, function (err, res) {
-          //logger.info("New relative distance record added.");
-          resolve(true);
-        });
-      } //Not empty - just update
-      else {
-        let updatedRecord = {
-          $set: {
-            driver_coordinates: relativeHeader.driver_coordinates,
-            city: relativeHeader.city,
-            country: relativeHeader.country,
-            eta: relativeHeader.eta,
-            distance: relativeHeader.distance,
-            date_updated: new Date(chaineDateUTC),
-          },
-        };
-        //...
-        collectionRelativeDistances.updateOne(
-          queryChecker,
-          updatedRecord,
-          function (err, res) {
-            ////logger.info("Updated relative distance record.");
-            resolve(true);
-          }
-        );
-      }
-    });
+  resolve(false);
+  // collectionRelativeDistances
+  //   .fin/d(queryChecker)
+  //   .toArray(function (err, record) {
+  //     if (record.length === 0) {
+  //       //Empty - create a new record
+  //       let record = {
+  //         user_fingerprint: relativeHeader.user_fingerprint,
+  //         driver_fingerprint: relativeHeader.driver_fingerprint,
+  //         driver_coordinates: relativeHeader.driver_coordinates,
+  //         city: relativeHeader.city,
+  //         country: relativeHeader.country,
+  //         eta: relativeHeader.eta,
+  //         distance: relativeHeader.distance,
+  //         date_updated: new Date(chaineDateUTC),
+  //       };
+  //       //...
+  //       collectionRelativeDistances.insertOne(record, function (err, res) {
+  //         //logger.info("New relative distance record added.");
+  //         resolve(true);
+  //       });
+  //     } //Not empty - just update
+  //     else {
+  //       let updatedRecord = {
+  //         $set: {
+  //           driver_coordinates: relativeHeader.driver_coordinates,
+  //           city: relativeHeader.city,
+  //           country: relativeHeader.country,
+  //           eta: relativeHeader.eta,
+  //           distance: relativeHeader.distance,
+  //           date_updated: new Date(chaineDateUTC),
+  //         },
+  //       };
+  //       //...
+  //       collectionRelativeDistances.updateOne(
+  //         queryChecker,
+  //         updatedRecord,
+  //         function (err, res) {
+  //           ////logger.info("Updated relative distance record.");
+  //           resolve(true);
+  //         }
+  //       );
+  //     }
+  //   });
 }
 
 /**
@@ -4787,464 +4814,465 @@ function getFreshProximity_driversList(
           },
   }; //?Indexed
   logger.info(driverFilter);
+  resolveMother({ response: "no_close_drivers_found" });
   //...
-  collectionDrivers_profiles
-    .find(driverFilter)
-    .toArray(function (err, driversProfiles) {
-      if (err) {
-        logger.info(err);
-        resolveMother({ response: "no_close_drivers_found" });
-      }
-      //check that some drivers where found
-      if (driversProfiles.length > 0) {
-        //yep
-        //Filter the drivers based on their car's maximum capacity (the amount of passengers it can handle)
-        //They can receive 3 additional requests on top of the limit of sits in their selected cars.
-        //! Add 30 possible passengers on top of the base passengers limit.
-        /*driversProfiles = driversProfiles.filter(
-          (dData) =>
-            dData.operational_state.accepted_requests_infos === null ||
-            dData.operational_state.accepted_requests_infos
-              .total_passengers_number <=
-              dData.operational_state.default_selected_car.max_passengers +
-                30 ||
-            dData.operational_state.accepted_requests_infos === undefined ||
-            dData.operational_state.accepted_requests_infos === null ||
-            dData.operational_state.accepted_requests_infos
-              .total_passengers_number === undefined ||
-            dData.operational_state.accepted_requests_infos
-              .total_passengers_number === null
-        );*/
-        //...
-        let mainPromiser = driversProfiles.map((driverData) => {
-          return new Promise((resolve) => {
-            //Check for the coords
-            if (
-              driverData.operational_state.last_location !== null &&
-              driverData.operational_state.last_location !== undefined &&
-              driverData.operational_state.last_location.coordinates !== null &&
-              driverData.operational_state.last_location.coordinates !==
-                undefined &&
-              driverData.operational_state.last_location.coordinates
-                .latitude !== undefined &&
-              driverData.operational_state.last_location.coordinates
-                .longitude !== undefined
-            ) {
-              //...
-              let tmp = {
-                passenger: {
-                  latitude: req.org_latitude,
-                  longitude: req.org_longitude,
-                },
-                destination: {
-                  latitude:
-                    driverData.operational_state.last_location.coordinates
-                      .latitude,
-                  longitude:
-                    driverData.operational_state.last_location.coordinates
-                      .longitude,
-                },
-              };
-              let redisKey =
-                req.user_fingerprint + "-" + driverData.driver_fingerprint;
-              let valueIndex = "relativeEta";
-              //CHeck for cache value
-              redisGet(redisKey).then(
-                (resp) => {
-                  if (resp !== null) {
-                    //Has some record
-                    //Check if the wanted value is present
-                    try {
-                      resp = JSON.parse(resp);
-                      if (
-                        resp[valueIndex] !== undefined &&
-                        resp[valueIndex] !== null &&
-                        resp[valueIndex] !== false
-                      ) {
-                        ////logger.info("Foudn cached data");
-                        //Update the cache as well
-                        new Promise((res) => {
-                          makeFreshSearch_ETA_2points(
-                            tmp,
-                            redisKey,
-                            valueIndex,
-                            collectionRelativeDistances,
-                            driverData,
-                            res
-                          );
-                        })
-                          .then(
-                            () => {},
-                            () => {}
-                          )
-                          .catch(() => {});
-                        //Update the relative mongo records
-                        if (
-                          resp[valueIndex] !== false &&
-                          resp[valueIndex] !== undefined &&
-                          resp[valueIndex].eta !== undefined
-                        ) {
-                          new Promise((res1) => {
-                            let relativeHeader = {
-                              user_fingerprint: req.user_fingerprint,
-                              status: driverData.operational_state.status,
-                              driver_fingerprint: driverData.driver_fingerprint,
-                              driver_coordinates: {
-                                latitude:
-                                  driverData.operational_state.last_location
-                                    .coordinates.latitude,
-                                longitude:
-                                  driverData.operational_state.last_location
-                                    .coordinates.longitude,
-                              },
-                              push_notification_token:
-                                driverData.push_notification_token,
-                              eta: resp[valueIndex].eta,
-                              distance: resp[valueIndex].distance,
-                              city: req.city,
-                              country: req.country,
-                            };
-                            updateRelativeDistancesRiderDrivers(
-                              collectionRelativeDistances,
-                              relativeHeader,
-                              res1
-                            );
-                          }).then(
-                            () => {},
-                            () => {}
-                          );
-                        }
-                        //has something, return that
-                        resp[valueIndex].status =
-                          driverData.operational_state.status; //? Online or offline
-                        resp[valueIndex].driver_fingerprint =
-                          driverData.driver_fingerprint; //Add the driver fingerprint to the response
-                        resp[valueIndex].driver_coordinates = {
-                          latitude:
-                            driverData.operational_state.last_location
-                              .coordinates.latitude,
-                          longitude:
-                            driverData.operational_state.last_location
-                              .coordinates.longitude,
-                        }; //Add the driver coordinates to the response
-                        resp[valueIndex].prev_driver_coordinates = {
-                          latitude:
-                            driverData.operational_state.last_location
-                              .prev_coordinates.latitude,
-                          longitude:
-                            driverData.operational_state.last_location
-                              .prev_coordinates.longitude,
-                        }; //Add the driver's previous coordinates to the response
-                        resp[valueIndex].push_notification_token =
-                          driverData.operational_state
-                            .push_notification_token !== null &&
-                          driverData.operational_state
-                            .push_notification_token !== undefined
-                            ? driverData.operational_state
-                                .push_notification_token.userId
-                            : null; //Add the push notification token
-                        resolve(resp[valueIndex]);
-                      } //The wanted index is not present, make a new search
-                      else {
-                        new Promise((res) => {
-                          makeFreshSearch_ETA_2points(
-                            tmp,
-                            redisKey,
-                            valueIndex,
-                            collectionRelativeDistances,
-                            driverData,
-                            res
-                          );
-                        })
-                          .then(
-                            (result) => {
-                              resolve(result);
-                            },
-                            (error) => {
-                              //logger.info(error);
-                              let driverRepr = {
-                                eta: null,
-                                distance: null,
-                                status: driverData.operational_state.status,
-                                driver_fingerprint:
-                                  driverData.driver_fingerprint,
-                                driver_coordinates: null,
-                                prev_driver_coordinates: null,
-                                push_notification_token:
-                                  driverData.operational_state
-                                    .push_notification_token !== undefined &&
-                                  driverData.operational_state
-                                    .push_notification_token !== null
-                                    ? driverData.operational_state
-                                        .push_notification_token.userId
-                                    : null,
-                              };
-                              resolve(driverRepr);
-                            }
-                          )
-                          .catch((error) => {
-                            //logger.info(error);
-                            let driverRepr = {
-                              eta: null,
-                              distance: null,
-                              status: driverData.operational_state.status,
-                              driver_fingerprint: driverData.driver_fingerprint,
-                              driver_coordinates: null,
-                              prev_driver_coordinates: null,
-                              push_notification_token:
-                                driverData.operational_state
-                                  .push_notification_token !== undefined &&
-                                driverData.operational_state
-                                  .push_notification_token !== null
-                                  ? driverData.operational_state
-                                      .push_notification_token.userId
-                                  : null,
-                            };
-                            resolve(driverRepr);
-                          });
-                      }
-                    } catch (error) {
-                      //logger.info(error);
-                      //Make a fresh search
-                      new Promise((res) => {
-                        makeFreshSearch_ETA_2points(
-                          tmp,
-                          redisKey,
-                          valueIndex,
-                          collectionRelativeDistances,
-                          driverData,
-                          res
-                        );
-                      })
-                        .then(
-                          (result) => {
-                            resolve(result);
-                          },
-                          (error) => {
-                            //logger.info(error);
-                            let driverRepr = {
-                              eta: null,
-                              distance: null,
-                              status: driverData.operational_state.status,
-                              driver_fingerprint: driverData.driver_fingerprint,
-                              driver_coordinates: null,
-                              prev_driver_coordinates: null,
-                              push_notification_token:
-                                driverData.operational_state
-                                  .push_notification_token !== undefined &&
-                                driverData.operational_state
-                                  .push_notification_token !== null
-                                  ? driverData.operational_state
-                                      .push_notification_token.userId
-                                  : null,
-                            };
-                            resolve(driverRepr);
-                          }
-                        )
-                        .catch((error) => {
-                          //logger.info(error);
-                          let driverRepr = {
-                            eta: null,
-                            distance: null,
-                            status: driverData.operational_state.status,
-                            driver_fingerprint: driverData.driver_fingerprint,
-                            driver_coordinates: null,
-                            prev_driver_coordinates: null,
-                            push_notification_token:
-                              driverData.operational_state
-                                .push_notification_token !== undefined &&
-                              driverData.operational_state
-                                .push_notification_token !== null
-                                ? driverData.operational_state
-                                    .push_notification_token.userId
-                                : null,
-                          };
-                          resolve(driverRepr);
-                        });
-                    }
-                  } //No records make a fresh search
-                  else {
-                    new Promise((res) => {
-                      makeFreshSearch_ETA_2points(
-                        tmp,
-                        redisKey,
-                        valueIndex,
-                        collectionRelativeDistances,
-                        driverData,
-                        res
-                      );
-                    })
-                      .then(
-                        (result) => {
-                          resolve(result);
-                        },
-                        (error) => {
-                          //logger.info(error);
-                          let driverRepr = {
-                            eta: null,
-                            distance: null,
-                            status: driverData.operational_state.status,
-                            driver_fingerprint: driverData.driver_fingerprint,
-                            driver_coordinates: null,
-                            prev_driver_coordinates: null,
-                            push_notification_token:
-                              driverData.operational_state
-                                .push_notification_token !== undefined &&
-                              driverData.operational_state
-                                .push_notification_token !== null
-                                ? driverData.operational_state
-                                    .push_notification_token.userId
-                                : null,
-                          };
-                          resolve(driverRepr);
-                        }
-                      )
-                      .catch((error) => {
-                        //logger.info(error);
-                        let driverRepr = {
-                          eta: null,
-                          distance: null,
-                          status: driverData.operational_state.status,
-                          driver_fingerprint: driverData.driver_fingerprint,
-                          driver_coordinates: null,
-                          prev_driver_coordinates: null,
-                          push_notification_token:
-                            driverData.operational_state
-                              .push_notification_token !== undefined &&
-                            driverData.operational_state
-                              .push_notification_token !== null
-                              ? driverData.operational_state
-                                  .push_notification_token.userId
-                              : null,
-                        };
-                        resolve(driverRepr);
-                      });
-                  }
-                },
-                (error) => {
-                  //logger.info(error);
-                  //Make a fresh search
-                  new Promise((res) => {
-                    makeFreshSearch_ETA_2points(
-                      tmp,
-                      redisKey,
-                      valueIndex,
-                      collectionRelativeDistances,
-                      driverData,
-                      res
-                    );
-                  })
-                    .then(
-                      (result) => {
-                        resolve(result);
-                      },
-                      (error) => {
-                        //logger.info(error);
-                        let driverRepr = {
-                          eta: null,
-                          distance: null,
-                          status: driverData.operational_state.status,
-                          driver_fingerprint: driverData.driver_fingerprint,
-                          driver_coordinates: null,
-                          prev_driver_coordinates: null,
-                          push_notification_token:
-                            driverData.operational_state
-                              .push_notification_token !== undefined &&
-                            driverData.operational_state
-                              .push_notification_token !== null
-                              ? driverData.operational_state
-                                  .push_notification_token.userId
-                              : null,
-                        };
-                        resolve(driverRepr);
-                      }
-                    )
-                    .catch((error) => {
-                      //logger.info(error);
-                      let driverRepr = {
-                        eta: null,
-                        distance: null,
-                        status: driverData.operational_state.status,
-                        driver_fingerprint: driverData.driver_fingerprint,
-                        driver_coordinates: null,
-                        prev_driver_coordinates: null,
-                        push_notification_token:
-                          driverData.operational_state
-                            .push_notification_token !== undefined &&
-                          driverData.operational_state
-                            .push_notification_token !== null
-                            ? driverData.operational_state
-                                .push_notification_token.userId
-                            : null,
-                      };
-                      resolve(driverRepr);
-                    });
-                }
-              );
-            } else {
-              //! Form a driver with null values for positionning
-              let driverRepr = {
-                eta: null,
-                distance: null,
-                status: driverData.operational_state.status,
-                driver_fingerprint: driverData.driver_fingerprint,
-                driver_coordinates: null,
-                prev_driver_coordinates: null,
-                push_notification_token:
-                  driverData.operational_state.push_notification_token !==
-                    undefined &&
-                  driverData.operational_state.push_notification_token !== null
-                    ? driverData.operational_state.push_notification_token
-                        .userId
-                    : null,
-              };
-              resolve(driverRepr);
-            }
-          });
-        });
-        //Resolve all
-        Promise.all(mainPromiser).then(
-          (result) => {
-            //Done- exlude all false
-            new Promise((res) => {
-              cleanAndAdjustRelativeDistancesList(result, req.list_limit, res);
-            }).then(
-              (reslt) => {
-                //! Cache the list for 30minutes
-                new Promise((resCacheDriversList) => {
-                  redisCluster.setex(
-                    redisKey,
-                    process.env.REDIS_EXPIRATION_5MIN * 6,
-                    stringify(reslt)
-                  );
-                  resCacheDriversList(true);
-                })
-                  .then(
-                    () => {},
-                    () => {}
-                  )
-                  .catch((error) => {
-                    //logger.info(error);
-                  });
-                //? DONE
-                resolveMother(reslt);
-              },
-              (error) => {
-                //logger.info(error);
-                resolveMother({ response: "no_close_drivers_found" });
-              }
-            );
-          },
-          (error) => {
-            //logger.info(error);
-            resolveMother({ response: "no_close_drivers_found" });
-          }
-        );
-      } //No close drivers
-      else {
-        resolveMother({ response: "no_close_drivers_found" });
-      }
-    });
+  // collectionDrivers_profiles
+  //   .f\ind(driverFilter)
+  //   .toArray(function (err, driversProfiles) {
+  //     if (err) {
+  //       logger.info(err);
+  //       resolveMother({ response: "no_close_drivers_found" });
+  //     }
+  //     //check that some drivers where found
+  //     if (driversProfiles.length > 0) {
+  //       //yep
+  //       //Filter the drivers based on their car's maximum capacity (the amount of passengers it can handle)
+  //       //They can receive 3 additional requests on top of the limit of sits in their selected cars.
+  //       //! Add 30 possible passengers on top of the base passengers limit.
+  //       /*driversProfiles = driversProfiles.filter(
+  //         (dData) =>
+  //           dData.operational_state.accepted_requests_infos === null ||
+  //           dData.operational_state.accepted_requests_infos
+  //             .total_passengers_number <=
+  //             dData.operational_state.default_selected_car.max_passengers +
+  //               30 ||
+  //           dData.operational_state.accepted_requests_infos === undefined ||
+  //           dData.operational_state.accepted_requests_infos === null ||
+  //           dData.operational_state.accepted_requests_infos
+  //             .total_passengers_number === undefined ||
+  //           dData.operational_state.accepted_requests_infos
+  //             .total_passengers_number === null
+  //       );*/
+  //       //...
+  //       let mainPromiser = driversProfiles.map((driverData) => {
+  //         return new Promise((resolve) => {
+  //           //Check for the coords
+  //           if (
+  //             driverData.operational_state.last_location !== null &&
+  //             driverData.operational_state.last_location !== undefined &&
+  //             driverData.operational_state.last_location.coordinates !== null &&
+  //             driverData.operational_state.last_location.coordinates !==
+  //               undefined &&
+  //             driverData.operational_state.last_location.coordinates
+  //               .latitude !== undefined &&
+  //             driverData.operational_state.last_location.coordinates
+  //               .longitude !== undefined
+  //           ) {
+  //             //...
+  //             let tmp = {
+  //               passenger: {
+  //                 latitude: req.org_latitude,
+  //                 longitude: req.org_longitude,
+  //               },
+  //               destination: {
+  //                 latitude:
+  //                   driverData.operational_state.last_location.coordinates
+  //                     .latitude,
+  //                 longitude:
+  //                   driverData.operational_state.last_location.coordinates
+  //                     .longitude,
+  //               },
+  //             };
+  //             let redisKey =
+  //               req.user_fingerprint + "-" + driverData.driver_fingerprint;
+  //             let valueIndex = "relativeEta";
+  //             //CHeck for cache value
+  //             redisGet(redisKey).then(
+  //               (resp) => {
+  //                 if (resp !== null) {
+  //                   //Has some record
+  //                   //Check if the wanted value is present
+  //                   try {
+  //                     resp = JSON.parse(resp);
+  //                     if (
+  //                       resp[valueIndex] !== undefined &&
+  //                       resp[valueIndex] !== null &&
+  //                       resp[valueIndex] !== false
+  //                     ) {
+  //                       ////logger.info("Foudn cached data");
+  //                       //Update the cache as well
+  //                       new Promise((res) => {
+  //                         makeFreshSearch_ETA_2points(
+  //                           tmp,
+  //                           redisKey,
+  //                           valueIndex,
+  //                           collectionRelativeDistances,
+  //                           driverData,
+  //                           res
+  //                         );
+  //                       })
+  //                         .then(
+  //                           () => {},
+  //                           () => {}
+  //                         )
+  //                         .catch(() => {});
+  //                       //Update the relative mongo records
+  //                       if (
+  //                         resp[valueIndex] !== false &&
+  //                         resp[valueIndex] !== undefined &&
+  //                         resp[valueIndex].eta !== undefined
+  //                       ) {
+  //                         new Promise((res1) => {
+  //                           let relativeHeader = {
+  //                             user_fingerprint: req.user_fingerprint,
+  //                             status: driverData.operational_state.status,
+  //                             driver_fingerprint: driverData.driver_fingerprint,
+  //                             driver_coordinates: {
+  //                               latitude:
+  //                                 driverData.operational_state.last_location
+  //                                   .coordinates.latitude,
+  //                               longitude:
+  //                                 driverData.operational_state.last_location
+  //                                   .coordinates.longitude,
+  //                             },
+  //                             push_notification_token:
+  //                               driverData.push_notification_token,
+  //                             eta: resp[valueIndex].eta,
+  //                             distance: resp[valueIndex].distance,
+  //                             city: req.city,
+  //                             country: req.country,
+  //                           };
+  //                           updateRelativeDistancesRiderDrivers(
+  //                             collectionRelativeDistances,
+  //                             relativeHeader,
+  //                             res1
+  //                           );
+  //                         }).then(
+  //                           () => {},
+  //                           () => {}
+  //                         );
+  //                       }
+  //                       //has something, return that
+  //                       resp[valueIndex].status =
+  //                         driverData.operational_state.status; //? Online or offline
+  //                       resp[valueIndex].driver_fingerprint =
+  //                         driverData.driver_fingerprint; //Add the driver fingerprint to the response
+  //                       resp[valueIndex].driver_coordinates = {
+  //                         latitude:
+  //                           driverData.operational_state.last_location
+  //                             .coordinates.latitude,
+  //                         longitude:
+  //                           driverData.operational_state.last_location
+  //                             .coordinates.longitude,
+  //                       }; //Add the driver coordinates to the response
+  //                       resp[valueIndex].prev_driver_coordinates = {
+  //                         latitude:
+  //                           driverData.operational_state.last_location
+  //                             .prev_coordinates.latitude,
+  //                         longitude:
+  //                           driverData.operational_state.last_location
+  //                             .prev_coordinates.longitude,
+  //                       }; //Add the driver's previous coordinates to the response
+  //                       resp[valueIndex].push_notification_token =
+  //                         driverData.operational_state
+  //                           .push_notification_token !== null &&
+  //                         driverData.operational_state
+  //                           .push_notification_token !== undefined
+  //                           ? driverData.operational_state
+  //                               .push_notification_token.userId
+  //                           : null; //Add the push notification token
+  //                       resolve(resp[valueIndex]);
+  //                     } //The wanted index is not present, make a new search
+  //                     else {
+  //                       new Promise((res) => {
+  //                         makeFreshSearch_ETA_2points(
+  //                           tmp,
+  //                           redisKey,
+  //                           valueIndex,
+  //                           collectionRelativeDistances,
+  //                           driverData,
+  //                           res
+  //                         );
+  //                       })
+  //                         .then(
+  //                           (result) => {
+  //                             resolve(result);
+  //                           },
+  //                           (error) => {
+  //                             //logger.info(error);
+  //                             let driverRepr = {
+  //                               eta: null,
+  //                               distance: null,
+  //                               status: driverData.operational_state.status,
+  //                               driver_fingerprint:
+  //                                 driverData.driver_fingerprint,
+  //                               driver_coordinates: null,
+  //                               prev_driver_coordinates: null,
+  //                               push_notification_token:
+  //                                 driverData.operational_state
+  //                                   .push_notification_token !== undefined &&
+  //                                 driverData.operational_state
+  //                                   .push_notification_token !== null
+  //                                   ? driverData.operational_state
+  //                                       .push_notification_token.userId
+  //                                   : null,
+  //                             };
+  //                             resolve(driverRepr);
+  //                           }
+  //                         )
+  //                         .catch((error) => {
+  //                           //logger.info(error);
+  //                           let driverRepr = {
+  //                             eta: null,
+  //                             distance: null,
+  //                             status: driverData.operational_state.status,
+  //                             driver_fingerprint: driverData.driver_fingerprint,
+  //                             driver_coordinates: null,
+  //                             prev_driver_coordinates: null,
+  //                             push_notification_token:
+  //                               driverData.operational_state
+  //                                 .push_notification_token !== undefined &&
+  //                               driverData.operational_state
+  //                                 .push_notification_token !== null
+  //                                 ? driverData.operational_state
+  //                                     .push_notification_token.userId
+  //                                 : null,
+  //                           };
+  //                           resolve(driverRepr);
+  //                         });
+  //                     }
+  //                   } catch (error) {
+  //                     //logger.info(error);
+  //                     //Make a fresh search
+  //                     new Promise((res) => {
+  //                       makeFreshSearch_ETA_2points(
+  //                         tmp,
+  //                         redisKey,
+  //                         valueIndex,
+  //                         collectionRelativeDistances,
+  //                         driverData,
+  //                         res
+  //                       );
+  //                     })
+  //                       .then(
+  //                         (result) => {
+  //                           resolve(result);
+  //                         },
+  //                         (error) => {
+  //                           //logger.info(error);
+  //                           let driverRepr = {
+  //                             eta: null,
+  //                             distance: null,
+  //                             status: driverData.operational_state.status,
+  //                             driver_fingerprint: driverData.driver_fingerprint,
+  //                             driver_coordinates: null,
+  //                             prev_driver_coordinates: null,
+  //                             push_notification_token:
+  //                               driverData.operational_state
+  //                                 .push_notification_token !== undefined &&
+  //                               driverData.operational_state
+  //                                 .push_notification_token !== null
+  //                                 ? driverData.operational_state
+  //                                     .push_notification_token.userId
+  //                                 : null,
+  //                           };
+  //                           resolve(driverRepr);
+  //                         }
+  //                       )
+  //                       .catch((error) => {
+  //                         //logger.info(error);
+  //                         let driverRepr = {
+  //                           eta: null,
+  //                           distance: null,
+  //                           status: driverData.operational_state.status,
+  //                           driver_fingerprint: driverData.driver_fingerprint,
+  //                           driver_coordinates: null,
+  //                           prev_driver_coordinates: null,
+  //                           push_notification_token:
+  //                             driverData.operational_state
+  //                               .push_notification_token !== undefined &&
+  //                             driverData.operational_state
+  //                               .push_notification_token !== null
+  //                               ? driverData.operational_state
+  //                                   .push_notification_token.userId
+  //                               : null,
+  //                         };
+  //                         resolve(driverRepr);
+  //                       });
+  //                   }
+  //                 } //No records make a fresh search
+  //                 else {
+  //                   new Promise((res) => {
+  //                     makeFreshSearch_ETA_2points(
+  //                       tmp,
+  //                       redisKey,
+  //                       valueIndex,
+  //                       collectionRelativeDistances,
+  //                       driverData,
+  //                       res
+  //                     );
+  //                   })
+  //                     .then(
+  //                       (result) => {
+  //                         resolve(result);
+  //                       },
+  //                       (error) => {
+  //                         //logger.info(error);
+  //                         let driverRepr = {
+  //                           eta: null,
+  //                           distance: null,
+  //                           status: driverData.operational_state.status,
+  //                           driver_fingerprint: driverData.driver_fingerprint,
+  //                           driver_coordinates: null,
+  //                           prev_driver_coordinates: null,
+  //                           push_notification_token:
+  //                             driverData.operational_state
+  //                               .push_notification_token !== undefined &&
+  //                             driverData.operational_state
+  //                               .push_notification_token !== null
+  //                               ? driverData.operational_state
+  //                                   .push_notification_token.userId
+  //                               : null,
+  //                         };
+  //                         resolve(driverRepr);
+  //                       }
+  //                     )
+  //                     .catch((error) => {
+  //                       //logger.info(error);
+  //                       let driverRepr = {
+  //                         eta: null,
+  //                         distance: null,
+  //                         status: driverData.operational_state.status,
+  //                         driver_fingerprint: driverData.driver_fingerprint,
+  //                         driver_coordinates: null,
+  //                         prev_driver_coordinates: null,
+  //                         push_notification_token:
+  //                           driverData.operational_state
+  //                             .push_notification_token !== undefined &&
+  //                           driverData.operational_state
+  //                             .push_notification_token !== null
+  //                             ? driverData.operational_state
+  //                                 .push_notification_token.userId
+  //                             : null,
+  //                       };
+  //                       resolve(driverRepr);
+  //                     });
+  //                 }
+  //               },
+  //               (error) => {
+  //                 //logger.info(error);
+  //                 //Make a fresh search
+  //                 new Promise((res) => {
+  //                   makeFreshSearch_ETA_2points(
+  //                     tmp,
+  //                     redisKey,
+  //                     valueIndex,
+  //                     collectionRelativeDistances,
+  //                     driverData,
+  //                     res
+  //                   );
+  //                 })
+  //                   .then(
+  //                     (result) => {
+  //                       resolve(result);
+  //                     },
+  //                     (error) => {
+  //                       //logger.info(error);
+  //                       let driverRepr = {
+  //                         eta: null,
+  //                         distance: null,
+  //                         status: driverData.operational_state.status,
+  //                         driver_fingerprint: driverData.driver_fingerprint,
+  //                         driver_coordinates: null,
+  //                         prev_driver_coordinates: null,
+  //                         push_notification_token:
+  //                           driverData.operational_state
+  //                             .push_notification_token !== undefined &&
+  //                           driverData.operational_state
+  //                             .push_notification_token !== null
+  //                             ? driverData.operational_state
+  //                                 .push_notification_token.userId
+  //                             : null,
+  //                       };
+  //                       resolve(driverRepr);
+  //                     }
+  //                   )
+  //                   .catch((error) => {
+  //                     //logger.info(error);
+  //                     let driverRepr = {
+  //                       eta: null,
+  //                       distance: null,
+  //                       status: driverData.operational_state.status,
+  //                       driver_fingerprint: driverData.driver_fingerprint,
+  //                       driver_coordinates: null,
+  //                       prev_driver_coordinates: null,
+  //                       push_notification_token:
+  //                         driverData.operational_state
+  //                           .push_notification_token !== undefined &&
+  //                         driverData.operational_state
+  //                           .push_notification_token !== null
+  //                           ? driverData.operational_state
+  //                               .push_notification_token.userId
+  //                           : null,
+  //                     };
+  //                     resolve(driverRepr);
+  //                   });
+  //               }
+  //             );
+  //           } else {
+  //             //! Form a driver with null values for positionning
+  //             let driverRepr = {
+  //               eta: null,
+  //               distance: null,
+  //               status: driverData.operational_state.status,
+  //               driver_fingerprint: driverData.driver_fingerprint,
+  //               driver_coordinates: null,
+  //               prev_driver_coordinates: null,
+  //               push_notification_token:
+  //                 driverData.operational_state.push_notification_token !==
+  //                   undefined &&
+  //                 driverData.operational_state.push_notification_token !== null
+  //                   ? driverData.operational_state.push_notification_token
+  //                       .userId
+  //                   : null,
+  //             };
+  //             resolve(driverRepr);
+  //           }
+  //         });
+  //       });
+  //       //Resolve all
+  //       Promise.all(mainPromiser).then(
+  //         (result) => {
+  //           //Done- exlude all false
+  //           new Promise((res) => {
+  //             cleanAndAdjustRelativeDistancesList(result, req.list_limit, res);
+  //           }).then(
+  //             (reslt) => {
+  //               //! Cache the list for 30minutes
+  //               new Promise((resCacheDriversList) => {
+  //                 redisCluster.setex(
+  //                   redisKey,
+  //                   process.env.REDIS_EXPIRATION_5MIN * 6,
+  //                   stringify(reslt)
+  //                 );
+  //                 resCacheDriversList(true);
+  //               })
+  //                 .then(
+  //                   () => {},
+  //                   () => {}
+  //                 )
+  //                 .catch((error) => {
+  //                   //logger.info(error);
+  //                 });
+  //               //? DONE
+  //               resolveMother(reslt);
+  //             },
+  //             (error) => {
+  //               //logger.info(error);
+  //               resolveMother({ response: "no_close_drivers_found" });
+  //             }
+  //           );
+  //         },
+  //         (error) => {
+  //           //logger.info(error);
+  //           resolveMother({ response: "no_close_drivers_found" });
+  //         }
+  //       );
+  //     } //No close drivers
+  //     else {
+  //       resolveMother({ response: "no_close_drivers_found" });
+  //     }
+  //   });
 }
 
 /**
@@ -5534,16 +5562,15 @@ redisCluster.on("connect", function () {
                     };
 
                     //...
-                    collectionDrivers_profiles
-                      .find({
-                        driver_fingerprint: req.user_fingerprint,
-                      })
-                      .toArray(function (err, driverTmpData) {
-                        if (err) {
-                          logger.error(err);
-                          resRegionalClrs(false);
-                        }
-                        //...
+                    dynamo_find_query({
+                      table_name: "drivers_profiles",
+                      IndexName: "driver_fingerprint",
+                      KeyConditionExpression: "driver_fingerprint = :val1",
+                      ExpressionAttributeValues: {
+                        ":val1": req.user_fingerprint,
+                      },
+                    })
+                      .then((driverTmpData) => {
                         if (
                           driverTmpData !== undefined &&
                           driverTmpData.length > 0
@@ -5601,6 +5628,10 @@ redisCluster.on("connect", function () {
                         else {
                           resRegionalClrs(false);
                         }
+                      })
+                      .catch((error) => {
+                        logger.error(error);
+                        resRegionalClrs(false);
                       });
                   })
                     .then()
@@ -5654,16 +5685,17 @@ redisCluster.on("connect", function () {
                         //!Check if a reference point exists - if not set one to NOW
                         //? For days before wednesday, set to wednesdat and for those after wednesday, set to next week that same day.
                         //! Annotation string: startingPoint_forFreshPayouts
-                        collectionWalletTransactions_logs
-                          .find({
-                            flag_annotation: "startingPoint_forFreshPayouts",
-                            user_fingerprint: req.user_fingerprint,
-                          })
-                          .toArray(function (err, referenceData) {
-                            if (err) {
-                              resPaymentCycle(false);
-                            }
-                            //...
+                        dynamo_find_query({
+                          table_name: "wallet_transactions_logs",
+                          IndexName: "user_fingerprint",
+                          KeyConditionExpression: "user_fingerprint = :val1",
+                          FilterExpression: "flag_annotation = :val2",
+                          ExpressionAttributeValues: {
+                            ":val1": req.user_fingerprint,
+                            ":val2": "startingPoint_forFreshPayouts",
+                          },
+                        })
+                          .then((referenceData) => {
                             if (
                               referenceData !== undefined &&
                               referenceData.length > 0 &&
@@ -5726,6 +5758,9 @@ redisCluster.on("connect", function () {
                                 );
                               }
                             }
+                          })
+                          .catch((error) => {
+                            resPaymentCycle(false);
                           });
                       }).then(
                         () => {},
@@ -5783,7 +5818,7 @@ redisCluster.on("connect", function () {
                       ? req.requestType
                       : "rides",
                     res
-                  ); 
+                  );
                   //}
                 }).then(
                   (result) => {
@@ -6657,148 +6692,152 @@ redisCluster.on("connect", function () {
            */
           app.get("/getSharedTrip_information", function (req, res) {
             resolveDate();
-            let params = urlParser.parse(req.url, true);
-            req = params.query;
+            res.send({ request_status: "no_rides" });
+            // let params = urlParser.parse(req.url, true);
+            // req = params.query;
 
-            if (
-              req.sharedTo_user_fingerprint !== undefined &&
-              req.sharedTo_user_fingerprint !== null &&
-              req.trip_simplified_id !== undefined &&
-              req.trip_simplified_id !== null
-            ) {
-              let timeTaken = new Date();
-              timeTaken = timeTaken.getTime();
-              //Get the user fingerprint of the owner of this ride as long as it is still active
-              collectionRidesDeliveries_data
-                .find({ trip_simplified_id: req.trip_simplified_id })
-                .toArray(function (err, parentTripDetails) {
-                  if (err) {
-                    res.send({ request_status: "no_rides" });
-                  }
-                  //...
-                  if (
-                    parentTripDetails !== undefined &&
-                    parentTripDetails !== null &&
-                    parentTripDetails.length > 0
-                  ) {
-                    //There's a trip in progress
-                    //Save the event of an external user getting the trip infos and all the corresponding data
-                    let eventBundle = {
-                      sharedTo_user_fingerprint: req.sharedTo_user_fingerprint,
-                      trip_simplified_id: req.trip_simplified_id,
-                      owner_rider_fingerprint: parentTripDetails[0].client_id,
-                      request_fp: parentTripDetails[0].request_fp,
-                      response_got: null, //The response of the request.
-                      date_captured: new Date(chaineDateUTC),
-                    };
-                    //Check for any existing ride
-                    new Promise((res) => {
-                      ////logger.info("fetching data");
-                      tripChecker_Dispatcher(
-                        true,
-                        collectionRidesDeliveries_data,
-                        collectionDrivers_profiles,
-                        collectionPassengers_profiles,
-                        parentTripDetails[0].client_id,
-                        "rider",
-                        "rides",
-                        res
-                      );
-                    }).then(
-                      (result) => {
-                        let doneTime = new Date();
-                        timeTaken = doneTime.getTime() - timeTaken;
-                        ////logger.info("[" + chaineDateUTC + "] Compute and dispatch time (trip) ------>  " + timeTaken + " ms");
-                        //Save the shared result event
-                        new Promise((resSharedEvent) => {
-                          //Complete the event bundle with the response of the request
-                          eventBundle.response_got = result;
-                          collectionGlobalEvents.insertOne(
-                            eventBundle,
-                            function (err, reslt) {
-                              resSharedEvent(true);
-                            }
-                          );
-                        }).then(
-                          () => {
-                            //logger.info("Save the shared ride event");
-                          },
-                          () => {}
-                        );
-                        //Update the rider
-                        if (
-                          result !== null &&
-                          result !== undefined &&
-                          result !== false
-                        ) {
-                          if (result != "no_rides") {
-                            //!Get the sender's details and attach it the to response
-                            collectionPassengers_profiles
-                              .find({
-                                user_fingerprint:
-                                  parentTripDetails[0].client_id,
-                              })
-                              .toArray(function (err, riderTripOwner) {
-                                if (err) {
-                                  //logger.info(err);
-                                  res.send({ request_status: "no_rides" });
-                                }
-                                //...
-                                if (
-                                  riderTripOwner.length > 0 &&
-                                  riderTripOwner[0].user_fingerprint !==
-                                    undefined
-                                ) {
-                                  //Found the owner of the ride
-                                  let ownerInfoBundle = {
-                                    name: riderTripOwner[0].name,
-                                    profile_picture: `${process.env.AWS_S3_RIDERS_PROFILE_PICTURES_PATH}/${riderTripOwner[0].media.profile_picture}`,
-                                  };
-                                  //? attach to the global trip details AND the success status
-                                  result["riderOwnerInfoBundle"] =
-                                    ownerInfoBundle;
-                                  result["responsePass"] = "success";
-                                  //! Remove the driver's phone number and the car plate number
-                                  if (
-                                    result.driverDetails !== undefined &&
-                                    result.driverDetails.phone_number !==
-                                      undefined
-                                  ) {
-                                    result.driverDetails.phone_number = null;
-                                    result.driverDetails.plate_number = null;
-                                    res.send(result);
-                                  } //No relevant details
-                                  else {
-                                    res.send(result);
-                                  }
-                                } //Stange - no ride owner linked to this ride
-                                else {
-                                  res.send({ request_status: "no_rides" });
-                                }
-                              });
-                          } //No rides
-                          else {
-                            res.send({ request_status: "no_rides" });
-                          }
-                        } //No rides
-                        else {
-                          res.send({ request_status: "no_rides" });
-                        }
-                      },
-                      (error) => {
-                        logger.error(error);
-                        res.send({ request_status: "no_rides" });
-                      }
-                    );
-                  } //No rides in progress
-                  else {
-                    res.send({ request_status: "no_rides" });
-                  }
-                });
-            } //Invalid data
-            else {
-              res.send({ response: "error_invalid_data", flag: false });
-            }
+            // if (
+            //   req.sharedTo_user_fingerprint !== undefined &&
+            //   req.sharedTo_user_fingerprint !== null &&
+            //   req.trip_simplified_id !== undefined &&
+            //   req.trip_simplified_id !== null
+            // ) {
+            //   let timeTaken = new Date();
+            //   timeTaken = timeTaken.getTime();
+            //   //Get the user fingerprint of the owner of this ride as long as it is still active
+            //   collectionRidesDeliveries_data
+            //     .f\ind({ trip_simplified_id: req.trip_simplified_id })
+            //     .toArray(function (err, parentTripDetails) {
+            //       if (err) {
+            //         res.send({ request_status: "no_rides" });
+            //       }
+            //       //...
+            //       if (
+            //         parentTripDetails !== undefined &&
+            //         parentTripDetails !== null &&
+            //         parentTripDetails.length > 0
+            //       ) {
+            //         //There's a trip in progress
+            //         //Save the event of an external user getting the trip infos and all the corresponding data
+            //         let eventBundle = {
+            //           sharedTo_user_fingerprint: req.sharedTo_user_fingerprint,
+            //           trip_simplified_id: req.trip_simplified_id,
+            //           owner_rider_fingerprint: parentTripDetails[0].client_id,
+            //           request_fp: parentTripDetails[0].request_fp,
+            //           response_got: null, //The response of the request.
+            //           date_captured: new Date(chaineDateUTC),
+            //         };
+            //         //Check for any existing ride
+            //         new Promise((res) => {
+            //           ////logger.info("fetching data");
+            //           tripChecker_Dispatcher(
+            //             true,
+            //             collectionRidesDeliveries_data,
+            //             collectionDrivers_profiles,
+            //             collectionPassengers_profiles,
+            //             parentTripDetails[0].client_id,
+            //             "rider",
+            //             "rides",
+            //             res
+            //           );
+            //         }).then(
+            //           (result) => {
+            //             let doneTime = new Date();
+            //             timeTaken = doneTime.getTime() - timeTaken;
+            //             ////logger.info("[" + chaineDateUTC + "] Compute and dispatch time (trip) ------>  " + timeTaken + " ms");
+            //             //Save the shared result event
+            //             new Promise((resSharedEvent) => {
+            //               //Complete the event bundle with the response of the request
+            //               eventBundle.response_got = result;
+            //               collectionGlobalEvents.insertOne(
+            //                 eventBundle,
+            //                 function (err, reslt) {
+            //                   resSharedEvent(true);
+            //                 }
+            //               );
+            //             }).then(
+            //               () => {
+            //                 //logger.info("Save the shared ride event");
+            //               },
+            //               () => {}
+            //             );
+            //             //Update the rider
+            //             if (
+            //               result !== null &&
+            //               result !== undefined &&
+            //               result !== false
+            //             ) {
+            //               if (result != "no_rides") {
+            //                 //!Get the sender's details and attach it the to response
+            //                 dynamo_find_query({
+            //                   table_name: "passengers_profiles",
+            //                   IndexName: "user_fingerprint",
+            //                   KeyConditionExpression:
+            //                     "user_fingerprint = :val1",
+            //                   ExpressionAttributeValues: {
+            //                     ":val1": parentTripDetails[0].client_id,
+            //                   },
+            //                 })
+            //                   .then((riderTripOwner) => {
+            //                     if (
+            //                       riderTripOwner.length > 0 &&
+            //                       riderTripOwner[0].user_fingerprint !==
+            //                         undefined
+            //                     ) {
+            //                       //Found the owner of the ride
+            //                       let ownerInfoBundle = {
+            //                         name: riderTripOwner[0].name,
+            //                         profile_picture: `${process.env.AWS_S3_RIDERS_PROFILE_PICTURES_PATH}/${riderTripOwner[0].media.profile_picture}`,
+            //                       };
+            //                       //? attach to the global trip details AND the success status
+            //                       result["riderOwnerInfoBundle"] =
+            //                         ownerInfoBundle;
+            //                       result["responsePass"] = "success";
+            //                       //! Remove the driver's phone number and the car plate number
+            //                       if (
+            //                         result.driverDetails !== undefined &&
+            //                         result.driverDetails.phone_number !==
+            //                           undefined
+            //                       ) {
+            //                         result.driverDetails.phone_number = null;
+            //                         result.driverDetails.plate_number = null;
+            //                         res.send(result);
+            //                       } //No relevant details
+            //                       else {
+            //                         res.send(result);
+            //                       }
+            //                     } //Stange - no ride owner linked to this ride
+            //                     else {
+            //                       res.send({ request_status: "no_rides" });
+            //                     }
+            //                   })
+            //                   .catch((error) => {
+            //                     logger.info(error);
+            //                     res.send({ request_status: "no_rides" });
+            //                   });
+            //               } //No rides
+            //               else {
+            //                 res.send({ request_status: "no_rides" });
+            //               }
+            //             } //No rides
+            //             else {
+            //               res.send({ request_status: "no_rides" });
+            //             }
+            //           },
+            //           (error) => {
+            //             logger.error(error);
+            //             res.send({ request_status: "no_rides" });
+            //           }
+            //         );
+            //       } //No rides in progress
+            //       else {
+            //         res.send({ request_status: "no_rides" });
+            //       }
+            //     });
+            // } //Invalid data
+            // else {
+            //   res.send({ response: "error_invalid_data", flag: false });
+            // }
           });
 
           /**
