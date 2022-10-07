@@ -11,6 +11,16 @@ const { logger } = require("./LogService");
 var app = express();
 var server = http.createServer(app);
 const requestAPI = require("request");
+
+//! Attach DynamoDB helper
+const {
+  dynamo_insert,
+  dynamo_update,
+  dynamo_find_query,
+  dynamo_delete,
+  dynamo_get_all,
+  dynamo_find_get,
+} = require("./DynamoServiceManager");
 //---center
 const { promisify, inspect } = require("util");
 const redis = require("redis");
@@ -159,36 +169,18 @@ function newLoaction_search_engine(
   trailingData
 ) {
   //? 1. Check if it was written in mongodb
-  collectionSearchedLocationPersist
-    .find({
-      query: queryOR,
-      city: city,
-      state: trailingData.state.replace(/ Region/i, "").trim(),
-    })
-    .toArray(function (err, searchedData) {
-      if (err) {
-        logger.error(err);
-        //Fresh search
-        new Promise((resCompute) => {
-          initializeFreshGetOfLocations(
-            keyREDIS,
-            queryOR,
-            city,
-            cityCenter,
-            resCompute,
-            timestamp,
-            trailingData
-          );
-        })
-          .then((result) => {
-            res(result);
-          })
-          .catch((error) => {
-            logger.error(error);
-            res(false);
-          });
-      }
-      //...
+  dynamo_find_query({
+    table_name: "searched_locations_persist",
+    IndexName: "query",
+    KeyConditionExpression: "query = :val1",
+    FilterExpression: "city = :val2 AND state = :val3",
+    ExpressionAttributeValues: {
+      ":val1": queryOR,
+      ":val2": city,
+      ":val3": trailingData.state.replace(/ Region/i, "").trim(),
+    },
+  })
+    .then((searchedData) => {
       if (
         searchedData !== undefined &&
         searchedData !== null &&
@@ -236,6 +228,28 @@ function newLoaction_search_engine(
             res(false);
           });
       }
+    })
+    .catch((error) => {
+      logger.error(error);
+      //Fresh search
+      new Promise((resCompute) => {
+        initializeFreshGetOfLocations(
+          keyREDIS,
+          queryOR,
+          city,
+          cityCenter,
+          resCompute,
+          timestamp,
+          trailingData
+        );
+      })
+        .then((result) => {
+          res(result);
+        })
+        .catch((error) => {
+          logger.error(error);
+          res(false);
+        });
     });
 }
 
@@ -1120,35 +1134,15 @@ function execBrieflyCompleteEssentialsForLocations(
           //? OSM ID
           let osm_id = body.osm_id;
           //Check if there are any record in mongodb
-          collectionAutoCompletedSuburbs
-            .find({ osm_id: osm_id })
-            .toArray(function (err, locationData) {
-              if (err) {
-                logger.error(err);
-                //Make a fresh search
-                new Promise((resCompute) => {
-                  doFreshBrieflyCompleteEssentialsForLocations(
-                    coordinates,
-                    location_name,
-                    city,
-                    osm_id,
-                    resCompute
-                  );
-                })
-                  .then((result) => {
-                    resolve(result);
-                  })
-                  .catch((error) => {
-                    logger.error(error);
-                    resolve({
-                      coordinates: coordinates,
-                      state: false,
-                      suburb: false,
-                    });
-                  });
-              }
-
-              //...
+          dynamo_find_query({
+            table_name: "autocompleted_location_suburbs",
+            IndexName: "osm_id",
+            KeyConditionExpression: "osm_id = :val1",
+            ExpressionAttributeValues: {
+              ":val1": osm_id,
+            },
+          })
+            .then((locationData) => {
               if (locationData !== undefined && locationData.length > 0) {
                 logger.warn(
                   `Found mongo record for the related suburb - ${osm_id}`
@@ -1184,6 +1178,30 @@ function execBrieflyCompleteEssentialsForLocations(
                     });
                   });
               }
+            })
+            .catch((error) => {
+              logger.error(error);
+              //Make a fresh search
+              new Promise((resCompute) => {
+                doFreshBrieflyCompleteEssentialsForLocations(
+                  coordinates,
+                  location_name,
+                  city,
+                  osm_id,
+                  resCompute
+                );
+              })
+                .then((result) => {
+                  resolve(result);
+                })
+                .catch((error) => {
+                  logger.error(error);
+                  resolve({
+                    coordinates: coordinates,
+                    state: false,
+                    suburb: false,
+                  });
+                });
             });
         } catch (error) {
           resolve({
