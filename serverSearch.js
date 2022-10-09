@@ -3,8 +3,6 @@ require("dotenv").config();
 var express = require("express");
 const http = require("http");
 const fs = require("fs");
-const MongoClient = require("mongodb").MongoClient;
-const certFile = fs.readFileSync("./rds-combined-ca-bundle.pem");
 
 const { logger } = require("./LogService");
 
@@ -1494,194 +1492,165 @@ redisCluster.on("connect", function () {
       process.env.URL_MONGODB_PROD = body.URL_MONGODB_PROD;
       process.env.GOOGLE_API_KEY = body.GOOGLE_API_KEY; //?Could be dev or prod depending on process.env.ENVIRONMENT
 
-      MongoClient.connect(
-        /live/i.test(process.env.SERVER_TYPE)
-          ? process.env.URL_MONGODB_PROD
-          : process.env.URL_MONGODB_DEV,
-        /production/i.test(process.env.EVIRONMENT)
-          ? {
-              tlsCAFile: certFile, //The DocDB cert
-              useUnifiedTopology: true,
-              useNewUrlParser: true,
-            }
-          : {
-              useUnifiedTopology: true,
-              useNewUrlParser: true,
-            },
-        function (err, clientMongo) {
-          if (err) throw err;
-          logger.info("Connected to Mongodb");
-          const dbMongo = clientMongo.db(process.env.DB_NAME_MONGODDB);
-          collectionSearchedLocationPersist = dbMongo.collection(
-            "searched_locations_persist"
-          );
-          collectionAutoCompletedSuburbs = dbMongo.collection(
-            "autocompleted_location_suburbs"
-          );
-          collectionEnrichedLocationPersist = dbMongo.collection(
-            "enriched_locationSearch_persist"
-          ); //Will hold all the google locations searched using the place id
-          //-------------
-          //Cached restore OR initialized
-          app
-            .use(
-              express.json({
-                limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
-                extended: true,
-              })
-            )
-            .use(
-              express.urlencoded({
-                limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
-                extended: true,
-              })
-            );
+      logger.info("Connected to Mongodb");
+      //Cached restore OR initialized
+      app
+        .use(
+          express.json({
+            limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
+            extended: true,
+          })
+        )
+        .use(
+          express.urlencoded({
+            limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
+            extended: true,
+          })
+        );
 
-          //1. SEARCH API
-          app.post("/getSearchedLocations", function (request, res) {
-            resolveDate();
-            //..
-            request = request.body;
-            // logger.info(request);
-            //Update search timestamp
-            //search_timestamp = dateObject.unix();
-            // let search_timestamp = request.query.length;
-            let search_timestamp = new Date(chaineDateUTC).getTime();
-            request.state =
-              request.state !== undefined
-                ? request.state.replace(/ Region/i, "").trim()
-                : "Khomas"; //Default to Khomas
-            //...
-            let redisKeyConsistencyKeeper = `${request.user_fp}-autocompleteSearchRecordTime-${request.city}-${request.state}`;
-            //1. Get the cityCenter
-            request0 = new Promise((res) => {
-              //Save in Cache
-              redisCluster.set(redisKeyConsistencyKeeper, request.query);
-              getCityCenter(request.city, res);
+      //1. SEARCH API
+      app.post("/getSearchedLocations", function (request, res) {
+        resolveDate();
+        //..
+        request = request.body;
+        // logger.info(request);
+        //Update search timestamp
+        //search_timestamp = dateObject.unix();
+        // let search_timestamp = request.query.length;
+        let search_timestamp = new Date(chaineDateUTC).getTime();
+        request.state =
+          request.state !== undefined
+            ? request.state.replace(/ Region/i, "").trim()
+            : "Khomas"; //Default to Khomas
+        //...
+        let redisKeyConsistencyKeeper = `${request.user_fp}-autocompleteSearchRecordTime-${request.city}-${request.state}`;
+        //1. Get the cityCenter
+        request0 = new Promise((res) => {
+          //Save in Cache
+          redisCluster.set(redisKeyConsistencyKeeper, request.query);
+          getCityCenter(request.city, res);
+        }).then(
+          (result) => {
+            let cityCenter = result;
+            //Get the location
+            new Promise((res) => {
+              let tmpTimestamp = search_timestamp;
+              getLocationList_five(
+                request.query,
+                request.city,
+                request.country,
+                cityCenter,
+                res,
+                tmpTimestamp,
+                request
+              );
             }).then(
               (result) => {
-                let cityCenter = result;
-                //Get the location
-                new Promise((res) => {
-                  let tmpTimestamp = search_timestamp;
-                  getLocationList_five(
-                    request.query,
-                    request.city,
-                    request.country,
-                    cityCenter,
-                    res,
-                    tmpTimestamp,
-                    request
-                  );
-                }).then(
-                  (result) => {
-                    //? Get the redis record time and compare
-                    redisGet(redisKeyConsistencyKeeper)
-                      .then((resp) => {
-                        if (
-                          resp !== null &&
-                          result !== false &&
-                          result.result !== undefined &&
-                          result.result[0].query !== undefined
-                        ) {
-                          logger.warn(`Redis last time record: ${resp}`);
-                          logger.warn(
-                            `Request time record: ${result.result[0].query}`
-                          );
-                          logger.warn(
-                            `Are search results consistent ? --> ${
-                              resp === result.result[0].query
-                            }`
-                          );
-                          if (resp === result.result[0].query) {
-                            logger.warn(result);
-                            //Inconsistent - do not update
-                            logger.info("Consistent");
-                            //res.send(false);
-                            res.send({ result: result });
-                          } //Consistent - update
-                          else {
-                            logger.info("Inconsistent");
-                            //logObject(result);
-                            // res.send({ result: result });
-                            res.send(false);
-                          }
-                        } //Nothing the compare to
-                        else {
-                          res.send(false);
-                        }
-                      })
-                      .catch((error) => {
-                        logger.error(error);
+                //? Get the redis record time and compare
+                redisGet(redisKeyConsistencyKeeper)
+                  .then((resp) => {
+                    if (
+                      resp !== null &&
+                      result !== false &&
+                      result.result !== undefined &&
+                      result.result[0].query !== undefined
+                    ) {
+                      logger.warn(`Redis last time record: ${resp}`);
+                      logger.warn(
+                        `Request time record: ${result.result[0].query}`
+                      );
+                      logger.warn(
+                        `Are search results consistent ? --> ${
+                          resp === result.result[0].query
+                        }`
+                      );
+                      if (resp === result.result[0].query) {
+                        logger.warn(result);
+                        //Inconsistent - do not update
+                        logger.info("Consistent");
+                        //res.send(false);
+                        res.send({ result: result });
+                      } //Consistent - update
+                      else {
+                        logger.info("Inconsistent");
+                        //logObject(result);
+                        // res.send({ result: result });
                         res.send(false);
-                      });
-                  },
-                  (error) => {
-                    logger.warn("HERE10");
-                    logger.warn(error);
+                      }
+                    } //Nothing the compare to
+                    else {
+                      res.send(false);
+                    }
+                  })
+                  .catch((error) => {
+                    logger.error(error);
                     res.send(false);
-                  }
-                );
+                  });
               },
               (error) => {
+                logger.warn("HERE10");
                 logger.warn(error);
                 res.send(false);
               }
             );
-          });
+          },
+          (error) => {
+            logger.warn(error);
+            res.send(false);
+          }
+        );
+      });
 
-          //2. BRIEFLY COMPLETE THE SUBURBS AND STATE
-          app.get("/brieflyCompleteSuburbAndState", function (request, res) {
-            new Promise((resCompute) => {
-              resolveDate();
+      //2. BRIEFLY COMPLETE THE SUBURBS AND STATE
+      app.get("/brieflyCompleteSuburbAndState", function (request, res) {
+        new Promise((resCompute) => {
+          resolveDate();
 
-              let params = urlParser.parse(request.url, true);
-              request = params.query;
-              //...
-              if (
-                request.latitude !== undefined &&
-                request.latitude !== null &&
-                request.longitude !== undefined &&
-                request.longitude !== null
-              ) {
-                brieflyCompleteEssentialsForLocations(
-                  { latitude: request.latitude, longitude: request.longitude },
-                  request.location_name,
-                  request.city,
-                  resCompute
-                );
-              } //Invalida data received
-              else {
-                logger.warn(
-                  "Could not briefly complete the location due to invalid data received."
-                );
-                resCompute({
-                  coordinates: {
-                    latitude: request.latitude,
-                    longitude: request.longitude,
-                  },
-                  state: false,
-                  suburb: false,
-                });
-              }
-            })
-              .then((result) => {
-                res.send(result);
-              })
-              .catch((error) => {
-                logger.error(error);
-                res.send({
-                  coordinates: {
-                    latitude: request.latitude,
-                    longitude: request.longitude,
-                  },
-                  state: false,
-                  suburb: false,
-                });
-              });
+          let params = urlParser.parse(request.url, true);
+          request = params.query;
+          //...
+          if (
+            request.latitude !== undefined &&
+            request.latitude !== null &&
+            request.longitude !== undefined &&
+            request.longitude !== null
+          ) {
+            brieflyCompleteEssentialsForLocations(
+              { latitude: request.latitude, longitude: request.longitude },
+              request.location_name,
+              request.city,
+              resCompute
+            );
+          } //Invalida data received
+          else {
+            logger.warn(
+              "Could not briefly complete the location due to invalid data received."
+            );
+            resCompute({
+              coordinates: {
+                latitude: request.latitude,
+                longitude: request.longitude,
+              },
+              state: false,
+              suburb: false,
+            });
+          }
+        })
+          .then((result) => {
+            res.send(result);
+          })
+          .catch((error) => {
+            logger.error(error);
+            res.send({
+              coordinates: {
+                latitude: request.latitude,
+                longitude: request.longitude,
+              },
+              state: false,
+              suburb: false,
+            });
           });
-        }
-      );
+      });
     }
   );
 });

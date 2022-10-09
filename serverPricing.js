@@ -4,8 +4,6 @@ require("dotenv").config();
 var express = require("express");
 const http = require("http");
 const fs = require("fs");
-const MongoClient = require("mongodb").MongoClient;
-const certFile = fs.readFileSync("./rds-combined-ca-bundle.pem");
 
 const { logger } = require("./LogService");
 
@@ -1583,337 +1581,300 @@ redisCluster.on("connect", function () {
       process.env.URL_MONGODB_PROD = body.URL_MONGODB_PROD;
       process.env.GOOGLE_API_KEY = body.GOOGLE_API_KEY; //?Could be dev or prod depending on process.env.ENVIRONMENT
 
-      MongoClient.connect(
-        /live/i.test(process.env.SERVER_TYPE)
-          ? process.env.URL_MONGODB_PROD
-          : process.env.URL_MONGODB_DEV,
-        /production/i.test(process.env.EVIRONMENT)
-          ? {
-              tlsCAFile: certFile, //The DocDB cert
-              useUnifiedTopology: true,
-              useNewUrlParser: true,
-            }
-          : {
-              useUnifiedTopology: true,
-              useNewUrlParser: true,
+      logger.info("[+] Pricing service active");
+
+      app
+        .get("/", function (req, res) {
+          res.send("Pricing services up");
+        })
+        .use(
+          express.json({
+            limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
+            extended: true,
+          })
+        )
+        .use(
+          express.urlencoded({
+            limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
+            extended: true,
+          })
+        );
+      //-------------------------------
+
+      /**
+       * Get the price estimates for every single vehicle types available.
+       */
+      app.post("/getOverallPricingAndAvailabilityDetails", function (req, res) {
+        new Promise((resMAIN) => {
+          resolveDate();
+          //DELIVERY TEST DATA - DEBUG
+          /*let deliveryPricingInputDataRaw = {
+            user_fingerprint:
+              "5b29bb1b9ac69d884f13fd4be2badcd22b72b98a69189bfab806dcf7c5f5541b6cbe8087cf60c791",
+            connectType: "ConnectUs",
+            country: "Namibia",
+            isAllGoingToSameDestination: false,
+            isGoingUntilHome: false,
+            naturePickup: "PrivateLocation",
+            passengersNo: 1,
+            rideType: "RIDE",
+            timeScheduled: "now",
+            pickupData: {
+              coordinates: [-22.5667633, 17.0843917],
+              location_name: "Independence Avenue",
+              street_name: false,
+              city: "Windhoek",
             },
-        function (err, clientMongo) {
-          if (err) throw err;
-          logger.info("[+] Pricing service active");
-          const dbMongo = clientMongo.db(process.env.DB_NAME_MONGODDB);
-          collectionRidesDeliveryData = dbMongo.collection(
-            "rides_deliveries_requests"
-          ); //Hold all the requests made (rides and deliveries)
-          const collectionVehiclesInfos = dbMongo.collection(
-            "vehicles_collection_infos"
-          ); //Collection containing the list of all the vehicles types and all their corresponding infos
-          const collectionPricesLocationsMap = dbMongo.collection(
-            "global_prices_to_locations_map"
-          ); //Collection containing all the prices and locations in a format
-          const collectionSavedSuburbResults = dbMongo.collection(
-            "autocompleted_location_suburbs"
-          ); //Collection of all the location matching will all their corresponding suburbs and other fetched infos
-          const collectionNotFoundSubursPricesMap = dbMongo.collection(
-            "not_found_suburbs_prices_map"
-          ); //Colleciton of all suburbs prices that where not found in the global prices map.
-          //-------------
-          app
-            .get("/", function (req, res) {
-              res.send("Pricing services up");
-            })
-            .use(
-              express.json({
-                limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
-                extended: true,
-              })
-            )
-            .use(
-              express.urlencoded({
-                limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
-                extended: true,
-              })
-            );
-          //-------------------------------
-
-          /**
-           * Get the price estimates for every single vehicle types available.
-           */
-          app.post(
-            "/getOverallPricingAndAvailabilityDetails",
-            function (req, res) {
-              new Promise((resMAIN) => {
-                resolveDate();
-                //DELIVERY TEST DATA - DEBUG
-                /*let deliveryPricingInputDataRaw = {
-              user_fingerprint:
-                "5b29bb1b9ac69d884f13fd4be2badcd22b72b98a69189bfab806dcf7c5f5541b6cbe8087cf60c791",
-              connectType: "ConnectUs",
-              country: "Namibia",
-              isAllGoingToSameDestination: false,
-              isGoingUntilHome: false,
-              naturePickup: "PrivateLocation",
-              passengersNo: 1,
-              rideType: "RIDE",
-              timeScheduled: "now",
-              pickupData: {
-                coordinates: [-22.5667633, 17.0843917],
-                location_name: "Independence Avenue",
-                street_name: false,
+            destinationData: {
+              passenger1Destination: {
+                location_id: 651035941,
+                location_name: "Sesriem Street",
+                coordinates: [17.1025078, -22.6212097],
+                averageGeo: -11.037478099999998,
                 city: "Windhoek",
+                street: false,
+                state: "Khomas Region",
+                country: "Namibia",
+                query: "Ses",
               },
-              destinationData: {
-                passenger1Destination: {
-                  location_id: 651035941,
-                  location_name: "Sesriem Street",
-                  coordinates: [17.1025078, -22.6212097],
-                  averageGeo: -11.037478099999998,
-                  city: "Windhoek",
-                  street: false,
-                  state: "Khomas Region",
-                  country: "Namibia",
-                  query: "Ses",
-                },
-                passenger2Destination: false,
-                passenger3Destination: false,
-                passenger4Destination: false,
-              },
-            };
-            req.body = deliveryPricingInputDataRaw;*/
-                // logger.info(req.body);
-                //...
+              passenger2Destination: false,
+              passenger3Destination: false,
+              passenger4Destination: false,
+            },
+          };
+          req.body = deliveryPricingInputDataRaw;*/
+          // logger.info(req.body);
+          //...
 
-                try {
-                  let inputDataInitial = req.body;
-                  //Parse input to the correct format
-                  //Parse input date to the good format
-                  new Promise((res) => {
-                    parsePricingInputData(res, inputDataInitial);
-                  }).then(
-                    (reslt) => {
-                      if (reslt !== false) {
-                        let parsedData = reslt; //Clean parsed data
-                        if (checkInputIntegrity(parsedData)) {
-                          //Check inetgrity
-                          logger.info("Passed the integrity test.");
-                          //Valid input
-                          //Autocomplete the input data
+          try {
+            let inputDataInitial = req.body;
+            //Parse input to the correct format
+            //Parse input date to the good format
+            new Promise((res) => {
+              parsePricingInputData(res, inputDataInitial);
+            }).then(
+              (reslt) => {
+                if (reslt !== false) {
+                  let parsedData = reslt; //Clean parsed data
+                  if (checkInputIntegrity(parsedData)) {
+                    //Check inetgrity
+                    logger.info("Passed the integrity test.");
+                    //Valid input
+                    //Autocomplete the input data
+                    new Promise((res) => {
+                      autocompleteInputData(
+                        res,
+                        parsedData,
+                        collectionSavedSuburbResults
+                      );
+                    }).then(
+                      (result) => {
+                        if (result !== false) {
+                          logger.warn(result);
+                          let completeInput = result;
+                          logger.info("Done autocompleting");
+                          //Generate prices metadata for all the relevant vehicles categories
+                          logger.info(
+                            "Computing prices metadata of relevant car categories"
+                          );
                           new Promise((res) => {
-                            autocompleteInputData(
+                            estimateFullVehiclesCatPrices(
                               res,
-                              parsedData,
-                              collectionSavedSuburbResults
+                              completeInput,
+                              collectionVehiclesInfos,
+                              collectionPricesLocationsMap,
+                              collectionNotFoundSubursPricesMap
                             );
                           }).then(
                             (result) => {
-                              if (result !== false) {
-                                logger.warn(result);
-                                let completeInput = result;
-                                logger.info("Done autocompleting");
-                                //Generate prices metadata for all the relevant vehicles categories
-                                logger.info(
-                                  "Computing prices metadata of relevant car categories"
-                                );
-                                new Promise((res) => {
-                                  estimateFullVehiclesCatPrices(
-                                    res,
-                                    completeInput,
-                                    collectionVehiclesInfos,
-                                    collectionPricesLocationsMap,
-                                    collectionNotFoundSubursPricesMap
-                                  );
-                                }).then(
-                                  (result) => {
-                                    logger.warn(result);
-                                    logger.info("DOne computing fares");
-                                    resMAIN(result);
-                                  },
-                                  (error) => {
-                                    logger.info(error);
-                                    resMAIN({
-                                      response: "Failed perform the operations",
-                                    });
-                                  }
-                                );
-                                //...
-                              } //Error - Failed input augmentation
-                              else {
-                                resMAIN({
-                                  response: "Failed input augmentation",
-                                });
-                              }
+                              logger.warn(result);
+                              logger.info("DOne computing fares");
+                              resMAIN(result);
                             },
                             (error) => {
-                              //Error - Failed input augmentation
                               logger.info(error);
                               resMAIN({
-                                response: "Failed input augmentation",
+                                response: "Failed perform the operations",
                               });
                             }
                           );
-                        } //Invalid input data
+                          //...
+                        } //Error - Failed input augmentation
                         else {
-                          resMAIN({ response: "Failed integrity" });
+                          resMAIN({
+                            response: "Failed input augmentation",
+                          });
                         }
-                      } //Faild parsing
-                      else {
-                        resMAIN({ response: "Failed parsing." });
+                      },
+                      (error) => {
+                        //Error - Failed input augmentation
+                        logger.info(error);
+                        resMAIN({
+                          response: "Failed input augmentation",
+                        });
                       }
-                    },
-                    (error) => {
-                      resMAIN({ response: "Failed parsing." });
-                    }
-                  );
-                } catch (error) {
-                  logger.info(error);
+                    );
+                  } //Invalid input data
+                  else {
+                    resMAIN({ response: "Failed integrity" });
+                  }
+                } //Faild parsing
+                else {
                   resMAIN({ response: "Failed parsing." });
                 }
-              })
-                .then((result) => {
-                  res.send(result);
-                })
-                .catch((error) => {
-                  logger.info(error);
-                  res.send({
-                    response: "Failed perform the operations",
-                  });
-                });
-            }
-          );
+              },
+              (error) => {
+                resMAIN({ response: "Failed parsing." });
+              }
+            );
+          } catch (error) {
+            logger.info(error);
+            resMAIN({ response: "Failed parsing." });
+          }
+        })
+          .then((result) => {
+            res.send(result);
+          })
+          .catch((error) => {
+            logger.info(error);
+            res.send({
+              response: "Failed perform the operations",
+            });
+          });
+      });
 
-          /**
-           * GET SUBURBS INFORMATION
-           * [Should be moved to the MAP service]
-           * Resposible for getting the corresponding suburbs for the provided location.
-           * Input data: location name, street name, city, country and coordinates (obj, lat and long)
-           */
-          app.get("/getCorrespondingSuburbInfos", function (req, res) {
-            new Promise((resMAIN) => {
-              let params = urlParser.parse(req.url, true);
-              req = params.query;
-              logger.info(req);
+      /**
+       * GET SUBURBS INFORMATION
+       * [Should be moved to the MAP service]
+       * Resposible for getting the corresponding suburbs for the provided location.
+       * Input data: location name, street name, city, country and coordinates (obj, lat and long)
+       */
+      app.get("/getCorrespondingSuburbInfos", function (req, res) {
+        new Promise((resMAIN) => {
+          let params = urlParser.parse(req.url, true);
+          req = params.query;
+          logger.info(req);
 
-              if (req !== undefined && req.user_fingerprint !== undefined) {
-                new Promise((res) => {
-                  doMongoSearchForAutocompletedSuburbs(
-                    res,
-                    {
-                      location_name: req.location_name,
-                      street_name: req.street_name,
-                      city: req.city,
-                      country: req.country,
-                      coordinates: {
-                        latitude: req.latitude,
-                        longitude: req.longitude,
-                      },
-                      make_new:
-                        req.make_new !== undefined &&
-                        req.make_new !== null &&
-                        /true/i.test(req.make_new)
-                          ? true
-                          : false,
-                    },
-                    collectionSavedSuburbResults
-                  );
-                }).then(
-                  (result) => {
-                    logger.info(result);
-                    resMAIN(result);
+          if (req !== undefined && req.user_fingerprint !== undefined) {
+            new Promise((res) => {
+              doMongoSearchForAutocompletedSuburbs(
+                res,
+                {
+                  location_name: req.location_name,
+                  street_name: req.street_name,
+                  city: req.city,
+                  country: req.country,
+                  coordinates: {
+                    latitude: req.latitude,
+                    longitude: req.longitude,
                   },
-                  (error) => {
-                    logger.info(error);
-                    resMAIN(false);
-                  }
-                );
-              } else {
+                  make_new:
+                    req.make_new !== undefined &&
+                    req.make_new !== null &&
+                    /true/i.test(req.make_new)
+                      ? true
+                      : false,
+                },
+                collectionSavedSuburbResults
+              );
+            }).then(
+              (result) => {
+                logger.info(result);
+                resMAIN(result);
+              },
+              (error) => {
+                logger.info(error);
                 resMAIN(false);
               }
-            })
-              .then((result) => {
-                res.send(result);
-              })
-              .catch((error) => {
-                logger.info(error);
-                res.send(false);
-              });
+            );
+          } else {
+            resMAIN(false);
+          }
+        })
+          .then((result) => {
+            res.send(result);
+          })
+          .catch((error) => {
+            logger.info(error);
+            res.send(false);
           });
+      });
 
-          /**
-           * UPDATE FARE IN REALTIME FROM THE PASSENGER SIDE
-           * Responsible for updating the fare from the rider app without the need of cancelling the request before a driver accepts it.
-           */
-          app.post("/getUpdateInRealtimePassengerFare", function (req, res) {
-            new Promise((resolve) => {
-              req = req.body;
-              logger.info(req);
-              //! Check if the request exists and is not yet accepted
-              if (
-                req.user_fp !== undefined &&
-                req.user_fp !== null &&
-                req.request_fp !== undefined &&
-                req.request_fp !== null &&
-                req.new_fare !== undefined &&
-                req.new_fare !== null
-              ) {
-                dynamo_find_query({
-                  table_name: "rides_deliveries_requests",
-                  IndexName: "request_fp = :val1 AND client_id = :val2",
-                  ExpressionAttributeValues: {
-                    ":val1": req.request_fp,
-                    ":val2": req.user_fp,
-                  },
-                })
-                  .then((requestData) => {
-                    if (requestData !== undefined && requestData.length > 0) {
-                      //Valid trip
-                      requestData = requestData[0];
-                      dynamo_update({
-                        table_name: "rides_deliveries_requests",
-                        _idKey: { request_fp: req.request_fp },
-                        UpdateExpression: "set fare = :val1",
-                        ExpressionAttributeValues: {
-                          ":val1": req.new_fare,
-                        },
-                      })
-                        .then((result) => {
-                          if (!result) {
-                            resolve({
-                              response: "error_unable_to_update_ride_infos",
-                            });
-                          }
-                          //...
-                          resolve({ response: "successfullly_updated" });
-                        })
-                        .catch((error) => {
-                          logger.error(error);
-                          resolve({
-                            response: "error_unable_to_update_ride_infos",
-                          });
-                        });
-                    } //Invalid trip
-                    else {
-                      resolve({ response: "error_unable_to_get_ride_infos" });
-                    }
-                  })
-                  .catch((error) => {
-                    logger.error(error);
-                    resolve({ response: "error_unable_to_get_ride_infos" });
-                  });
-              } //Invalid params
-              else {
-                resolve({ response: "error_invalid_params" });
-              }
+      /**
+       * UPDATE FARE IN REALTIME FROM THE PASSENGER SIDE
+       * Responsible for updating the fare from the rider app without the need of cancelling the request before a driver accepts it.
+       */
+      app.post("/getUpdateInRealtimePassengerFare", function (req, res) {
+        new Promise((resolve) => {
+          req = req.body;
+          logger.info(req);
+          //! Check if the request exists and is not yet accepted
+          if (
+            req.user_fp !== undefined &&
+            req.user_fp !== null &&
+            req.request_fp !== undefined &&
+            req.request_fp !== null &&
+            req.new_fare !== undefined &&
+            req.new_fare !== null
+          ) {
+            dynamo_find_query({
+              table_name: "rides_deliveries_requests",
+              IndexName: "request_fp = :val1 AND client_id = :val2",
+              ExpressionAttributeValues: {
+                ":val1": req.request_fp,
+                ":val2": req.user_fp,
+              },
             })
-              .then((result) => {
-                logger.info(result);
-                res.send(result);
+              .then((requestData) => {
+                if (requestData !== undefined && requestData.length > 0) {
+                  //Valid trip
+                  requestData = requestData[0];
+                  dynamo_update({
+                    table_name: "rides_deliveries_requests",
+                    _idKey: { request_fp: req.request_fp },
+                    UpdateExpression: "set fare = :val1",
+                    ExpressionAttributeValues: {
+                      ":val1": req.new_fare,
+                    },
+                  })
+                    .then((result) => {
+                      if (!result) {
+                        resolve({
+                          response: "error_unable_to_update_ride_infos",
+                        });
+                      }
+                      //...
+                      resolve({ response: "successfullly_updated" });
+                    })
+                    .catch((error) => {
+                      logger.error(error);
+                      resolve({
+                        response: "error_unable_to_update_ride_infos",
+                      });
+                    });
+                } //Invalid trip
+                else {
+                  resolve({ response: "error_unable_to_get_ride_infos" });
+                }
               })
               .catch((error) => {
-                logger.info(error);
-                res.send(false);
+                logger.error(error);
+                resolve({ response: "error_unable_to_get_ride_infos" });
               });
+          } //Invalid params
+          else {
+            resolve({ response: "error_invalid_params" });
+          }
+        })
+          .then((result) => {
+            logger.info(result);
+            res.send(result);
+          })
+          .catch((error) => {
+            logger.info(error);
+            res.send(false);
           });
-        }
-      );
+      });
     }
   );
 });
