@@ -1407,12 +1407,15 @@ function makeFreshOpenCageRequests(coordinates, osm_id, redisKey, resolve) {
           //?Save in Mongo
           new Promise((resSaveMongo) => {
             body["osm_id"] = osm_id; //! Add osm id
-            collectionAutoCompletedSuburbs.insertOne(
-              body,
-              function (err, reslt) {
+
+            dynamo_insert("autocompleted_location_suburbs", body)
+              .then((result) => {
                 resSaveMongo(true);
-              }
-            );
+              })
+              .catch((error) => {
+                logger.error(error);
+                resSaveMongo(true);
+              });
           })
             .then()
             .catch();

@@ -92,6 +92,7 @@ const {
   dynamo_find_query,
   dynamo_get_all,
   dynamo_update,
+  dynamo_insert,
 } = require("./DynamoServiceManager");
 function SendSMSTo(phone_number, message) {
   if (phone_number !== false && phone_number !== "false") {
@@ -2871,17 +2872,18 @@ function sendReceipt(metaDataBundle, scenarioType, resolve) {
                   date: new Date(chaineDateUTC),
                 };
                 //...
-                collectionGlobalEvents.insertOne(
-                  eventBundle,
-                  function (err, reslt) {
-                    if (err) {
-                      logger.error(err);
+                dynamo_insert("global_events", eventBundle)
+                  .then((result) => {
+                    if (!result) {
                       saveEvent(false);
                     }
                     //...
                     saveEvent(true);
-                  }
-                );
+                  })
+                  .catch((error) => {
+                    logger.error(error);
+                    saveEvent(true);
+                  });
               })
                 .then()
                 .catch((error) => logger.error(error));
@@ -2961,10 +2963,9 @@ function cancelRider_request(
         //Add any additional data
         requestData[0].additionalData = additionalData;
         //Save in the cancelled collection
-        collection_cancelledRidesDeliveryData.insertOne(
-          requestData[0],
-          function (err2, result) {
-            if (err2) {
+        dynamo_insert("cancelled_rides_deliveries_requests", requestData[0])
+          .then((result) => {
+            if (!result) {
               resolve({ response: "error_cancelling" });
             }
             //...
@@ -3045,8 +3046,11 @@ function cancelRider_request(
                 resolve({ response: "successully_cancelled" });
               }
             );
-          }
-        );
+          })
+          .catch((error) => {
+            logger.error(error);
+            resolve({ response: "error_cancelling" });
+          });
       } //No records found of the request - very strange -error
       else {
         resolve({ response: "error_cancelling" });
@@ -3088,12 +3092,19 @@ function declineRequest_driver(
         //Wasn't accepted by this driver - proceed to the declining
         //Save the declining event
         new Promise((res) => {
-          collectionGlobalEvents.insertOne({
+          dynamo_insert("global_events", {
             event_name: "driver_declining_request",
             request_fp: bundleWorkingData.request_fp,
             driver_fingerprint: bundleWorkingData.driver_fingerprint,
-            date: new Date(chaineDateUTC),
-          });
+            date: new Date(chaineDateUTC).toISOString(),
+          })
+            .then((result) => {
+              logger.info(result);
+            })
+            .catch((error) => {
+              logger.error(error);
+            });
+          //...
           res(true);
         }).then(
           () => {},
@@ -3189,12 +3200,19 @@ function acceptRequest_driver(
         //Wasn't accepted by a driver yet - proceed to the accepting
         //Save the accepting event
         new Promise((res) => {
-          collectionGlobalEvents.insertOne({
+          dynamo_insert("global_events", {
             event_name: "driver_accepting_request",
             request_fp: bundleWorkingData.request_fp,
             driver_fingerprint: bundleWorkingData.driver_fingerprint,
-            date: new Date(chaineDateUTC),
-          });
+            date: new Date(chaineDateUTC).toISOString(),
+          })
+            .then((result) => {
+              logger.info(result);
+            })
+            .catch((error) => {
+              logger.error(error);
+            });
+
           res(true);
         }).then(
           () => {},
@@ -3498,17 +3516,20 @@ function cancelRequest_driver(
               //The driver requesting for the cancellation is the one who's currently associated to the request - proceed to the cancellation
               //Save the cancellation event
               new Promise((res) => {
-                collectionGlobalEvents.insertOne(
-                  {
-                    event_name: "driver_cancelling_request",
-                    request_fp: bundleWorkingData.request_fp,
-                    driver_fingerprint: bundleWorkingData.driver_fingerprint,
-                    date: new Date(chaineDateUTC),
-                  },
-                  function (err, resltInsert) {
+                dynamo_insert("global_events", {
+                  event_name: "driver_cancelling_request",
+                  request_fp: bundleWorkingData.request_fp,
+                  driver_fingerprint: bundleWorkingData.driver_fingerprint,
+                  date: new Date(chaineDateUTC).toISOString(),
+                })
+                  .then((result) => {
+                    logger.info(result);
                     res(true);
-                  }
-                );
+                  })
+                  .catch((error) => {
+                    logger.error(error);
+                    res(true);
+                  });
               }).then(
                 () => {},
                 () => {}
@@ -4122,13 +4143,20 @@ function confirmPickupRequest_driver(
         //The driver requesting for the confirm pickup is the one who's currently associated to the request - proceed to the pickup confirmation.
         //Save the pickup confirmation event
         new Promise((res) => {
-          collectionGlobalEvents.insertOne({
+          dynamo_insert("global_events", {
             event_name: "driver_confirm_pickup_request",
             request_fp: requestGlobalData.request_fp,
             driver_fingerprint: requestGlobalData.taxi_id,
             rider_fingerprint: requestGlobalData.client_id,
-            date: new Date(chaineDateUTC),
-          });
+            date: new Date(chaineDateUTC).toISOString(),
+          })
+            .then((result) => {
+              logger.info(result);
+            })
+            .catch((error) => {
+              logger.error(error);
+            });
+
           res(true);
         }).then(
           () => {},
@@ -4277,12 +4305,19 @@ function confirmDropoffRequest_driver(
         //The driver requesting for the confirm dropoff is the one who's currently associated to the request - proceed to the dropoff confirmation.
         //Save the dropoff confirmation event
         new Promise((res) => {
-          collectionGlobalEvents.insertOne({
+          dynamo_insert("global_events", {
             event_name: "driver_confirm_dropoff_request",
             request_fp: bundleWorkingData.request_fp,
             driver_fingerprint: bundleWorkingData.driver_fingerprint,
-            date: new Date(chaineDateUTC),
-          });
+            date: new Date(chaineDateUTC).toISOString(),
+          })
+            .then((result) => {
+              logger.info(result);
+            })
+            .catch((error) => {
+              logger.error(error);
+            });
+
           res(true);
         })
           .then(() => {})
@@ -4593,11 +4628,10 @@ function INIT_RIDE_DELIVERY_DISPATCH_ENTRY(
               parsedReqest_data["intentional_request_decline"] =
                 distilledUnwantedDrivers;
               //! ----
-              collectionRidesDeliveryData.insertOne(
-                parsedReqest_data,
-                function (err, requestDt) {
-                  if (err) {
-                    //logger.info(err);
+
+              dynamo_insert("rides_deliveries_requests", parsedReqest_data)
+                .then((result) => {
+                  if (!result) {
                     resolve({ response: "Unable_to_make_the_request" });
                   }
 
@@ -4649,8 +4683,11 @@ function INIT_RIDE_DELIVERY_DISPATCH_ENTRY(
                   );
                   //..Success - respond to the user
                   resolve({ response: "successfully_requested" });
-                }
-              );
+                })
+                .catch((error) => {
+                  logger.info(error);
+                  resolve({ response: "Unable_to_make_the_request" });
+                });
             } //Already have a request
             else {
               //logger.info("ALEADY HAS A REQUEST");

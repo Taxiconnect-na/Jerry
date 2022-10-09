@@ -44,7 +44,11 @@ var chaineDateUTC = null;
 var dateObject = null;
 const moment = require("moment");
 const { stringify, parse } = require("flatted");
-const { dynamo_find_query, dynamo_update } = require("./DynamoServiceManager");
+const {
+  dynamo_find_query,
+  dynamo_update,
+  dynamo_insert,
+} = require("./DynamoServiceManager");
 const { table } = require("console");
 
 function resolveDate() {
@@ -574,11 +578,16 @@ function updateRiderLocationsLog(
         latitude: locationData.latitude,
         longitude: locationData.longitude,
       },
-      date_logged: new Date(chaineDateUTC),
+      date_logged: new Date(chaineDateUTC).toISOString(),
     };
-    collectionRidersLocation_log.insertOne(dataBundle, function (err, res) {
-      resCompute(true);
-    });
+
+    dynamo_insert("historical_positioning_logs", dataBundle)
+      .then((result) => {
+        resCompute(true);
+      })
+      .catch((error) => {
+        resCompute(true);
+      });
   })
     .then(() => {})
     .catch((error) => logger.error(error));
@@ -4788,7 +4797,7 @@ function updateRelativeDistancesRiderDrivers(
   //         date_updated: new Date(chaineDateUTC),
   //       };
   //       //...
-  //       collectionRelativeDistances.insertOne(record, function (err, res) {
+  //       collectionRelativeDistances.insert\One(record, function (err, res) {
   //         //logger.info("New relative distance record added.");
   //         resolve(true);
   //       });
@@ -5875,17 +5884,21 @@ redisCluster.on("connect", function () {
                                       1000
                                 ).toISOString();
                                 //...
-                                collectionWalletTransactions_logs.insertOne(
-                                  {
-                                    flag_annotation:
-                                      "startingPoint_forFreshPayouts",
-                                    user_fingerprint: req.user_fingerprint,
-                                    date_captured: new Date(tmpNextDate),
-                                  },
-                                  function (err, reslt) {
+                                dynamo_insert("wallet_transactions_logs", {
+                                  flag_annotation:
+                                    "startingPoint_forFreshPayouts",
+                                  user_fingerprint: req.user_fingerprint,
+                                  date_captured: new Date(
+                                    tmpNextDate
+                                  ).toISOString(),
+                                })
+                                  .then((result) => {
                                     resPaymentCycle(true);
-                                  }
-                                );
+                                  })
+                                  .catch((error) => {
+                                    logger.error(error);
+                                    resPaymentCycle(true);
+                                  });
                               } //After wednesday - OK
                               else {
                                 //ADD THE PAYMENT CYCLE
@@ -5899,17 +5912,22 @@ redisCluster.on("connect", function () {
                                         1000
                                     )
                                 ).toISOString();
-                                collectionWalletTransactions_logs.insertOne(
-                                  {
-                                    flag_annotation:
-                                      "startingPoint_forFreshPayouts",
-                                    user_fingerprint: req.user_fingerprint,
-                                    date_captured: new Date(tmpNextDate),
-                                  },
-                                  function (err, reslt) {
+
+                                dynamo_insert("wallet_transactions_logs", {
+                                  flag_annotation:
+                                    "startingPoint_forFreshPayouts",
+                                  user_fingerprint: req.user_fingerprint,
+                                  date_captured: new Date(
+                                    tmpNextDate
+                                  ).toISOString(),
+                                })
+                                  .then((result) => {
                                     resPaymentCycle(true);
-                                  }
-                                );
+                                  })
+                                  .catch((error) => {
+                                    logger.error(error);
+                                    resPaymentCycle(true);
+                                  });
                               }
                             }
                           })
@@ -6110,18 +6128,19 @@ redisCluster.on("connect", function () {
                       date: new Date(chaineDateUTC),
                     };
                     //..
-                    collectionHistoricalGPS.insertOne(
-                      bundleData,
-                      function (err, reslt) {
-                        if (err) {
-                          logger.error(err);
+                    dynamo_insert("historical_gps_positioning", bundleData)
+                      .then((result) => {
+                        if (!result) {
                           resHistory(false);
                         }
                         //...
                         logger.info("Saved GPS data");
                         resHistory(true);
-                      }
-                    );
+                      })
+                      .catch((error) => {
+                        logger.error(error);
+                        resHistory(false);
+                      });
                   } //No required data
                   else {
                     logger.info("No required GPS data for logs");
@@ -6910,7 +6929,7 @@ redisCluster.on("connect", function () {
             //             new Promise((resSharedEvent) => {
             //               //Complete the event bundle with the response of the request
             //               eventBundle.response_got = result;
-            //               collectionGlobalEvents.insertOne(
+            //               collectionGlobalEvents.ins\ertOne(
             //                 eventBundle,
             //                 function (err, reslt) {
             //                   resSharedEvent(true);

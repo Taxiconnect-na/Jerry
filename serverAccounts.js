@@ -261,9 +261,14 @@ function checkUserStatus(
       otp: parseInt(otp),
       date_sent: new Date(chaineDateUTC),
     };
-    collection_OTP_dispatch_map.insertOne(dispatchMap, function (error, reslt) {
-      res(true);
-    });
+
+    dynamo_insert("OTP_dispatch_map", dispatchMap)
+      .then((result) => {
+        res(true);
+      })
+      .catch((error) => {
+        logger.error(error);
+      });
   }).then(
     () => {},
     () => {}
@@ -3306,14 +3311,13 @@ function execGet_driversDeepInsights_fromWalletData(
                                   resFindNexyPayoutDate(lastPayoutDate);
                                 } //No annotation yet - create one
                                 else {
-                                  collectionWalletTransactions_logs.insertOne(
-                                    {
-                                      flag_annotation:
-                                        "startingPoint_forFreshPayouts",
-                                      user_fingerprint: driver_fingerprint,
-                                      date_captured: chaineDateUTC,
-                                    },
-                                    function (err, reslt) {
+                                  dynamo_insert("wallet_transactions_logs", {
+                                    flag_annotation:
+                                      "startingPoint_forFreshPayouts",
+                                    user_fingerprint: driver_fingerprint,
+                                    date_captured: chaineDateUTC,
+                                  })
+                                    .then((result) => {
                                       let lastPayoutDate = new Date(
                                         new Date(chaineDateUTC).getTime() +
                                           parseFloat(
@@ -3325,8 +3329,10 @@ function execGet_driversDeepInsights_fromWalletData(
                                       );
                                       //..
                                       resFindNexyPayoutDate(lastPayoutDate);
-                                    }
-                                  );
+                                    })
+                                    .catch((error) => {
+                                      logger.error(error);
+                                    });
                                 }
                               })
                               .catch((error) => {
@@ -3488,13 +3494,12 @@ function execGet_driversDeepInsights_fromWalletData(
                   resFindNexyPayoutDate(lastPayoutDate);
                 } //No annotation yet - create one
                 else {
-                  collectionWalletTransactions_logs.insertOne(
-                    {
-                      flag_annotation: "startingPoint_forFreshPayouts",
-                      user_fingerprint: driver_fingerprint,
-                      date_captured: chaineDateUTC,
-                    },
-                    function (err, reslt) {
+                  dynamo_insert("wallet_transactions_logs", {
+                    flag_annotation: "startingPoint_forFreshPayouts",
+                    user_fingerprint: driver_fingerprint,
+                    date_captured: chaineDateUTC,
+                  })
+                    .then((result) => {
                       let lastPayoutDate = new Date(
                         new Date(chaineDateUTC).getTime() +
                           process.env.TAXICONNECT_PAYMENT_FREQUENCY *
@@ -3503,8 +3508,10 @@ function execGet_driversDeepInsights_fromWalletData(
                       );
                       //..
                       resFindNexyPayoutDate(lastPayoutDate);
-                    }
-                  );
+                    })
+                    .catch((error) => {
+                      logger.error(error);
+                    });
                 }
               })
               .catch((error) => {
@@ -3659,12 +3666,15 @@ function updateRiders_generalProfileInfos(
                 new_data: requestData.dataToUpdate,
                 date: new Date(chaineDateUTC),
               };
-              collectionGlobalEvents.insertOne(
-                dataEvent,
-                function (err, reslt) {
+
+              dynamo_insert("global_events", dataEvent)
+                .then((result) => {
                   res(true);
-                }
-              );
+                })
+                .catch((error) => {
+                  logger.error(error);
+                  res(true);
+                });
             }).then(
               () => {},
               () => {}
@@ -3726,12 +3736,14 @@ function updateRiders_generalProfileInfos(
                 new_data: requestData.dataToUpdate,
                 date: new Date(chaineDateUTC),
               };
-              collectionGlobalEvents.insertOne(
-                dataEvent,
-                function (err, reslt) {
+              dynamo_insert("global_events", dataEvent)
+                .then((result) => {
                   res(true);
-                }
-              );
+                })
+                .catch((error) => {
+                  logger.error(error);
+                  res(true);
+                });
             }).then(
               () => {},
               () => {}
@@ -3803,12 +3815,14 @@ function updateRiders_generalProfileInfos(
                   new_data: requestData.dataToUpdate,
                   date: new Date(chaineDateUTC),
                 };
-                collectionGlobalEvents.insertOne(
-                  dataEvent,
-                  function (err, reslt) {
+                dynamo_insert("global_events", dataEvent)
+                  .then((result) => {
                     res(true);
-                  }
-                );
+                  })
+                  .catch((error) => {
+                    logger.error(error);
+                    res(true);
+                  });
               }).then(
                 () => {},
                 () => {}
@@ -3874,12 +3888,14 @@ function updateRiders_generalProfileInfos(
                   new_data: requestData.dataToUpdate,
                   date: new Date(chaineDateUTC),
                 };
-                collectionGlobalEvents.insertOne(
-                  dataEvent,
-                  function (err, reslt) {
+                dynamo_insert("global_events", dataEvent)
+                  .then((result) => {
                     res(true);
-                  }
-                );
+                  })
+                  .catch((error) => {
+                    logger.error(error);
+                    res(true);
+                  });
               }).then(
                 () => {},
                 () => {}
@@ -4020,12 +4036,14 @@ function updateRiders_generalProfileInfos(
                           new_data: requestData.dataToUpdate,
                           date: new Date(chaineDateUTC),
                         };
-                        collectionGlobalEvents.insertOne(
-                          dataEvent,
-                          function (err, reslt) {
+                        dynamo_insert("global_events", dataEvent)
+                          .then((result) => {
                             res(true);
-                          }
-                        );
+                          })
+                          .catch((error) => {
+                            logger.error(error);
+                            res(true);
+                          });
                       }).then(
                         () => {},
                         () => {}
@@ -4187,12 +4205,14 @@ function updateRiders_generalProfileInfos(
                                   new_data: tmpPicture_name,
                                   date: new Date(chaineDateUTC),
                                 };
-                                collectionGlobalEvents.insertOne(
-                                  dataEvent,
-                                  function (err, reslt) {
+                                dynamo_insert("global_events", dataEvent)
+                                  .then((result) => {
                                     res(true);
-                                  }
-                                );
+                                  })
+                                  .catch((error) => {
+                                    logger.error(error);
+                                    res(true);
+                                  });
                               } //No riders with the providedd fingerprint
                               else {
                                 res(false);
@@ -4442,13 +4462,14 @@ function getAdsManagerRunningInfos(req, resolve) {
       date: new Date(chaineDateUTC),
     };
     //! -----
-    collectionGlobalEvents.insertOne(eventBundle, function (err, result) {
-      if (err) {
-        logger.info(err);
-      }
-      //...
-      resSaveRecord(true);
-    });
+    dynamo_insert("global_events", eventBundle)
+      .then((result) => {
+        resSaveRecord(true);
+      })
+      .catch((error) => {
+        logger.error(error);
+        resSaveRecord(true);
+      });
   }).then(
     () => {},
     () => {}
@@ -4986,10 +5007,9 @@ function performCorporateDeliveryAccountAuthOps(inputData, resolve) {
                         last_updated: new Date(chaineDateUTC),
                       };
                       //...Save
-                      collectionDedicatedServices_accounts.insertOne(
-                        accountObj,
-                        function (err, reslt) {
-                          if (err) {
+                      dynamo_insert("dedicated_services_accounts", accountObj)
+                        .then((result) => {
+                          if (!result) {
                             logger.error(err);
                             resolve({ response: "error_creating_account" });
                           }
@@ -5019,8 +5039,11 @@ function performCorporateDeliveryAccountAuthOps(inputData, resolve) {
                               },
                             },
                           });
-                        }
-                      );
+                        })
+                        .catch((error) => {
+                          logger.error(error);
+                          resolve({ response: "error_creating_account" });
+                        });
                     })
                     .catch((error) => {
                       logger.error(error);
@@ -6061,17 +6084,19 @@ redisCluster.on("connect", function () {
                           logger.warn("Sending the SMS");
                           //!Save dispatch event
                           new Promise((resSave) => {
-                            collectionGlobalEvents.insertOne(
-                              {
-                                event_name: "SMS_dispatch_otp",
-                                phone_number: onlyDigitsPhone,
-                                otp: otp,
-                                date: new Date(chaineDateUTC),
-                              },
-                              function (err, rslt) {
+                            dynamo_insert("global_events", {
+                              event_name: "SMS_dispatch_otp",
+                              phone_number: onlyDigitsPhone,
+                              otp: otp,
+                              date: new Date(chaineDateUTC).toISOString(),
+                            })
+                              .then((result) => {
                                 resSave(true);
-                              }
-                            );
+                              })
+                              .catch((error) => {
+                                logger.error(error);
+                                resSave(true);
+                              });
                           })
                             .then()
                             .catch();
@@ -6083,17 +6108,19 @@ redisCluster.on("connect", function () {
                       else {
                         //!Save abuse event
                         new Promise((resSave) => {
-                          collectionGlobalEvents.insertOne(
-                            {
-                              event_name: "SMS_dispatch_otp_abuse_event",
-                              phone_number: onlyDigitsPhone,
-                              otp: otp,
-                              date: new Date(chaineDateUTC),
-                            },
-                            function (err, rslt) {
+                          dynamo_insert("global_events", {
+                            event_name: "SMS_dispatch_otp_abuse_event",
+                            phone_number: onlyDigitsPhone,
+                            otp: otp,
+                            date: new Date(chaineDateUTC).toISOString(),
+                          })
+                            .then((result) => {
                               resSave(true);
-                            }
-                          );
+                            })
+                            .catch((error) => {
+                              logger.error(error);
+                              resSave(true);
+                            });
                         })
                           .then()
                           .catch();
@@ -6106,17 +6133,19 @@ redisCluster.on("connect", function () {
                         logger.warn("Sending the SMS");
                         //!Save dispatch event
                         new Promise((resSave) => {
-                          collectionGlobalEvents.insertOne(
-                            {
-                              event_name: "SMS_dispatch_otp",
-                              phone_number: onlyDigitsPhone,
-                              otp: otp,
-                              date: new Date(chaineDateUTC),
-                            },
-                            function (err, rslt) {
+                          dynamo_insert("global_events", {
+                            event_name: "SMS_dispatch_otp",
+                            phone_number: onlyDigitsPhone,
+                            otp: otp,
+                            date: new Date(chaineDateUTC).toISOString(),
+                          })
+                            .then((result) => {
                               resSave(true);
-                            }
-                          );
+                            })
+                            .catch((error) => {
+                              logger.error(error);
+                              resSave(true);
+                            });
                         })
                           .then()
                           .catch();
@@ -6476,10 +6505,9 @@ redisCluster.on("connect", function () {
                     };
                     // logger.info(minimalAccount);
                     //..
-                    collectionPassengers_profiles.insertOne(
-                      minimalAccount,
-                      function (error, result) {
-                        if (error) {
+                    dynamo_insert("passengers_profiles", minimalAccount)
+                      .then((result) => {
+                        if (!result) {
                           res0({ response: "error_creating_account" });
                         }
                         //...Send back the status and fingerprint
@@ -6487,8 +6515,11 @@ redisCluster.on("connect", function () {
                           response: "successfully_created",
                           user_fp: user_fingerprint,
                         });
-                      }
-                    );
+                      })
+                      .catch((error) => {
+                        logger.error(error);
+                        res0({ response: "error_creating_account" });
+                      });
                   },
                   (error) => {
                     res0({ response: "error_creating_account" });
@@ -6929,7 +6960,7 @@ redisCluster.on("connect", function () {
                                       //...
                                       //Save the going offline event
                                       new Promise((res) => {
-                                        collectionGlobalEvents.insertOne({
+                                        dynamo_insert("global_events", {
                                           event_name:
                                             "driver_switching_status_request",
                                           status: /online/i.test(req.state)
@@ -6937,8 +6968,14 @@ redisCluster.on("connect", function () {
                                             : "offline",
                                           driver_fingerprint:
                                             req.driver_fingerprint,
-                                          date: new Date(chaineDateUTC),
-                                        });
+                                          date: new Date(
+                                            chaineDateUTC
+                                          ).toISOString(),
+                                        })
+                                          .then((result) => {})
+                                          .catch((error) => {
+                                            logger.error(error);
+                                          });
                                         res(true);
                                       }).then(
                                         () => {},
@@ -7014,7 +7051,7 @@ redisCluster.on("connect", function () {
                                     //...
                                     //Save the going offline event
                                     new Promise((res) => {
-                                      collectionGlobalEvents.insertOne({
+                                      dynamo_insert("global_events", {
                                         event_name:
                                           "driver_switching_status_request",
                                         status: /online/i.test(req.state)
@@ -7022,8 +7059,15 @@ redisCluster.on("connect", function () {
                                           : "offline",
                                         driver_fingerprint:
                                           req.driver_fingerprint,
-                                        date: new Date(chaineDateUTC),
-                                      });
+                                        date: new Date(
+                                          chaineDateUTC
+                                        ).toISOString(),
+                                      })
+                                        .then((result) => {})
+                                        .catch((error) => {
+                                          logger.error(error);
+                                        });
+
                                       res(true);
                                     }).then(
                                       () => {},
@@ -7662,7 +7706,7 @@ redisCluster.on("connect", function () {
                 date: new Date(chaineDateUTC),
               };
               //! -----
-              collectionGlobalEvents.insertOne(eventBundle, function (err, result) {
+              collectionGlobalEvents.inse\rtOne(eventBundle, function (err, result) {
                 if (err) {
                   logger.warn(err);
                 }
@@ -7775,7 +7819,7 @@ redisCluster.on("connect", function () {
             //         date: new Date(chaineDateUTC),
             //       };
             //       //...
-            //       collectionGlobalEvents.insertOne(
+            //       collectionGlobalEvents.ins\ertOne(
             //         eventSaverObj,
             //         function (err, reslt) {
             //           resEvent(true);
@@ -7852,7 +7896,7 @@ redisCluster.on("connect", function () {
             //         date: new Date(chaineDateUTC),
             //       };
             //       //...
-            //       collectionGlobalEvents.insertOne(
+            //       collectionGlobalEvents.insertO\ne(
             //         eventSaverObj,
             //         function (err, reslt) {
             //           resEvent(true);
@@ -8034,7 +8078,7 @@ redisCluster.on("connect", function () {
             //               )
             //               .finally(() => {
             //                 //...
-            //                 collectionReferralsInfos.insertOne(
+            //                 collectionReferralsInfos.in\sertOne(
             //                   referralObject,
             //                   function (err, result) {
             //                     if (err) {
@@ -8935,11 +8979,12 @@ redisCluster.on("connect", function () {
                                           date_applied: new Date(chaineDateUTC),
                                         };
                                         //...
-                                        collectionDriversApplication.insertOne(
-                                          applicationBundle,
-                                          function (err, resApplication) {
-                                            if (err) {
-                                              logger.error(err);
+                                        dynamo_insert(
+                                          "drivers_application_central",
+                                          applicationBundle
+                                        )
+                                          .then((result) => {
+                                            if (!result) {
                                               resolve({
                                                 response:
                                                   "error_failed_application",
@@ -8950,8 +8995,14 @@ redisCluster.on("connect", function () {
                                               response:
                                                 "successful_application",
                                             });
-                                          }
-                                        );
+                                          })
+                                          .catch((error) => {
+                                            logger.error(error);
+                                            resolve({
+                                              response:
+                                                "error_failed_application",
+                                            });
+                                          });
                                       } //! At least one document failed to be reformed
                                       else {
                                         //Delete local file
@@ -9318,13 +9369,17 @@ redisCluster.on("connect", function () {
                                             did_certify_data_veracity:
                                               req.did_certify_data_veracity,
                                           },
-                                          date_applied: new Date(chaineDateUTC),
+                                          date_applied: new Date(
+                                            chaineDateUTC
+                                          ).toISOString(),
                                         };
                                         //...
-                                        collectionDriversApplication.insertOne(
-                                          applicationBundle,
-                                          function (err, resApplication) {
-                                            if (err) {
+                                        dynamo_insert(
+                                          "drivers_application_central",
+                                          applicationBundle
+                                        )
+                                          .then((result) => {
+                                            if (!result) {
                                               logger.error(err);
                                               resolve({
                                                 response:
@@ -9336,8 +9391,14 @@ redisCluster.on("connect", function () {
                                               response:
                                                 "successful_application",
                                             });
-                                          }
-                                        );
+                                          })
+                                          .catch((error) => {
+                                            logger.error(error);
+                                            resolve({
+                                              response:
+                                                "error_failed_application",
+                                            });
+                                          });
                                       } //! At least one document failed to be reformed
                                       else {
                                         //Delete local file

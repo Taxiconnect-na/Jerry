@@ -593,13 +593,18 @@ function estimateFullVehiclesCatPrices(
                       .then((resultX) => {
                         if (resultX.length <= 0) {
                           //New record
-                          collectionNotFoundSubursPricesMap.insertOne(
-                            queryNoMatch,
-                            function (err, res) {
+                          dynamo_insert(
+                            "not_found_suburbs_prices_map",
+                            queryNoMatch
+                          )
+                            .then((result) => {
                               logger.info("New record added");
                               resX(true);
-                            }
-                          );
+                            })
+                            .catch((error) => {
+                              logger.error(error);
+                              resX(true);
+                            });
                         }
                       })
                       .catch((error) => {});

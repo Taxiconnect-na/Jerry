@@ -440,13 +440,18 @@ function saveLogForTopups(
     date_captured: new Date(chaineDateUTC),
     timestamp: tmpDate.getTime(),
   };
-  collectionWalletTransactions_logs.insertOne(dataBundle, function (err, res) {
-    if (err) {
-      logger.info(err);
+
+  dynamo_insert("wallet_transactions_logs", dataBundle)
+    .then((result) => {
+      if (!result) {
+        resolve(false);
+      }
+      resolve(true);
+    })
+    .catch((error) => {
+      logger.error(error);
       resolve(false);
-    }
-    resolve(true);
-  });
+    });
 }
 
 /**
@@ -503,16 +508,17 @@ function saveLogForTopupsSuccess(
       timestamp: tmpDate.getTime(),
     };
     //...
-    collectionWalletTransactions_logs.insertOne(
-      dataBundle,
-      function (err, res) {
-        if (err) {
-          logger.info("error");
+    dynamo_insert("wallet_transactions_logs", dataBundle)
+      .then((result) => {
+        if (!result) {
           resolve(false);
         }
         resolve(true);
-      }
-    );
+      })
+      .catch((error) => {
+        logger.error(error);
+        resolve(false);
+      });
   } //!Corporate globality
   else {
     const PLAN_CODES = {
@@ -558,11 +564,9 @@ function saveLogForTopupsSuccess(
       timestamp: tmpDate.getTime(),
     };
     //...
-    collectionWalletTransactions_logs.insertOne(
-      dataBundle,
-      function (err, res) {
-        if (err) {
-          logger.info("error");
+    dynamo_insert("wallet_transactions_logs", dataBundle)
+      .then((result) => {
+        if (!result) {
           resolve(false);
         }
         //!Update the the corporate profile with the new plan details
@@ -592,8 +596,11 @@ function saveLogForTopupsSuccess(
             logger.info(error);
             resolve(false);
           });
-      }
-    );
+      })
+      .catch((error) => {
+        logger.error(error);
+        resolve(false);
+      });
   }
 }
 
@@ -827,12 +834,14 @@ function processExecute_paymentCardWallet_topup(
                         date_captured: new Date(chaineDateUTC),
                       };
                       //...
-                      collectionGlobalEvents.insertOne(
-                        faildTransObj,
-                        function (err, resltx) {
+                      dynamo_insert("global_events", faildTransObj)
+                        .then((result) => {
                           resFailedTransaction(true);
-                        }
-                      );
+                        })
+                        .catch((error) => {
+                          logger.error(error);
+                          resFailedTransaction(true);
+                        });
                     }).then(
                       () => {},
                       () => {}
@@ -949,12 +958,14 @@ function checkReceipient_walletTransaction(
               date_captured: new Date(chaineDateUTC),
             };
             //...
-            collectionGlobalEvents.insertOne(
-              eventSaverObj,
-              function (err, reslt) {
+            dynamo_insert("global_events", eventSaverObj)
+              .then((result) => {
                 resEventSave(true);
-              }
-            );
+              })
+              .catch((error) => {
+                logger.error(error);
+                resEventSave(true);
+              });
           }).then(
             () => {},
             () => {}
@@ -1013,12 +1024,14 @@ function checkReceipient_walletTransaction(
               date_captured: new Date(chaineDateUTC),
             };
             //...
-            collectionGlobalEvents.insertOne(
-              eventSaverObj,
-              function (err, reslt) {
+            dynamo_insert("global_events", eventSaverObj)
+              .then((result) => {
                 resEventSave(true);
-              }
-            );
+              })
+              .catch((error) => {
+                logger.error(error);
+                resEventSave(true);
+              });
           }).then(
             () => {},
             () => {}
@@ -1065,7 +1078,7 @@ function checkReceipient_walletTransaction(
           //           date_captured: new Date(chaineDateUTC),
           //         };
           //         //...
-          //         collectionGlobalEvents.insertOne(
+          //         collectionGlobalEvents.inse\rtOne(
           //           eventSaverObj,
           //           function (err, reslt) {
           //             resEventSave(true);
@@ -1126,40 +1139,41 @@ function execSendMoney_fromRiderWallet_transaction(
       timestamp: dateTmp.getTime(),
     };
     //...
-    collectionWalletTransactions_logs.insertOne(
-      transaction_obj,
-      function (err, result) {
-        if (err) {
+    dynamo_insert("wallet_transactions_logs", transaction_obj)
+      .then((result) => {
+        if (!result) {
           resolve({ response: "error", flag: "transaction_error" });
         }
         //? NOTIFY THE RECEIVER
         //Send the push notifications
         /*let message = {
-          app_id: process.env.RIDERS_APP_ID_ONESIGNAL,
-          android_channel_id:
-            process.env
-              .RIDERS_ONESIGNAL_CHANNEL_ACCEPTTEDD_REQUEST, //Wallet transaction
-          priority: 10,
-          contents: {
-            en:
-              "Your wallet ",
-          },
-          headings: { en: "Unable to find a ride" },
-          content_available: true,
-          include_player_ids: [
-            recordData.pushNotif_token,
-          ],
-        };
-        //Send
-        sendPushUPNotification(message);*/
+        app_id: process.env.RIDERS_APP_ID_ONESIGNAL,
+        android_channel_id:
+          process.env
+            .RIDERS_ONESIGNAL_CHANNEL_ACCEPTTEDD_REQUEST, //Wallet transaction
+        priority: 10,
+        contents: {
+          en:
+            "Your wallet ",
+        },
+        headings: { en: "Unable to find a ride" },
+        content_available: true,
+        include_player_ids: [
+          recordData.pushNotif_token,
+        ],
+      };
+      //Send
+      sendPushUPNotification(message);*/
         //...
         resolve({
           response: "successful",
           amount: dataBundle.amount,
           payment_currency: process.env.PAYMENT_CURRENCY,
         });
-      }
-    );
+      })
+      .catch((error) => {
+        resolve({ response: "error", flag: "transaction_error" });
+      });
   } else if (/driver/i.test(dataBundle.user_nature)) {
     //Driver
     let transaction_obj = {
@@ -1172,10 +1186,9 @@ function execSendMoney_fromRiderWallet_transaction(
       timestamp: dateTmp.getTime(),
     };
     //...
-    collectionWalletTransactions_logs.insertOne(
-      transaction_obj,
-      function (err, result) {
-        if (err) {
+    dynamo_insert("wallet_transactions_logs", transaction_obj)
+      .then((result) => {
+        if (!result) {
           resolve({ response: "error", flag: "transaction_error" });
         }
         //...
@@ -1184,8 +1197,10 @@ function execSendMoney_fromRiderWallet_transaction(
           amount: dataBundle.amount,
           payment_currency: process.env.PAYMENT_CURRENCY,
         });
-      }
-    );
+      })
+      .catch((error) => {
+        resolve({ response: "error", flag: "transaction_error" });
+      });
   }
 }
 
@@ -1724,17 +1739,18 @@ function sendReceipt(metaDataBundle, scenarioType, resolve) {
                   date: new Date(chaineDateUTC),
                 };
                 //...
-                collectionGlobalEvents.insertOne(
-                  eventBundle,
-                  function (err, reslt) {
-                    if (err) {
-                      logger.error(err);
+                dynamo_insert("global_events", eventBundle)
+                  .then((result) => {
+                    if (!result) {
                       saveEvent(false);
                     }
                     //...
                     saveEvent(true);
-                  }
-                );
+                  })
+                  .catch((error) => {
+                    logger.error(error);
+                    saveEvent(false);
+                  });
               })
                 .then()
                 .catch((error) => logger.error(error));
@@ -2121,12 +2137,14 @@ requestAPI(
                       date_captured: new Date(chaineDateUTC),
                     };
                     //...
-                    collectionGlobalEvents.insertOne(
-                      faildTransObj,
-                      function (err, reslt) {
+                    dynamo_insert("global_events", faildTransObj)
+                      .then((result) => {
                         resFailedTransaction(true);
-                      }
-                    );
+                      })
+                      .catch((error) => {
+                        logger.error(error);
+                        resFailedTransaction(false);
+                      });
                   }).then(
                     () => {},
                     () => {}
@@ -2417,178 +2435,181 @@ requestAPI(
          * Responsible for creating one time (with voucher money) and recursive (% based) rewards for specific organizations.
          */
         app.post("/createOneTimeOrRecusiveRewards", function (req, res) {
-          new Promise((resolve) => {
-            resolveDate();
-            req = req.body;
+          res.status(404).json({
+            status: "missing",
+          });
+          // new Promise((resolve) => {
+          //   resolveDate();
+          //   req = req.body;
 
-            let api_keys = [
-              "kdasdfhjlajksdlasjkdlkscnklajsflskdjl;asdjlsjkdfaklsdjlaskdjlaskjdlaskdjdehjsfhsljdlsk",
-            ];
-            let allowed_roganizations = ["SANLAM"];
+          //   let api_keys = [
+          //     "kdasdfhjlajksdlasjkdlkscnklajsflskdjl;asdjlsjkdfaklsdjlaskdjlaskjdlaskdjdehjsfhsljdlsk",
+          //   ];
+          //   let allowed_roganizations = ["SANLAM"];
 
-            //! Detect the reward type
-            if (
-              req.customer_infos !== undefined &&
-              req.customer_infos !== null &&
-              req.key !== undefined &&
-              req.key !== null &&
-              req.organization_infos !== undefined &&
-              req.organization_infos !== null &&
-              req.organization_infos.name !== undefined &&
-              req.organization_infos.name !== null &&
-              api_keys.includes(req.key) &&
-              allowed_roganizations.includes(req.organization_infos.name) &&
-              req.voucher_code !== undefined &&
-              req.voucher_code !== null
-            ) {
-              //! Transaction nature: onetime_voucher, recursive_voucher
-              //! Use the phone number as the reference
-              //? Check that the voucher code is unique
-              dynamo_find_query({
-                table_name: "wallet_transactions_logs",
-                IndexName: "voucher_code",
-                KeyConditionExpression: "voucher_code = :val1",
-                ExpressionAttributeValues: {
-                  ":val1": req.voucher_code,
-                },
-              })
-                .then((voucherData) => {
-                  if (voucherData !== undefined && voucherData.length === 0) {
-                    //? Unique, allow
-                    if (
-                      req.reward_type === "onetime" &&
-                      req.voucher_value !== undefined &&
-                      req.voucher_value !== null
-                    ) {
-                      //One time rewards
-                      let bundleReward = {
-                        transaction_nature: "onetime_voucher",
-                        organization: req.organization_infos,
-                        ref_phone_number: req.customer_infos.phone_number,
-                        recipient_fp: "",
-                        amount: parseFloat(req.voucher_value),
-                        payment_currency: "NAD",
-                        voucher_code: req.voucher_code,
-                        timestamp: Math.round(
-                          new Date(chaineDateUTC).getTime()
-                        ),
-                        date_captured: new Date(chaineDateUTC),
-                      };
-                      //...
-                      collectionWalletTransactions_logs.insertOne(
-                        bundleReward,
-                        function (err, insrtData) {
-                          if (err) {
-                            logger.error(err);
-                            resolve({
-                              response:
-                                "Unable to create the one-time reward, it this error perists contact support@taxiconnectna.com",
-                            });
-                          }
-                          //...
-                          resolve({
-                            response: {
-                              status: "onetime_reward_successfully_created",
-                              user: req.customer_infos.phone_number,
-                              amount: req.voucher_value,
-                              time_signature: bundleReward.timestamp,
-                            },
-                          });
-                        }
-                      );
-                    } else if (
-                      req.reward_type === "recursive" &&
-                      req.apply_after !== undefined &&
-                      req.apply_after !== null &&
-                      req.apply_to !== undefined &&
-                      req.apply_to !== null &&
-                      req.discount_percentage !== undefined &&
-                      req.discount_percentage !== null
-                    ) {
-                      //Recursive rewards
-                      //! Check that no previous recusrive discount is active
-                      let bundleReward = {
-                        transaction_nature: "recursive_voucher",
-                        organization: req.organization_infos,
-                        ref_phone_number: req.customer_infos.phone_number,
-                        recipient_fp: "",
-                        discount_percentage: parseFloat(
-                          req.discount_percentage
-                        ),
-                        apply_after: req.apply_after, //Number of trips after which to start applying the reward
-                        apply_to: req.apply_to, //Number of trips to which the discount should be applied
-                        payment_currency: "NAD",
-                        voucher_code: req.voucher_code,
-                        timestamp: Math.round(
-                          new Date(chaineDateUTC).getTime()
-                        ),
-                        date_captured: new Date(chaineDateUTC),
-                      };
-                      //...
-                      collectionWalletTransactions_logs.insertOne(
-                        bundleReward,
-                        function (err, insrtData) {
-                          if (err) {
-                            logger.error(err);
-                            resolve({
-                              response:
-                                "Unable to create the one-time reward, it this error perists contact support@taxiconnectna.com",
-                            });
-                          }
-                          //...
-                          resolve({
-                            response: {
-                              status: "recursive_reward_successfully_created",
-                              user: req.customer_infos.phone_number,
-                              apply_after: req.apply_after,
-                              apply_to: req.apply_to,
-                              discount_percentage: req.discount_percentage,
-                              time_signature: bundleReward.timestamp,
-                            },
-                          });
-                        }
-                      );
-                    } //No type specified
-                    else {
-                      resolve({
-                        response:
-                          "Missing parameters, please refer the the documentation for more details on how to use the parameters.",
-                      });
-                    }
-                  } //! Not unique voucher code detected
-                  else {
-                    resolve({
-                      response:
-                        "The voucher code provided is not unique, please regenerate it preferably based on the current timestamp and try again.",
-                    });
-                  }
-                })
-                .catch((error) => {
-                  logger.error(error);
-                  resolve({
-                    response:
-                      "Unexpected error occured, it this error perists contact support@taxiconnectna.com",
-                  });
-                });
-            } //! Invalid data
-            else {
-              resolve({
-                response:
-                  "Missing parameters, please refer the the documentation for more details on how to use the parameters.",
-              });
-            }
-          })
-            .then((result) => {
-              logger.info(result);
-              res.send(result);
-            })
-            .catch((error) => {
-              logger.error(error);
-              res.send({
-                response:
-                  "Unexpected error occured, it this error perists contact support@taxiconnectna.com",
-              });
-            });
+          //   //! Detect the reward type
+          //   if (
+          //     req.customer_infos !== undefined &&
+          //     req.customer_infos !== null &&
+          //     req.key !== undefined &&
+          //     req.key !== null &&
+          //     req.organization_infos !== undefined &&
+          //     req.organization_infos !== null &&
+          //     req.organization_infos.name !== undefined &&
+          //     req.organization_infos.name !== null &&
+          //     api_keys.includes(req.key) &&
+          //     allowed_roganizations.includes(req.organization_infos.name) &&
+          //     req.voucher_code !== undefined &&
+          //     req.voucher_code !== null
+          //   ) {
+          //     //! Transaction nature: onetime_voucher, recursive_voucher
+          //     //! Use the phone number as the reference
+          //     //? Check that the voucher code is unique
+          //     dynamo_find_query({
+          //       table_name: "wallet_transactions_logs",
+          //       IndexName: "voucher_code",
+          //       KeyConditionExpression: "voucher_code = :val1",
+          //       ExpressionAttributeValues: {
+          //         ":val1": req.voucher_code,
+          //       },
+          //     })
+          //       .then((voucherData) => {
+          //         if (voucherData !== undefined && voucherData.length === 0) {
+          //           //? Unique, allow
+          //           if (
+          //             req.reward_type === "onetime" &&
+          //             req.voucher_value !== undefined &&
+          //             req.voucher_value !== null
+          //           ) {
+          //             //One time rewards
+          //             let bundleReward = {
+          //               transaction_nature: "onetime_voucher",
+          //               organization: req.organization_infos,
+          //               ref_phone_number: req.customer_infos.phone_number,
+          //               recipient_fp: "",
+          //               amount: parseFloat(req.voucher_value),
+          //               payment_currency: "NAD",
+          //               voucher_code: req.voucher_code,
+          //               timestamp: Math.round(
+          //                 new Date(chaineDateUTC).getTime()
+          //               ),
+          //               date_captured: new Date(chaineDateUTC),
+          //             };
+          //             //...
+          //             collectionWalletTransactions_logs.ins\ertOne(
+          //               bundleReward,
+          //               function (err, insrtData) {
+          //                 if (err) {
+          //                   logger.error(err);
+          //                   resolve({
+          //                     response:
+          //                       "Unable to create the one-time reward, it this error perists contact support@taxiconnectna.com",
+          //                   });
+          //                 }
+          //                 //...
+          //                 resolve({
+          //                   response: {
+          //                     status: "onetime_reward_successfully_created",
+          //                     user: req.customer_infos.phone_number,
+          //                     amount: req.voucher_value,
+          //                     time_signature: bundleReward.timestamp,
+          //                   },
+          //                 });
+          //               }
+          //             );
+          //           } else if (
+          //             req.reward_type === "recursive" &&
+          //             req.apply_after !== undefined &&
+          //             req.apply_after !== null &&
+          //             req.apply_to !== undefined &&
+          //             req.apply_to !== null &&
+          //             req.discount_percentage !== undefined &&
+          //             req.discount_percentage !== null
+          //           ) {
+          //             //Recursive rewards
+          //             //! Check that no previous recusrive discount is active
+          //             let bundleReward = {
+          //               transaction_nature: "recursive_voucher",
+          //               organization: req.organization_infos,
+          //               ref_phone_number: req.customer_infos.phone_number,
+          //               recipient_fp: "",
+          //               discount_percentage: parseFloat(
+          //                 req.discount_percentage
+          //               ),
+          //               apply_after: req.apply_after, //Number of trips after which to start applying the reward
+          //               apply_to: req.apply_to, //Number of trips to which the discount should be applied
+          //               payment_currency: "NAD",
+          //               voucher_code: req.voucher_code,
+          //               timestamp: Math.round(
+          //                 new Date(chaineDateUTC).getTime()
+          //               ),
+          //               date_captured: new Date(chaineDateUTC),
+          //             };
+          //             //...
+          //             collectionWalletTransactions_logs.ins\ertOne(
+          //               bundleReward,
+          //               function (err, insrtData) {
+          //                 if (err) {
+          //                   logger.error(err);
+          //                   resolve({
+          //                     response:
+          //                       "Unable to create the one-time reward, it this error perists contact support@taxiconnectna.com",
+          //                   });
+          //                 }
+          //                 //...
+          //                 resolve({
+          //                   response: {
+          //                     status: "recursive_reward_successfully_created",
+          //                     user: req.customer_infos.phone_number,
+          //                     apply_after: req.apply_after,
+          //                     apply_to: req.apply_to,
+          //                     discount_percentage: req.discount_percentage,
+          //                     time_signature: bundleReward.timestamp,
+          //                   },
+          //                 });
+          //               }
+          //             );
+          //           } //No type specified
+          //           else {
+          //             resolve({
+          //               response:
+          //                 "Missing parameters, please refer the the documentation for more details on how to use the parameters.",
+          //             });
+          //           }
+          //         } //! Not unique voucher code detected
+          //         else {
+          //           resolve({
+          //             response:
+          //               "The voucher code provided is not unique, please regenerate it preferably based on the current timestamp and try again.",
+          //           });
+          //         }
+          //       })
+          //       .catch((error) => {
+          //         logger.error(error);
+          //         resolve({
+          //           response:
+          //             "Unexpected error occured, it this error perists contact support@taxiconnectna.com",
+          //         });
+          //       });
+          //   } //! Invalid data
+          //   else {
+          //     resolve({
+          //       response:
+          //         "Missing parameters, please refer the the documentation for more details on how to use the parameters.",
+          //     });
+          //   }
+          // })
+          //   .then((result) => {
+          //     logger.info(result);
+          //     res.send(result);
+          //   })
+          //   .catch((error) => {
+          //     logger.error(error);
+          //     res.send({
+          //       response:
+          //         "Unexpected error occured, it this error perists contact support@taxiconnectna.com",
+          //     });
+          //   });
         });
 
         /**
