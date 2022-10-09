@@ -3638,36 +3638,40 @@ function updateRiders_generalProfileInfos(
       })
         .then((riderProfile) => {
           //2. Update the new data
-          collectionPassengers_profiles.updateOne(
-            filter,
-            updateData,
-            function (err, result) {
-              if (err) {
-                res.send({ response: "error", flag: "unexpected_error" });
-              }
-              //...Update the general event log
-              new Promise((res) => {
-                let dataEvent = {
-                  event_name: "rider_name_update",
-                  user_fingerprint: requestData.user_fingerprint,
-                  old_data: riderProfile[0].name,
-                  new_data: requestData.dataToUpdate,
-                  date: new Date(chaineDateUTC),
-                };
-                collectionGlobalEvents.insertOne(
-                  dataEvent,
-                  function (err, reslt) {
-                    res(true);
-                  }
-                );
-              }).then(
-                () => {},
-                () => {}
+          dynamo_update({
+            table_name: "passengers_profiles",
+            _idKey: { user_fingerprint: requestData.user_fingerprint },
+            UpdateExpression: "set name = :val1, last_updated = :val2",
+            ExpressionAttributeValues: {
+              ":val1": ucFirst(requestData.dataToUpdate),
+              ":val2": new Date(chaineDateUTC).toISOString(),
+            },
+          }).then((result) => {
+            if (!result)
+              res.send({ response: "error", flag: "unexpected_error" });
+
+            //...Update the general event log
+            new Promise((res) => {
+              let dataEvent = {
+                event_name: "rider_name_update",
+                user_fingerprint: requestData.user_fingerprint,
+                old_data: riderProfile[0].name,
+                new_data: requestData.dataToUpdate,
+                date: new Date(chaineDateUTC),
+              };
+              collectionGlobalEvents.insertOne(
+                dataEvent,
+                function (err, reslt) {
+                  res(true);
+                }
               );
-              //...
-              resolve({ response: "success", flag: "operation successful" });
-            }
-          );
+            }).then(
+              () => {},
+              () => {}
+            );
+            //...
+            resolve({ response: "success", flag: "operation successful" });
+          });
         })
         .catch((error) => {
           res.send({ response: "error", flag: "unexpected_error" });
@@ -3701,36 +3705,40 @@ function updateRiders_generalProfileInfos(
       })
         .then((riderProfile) => {
           //2. Update the new data
-          collectionPassengers_profiles.updateOne(
-            filter,
-            updateData,
-            function (err, result) {
-              if (err) {
-                res.send({ response: "error", flag: "unexpected_error" });
-              }
-              //...Update the general event log
-              new Promise((res) => {
-                let dataEvent = {
-                  event_name: "rider_surname_update",
-                  user_fingerprint: requestData.user_fingerprint,
-                  old_data: riderProfile[0].surname,
-                  new_data: requestData.dataToUpdate,
-                  date: new Date(chaineDateUTC),
-                };
-                collectionGlobalEvents.insertOne(
-                  dataEvent,
-                  function (err, reslt) {
-                    res(true);
-                  }
-                );
-              }).then(
-                () => {},
-                () => {}
+          dynamo_update({
+            table_name: "passengers_profiles",
+            _idKey: { user_fingerprint: requestData.user_fingerprint },
+            UpdateExpression: "set surname = :val1, last_updated = :val2",
+            ExpressionAttributeValues: {
+              ":val1": ucFirst(requestData.dataToUpdate),
+              ":val2": new Date(chaineDateUTC).toISOString(),
+            },
+          }).then((result) => {
+            if (!result)
+              res.send({ response: "error", flag: "unexpected_error" });
+
+            //...Update the general event log
+            new Promise((res) => {
+              let dataEvent = {
+                event_name: "rider_surname_update",
+                user_fingerprint: requestData.user_fingerprint,
+                old_data: riderProfile[0].surname,
+                new_data: requestData.dataToUpdate,
+                date: new Date(chaineDateUTC),
+              };
+              collectionGlobalEvents.insertOne(
+                dataEvent,
+                function (err, reslt) {
+                  res(true);
+                }
               );
-              //...
-              resolve({ response: "success", flag: "operation successful" });
-            }
-          );
+            }).then(
+              () => {},
+              () => {}
+            );
+            //...
+            resolve({ response: "success", flag: "operation successful" });
+          });
         })
         .catch((error) => {
           res.send({ response: "error", flag: "unexpected_error" });
@@ -3773,13 +3781,19 @@ function updateRiders_generalProfileInfos(
       })
         .then((riderProfile) => {
           //2. Update the new data
-          collectionPassengers_profiles.updateOne(
-            filter,
-            updateData,
-            function (err, result) {
-              if (err) {
+          dynamo_update({
+            table_name: "passengers_profiles",
+            _idKey: { user_fingerprint: requestData.user_fingerprint },
+            UpdateExpression: "set gender = :val1, last_updated = :val2",
+            ExpressionAttributeValues: {
+              ":val1": requestData.dataToUpdate.toUpperCase(),
+              ":val2": new Date(chaineDateUTC).toISOString(),
+            },
+          })
+            .then((result) => {
+              if (!result)
                 res.send({ response: "error", flag: "unexpected_error" });
-              }
+
               //...Update the general event log
               new Promise((res) => {
                 let dataEvent = {
@@ -3801,8 +3815,10 @@ function updateRiders_generalProfileInfos(
               );
               //...
               resolve({ response: "success", flag: "operation successful" });
-            }
-          );
+            })
+            .catch((error) => {
+              res.send({ response: "error", flag: "unexpected_error" });
+            });
         })
         .catch((error) => {
           res.send({ response: "error", flag: "unexpected_error" });
@@ -3839,13 +3855,16 @@ function updateRiders_generalProfileInfos(
       })
         .then((riderProfile) => {
           //2. Update the new data
-          collectionPassengers_profiles.updateOne(
-            filter,
-            updateData,
-            function (err, result) {
-              if (err) {
-                res.send({ response: "error", flag: "unexpected_error" });
-              }
+          dynamo_update({
+            table_name: "passengers_profiles",
+            _idKey: { user_fingerprint: requestData.user_fingerprint },
+            UpdateExpression: "set email = :val1, last_updated = :val2",
+            ExpressionAttributeValues: {
+              ":val1": requestData.dataToUpdate.trim().toLowerCase(),
+              ":val2": new Date(chaineDateUTC).toISOString(),
+            },
+          })
+            .then((result) => {
               //...Update the general event log
               new Promise((res) => {
                 let dataEvent = {
@@ -3867,8 +3886,10 @@ function updateRiders_generalProfileInfos(
               );
               //...
               resolve({ response: "success", flag: "operation successful" });
-            }
-          );
+            })
+            .catch((error) => {
+              res.send({ response: "error", flag: "unexpected_error" });
+            });
         })
         .catch((error) => {
           res.send({ response: "error", flag: "unexpected_error" });
@@ -3972,16 +3993,24 @@ function updateRiders_generalProfileInfos(
               })
                 .then((riderProfile) => {
                   //2. Update the new data
-                  collectionPassengers_profiles.updateOne(
-                    filter,
-                    updateData,
-                    function (err, result) {
-                      if (err) {
+                  dynamo_update({
+                    table_name: "passengers_profiles",
+                    _idKey: { user_fingerprint: requestData.user_fingerprint },
+                    UpdateExpression:
+                      "set phone_number = :val1, last_updated = :val2",
+                    ExpressionAttributeValues: {
+                      ":val1": /^\+/i.test(requestData.dataToUpdate.trim())
+                        ? requestData.dataToUpdate.trim()
+                        : `+${requestData.dataToUpdate.trim()}`,
+                      ":val2": new Date(chaineDateUTC).toISOString(),
+                    },
+                  })
+                    .then((result) => {
+                      if (!result)
                         res.send({
                           response: "error",
                           flag: "unexpected_error",
                         });
-                      }
                       //...Update the general event log
                       new Promise((res) => {
                         let dataEvent = {
@@ -4006,8 +4035,13 @@ function updateRiders_generalProfileInfos(
                         response: "success",
                         flag: "operation successful",
                       });
-                    }
-                  );
+                    })
+                    .catch((error) => {
+                      res.send({
+                        response: "error",
+                        flag: "unexpected_error",
+                      });
+                    });
                 })
                 .catch((error) => {
                   res.send({ response: "error", flag: "unexpected_error" });
@@ -4109,16 +4143,29 @@ function updateRiders_generalProfileInfos(
                       },
                     };
                     //...
-                    collectionPassengers_profiles.updateOne(
-                      { user_fingerprint: requestData.user_fingerprint },
-                      updatedData,
-                      function (err, reslt) {
-                        if (err) {
+                    dynamo_update({
+                      table_name: "passengers_profiles",
+                      _idKey: {
+                        user_fingerprint: requestData.user_fingerprint,
+                      },
+                      UpdateExpression:
+                        "set #med.#profile = :val1, last_updated = :val2",
+                      ExpressionAttributeNames: {
+                        "#med": "media",
+                        "#profile": "profile_picture",
+                      },
+                      ExpressionAttributeValues: {
+                        ":val1": tmpPicture_name,
+                        ":val2": new Date(chaineDateUTC).toISOString(),
+                      },
+                    })
+                      .then((result) => {
+                        if (!result)
                           resolve({
                             response: "error",
                             flag: "unexpected_conversion_error_",
                           });
-                        }
+
                         //...Update the general event log
                         new Promise((res) => {
                           dynamo_find_query({
@@ -4165,8 +4212,13 @@ function updateRiders_generalProfileInfos(
                           flag: "operation successful",
                           picture_name: `${process.env.AWS_S3_RIDERS_PROFILE_PICTURES_PATH}/${tmpPicture_name}`,
                         });
-                      }
-                    );
+                      })
+                      .catch((error) => {
+                        resolve({
+                          response: "error",
+                          flag: "unexpected_conversion_error_",
+                        });
+                      });
                   } //! Was unable to upload to S3 - conversion error
                   else {
                     resolve({
@@ -5095,32 +5147,32 @@ function performCorporateDeliveryAccountAuthOps(inputData, resolve) {
                 }
               );
               //? SAve the OTP in the user's profile
-              collectionDedicatedServices_accounts.updateOne(
-                {
-                  company_fp: inputData.company_fp,
-                  phone: inputData.phone,
+              dynamo_update({
+                table_name: "dedicated_services_accounts",
+                _idKey: { company_fp: inputData.company_fp },
+                UpdateExpression:
+                  "set last_updated = :val1, #acc.#sms.#o = :val2",
+                ExpressionAttributeNames: {
+                  "#acc": "account",
+                  "#sms": "smsVerifications",
+                  "#o": "otp",
                 },
-                {
-                  $set: {
-                    last_updated: new Date(chaineDateUTC),
-                    "account.smsVerifications": {
-                      otp: {
-                        otp: parseInt(otp),
-                        date_created: new Date(chaineDateUTC),
-                      },
-                    },
+                ExpressionAttributeValues: {
+                  ":val1": new Date(chaineDateUTC).toISOString(),
+                  ":val2": {
+                    otp: parseInt(otp),
+                    date_created: new Date(chaineDateUTC),
                   },
                 },
-                function (err, reslt) {
-                  if (err) {
-                    logger.error(err);
-                    resolve({ response: "error" });
-                  }
-                  //...
+              })
+                .then((result) => {
                   //DONE
                   resolve({ response: "successfully_sent" });
-                }
-              );
+                })
+                .catch((error) => {
+                  logger.error(error);
+                  resolve({ response: "error" });
+                });
             } //Unknown company
             else {
               resolve({ response: "error" });
@@ -5158,22 +5210,17 @@ function performCorporateDeliveryAccountAuthOps(inputData, resolve) {
               companyData = companyData[0];
               //Company exists
               //? Update the comapny's phone
-              collectionDedicatedServices_accounts.updateOne(
-                {
-                  company_fp: inputData.company_fp,
+              dynamo_update({
+                table_name: "dedicated_services_accounts",
+                _idKey: { company_fp: inputData.company_fp },
+                UpdateExpression: "set last_updated = :val1, phone = :val2",
+                ExpressionAttributeValues: {
+                  ":val1": new Date(chaineDateUTC).toISOString(),
+                  ":val2": inputData.phone,
                 },
-                {
-                  $set: {
-                    phone: inputData.phone,
-                    last_updated: new Date(chaineDateUTC),
-                  },
-                },
-                function (err, reslt) {
-                  if (err) {
-                    logger.error(err);
-                    resolve({ response: "error" });
-                  }
-                  //...
+              })
+                .then((result) => {
+                  if (!result) resolve({ response: "error" });
                   //DONE
                   resolve({
                     response: "successfully_updated",
@@ -5187,8 +5234,11 @@ function performCorporateDeliveryAccountAuthOps(inputData, resolve) {
                       account: companyData.account,
                     },
                   });
-                }
-              );
+                })
+                .catch((error) => {
+                  logger.error(error);
+                  resolve({ response: "error" });
+                });
             } //Unknown company
             else {
               resolve({ response: "error" });
@@ -5234,22 +5284,24 @@ function performCorporateDeliveryAccountAuthOps(inputData, resolve) {
               let companyData = checkData[0];
               //Valid number
               //? Update the account vars
-              collectionDedicatedServices_accounts.updateOne(
-                {
-                  company_fp: inputData.company_fp,
+              dynamo_update({
+                table_name: "dedicated_services_accounts",
+                _idKey: { company_fp: inputData.company_fp },
+                UpdateExpression:
+                  "set last_updated = :val1, #acc.#conf.#isConf = :val2",
+                ExpressionAttributeNames: {
+                  acc: "account",
+                  "#conf": "confirmations",
+                  "#isConf": "isPhoneConfirmed",
                 },
-                {
-                  $set: {
-                    "account.confirmations.isPhoneConfirmed": true,
-                    last_updated: new Date(chaineDateUTC),
-                  },
+                ExpressionAttributeValues: {
+                  ":val1": new Date(chaineDateUTC).toISOString(),
+                  ":val2": true,
                 },
-                function (err, reslt) {
-                  if (err) {
-                    logger.error(err);
-                    resolve({ response: "error" });
-                  }
-                  //...
+              })
+                .then((result) => {
+                  if (!result) resolve({ response: "error" });
+
                   //DONE
                   resolve({
                     response: "successfully_validated",
@@ -5263,8 +5315,11 @@ function performCorporateDeliveryAccountAuthOps(inputData, resolve) {
                       account: companyData.account,
                     },
                   });
-                }
-              );
+                })
+                .catch((error) => {
+                  logger.error(error);
+                  resolve({ response: "error" });
+                });
             } //Invalid code
             else {
               resolve({ response: "invalid_code" });
@@ -6118,15 +6173,30 @@ redisCluster.on("connect", function () {
                             req.user_nature === null ||
                             /passenger/i.test(req.user_nature)
                           ) {
-                            collectionPassengers_profiles.updateOne(
-                              { user_fingerprint: result.user_fp },
-                              secretData,
-                              function (err, reslt) {
-                                logger.info(err);
+                            dynamo_update({
+                              table_name: "passengers_profiles",
+                              _idKey: { user_fingerprint: result.user_fp },
+                              UpdateExpression: "set #acc.#phoneS = :val1",
+                              ExpressionAttributeNames: {
+                                "#acc": "account_verifications",
+                                "#phoneS": "phone_verification_secrets",
+                              },
+                              ExpressionAttributeValues: {
+                                ":val1": {
+                                  otp: parseInt(otp),
+                                  date_sent: new Date(chaineDateUTC),
+                                },
+                              },
+                            })
+                              .then((result) => {
                                 logger.warn(`OTP -> ${otp}`);
                                 res2(true);
-                              }
-                            );
+                              })
+                              .catch((error) => {
+                                logger.info(error);
+                                logger.warn(`OTP -> ${otp}`);
+                                res2(true);
+                              });
                           } else if (
                             req.user_nature !== undefined &&
                             req.user_nature !== null &&
@@ -6134,14 +6204,30 @@ redisCluster.on("connect", function () {
                           ) {
                             logger.info("DRIVER HERE DETECCTEDD");
                             //2. Drivers
-                            collectionDrivers_profiles.updateOne(
-                              { driver_fingerprint: result.user_fp },
-                              secretData,
-                              function (err, reslt) {
-                                logger.info(err);
+                            dynamo_update({
+                              table_name: "drivers_profiles",
+                              _idKey: { driver_fingerprint: result.user_fp },
+                              UpdateExpression: "set #acc.#phoneS = :val1",
+                              ExpressionAttributeNames: {
+                                "#acc": "account_verifications",
+                                "#phoneS": "phone_verification_secrets",
+                              },
+                              ExpressionAttributeValues: {
+                                ":val1": {
+                                  otp: parseInt(otp),
+                                  date_sent: new Date(chaineDateUTC),
+                                },
+                              },
+                            })
+                              .then((result) => {
+                                logger.warn(`OTP -> ${otp}`);
                                 res2(true);
-                              }
-                            );
+                              })
+                              .catch((error) => {
+                                logger.info(error);
+                                logger.warn(`OTP -> ${otp}`);
+                                res2(true);
+                              });
                           }
                         })
                           .then(
@@ -6468,11 +6554,21 @@ redisCluster.on("connect", function () {
                       },
                     };
                     //Update
-                    collectionPassengers_profiles.updateOne(
-                      findProfile,
-                      updateProfile,
-                      function (error, result) {
-                        if (error) {
+                    dynamo_update({
+                      table_name: "passengers_profiles",
+                      _idKey: { user_fingerprint: req.user_fingerprint },
+                      UpdateExpression:
+                        "set name = :val1, email = :val2, gender = :val3, account_state = :val4, last_updated = :val5",
+                      ExpressionAttributeValues: {
+                        ":val1": req.name,
+                        ":val2": req.email,
+                        ":val3": req.gender,
+                        ":val4": "full", //! ADDD ACCOUNT STATE - full
+                        ":val5": new Date(chaineDateUTC).toISOString(),
+                      },
+                    })
+                      .then((result) => {
+                        if (!result) {
                           logger.info(error);
                           res0({
                             response:
@@ -6521,8 +6617,14 @@ redisCluster.on("connect", function () {
                                 "error_adding_additional_profile_details_new_account",
                             });
                           });
-                      }
-                    );
+                      })
+                      .catch((error) => {
+                        logger.info(error);
+                        res0({
+                          response:
+                            "error_adding_additional_profile_details_new_account",
+                        });
+                      });
                   }).then(
                     (result) => {
                       res.send(result);
@@ -6801,14 +6903,25 @@ redisCluster.on("connect", function () {
                                 //Only if the driver wants to go out
                                 if (currentActiveRequests.length <= 0) {
                                   //No active requests - proceed
-                                  collectionDrivers_profiles.updateOne(
-                                    {
+                                  dynamo_update({
+                                    table_name: "drivers_profiles",
+                                    _idKey: {
                                       driver_fingerprint:
                                         req.driver_fingerprint,
                                     },
-                                    updateData,
-                                    function (err, reslt) {
-                                      if (err) {
+                                    UpdateExpression: "set #op.#stat = :val1",
+                                    ExpressionAttributeNames: {
+                                      "#op": "operational_state",
+                                      "#stat": "status",
+                                    },
+                                    ExpressionAttributeValues: {
+                                      ":val1": /online/i.test(req.state)
+                                        ? "online"
+                                        : "offline",
+                                    },
+                                  })
+                                    .then((result) => {
+                                      if (!result) {
                                         res0({
                                           response: "error_invalid_request",
                                         });
@@ -6861,8 +6974,12 @@ redisCluster.on("connect", function () {
                                           : "offline",
                                         suspension_infos: suspensionInfos,
                                       });
-                                    }
-                                  );
+                                    })
+                                    .catch((error) => {
+                                      res0({
+                                        response: "error_invalid_request",
+                                      });
+                                    });
                                 } //Has an active request - abort going offline
                                 else {
                                   res0({
@@ -6872,13 +6989,24 @@ redisCluster.on("connect", function () {
                                 }
                               } //If the driver want to go online - proceed
                               else {
-                                collectionDrivers_profiles.updateOne(
-                                  {
+                                dynamo_update({
+                                  table_name: "drivers_profiles",
+                                  _idKey: {
                                     driver_fingerprint: req.driver_fingerprint,
                                   },
-                                  updateData,
-                                  function (err, reslt) {
-                                    if (err) {
+                                  UpdateExpression: "set #op.#stat = :val1",
+                                  ExpressionAttributeNames: {
+                                    "#op": "operational_state",
+                                    "#stat": "status",
+                                  },
+                                  ExpressionAttributeValues: {
+                                    ":val1": /online/i.test(req.state)
+                                      ? "online"
+                                      : "offline",
+                                  },
+                                })
+                                  .then((result) => {
+                                    if (!result) {
                                       res0({
                                         response: "error_invalid_request",
                                       });
@@ -6930,8 +7058,12 @@ redisCluster.on("connect", function () {
                                         : "offline",
                                       suspension_infos: suspensionInfos,
                                     });
-                                  }
-                                );
+                                  })
+                                  .catch((error) => {
+                                    res0({
+                                      response: "error_invalid_request",
+                                    });
+                                  });
                               }
                             })
                             .catch((error) => {
@@ -8210,12 +8342,16 @@ redisCluster.on("connect", function () {
                           }
                         });
                         //? Update
-                        collectionPassengers_profiles.updateOne(
-                          { user_fingerprint: req.user_fp },
-                          { $set: { drivers_blacklist: blockedListUnique } },
-                          function (err, resltUpdate) {
-                            if (err) {
-                              logger.error(err);
+                        dynamo_update({
+                          table_name: "passengers_profiles",
+                          _idKey: { user_fingerprint: req.user_fp },
+                          UpdateExpression: "drivers_blacklist = :val1",
+                          ExpressionAttributeValues: {
+                            ":val1": blockedListUnique,
+                          },
+                        })
+                          .then((result) => {
+                            if (!result) {
                               resolve({ response: "error_unable_to_block" });
                             }
                             //...
@@ -8228,8 +8364,11 @@ redisCluster.on("connect", function () {
                             );
                             //...
                             resolve({ response: "successfully_blocked" });
-                          }
-                        );
+                          })
+                          .catch((error) => {
+                            logger.error(error);
+                            resolve({ response: "error_unable_to_block" });
+                          });
                       } //Invalid user?
                       else {
                         resolve({ response: "error_unable_to_block_iv_user" });
@@ -8276,12 +8415,16 @@ redisCluster.on("connect", function () {
                           }
                         });
                         //? Update
-                        collectionPassengers_profiles.updateOne(
-                          { user_fingerprint: req.user_fp },
-                          { $set: { drivers_blacklist: updatedBlockedList } },
-                          function (err, resltUpdate) {
-                            if (err) {
-                              logger.error(err);
+                        dynamo_update({
+                          table_name: "passengers_profiles",
+                          _idKey: { user_fingerprint: req.user_fp },
+                          UpdateExpression: "drivers_blacklist = :val1",
+                          ExpressionAttributeValues: {
+                            ":val1": blockedListUnique,
+                          },
+                        })
+                          .then((result) => {
+                            if (!result) {
                               resolve({ response: "error_unable_to_unblock" });
                             }
                             //Cache it
@@ -8293,8 +8436,11 @@ redisCluster.on("connect", function () {
                             );
                             //...
                             resolve({ response: "successfully_unblocked" });
-                          }
-                        );
+                          })
+                          .catch((error) => {
+                            logger.error(error);
+                            resolve({ response: "error_unable_to_unblock" });
+                          });
                       } //Invalid user?
                       else {
                         resolve({ response: "error_unable_to_block_iv_user" });

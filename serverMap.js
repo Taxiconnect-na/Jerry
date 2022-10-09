@@ -44,7 +44,7 @@ var chaineDateUTC = null;
 var dateObject = null;
 const moment = require("moment");
 const { stringify, parse } = require("flatted");
-const { dynamo_find_query } = require("./DynamoServiceManager");
+const { dynamo_find_query, dynamo_update } = require("./DynamoServiceManager");
 const { table } = require("console");
 
 function resolveDate() {
@@ -587,23 +587,20 @@ function updateRiderLocationsLog(
   if (/rider/i.test(locationData.user_nature)) {
     //Riders handler
     //! Update the pushnotfication token
-    collectionPassengers_profiles.updateOne(
-      {
-        user_fingerprint: locationData.user_fingerprint,
+    dynamo_update({
+      table_name: "passengers_profiles",
+      _idKey: { user_fingerprint: locationData.user_fingerprint },
+      UpdateExpression: "set pushnotif_token = :val1",
+      ExpressionAttributeValues: {
+        ":val1": locationData.pushnotif_token,
       },
-      {
-        $set: {
-          pushnotif_token: locationData.pushnotif_token,
-        },
-      },
-      function (err, res) {
-        if (err) {
-          //logger.info(err);
-        }
-        //...
+    })
+      .then((result) => {
         resolve(true);
-      }
-    );
+      })
+      .catch((error) => {
+        logger.info(error);
+      });
   } else if (/driver/i.test(locationData.user_nature)) {
     //Drivers handler
     //Update the driver's operstional position
@@ -611,20 +608,25 @@ function updateRiderLocationsLog(
       driver_fingerprint: locationData.user_fingerprint,
     };
     //! Update the pushnotfication token
-    collectionDrivers_profiles.updateOne(
-      filterDriver,
-      {
-        $set: {
-          "operational_state.push_notification_token":
-            locationData.pushnotif_token,
-        },
+    dynamo_update({
+      table_name: "drivers_profiles",
+      _idKey: { user_fingerprint: locationData.user_fingerprint },
+      UpdateExpression: "set #op.#push = :val1",
+      ExpressionAttributeNames: {
+        "#op": "operational_state",
+        "#push": "push_notification_token",
       },
-      function (err, res) {
-        if (err) {
-          //logger.info(err);
-        }
-      }
-    );
+      ExpressionAttributeValues: {
+        ":val1": locationData.pushnotif_token,
+      },
+    })
+      .then((result) => {
+        logger.info(result);
+      })
+      .catch((error) => {
+        logger.info(error);
+      });
+
     //First get the current coordinate
     dynamo_find_query({
       table_name: "drivers_profiles",
@@ -671,10 +673,30 @@ function updateRiderLocationsLog(
                   date_updated: new Date(chaineDateUTC),
                 },
               };
-              collectionDrivers_profiles.updateOne(
-                filterDriver,
-                dataBundle,
-                function (err, res) {
+
+              dynamo_update({
+                table_name: "drivers_profiles",
+                _idKey: { driver_fingerprint: locationData.user_fingerprint },
+                UpdateExpression:
+                  "set #op.#lastLoc.#coords = :val1, #op.#lastLoc.#prevCoord = :val2, #op.#lastLoc.#date = :val3, date_updated = :val4",
+                ExpressionAttributeNames: {
+                  "#op": "operational_state",
+                  "#lastLoc": "last_location",
+                  "#coords": "coordinates",
+                  "#prevCoord": "prev_coordinates",
+                  "#date": "date_updated",
+                },
+                ExpressionAttributeValues: {
+                  ":val1": {
+                    latitude: locationData.latitude,
+                    longitude: locationData.longitude,
+                  },
+                  ":val2": prevCoordsWhichWasNewHere,
+                  ":val3": new Date(chaineDateUTC).toISOString(),
+                  ":val4": new Date(chaineDateUTC).toISOString(),
+                },
+              })
+                .then((result) => {
                   //! Update the city and the country
                   new Promise((resUpdateRest) => {
                     completeLastLoccation_infosSubsAndRest(
@@ -687,8 +709,10 @@ function updateRiderLocationsLog(
                     () => {}
                   );
                   resolve(true);
-                }
-              );
+                })
+                .catch((error) => {
+                  resolve(true);
+                });
             } //No previous location -- update current location and prev to the same value
             else {
               let dataBundle = {
@@ -707,10 +731,31 @@ function updateRiderLocationsLog(
                   },
                 },
               };
-              collectionDrivers_profiles.updateOne(
-                filterDriver,
-                dataBundle,
-                function (err, res) {
+
+              dynamo_update({
+                table_name: "drivers_profiles",
+                _idKey: { driver_fingerprint: locationData.user_fingerprint },
+                UpdateExpression: "set #op.#lastLoc = :val1",
+                ExpressionAttributeNames: {
+                  "#op": "operational_state",
+                  "#lastLoc": "last_location",
+                },
+                ExpressionAttributeValues: {
+                  ":val1": {
+                    coordinates: {
+                      latitude: locationData.latitude,
+                      longitude: locationData.longitude,
+                    },
+                    prev_coordinates: {
+                      latitude: locationData.latitude,
+                      longitude: locationData.longitude,
+                    },
+                    date_updated: new Date(chaineDateUTC).toISOString(),
+                    date_logged: new Date(chaineDateUTC).toISOString(),
+                  },
+                },
+              })
+                .then((result) => {
                   //! Update the city and the country
                   new Promise((resUpdateRest) => {
                     completeLastLoccation_infosSubsAndRest(
@@ -723,8 +768,10 @@ function updateRiderLocationsLog(
                     () => {}
                   );
                   resolve(true);
-                }
-              );
+                })
+                .catch((error) => {
+                  logger.error(error);
+                });
             }
           } //No location data yet - update the previous location and current to the same value
           else {
@@ -745,11 +792,32 @@ function updateRiderLocationsLog(
                 },
               },
             };
-            collectionDrivers_profiles.updateOne(
-              filterDriver,
-              dataBundle,
-              function (err, res) {
-                //logger.info(err);
+
+            dynamo_update({
+              table_name: "drivers_profiles",
+              _idKey: { driver_fingerprint: locationData.user_fingerprint },
+              UpdateExpression: "set #op.#lastLoc = :val1",
+              ExpressionAttributeNames: {
+                "#op": "operational_state",
+                "#lastLoc": "last_location",
+              },
+              ExpressionAttributeValues: {
+                ":val1": {
+                  coordinates: {
+                    latitude: locationData.latitude,
+                    longitude: locationData.longitude,
+                  },
+                  prev_coordinates: {
+                    latitude: locationData.latitude,
+                    longitude: locationData.longitude,
+                  },
+                  date_updated: new Date(chaineDateUTC).toISOString(),
+                  date_logged: new Date(chaineDateUTC).toISOString(),
+                },
+              },
+            })
+              .then((result) => {
+                //logger.info(result);
                 //! Update the city and the country
                 new Promise((resUpdateRest) => {
                   completeLastLoccation_infosSubsAndRest(
@@ -762,8 +830,10 @@ function updateRiderLocationsLog(
                   () => {}
                 );
                 resolve(true);
-              }
-            );
+              })
+              .catch((error) => {
+                logger.error(error);
+              });
           }
         } //No record - strange
         else {
@@ -873,30 +943,40 @@ function completeLastLoccation_infosSubsAndRest(
                   objFinal.country !== "undefined"
                 ) {
                   //! Avoid to overwrite good values by nulls
-                  collectionDrivers_profiles.updateOne(
-                    {
+                  dynamo_update({
+                    table_name: "drivers_profiles",
+                    _idKey: {
                       driver_fingerprint: locationData.user_fingerprint,
                     },
-                    {
-                      $set: {
-                        "operational_state.last_location.city": objFinal.city,
-                        "operational_state.last_location.country":
-                          objFinal.country,
-                        "operational_state.last_location.suburb":
-                          objFinal.suburb,
-                        "operational_state.last_location.street":
-                          objFinal.street,
-                        "operational_state.last_location.location_name":
-                          objFinal.location_name,
-                        "operational_state.last_location.geographic_extent":
-                          objFinal.geographic_extent,
-                      },
+                    UpdateExpression:
+                      "set #op.#lastLoc.#ct = :val1, #op.#lastLoc.#countr = :val2, #op.#lastLoc.#sub = :val3, #op.#lastLoc.#stre = :val4, #op.#lastLoc.#locName = :val5, #op.#lastLoc.#geo = :val6",
+                    ExpressionAttributeNames: {
+                      "#op": "operational_state",
+                      "#lastLoc": "last_location",
+                      "#ct": "city",
+                      "#countr": "country",
+                      "#sub": "suburb",
+                      "#stre": "street",
+                      "#locName": "location_name",
+                      "#geo": "geographic_extent",
                     },
-                    function (err, res) {
-                      //logger.info(err);
+                    ExpressionAttributeValues: {
+                      ":val1": objFinal.city,
+                      ":val2": objFinal.country,
+                      ":val3": objFinal.suburb,
+                      ":val4": objFinal.street,
+                      ":val5": objFinal.location_name,
+                      ":val5": objFinal.geographic_extent,
+                    },
+                  })
+                    .then((result) => {
+                      //logger.info(result);
                       resolve(true);
-                    }
-                  );
+                    })
+                    .catch((error) => {
+                      logger.info(error);
+                      resolve(true);
+                    });
                 } else {
                   resolve(false);
                 }
@@ -1339,13 +1419,32 @@ function execTripChecker_Dispatcher(
           //-----
           logger.warn(checkRide0);
 
-          collectionRidesDeliveries_data
-            .find(checkRide0)
-            .toArray(function (err, acceptedRidesArray) {
-              if (err) {
-                resolve(false);
-              }
-              //...
+          dynamo_find_query({
+            table_name: "rides_deliveries_requests",
+            IndexName: "taxi_id",
+            KeyConditionExpression: "taxi_id = :val1",
+            FilterExpression:
+              "#r.#isAcc = :val2 AND #r.#isComplDriver = :val3 AND isArrivedToDestination = :val4 AND ride_mode NOT IN (:type1, :type2)",
+            ExpressionAttributeNames: {
+              "#r": "ride_state_vars",
+              "#isAcc": "isAccepted",
+              "#isComplDriver": "isRideCompleted_driverSide",
+            },
+            ExpressionAttributeValues: {
+              ":val1": user_fingerprint,
+              ":val2": true,
+              ":val3": false,
+              ":val4": false,
+              ":type1": `${driverData.operation_clearances[0][0]
+                .toUpperCase()
+                .trim()}${driverData.operation_clearances[0]
+                .substr(1)
+                .toLowerCase()
+                .trim()}`,
+              ":type2": driverData.operation_clearances[0].toUpperCase().trim(),
+            },
+          })
+            .then((acceptedRidesArray) => {
               if (
                 acceptedRidesArray !== undefined &&
                 acceptedRidesArray.length > 0
@@ -1414,13 +1513,35 @@ function execTripChecker_Dispatcher(
                     },
                   };
 
-                  collectionRidesDeliveries_data
-                    .find(checkRide1)
-                    .toArray(function (err, result1) {
-                      if (err) {
-                        resolve(false);
-                      }
-                      //...
+                  dynamo_find_query({
+                    table_name: "rides_deliveries_requests",
+                    IndexName: "taxi_id",
+                    KeyConditionExpression: "taxi_id = :val1",
+                    FilterExpression:
+                      "connect_type = :val2 AND #r.#isComplDriver = :val3 AND ride_mode NOT IN (:type1, :type2) AND #intention NOT IN (:type3)",
+                    ExpressionAttributeNames: {
+                      "#r": "ride_state_vars",
+                      "#isAcc": "isAccepted",
+                      "#isComplDriver": "isRideCompleted_driverSide",
+                      "#intention": "intentional_request_decline",
+                    },
+                    ExpressionAttributeValues: {
+                      ":val1": user_fingerprint,
+                      ":val2": "ConnectMe",
+                      ":val3": false,
+                      ":type1": `${driverData.operation_clearances[0][0]
+                        .toUpperCase()
+                        .trim()}${driverData.operation_clearances[0]
+                        .substr(1)
+                        .toLowerCase()
+                        .trim()}`,
+                      ":type2": driverData.operation_clearances[0]
+                        .toUpperCase()
+                        .trim(),
+                      ":type3": user_fingerprint,
+                    },
+                  })
+                    .then((result1) => {
                       if (result1.length > 0) {
                         //logger.info("PENDING_CONNECTME");
                         //Has an uncompleted connectMe request - only send this connectMe request until it is completed
@@ -1507,6 +1628,9 @@ function execTripChecker_Dispatcher(
                           }
                         );
                       }
+                    })
+                    .catch((error) => {
+                      resolve(false);
                     });
                 }
               } //NO rides already accepted yet - send full list of allowed to see rides
@@ -1539,6 +1663,9 @@ function execTripChecker_Dispatcher(
                   }
                 );
               }
+            })
+            .catch((error) => {
+              resolve(false);
             });
         }
       })
@@ -1852,13 +1979,29 @@ function execGetDrivers_requests_and_provide(
       request_type: { $regex: request_type_regex, $options: "i" }, //Shceduled or immediate rides/deliveries
     };*/
     //...
-    collectionRidesDeliveries_data
-      .find(requestFilter)
-      //!.collation({ locale: "en", strength: 2 })
-      .toArray(function (err, requestsData) {
-        if (err) {
-          resolve(false);
-        }
+    dynamo_find_query({
+      table_name: "rides_deliveries_requests",
+      IndexName: "taxi_id",
+      KeyConditionExpression:
+        "taxi_id = :val1 AND country = :val2 AND NOT CONTAINS(#intention, :val3) AND carTypeSelected = :val4 AND ride_mode IN (:type1, :type2)",
+      ExpressionAttributeNames: {
+        "#intention": "intentional_request_decline",
+      },
+      ExpressionAttributeValues: {
+        ":val1": false,
+        ":val2": requestFilter.country,
+        ":val3": driverData.driver_fingerprint,
+        ":val4": driverData.operational_state.default_selected_car.vehicle_type,
+        ":type1": `${driverData.operation_clearances[0]
+          .toUpperCase()
+          .trim()}${driverData.operation_clearances[0]
+          .substr(1)
+          .toLowerCase()
+          .trim()}`,
+        ":type2": driverData.operation_clearances[0].toUpperCase().trim(),
+      },
+    })
+      .then((requestsData) => {
         logger.error(requestsData);
         //...
         if (requestsData !== undefined && requestsData.length > 0) {
@@ -1901,6 +2044,9 @@ function execGetDrivers_requests_and_provide(
         else {
           resolve({ response: "no_requests" });
         }
+      })
+      .catch((error) => {
+        resolve(false);
       });
   } else if (/ONLY_ACCEPTED_REQUESTS/i.test(scenarioString)) {
     //FOr only the accepted requests
@@ -4659,7 +4805,7 @@ function updateRelativeDistancesRiderDrivers(
   //         },
   //       };
   //       //...
-  //       collectionRelativeDistances.updateOne(
+  //       collectionRelativeDistances.upda\teOne(
   //         queryChecker,
   //         updatedRecord,
   //         function (err, res) {
@@ -5596,21 +5742,22 @@ redisCluster.on("connect", function () {
                           ) {
                             //Found a rule
                             //? Update the rule to the driver's profile
-                            collectionDrivers_profiles.updateOne(
-                              { driver_fingerprint: req.user_fingerprint },
-                              {
-                                $set: {
-                                  regional_clearances:
-                                    static_regional_assigner[driverCity]
-                                      .regional_clearances,
-                                },
+                            dynamo_update({
+                              table_name: "drivers_profiles",
+                              _idKey: {
+                                driver_fingerprint: req.user_fingerprint,
                               },
-                              function (error, reslt) {
-                                if (err) {
-                                  logger.error(err);
-                                  resRegionalClrs(false);
-                                }
-                                //...
+                              UpdateExpression:
+                                "set regional_clearances = :val1",
+                              ExpressionAttributeValues: {
+                                ":val1":
+                                  static_regional_assigner[driverCity]
+                                    .regional_clearances,
+                              },
+                            })
+                              .then((result) => {
+                                if (!result) resRegionalClrs(false);
+
                                 logger.info(
                                   `Updated the driver's regional rule -> TICKET [${req.user_fingerprint.substring(
                                     0,
@@ -5618,8 +5765,11 @@ redisCluster.on("connect", function () {
                                   )}]`
                                 );
                                 resRegionalClrs(true);
-                              }
-                            );
+                              })
+                              .catch((error) => {
+                                logger.error(error);
+                                resRegionalClrs(false);
+                              });
                           } //No static rule for a probably invalid city
                           else {
                             resRegionalClrs(false);
@@ -5660,24 +5810,28 @@ redisCluster.on("connect", function () {
                     //Got something - can update
                     if (/^rider$/i.test(req.user_nature)) {
                       //Rider
-                      collectionPassengers_profiles.updateOne(
-                        { user_fingerprint: req.user_fingerprint },
-                        {
-                          $set: {
-                            pushnotif_token: JSON.parse(req.pushnotif_token),
-                            last_updated: new Date(chaineDateUTC),
-                          },
+                      dynamo_update({
+                        table_name: "passengers_profiles",
+                        _idKey: { user_fingerprint: req.user_fingerprint },
+                        UpdateExpression:
+                          "set pushnotif_token = :val1, last_updated = :val2",
+                        ExpressionAttributeValues: {
+                          ":val1": JSON.parse(req.pushnotif_token),
+                          ":val2": new Date(chaineDateUTC).toISOString(),
                         },
-                        function (err, reslt) {
-                          //logger.info("HERE");
-                          if (err) {
+                      })
+                        .then((result) => {
+                          if (!result) {
                             //logger.info(err);
                             resUpdateNotifToken(false);
                           }
                           //...
                           resUpdateNotifToken(true);
-                        }
-                      );
+                        })
+                        .catch((error) => {
+                          logger.info(error);
+                          resUpdateNotifToken(false);
+                        });
                     } else if (/^driver$/i.test(req.user_nature)) {
                       //Driver
                       //! Update the payment cycle starting point if not set yet
@@ -5767,23 +5921,30 @@ redisCluster.on("connect", function () {
                         () => {}
                       );
                       //...
-                      collectionDrivers_profiles.updateOne(
-                        { driver_fingerprint: req.user_fingerprint },
-                        {
-                          $set: {
-                            "operational_state.push_notification_token":
-                              JSON.parse(req.pushnotif_token),
-                            date_updated: new Date(chaineDateUTC),
-                          },
+                      dynamo_update({
+                        table_name: "drivers_profiles",
+                        _idKey: { driver_fingerprint: req.user_fingerprint },
+                        UpdateExpression:
+                          "set #op.#push = :val1, date_updated = :val2",
+                        ExpressionAttributeNames: {
+                          "#op": "operational_state",
+                          "#push": "push_notification_token",
                         },
-                        function (err, reslt) {
-                          if (err) {
+                        ExpressionAttributeValues: {
+                          ":val1": JSON.parse(req.pushnotif_token),
+                          ":val2": new Date(chaineDateUTC).toISOString(),
+                        },
+                      })
+                        .then((result) => {
+                          if (!result) {
                             resUpdateNotifToken(false);
                           }
                           //...
                           resUpdateNotifToken(true);
-                        }
-                      );
+                        })
+                        .catch((error) => {
+                          resUpdateNotifToken(false);
+                        });
                     } //Invalid user nature - skip
                     else {
                       resUpdateNotifToken(false);

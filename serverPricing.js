@@ -1004,37 +1004,37 @@ function computeInDepthPricesMap(
                       if (didFindRegisteredSuburbs === false) {
                         //Did not find suburbs with mathing suburbs included
                         //Register in mongo
-                        new Promise((resX) => {
-                          //Schema
-                          //{point1_suburb:XXXX, point2_suburb:XXXX, city:XXX, country:XXX, date:XXX}
-                          let queryNoMatch = {
-                            point1_suburb: tmpPickupPickup,
-                            point2_suburb: tmpDestinationSuburb,
-                            city: destination.city,
-                            country: request_country,
-                            date: new Date(chaineDateUTC),
-                          };
-                          let checkQuery = {
-                            point1_suburb: tmpPickupPickup,
-                            point2_suburb: tmpDestinationSuburb,
-                            city: destination.city,
-                            country: request_country,
-                          };
-                          //Check to avoid duplicates
-                          //New record
-                          collectionNotFoundSubursPricesMap.updateOne(
-                            checkQuery,
-                            { $set: queryNoMatch },
-                            { upsert: true },
-                            function (err, res) {
-                              logger.info("New record added");
-                              resX(true);
-                            }
-                          );
-                        }).then(
-                          () => {},
-                          () => {}
-                        );
+                        // new Promise((resX) => {
+                        //   //Schema
+                        //   //{point1_suburb:XXXX, point2_suburb:XXXX, city:XXX, country:XXX, date:XXX}
+                        //   let queryNoMatch = {
+                        //     point1_suburb: tmpPickupPickup,
+                        //     point2_suburb: tmpDestinationSuburb,
+                        //     city: destination.city,
+                        //     country: request_country,
+                        //     date: new Date(chaineDateUTC),
+                        //   };
+                        //   let checkQuery = {
+                        //     point1_suburb: tmpPickupPickup,
+                        //     point2_suburb: tmpDestinationSuburb,
+                        //     city: destination.city,
+                        //     country: request_country,
+                        //   };
+                        //   //Check to avoid duplicates
+                        //   //New record
+                        //   collectionNotFoundSubursPricesMap.upda\teOne(
+                        //     checkQuery,
+                        //     { $set: queryNoMatch },
+                        //     { upsert: true },
+                        //     function (err, res) {
+                        //       logger.info("New record added");
+                        //       resX(true);
+                        //     }
+                        //   );
+                        // }).then(
+                        //   () => {},
+                        //   () => {}
+                        // );
                         //Estimate a realistic price for now - EXTREMELY URGENT
                         //Assign ride base price
                         logger.error(
@@ -1861,20 +1861,29 @@ redisCluster.on("connect", function () {
                     if (requestData !== undefined && requestData.length > 0) {
                       //Valid trip
                       requestData = requestData[0];
-                      collectionRidesDeliveryData.updateOne(
-                        { request_fp: req.request_fp, client_id: req.user_fp },
-                        { $set: { fare: req.new_fare } },
-                        function (err, resltUpdate) {
-                          if (err) {
-                            logger.error(err);
+                      dynamo_update({
+                        table_name: "rides_deliveries_requests",
+                        _idKey: { request_fp: req.request_fp },
+                        UpdateExpression: "set fare = :val1",
+                        ExpressionAttributeValues: {
+                          ":val1": req.new_fare,
+                        },
+                      })
+                        .then((result) => {
+                          if (!result) {
                             resolve({
                               response: "error_unable_to_update_ride_infos",
                             });
                           }
                           //...
                           resolve({ response: "successfullly_updated" });
-                        }
-                      );
+                        })
+                        .catch((error) => {
+                          logger.error(error);
+                          resolve({
+                            response: "error_unable_to_update_ride_infos",
+                          });
+                        });
                     } //Invalid trip
                     else {
                       resolve({ response: "error_unable_to_get_ride_infos" });

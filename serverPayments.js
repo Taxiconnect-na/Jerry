@@ -567,22 +567,31 @@ function saveLogForTopupsSuccess(
         }
         //!Update the the corporate profile with the new plan details
         //! ONLY USE THE PLAN CODE
-        collectionDedicatedServices_accounts.updateOne(
-          { company_fp: user_fp },
-          {
-            $set: {
-              "plans.subscribed_plan": PLAN_CODES[trailingData.plan_name],
-              "plans.isPlan_active": true,
-            },
+        dynamo_update({
+          table_name: "dedicated_services_accounts",
+          _idKey: { company_fp: user_fp },
+          UpdateExpression: "set #pl.#sub = :val1, #pl.#isPlan = :val2",
+          ExpressionAttributeNames: {
+            "#pl": "plans",
+            "#sub": "subscribed_plan",
+            "#isPlan": "isPlan_active",
           },
-          function (err, res) {
-            if (err) {
+          ExpressionAttributeValues: {
+            ":val1": PLAN_CODES[trailingData.plan_name],
+            ":val2": true,
+          },
+        })
+          .then((result) => {
+            if (!result) {
               logger.info("error");
               resolve(false);
             }
             resolve(true);
-          }
-        );
+          })
+          .catch((error) => {
+            logger.info(error);
+            resolve(false);
+          });
       }
     );
   }
@@ -2758,7 +2767,7 @@ requestAPI(
           //                   voucherData = voucherData[0];
           //                   //Has data
           //                   //? Apply this voucher to the user
-          //                   collectionWalletTransactions_logs.updateOne(
+          //                   collectionWalletTransactions_logs.updat\eOne(
           //                     {
           //                       ref_phone_number: userData.phone_number,
           //                       recipient_fp: "",

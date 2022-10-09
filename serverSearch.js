@@ -20,6 +20,7 @@ const {
   dynamo_delete,
   dynamo_get_all,
   dynamo_find_get,
+  dynamo_insert_many,
 } = require("./DynamoServiceManager");
 //---center
 const { promisify, inspect } = require("util");
@@ -388,13 +389,18 @@ function initializeFreshGetOfLocations(
             //! Save in mongo search persist - Cost reduction
             new Promise((saveMongo) => {
               if (result.length > 0) {
-                collectionSearchedLocationPersist.insertMany(
-                  result,
-                  function (err, reslt) {
+                dynamo_insert_many({
+                  table_name: "searched_locations_persist",
+                  array_data: result,
+                })
+                  .then((result) => {
                     saveMongo(true);
                     logger.warn("SAVED IN MONGO PERSIST!");
-                  }
-                );
+                  })
+                  .catch((error) => {
+                    saveMongo(true);
+                    logger.warn("SAVED IN MONGO PERSIST!");
+                  });
               } //Nothing to save
               else {
                 saveMongo(false);
@@ -547,24 +553,16 @@ function attachCoordinatesAndRegion(littlePack, resolve) {
     } //Not cached - check Mongo
     else {
       //? First check in mongo
-      collectionSearchedLocationPersist
-        .find({ "result.place_id": littlePack.location_id })
-        .toArray(function (err, placeInfo) {
-          if (err) {
-            logger.error(err);
-            //fresh
-            new Promise((resCompute) => {
-              doFreshGoogleSearchAndReturn(littlePack, redisKey, resCompute);
-            })
-              .then((result) => {
-                resolve(result);
-              })
-              .catch((error) => {
-                logger.error(error);
-                resolve(false);
-              });
-          }
-          //...
+      //! .fi\nd({ "result.place_id": littlePack.location_id })
+      dynamo_find_query({
+        table_name: "searched_locations_persist",
+        IndexName: "location_id",
+        KeyConditionExpression: "location_id = :val1",
+        ExpressionAttributeValues: {
+          ":val1": littlePack.location_id,
+        },
+      })
+        .then((placeInfo) => {
           if (
             placeInfo !== undefined &&
             placeInfo !== null &&
@@ -583,19 +581,26 @@ function attachCoordinatesAndRegion(littlePack, resolve) {
             littlePack.state = state;
             littlePack.suburb = false;
             //..Save the body in mongo
-            body["date_updated"] = new Date(chaineDateUTC);
+            body["date_updated"] = new Date(chaineDateUTC).toISOString;
+            body["place_id"] = littlePack.place_id;
+            //...
             new Promise((resSave) => {
-              collectionEnrichedLocationPersist.updateOne(
-                { "result.place_id": littlePack.place_id },
-                {
-                  $set: body,
+              dynamo_update({
+                table_name: "enriched_locationSearch_persist",
+                _idKey: { place_id: littlePack.place_id },
+                UpdateExpression: "set result = :val1, date_updated = :val2",
+                ExpressionAttributeValues: {
+                  ":val1": body["result"],
+                  ":val2": body["date_updated"],
                 },
-                { upsert: true },
-                function (err, res) {
-                  logger.error(err);
+              })
+                .then((result) => {
                   resSave(true);
-                }
-              );
+                })
+                .catch((error) => {
+                  logger.error(error);
+                  resSave(true);
+                });
             })
               .then()
               .catch();
@@ -623,6 +628,20 @@ function attachCoordinatesAndRegion(littlePack, resolve) {
                 resolve(false);
               });
           }
+        })
+        .catch((error) => {
+          logger.error(err);
+          //fresh
+          new Promise((resCompute) => {
+            doFreshGoogleSearchAndReturn(littlePack, redisKey, resCompute);
+          })
+            .then((result) => {
+              resolve(result);
+            })
+            .catch((error) => {
+              logger.error(error);
+              resolve(false);
+            });
         });
     }
   });
@@ -658,16 +677,25 @@ function doFreshGoogleSearchAndReturn(littlePack, redisKey, resolve) {
         littlePack.suburb = false;
         //..Save the body in mongo
         body["date_updated"] = new Date(chaineDateUTC);
+        body["place_id"] = littlePack.place_id;
+
         new Promise((resSave) => {
-          collectionEnrichedLocationPersist.updateOne(
-            { "result.place_id": littlePack.place_id },
-            { $set: body },
-            { upsert: true },
-            function (err, res) {
-              logger.error(err);
+          dynamo_update({
+            table_name: "enriched_locationSearch_persist",
+            _idKey: { place_id: littlePack.place_id },
+            UpdateExpression: "set result = :val1, date_updated = :val2",
+            ExpressionAttributeValues: {
+              ":val1": body["result"],
+              ":val2": body["date_updated"],
+            },
+          })
+            .then((result) => {
               resSave(true);
-            }
-          );
+            })
+            .catch((error) => {
+              logger.error(error);
+              resSave(true);
+            });
         })
           .then()
           .catch();
