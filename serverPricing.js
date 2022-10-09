@@ -40,6 +40,16 @@ var redisCluster = /production/i.test(String(process.env.EVIRONMENT))
   : client;
 const redisGet = promisify(redisCluster.get).bind(redisCluster);
 
+//! Attach DynamoDB helper
+const {
+  dynamo_insert,
+  dynamo_update,
+  dynamo_find_query,
+  dynamo_delete,
+  dynamo_get_all,
+  dynamo_find_get,
+} = require("./DynamoServiceManager");
+
 var chaineDateUTC = null;
 var dateObject = null;
 const moment = require("moment");
@@ -471,149 +481,190 @@ function estimateFullVehiclesCatPrices(
 
     logger.warn(completedInputData);
 
-    collectionVehiclesInfos.find(filterQuery).toArray(function (err, result) {
-      // logger.info(result);
-      if (result !== null && result !== undefined && result.length > 0) {
-        //Found something
-        let genericRidesInfos = result;
-        //Get all the city's price map (cirteria: city, country and pickup)
-        new Promise((res) => {
-          //? Add suburb name exception
-          //? 1. Windhoek Central -> Windhoek Central / CBD
-          completedInputData.pickup_location_infos.suburb =
-            completedInputData.pickup_location_infos.suburb !== "false" &&
-            completedInputData.pickup_location_infos.suburb !== false
-              ? /^Windhoek Central$/i.test(
-                  completedInputData.pickup_location_infos.suburb.trim()
-                )
-                ? `${completedInputData.pickup_location_infos.suburb.trim()} / CBD`
-                : completedInputData.pickup_location_infos.suburb.trim()
-              : completedInputData.pickup_location_infos.suburb;
-          //?...
-          filterQuery = {
-            country: completedInputData.country,
-            city: {
-              $in: [
-                ...new Set(
-                  [completedInputData.pickup_location_infos.city].concat(
-                    completedInputData.destination_location_infos.map(
-                      (el) => el.city
-                    )
+    dynamo_find_query({
+      table_name: "vehicles_collection_infos",
+      IndexName: "ride_type",
+      KeyConditionExpression: "ride_type  = :val1",
+      FilterExpression: "country = :val2",
+      ExpressionAttributeValues: {
+        ":val1": completedInputData.ride_mode,
+        ":val2": completedInputData.country,
+      },
+    })
+      .then((result) => {
+        if (result !== null && result !== undefined && result.length > 0) {
+          //Found something
+          let genericRidesInfos = result;
+          //Get all the city's price map (cirteria: city, country and pickup)
+          new Promise((res) => {
+            //? Add suburb name exception
+            //? 1. Windhoek Central -> Windhoek Central / CBD
+            completedInputData.pickup_location_infos.suburb =
+              completedInputData.pickup_location_infos.suburb !== "false" &&
+              completedInputData.pickup_location_infos.suburb !== false
+                ? /^Windhoek Central$/i.test(
+                    completedInputData.pickup_location_infos.suburb.trim()
                   )
-                ),
-              ],
-            },
-            pickup_suburb: /Elisenheim/i.test(
-              completedInputData.pickup_location_infos.location_name
-            )
-              ? "Elisenheim"
-              : completedInputData.pickup_location_infos.suburb,
-          };
+                  ? `${completedInputData.pickup_location_infos.suburb.trim()} / CBD`
+                  : completedInputData.pickup_location_infos.suburb.trim()
+                : completedInputData.pickup_location_infos.suburb;
+            //?...
+            filterQuery = {
+              country: completedInputData.country,
+              city: {
+                $in: [
+                  ...new Set(
+                    [completedInputData.pickup_location_infos.city].concat(
+                      completedInputData.destination_location_infos.map(
+                        (el) => el.city
+                      )
+                    )
+                  ),
+                ],
+              },
+              pickup_suburb: /Elisenheim/i.test(
+                completedInputData.pickup_location_infos.location_name
+              )
+                ? "Elisenheim"
+                : completedInputData.pickup_location_infos.suburb,
+            };
 
-          logger.error(filterQuery);
-
-          collectionPricesLocationsMap
-            .find(filterQuery)
-            .toArray(function (err, result) {
-              if (result.length > 0) {
-                // logger.info(
-                //   `PRICE LOCATION MAP ----> ${JSON.stringify(result)}`
-                // );
-                //Found corresponding prices maps
-                res(result);
-              } //No prices map found - Set default prices NAD 12 - non realistic and fixed prices
-              else {
-                //Did not find suburbs with mathing suburbs included
-                //Register in mongo
-                new Promise((resX) => {
-                  //Schema
-                  //{point1_suburb:XXXX, point2_suburb:XXXX, city:XXX, country:XXX, date:XXX}
-                  let queryNoMatch = {
-                    point1_suburb:
-                      completedInputData.pickup_location_infos.suburb,
-                    point2_suburb: "ANY",
-                    city: completedInputData.pickup_location_infos.city,
-                    country: completedInputData.country,
-                    region:
-                      completedInputData.pickup_location_infos.state.replace(
-                        / Region/i,
-                        ""
-                      ),
-                    date: new Date(chaineDateUTC),
-                  };
-                  let checkQuery = {
-                    point1_suburb:
-                      completedInputData.pickup_location_infos.suburb,
-                    point2_suburb: "ANY",
-                    city: completedInputData.pickup_location_infos.city,
-                    country: completedInputData.country,
-                  };
-                  //Check to avoid duplicates
-                  collectionNotFoundSubursPricesMap
-                    .find(checkQuery)
-                    .toArray(function (err, resultX) {
-                      if (resultX.length <= 0) {
-                        //New record
-                        collectionNotFoundSubursPricesMap.insertOne(
-                          queryNoMatch,
-                          function (err, res) {
-                            logger.info("New record added");
-                            resX(true);
-                          }
-                        );
-                      }
-                    });
-                }).then(
-                  () => {},
-                  () => {}
-                );
-                res([
-                  { pickup_suburb: false, fare: 12 },
-                  { pickup_suburb: false, fare: 12 },
-                  { pickup_suburb: false, fare: 12 },
-                  { pickup_suburb: false, fare: 12 },
-                ]);
-              }
-            });
-        }).then(
-          (reslt) => {
-            // logger.info(`PRICE LOCATION MAP ----> ${JSON.stringify(reslt)}`);
-            let globalPricesMap = reslt;
-            //call computeInDepthPricesMap
-            new Promise((res) => {
-              computeInDepthPricesMap(
-                res,
-                completedInputData,
-                globalPricesMap,
-                genericRidesInfos,
-                collectionNotFoundSubursPricesMap
-              );
-            }).then(
-              (reslt) => {
-                //DONE
-                if (reslt !== false) {
-                  resolve(reslt);
-                } //Error
+            dynamo_find_query({
+              table_name: "global_prices_to_locations_map",
+              IndexName: "pickup_suburb",
+              KeyConditionExpression: "pickup_suburb = :val1",
+              FilterExpression: "country = :val1 AND city = :val2",
+              ExpressionAttributeValues: {
+                ":val1": filterQuery.pickup_suburb,
+                ":val2": completedInputData.country,
+                ":val3": completedInputData.pickup_location_infos.city,
+              },
+            })
+              .then((result) => {
+                if (result.length > 0) {
+                  // logger.info(
+                  //   `PRICE LOCATION MAP ----> ${JSON.stringify(result)}`
+                  // );
+                  //Found corresponding prices maps
+                  res(result);
+                } //No prices map found - Set default prices NAD 12 - non realistic and fixed prices
                 else {
+                  //Did not find suburbs with mathing suburbs included
+                  //Register in mongo
+                  new Promise((resX) => {
+                    //Schema
+                    //{point1_suburb:XXXX, point2_suburb:XXXX, city:XXX, country:XXX, date:XXX}
+                    let queryNoMatch = {
+                      point1_suburb:
+                        completedInputData.pickup_location_infos.suburb,
+                      point2_suburb: "ANY",
+                      city: completedInputData.pickup_location_infos.city,
+                      country: completedInputData.country,
+                      region:
+                        completedInputData.pickup_location_infos.state.replace(
+                          / Region/i,
+                          ""
+                        ),
+                      date: new Date(chaineDateUTC),
+                    };
+                    let checkQuery = {
+                      point1_suburb:
+                        completedInputData.pickup_location_infos.suburb,
+                      point2_suburb: "ANY",
+                      city: completedInputData.pickup_location_infos.city,
+                      country: completedInputData.country,
+                    };
+
+                    logger.error(filterQuery);
+                    //Check to avoid duplicates
+                    dynamo_find_query({
+                      table_name: "not_found_suburbs_prices_map",
+                      IndexName: "point1_suburb",
+                      KeyConditionExpression:
+                        "point1_suburb = :val1 AND point2_suburb = :val2",
+                      FilterExpression: "city = :val3 AND country = :val4",
+                      ExpressionAttributeValues: {
+                        ":val1": checkQuery.point1_suburb,
+                        ":val2": checkQuery.point2_suburb,
+                        ":val3": checkQuery.city,
+                        ":val4": checkQuery.country,
+                      },
+                    })
+                      .then((resultX) => {
+                        if (resultX.length <= 0) {
+                          //New record
+                          dynamo_insert(
+                            "not_found_suburbs_prices_map",
+                            queryNoMatch
+                          )
+                            .then((result) => {
+                              logger.info("New record added");
+                              resX(true);
+                            })
+                            .catch((error) => {
+                              logger.error(error);
+                              resX(true);
+                            });
+                        }
+                      })
+                      .catch((error) => {});
+                  }).then(
+                    () => {},
+                    () => {}
+                  );
+                  res([
+                    { pickup_suburb: false, fare: 12 },
+                    { pickup_suburb: false, fare: 12 },
+                    { pickup_suburb: false, fare: 12 },
+                    { pickup_suburb: false, fare: 12 },
+                  ]);
+                }
+              })
+              .catch((error) => {
+                res(result);
+              });
+          }).then(
+            (reslt) => {
+              // logger.info(`PRICE LOCATION MAP ----> ${JSON.stringify(reslt)}`);
+              let globalPricesMap = reslt;
+              //call computeInDepthPricesMap
+              new Promise((res) => {
+                computeInDepthPricesMap(
+                  res,
+                  completedInputData,
+                  globalPricesMap,
+                  genericRidesInfos,
+                  collectionNotFoundSubursPricesMap
+                );
+              }).then(
+                (reslt) => {
+                  //DONE
+                  if (reslt !== false) {
+                    resolve(reslt);
+                  } //Error
+                  else {
+                    resolve(false);
+                  }
+                },
+                (error) => {
+                  logger.info(error);
                   resolve(false);
                 }
-              },
-              (error) => {
-                logger.info(error);
-                resolve(false);
-              }
-            );
-          },
-          (error) => {
-            logger.info(error);
-            resolve(false);
-          }
-        );
-      } //No rides at all
-      else {
+              );
+            },
+            (error) => {
+              logger.info(error);
+              resolve(false);
+            }
+          );
+        } //No rides at all
+        else {
+          resolve({ response: "no_available_rides" });
+        }
+      })
+      .catch((error) => {
         resolve({ response: "no_available_rides" });
-      }
-    });
+      });
   } //Invalid data
   else {
     logger.info("Invalid data");
@@ -958,37 +1009,37 @@ function computeInDepthPricesMap(
                       if (didFindRegisteredSuburbs === false) {
                         //Did not find suburbs with mathing suburbs included
                         //Register in mongo
-                        new Promise((resX) => {
-                          //Schema
-                          //{point1_suburb:XXXX, point2_suburb:XXXX, city:XXX, country:XXX, date:XXX}
-                          let queryNoMatch = {
-                            point1_suburb: tmpPickupPickup,
-                            point2_suburb: tmpDestinationSuburb,
-                            city: destination.city,
-                            country: request_country,
-                            date: new Date(chaineDateUTC),
-                          };
-                          let checkQuery = {
-                            point1_suburb: tmpPickupPickup,
-                            point2_suburb: tmpDestinationSuburb,
-                            city: destination.city,
-                            country: request_country,
-                          };
-                          //Check to avoid duplicates
-                          //New record
-                          collectionNotFoundSubursPricesMap.updateOne(
-                            checkQuery,
-                            { $set: queryNoMatch },
-                            { upsert: true },
-                            function (err, res) {
-                              logger.info("New record added");
-                              resX(true);
-                            }
-                          );
-                        }).then(
-                          () => {},
-                          () => {}
-                        );
+                        // new Promise((resX) => {
+                        //   //Schema
+                        //   //{point1_suburb:XXXX, point2_suburb:XXXX, city:XXX, country:XXX, date:XXX}
+                        //   let queryNoMatch = {
+                        //     point1_suburb: tmpPickupPickup,
+                        //     point2_suburb: tmpDestinationSuburb,
+                        //     city: destination.city,
+                        //     country: request_country,
+                        //     date: new Date(chaineDateUTC),
+                        //   };
+                        //   let checkQuery = {
+                        //     point1_suburb: tmpPickupPickup,
+                        //     point2_suburb: tmpDestinationSuburb,
+                        //     city: destination.city,
+                        //     country: request_country,
+                        //   };
+                        //   //Check to avoid duplicates
+                        //   //New record
+                        //   collectionNotFoundSubursPricesMap.upda\teOne(
+                        //     checkQuery,
+                        //     { $set: queryNoMatch },
+                        //     { upsert: true },
+                        //     function (err, res) {
+                        //       logger.info("New record added");
+                        //       resX(true);
+                        //     }
+                        //   );
+                        // }).then(
+                        //   () => {},
+                        //   () => {}
+                        // );
                         //Estimate a realistic price for now - EXTREMELY URGENT
                         //Assign ride base price
                         logger.error(
@@ -1803,35 +1854,49 @@ redisCluster.on("connect", function () {
                 req.new_fare !== undefined &&
                 req.new_fare !== null
               ) {
-                collectionRidesDeliveryData
-                  .find({ request_fp: req.request_fp, client_id: req.user_fp })
-                  .toArray(function (err, requestData) {
-                    if (err) {
-                      logger.error(err);
-                      resolve({ response: "error_unable_to_get_ride_infos" });
-                    }
-                    //...
+                dynamo_find_query({
+                  table_name: "rides_deliveries_requests",
+                  IndexName: "request_fp = :val1 AND client_id = :val2",
+                  ExpressionAttributeValues: {
+                    ":val1": req.request_fp,
+                    ":val2": req.user_fp,
+                  },
+                })
+                  .then((requestData) => {
                     if (requestData !== undefined && requestData.length > 0) {
                       //Valid trip
                       requestData = requestData[0];
-                      collectionRidesDeliveryData.updateOne(
-                        { request_fp: req.request_fp, client_id: req.user_fp },
-                        { $set: { fare: req.new_fare } },
-                        function (err, resltUpdate) {
-                          if (err) {
-                            logger.error(err);
+                      dynamo_update({
+                        table_name: "rides_deliveries_requests",
+                        _idKey: { request_fp: req.request_fp },
+                        UpdateExpression: "set fare = :val1",
+                        ExpressionAttributeValues: {
+                          ":val1": req.new_fare,
+                        },
+                      })
+                        .then((result) => {
+                          if (!result) {
                             resolve({
                               response: "error_unable_to_update_ride_infos",
                             });
                           }
                           //...
                           resolve({ response: "successfullly_updated" });
-                        }
-                      );
+                        })
+                        .catch((error) => {
+                          logger.error(error);
+                          resolve({
+                            response: "error_unable_to_update_ride_infos",
+                          });
+                        });
                     } //Invalid trip
                     else {
                       resolve({ response: "error_unable_to_get_ride_infos" });
                     }
+                  })
+                  .catch((error) => {
+                    logger.error(error);
+                    resolve({ response: "error_unable_to_get_ride_infos" });
                   });
               } //Invalid params
               else {

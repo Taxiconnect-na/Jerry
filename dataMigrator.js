@@ -41,16 +41,6 @@ var redisCluster = /production/i.test(String(process.env.EVIRONMENT))
   : client;
 const redisGet = promisify(redisCluster.get).bind(redisCluster);
 
-//! Attach DynamoDB helper
-const {
-  dynamo_insert,
-  dynamo_update,
-  dynamo_find_query,
-  dynamo_delete,
-  dynamo_get_all,
-  dynamo_find_get,
-} = require("./DynamoServiceManager");
-
 var chaineDateUTC = null;
 var dateObject = null;
 const moment = require("moment");
@@ -87,45 +77,43 @@ resolveDate();
 function getGlobalObservabilityData(city = "Windhoek", resolve) {
   let redisKey = `${city}-getGlobalObservabilityData`;
 
-  resolve({ response: "no_data" });
-
-  // redisGet(redisKey)
-  //   .then((resp) => {
-  //     if (resp !== null) {
-  //       //Has some record
-  //       try {
-  //         logger.warn("Cached data considered");
-  //         //Rehydrate
-  //         new Promise((resCompute) => {
-  //           execGetGlobalObservabilityData(city, redisKey, resCompute);
-  //         })
-  //           .then(() => {})
-  //           .catch(() => {});
-  //         //...
-  //         resp = JSON.parse(resp);
-  //         resolve(resp);
-  //       } catch (error) {
-  //         logger.error(error);
-  //         resolve({ response: "no_data" });
-  //       }
-  //     } //Do a fresh search
-  //     else {
-  //       new Promise((resCompute) => {
-  //         execGetGlobalObservabilityData(city, redisKey, resCompute);
-  //       })
-  //         .then((result) => {
-  //           resolve(result);
-  //         })
-  //         .catch((error) => {
-  //           logger.error(error);
-  //           resolve({ response: "no_data" });
-  //         });
-  //     }
-  //   })
-  //   .catch((error) => {
-  //     logger.error(error);
-  //     resolve({ response: "no_data" });
-  //   });
+  redisGet(redisKey)
+    .then((resp) => {
+      if (resp !== null) {
+        //Has some record
+        try {
+          logger.warn("Cached data considered");
+          //Rehydrate
+          new Promise((resCompute) => {
+            execGetGlobalObservabilityData(city, redisKey, resCompute);
+          })
+            .then(() => {})
+            .catch(() => {});
+          //...
+          resp = JSON.parse(resp);
+          resolve(resp);
+        } catch (error) {
+          logger.error(error);
+          resolve({ response: "no_data" });
+        }
+      } //Do a fresh search
+      else {
+        new Promise((resCompute) => {
+          execGetGlobalObservabilityData(city, redisKey, resCompute);
+        })
+          .then((result) => {
+            resolve(result);
+          })
+          .catch((error) => {
+            logger.error(error);
+            resolve({ response: "no_data" });
+          });
+      }
+    })
+    .catch((error) => {
+      logger.error(error);
+      resolve({ response: "no_data" });
+    });
 }
 
 /**
@@ -175,120 +163,121 @@ function generateUniqueFingerprint(str, encryption = false, resolve) {
  */
 function execGetGlobalObservabilityData(city = "Windhoek", redisKey, resolve) {
   //Only for the trips in progress, not confirmed by the driver yet.
-  // let searchFilter = {
-  //   "pickup_location_infos.city": city,
-  //   "ride_state_vars.isAccepted": true,
-  //   "ride_state_vars.isRideCompleted_driverSide": false,
-  // };
-  // //? Get the drivers data
-  // new Promise((resCompute0) => {
-  //   collectionDrivers_profiles
-  //     .f\ind({
-  //       "operational_state.last_location.city": city,
-  //     })
-  //     .toArray(function (err, driversData) {
-  //       if (err) {
-  //         logger.error(err);
-  //         resCompute0({ response: "no_drivers_data" });
-  //       }
-  //       //...
-  //       if (
-  //         driversData !== undefined &&
-  //         driversData !== null &&
-  //         driversData.length > 0
-  //       ) {
-  //         //Has some data
-  //         //?Form an array of driver_fp, coords, operational state (online/offline), car, and taxi number, and car fp
-  //         let driversBundle = driversData.map((driver) => {
-  //           return {
-  //             driver_fingerprint: driver.driver_fingerprint,
-  //             prev_position:
-  //               driver.operational_state.last_location.prev_coordinates,
-  //             current_position:
-  //               driver.operational_state.last_location.coordinates,
-  //             operational_state: driver.operational_state.status,
-  //             vehicle: {
-  //               car_brand: driver.cars_data[0].car_brand,
-  //               taxi_number: driver.cars_data[0].taxi_number,
-  //               vehicle_type: driver.cars_data[0].vehicle_type,
-  //               car_fingerprint: driver.cars_data[0].car_fingerprint,
-  //             },
-  //           };
-  //         });
-  //         //...
-  //         resCompute0(driversBundle);
-  //       } //No drivers data - strange
-  //       else {
-  //         resCompute0({ response: "no_drivers_data" });
-  //       }
-  //     });
-  // })
-  //   .then((result) => {
-  //     collectionRidesDeliveries_data
-  //       .fi\nd(searchFilter)
-  //       .toArray(function (err, tripsData) {
-  //         if (err) {
-  //           let finalData = {
-  //             drivers: result,
-  //             trips: { response: "no_trips_data" },
-  //           };
-  //           redisCluster.setex(
-  //             redisKey,
-  //             parseInt(process.env.REDIS_EXPIRATION_5MIN) * 5,
-  //             JSON.stringify(finalData)
-  //           );
-  //           resolve(finalData);
-  //         }
-  //         //...
-  //         if (
-  //           tripsData !== undefined &&
-  //           tripsData !== null &&
-  //           tripsData.length > 0
-  //         ) {
-  //           let finalData = { drivers: result, trips: { response: tripsData } };
-  //           new Promise((resCache) => {
-  //             redisCluster.setex(
-  //               redisKey,
-  //               parseInt(process.env.REDIS_EXPIRATION_5MIN) * 5,
-  //               JSON.stringify(finalData)
-  //             );
-  //             resCache(true);
-  //           })
-  //             .then()
-  //             .catch();
-  //           //...
-  //           resolve({ drivers: result, trips: { response: tripsData } });
-  //         } //No trips data - strange
-  //         else {
-  //           let finalData = {
-  //             drivers: result,
-  //             trips: { response: "no_trips_data" },
-  //           };
-  //           redisCluster.setex(
-  //             redisKey,
-  //             parseInt(process.env.REDIS_EXPIRATION_5MIN) * 5,
-  //             JSON.stringify(finalData)
-  //           );
-  //           //...
-  //           resolve(finalData);
-  //         }
-  //       });
-  //   })
-  //   .catch((error) => {
-  //     logger.error(error);
-  //     let finalData = { response: "no_data" };
-  //     new Promise((resCache) => {
-  //       redisCluster.setex(
-  //         redisKey,
-  //         parseInt(process.env.REDIS_EXPIRATION_5MIN) * 5,
-  //         JSON.stringify(finalData)
-  //       );
-  //       resCache(true);
-  //     })
-  //       .then()
-  //       .catch();
-  //     resolve(finalData);
-  //   });
+  let searchFilter = {
+    "pickup_location_infos.city": city,
+    "ride_state_vars.isAccepted": true,
+    "ride_state_vars.isRideCompleted_driverSide": false,
+  };
+
+  //? Get the drivers data
+  new Promise((resCompute0) => {
+    collectionDrivers_profiles
+      .find({
+        "operational_state.last_location.city": city,
+      })
+      .toArray(function (err, driversData) {
+        if (err) {
+          logger.error(err);
+          resCompute0({ response: "no_drivers_data" });
+        }
+        //...
+        if (
+          driversData !== undefined &&
+          driversData !== null &&
+          driversData.length > 0
+        ) {
+          //Has some data
+          //?Form an array of driver_fp, coords, operational state (online/offline), car, and taxi number, and car fp
+          let driversBundle = driversData.map((driver) => {
+            return {
+              driver_fingerprint: driver.driver_fingerprint,
+              prev_position:
+                driver.operational_state.last_location.prev_coordinates,
+              current_position:
+                driver.operational_state.last_location.coordinates,
+              operational_state: driver.operational_state.status,
+              vehicle: {
+                car_brand: driver.cars_data[0].car_brand,
+                taxi_number: driver.cars_data[0].taxi_number,
+                vehicle_type: driver.cars_data[0].vehicle_type,
+                car_fingerprint: driver.cars_data[0].car_fingerprint,
+              },
+            };
+          });
+          //...
+          resCompute0(driversBundle);
+        } //No drivers data - strange
+        else {
+          resCompute0({ response: "no_drivers_data" });
+        }
+      });
+  })
+    .then((result) => {
+      collectionRidesDeliveries_data
+        .find(searchFilter)
+        .toArray(function (err, tripsData) {
+          if (err) {
+            let finalData = {
+              drivers: result,
+              trips: { response: "no_trips_data" },
+            };
+            redisCluster.setex(
+              redisKey,
+              parseInt(process.env.REDIS_EXPIRATION_5MIN) * 5,
+              JSON.stringify(finalData)
+            );
+            resolve(finalData);
+          }
+          //...
+          if (
+            tripsData !== undefined &&
+            tripsData !== null &&
+            tripsData.length > 0
+          ) {
+            let finalData = { drivers: result, trips: { response: tripsData } };
+            new Promise((resCache) => {
+              redisCluster.setex(
+                redisKey,
+                parseInt(process.env.REDIS_EXPIRATION_5MIN) * 5,
+                JSON.stringify(finalData)
+              );
+              resCache(true);
+            })
+              .then()
+              .catch();
+            //...
+            resolve({ drivers: result, trips: { response: tripsData } });
+          } //No trips data - strange
+          else {
+            let finalData = {
+              drivers: result,
+              trips: { response: "no_trips_data" },
+            };
+            redisCluster.setex(
+              redisKey,
+              parseInt(process.env.REDIS_EXPIRATION_5MIN) * 5,
+              JSON.stringify(finalData)
+            );
+            //...
+            resolve(finalData);
+          }
+        });
+    })
+    .catch((error) => {
+      logger.error(error);
+      let finalData = { response: "no_data" };
+      new Promise((resCache) => {
+        redisCluster.setex(
+          redisKey,
+          parseInt(process.env.REDIS_EXPIRATION_5MIN) * 5,
+          JSON.stringify(finalData)
+        );
+        resCache(true);
+      })
+        .then()
+        .catch();
+      resolve(finalData);
+    });
 }
 
 /**
@@ -483,31 +472,28 @@ function execGetObservabilityDataForDeliveryWeb(requestData, resolve) {
     busiest_destination_suburbs: {},
   };
 
-  dynamo_find_query({
-    table_name: "dedicated_services_accounts",
-    IndexName: "company_fp",
-    KeyConditionExpression: "company_fp = :val1",
-    ExpressionAttributeValues: {
-      ":val1": requestData.user_fp,
-    },
-  })
-    .then((companyData) => {
+  collectionDedicatedServices_accounts
+    .find({ company_fp: requestData.user_fp })
+    .toArray(function (err, companyData) {
+      if (err) {
+        logger.error(err);
+        resolve({ response: "error" });
+      }
+      //....
       if (companyData !== undefined && companyData.length > 0) {
         //Valid company
         companyData = companyData[0];
         //...
         //Get the rides history data
-        //!.sort({ date_requested: -1 })
-
-        dynamo_find_query({
-          table_name: "rides_deliveries_requests",
-          IndexName: "client_id",
-          KeyConditionExpression: "client_id = :val1",
-          ExpressionAttributeValues: {
-            ":val1": requestData.user_fp,
-          },
-        })
-          .then((tripData) => {
+        collectionRidesDeliveries_data
+          .find({ client_id: requestData.user_fp })
+          .sort({ date_requested: -1 })
+          .toArray(function (err, tripData) {
+            if (err) {
+              logger.error(err);
+              resolve({ response: "error" });
+            }
+            //...
             if (tripData !== undefined && tripData.length > 0) {
               //Found some trips
               modelMetaDataResponse.genericGlobalStats.tripInsight.total_deliveries =
@@ -614,16 +600,17 @@ function execGetObservabilityDataForDeliveryWeb(requestData, resolve) {
               });
               //...
               //? Get all the cancellled trips
-              //! .sort({ date_requested: -1 })
-              dynamo_find_query({
-                table_name: "cancelled_rides_deliveries_requests",
-                IndexName: "client_id",
-                KeyConditionExpression: "client_id = :val1",
-                ExpressionAttributeValues: {
-                  ":val1": requestData.user_fp,
-                },
-              })
-                .then((cancelledTripData) => {
+              collection_cancelledRidesDeliveryData
+                .find({ client_id: requestData.user_fp })
+                .sort({ date_requested: -1 })
+                .toArray(function (err, cancelledTripData) {
+                  if (err) {
+                    logger.error(err);
+                    resolve({
+                      response: "success",
+                      data: modelMetaDataResponse,
+                    });
+                  }
                   logger.error(JSON.stringify(cancelledTripData));
                   //...
                   if (
@@ -751,31 +738,16 @@ function execGetObservabilityDataForDeliveryWeb(requestData, resolve) {
                       data: modelMetaDataResponse,
                     });
                   }
-                })
-                .catch((error) => {
-                  logger.error(error);
-                  resolve({
-                    response: "success",
-                    data: modelMetaDataResponse,
-                  });
                 });
             } //no trips
             else {
               resolve({ response: "no_data" });
             }
-          })
-          .catch((error) => {
-            logger.error(error);
-            resolve({ response: "error" });
           });
       } //Unknown company
       else {
         resolve({ response: "error" });
       }
-    })
-    .catch((error) => {
-      logger.error(error);
-      resolve({ response: "error" });
     });
 }
 

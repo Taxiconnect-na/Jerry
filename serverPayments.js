@@ -15,6 +15,16 @@ var server = http.createServer(app);
 const requestAPI = require("request");
 //....
 const crypto = require("crypto");
+
+//! Attach DynamoDB helper
+const {
+  dynamo_insert,
+  dynamo_update,
+  dynamo_find_query,
+  dynamo_delete,
+  dynamo_get_all,
+  dynamo_find_get,
+} = require("./DynamoServiceManager");
 //...
 
 const urlParser = require("url");
@@ -430,13 +440,18 @@ function saveLogForTopups(
     date_captured: new Date(chaineDateUTC),
     timestamp: tmpDate.getTime(),
   };
-  collectionWalletTransactions_logs.insertOne(dataBundle, function (err, res) {
-    if (err) {
-      logger.info(err);
+
+  dynamo_insert("wallet_transactions_logs", dataBundle)
+    .then((result) => {
+      if (!result) {
+        resolve(false);
+      }
+      resolve(true);
+    })
+    .catch((error) => {
+      logger.error(error);
       resolve(false);
-    }
-    resolve(true);
-  });
+    });
 }
 
 /**
@@ -493,16 +508,17 @@ function saveLogForTopupsSuccess(
       timestamp: tmpDate.getTime(),
     };
     //...
-    collectionWalletTransactions_logs.insertOne(
-      dataBundle,
-      function (err, res) {
-        if (err) {
-          logger.info("error");
+    dynamo_insert("wallet_transactions_logs", dataBundle)
+      .then((result) => {
+        if (!result) {
           resolve(false);
         }
         resolve(true);
-      }
-    );
+      })
+      .catch((error) => {
+        logger.error(error);
+        resolve(false);
+      });
   } //!Corporate globality
   else {
     const PLAN_CODES = {
@@ -548,33 +564,43 @@ function saveLogForTopupsSuccess(
       timestamp: tmpDate.getTime(),
     };
     //...
-    collectionWalletTransactions_logs.insertOne(
-      dataBundle,
-      function (err, res) {
-        if (err) {
-          logger.info("error");
+    dynamo_insert("wallet_transactions_logs", dataBundle)
+      .then((result) => {
+        if (!result) {
           resolve(false);
         }
         //!Update the the corporate profile with the new plan details
         //! ONLY USE THE PLAN CODE
-        collectionDedicatedServices_accounts.updateOne(
-          { company_fp: user_fp },
-          {
-            $set: {
-              "plans.subscribed_plan": PLAN_CODES[trailingData.plan_name],
-              "plans.isPlan_active": true,
-            },
+        dynamo_update({
+          table_name: "dedicated_services_accounts",
+          _idKey: { company_fp: user_fp },
+          UpdateExpression: "set #pl.#sub = :val1, #pl.#isPlan = :val2",
+          ExpressionAttributeNames: {
+            "#pl": "plans",
+            "#sub": "subscribed_plan",
+            "#isPlan": "isPlan_active",
           },
-          function (err, res) {
-            if (err) {
+          ExpressionAttributeValues: {
+            ":val1": PLAN_CODES[trailingData.plan_name],
+            ":val2": true,
+          },
+        })
+          .then((result) => {
+            if (!result) {
               logger.info("error");
               resolve(false);
             }
             resolve(true);
-          }
-        );
-      }
-    );
+          })
+          .catch((error) => {
+            logger.info(error);
+            resolve(false);
+          });
+      })
+      .catch((error) => {
+        logger.error(error);
+        resolve(false);
+      });
   }
 }
 
@@ -808,12 +834,14 @@ function processExecute_paymentCardWallet_topup(
                         date_captured: new Date(chaineDateUTC),
                       };
                       //...
-                      collectionGlobalEvents.insertOne(
-                        faildTransObj,
-                        function (err, resltx) {
+                      dynamo_insert("global_events", faildTransObj)
+                        .then((result) => {
                           resFailedTransaction(true);
-                        }
-                      );
+                        })
+                        .catch((error) => {
+                          logger.error(error);
+                          resFailedTransaction(true);
+                        });
                     }).then(
                       () => {},
                       () => {}
@@ -905,13 +933,15 @@ function checkReceipient_walletTransaction(
       phone_number: `+${dataBundle.payNumberOrPhoneNumber.trim()}`,
     };
     //...
-    collectionPassengers_profiles
-      .find(regFiler)
-      .toArray(function (err, riderProfile) {
-        if (err) {
-          resolve({ response: "error", flag: "transaction_error" });
-        }
-        //...
+    dynamo_find_query({
+      table_name: "passengers_profiles",
+      IndexName: "phone_number",
+      KeyConditionExpression: "phone_number = :val1",
+      ExpressionAttributeValues: {
+        ":val1": regFiler.phone_number,
+      },
+    })
+      .then((riderProfile) => {
         if (
           riderProfile.length > 0 &&
           riderProfile[0].user_fingerprint !== undefined &&
@@ -928,12 +958,14 @@ function checkReceipient_walletTransaction(
               date_captured: new Date(chaineDateUTC),
             };
             //...
-            collectionGlobalEvents.insertOne(
-              eventSaverObj,
-              function (err, reslt) {
+            dynamo_insert("global_events", eventSaverObj)
+              .then((result) => {
                 resEventSave(true);
-              }
-            );
+              })
+              .catch((error) => {
+                logger.error(error);
+                resEventSave(true);
+              });
           }).then(
             () => {},
             () => {}
@@ -954,6 +986,9 @@ function checkReceipient_walletTransaction(
             flag: "transaction_error_unregistered",
           });
         }
+      })
+      .catch((error) => {
+        resolve({ response: "error", flag: "transaction_error" });
       });
   } else if (/driver/i.test(dataBundle.user_nature)) {
     //To drivers
@@ -963,13 +998,15 @@ function checkReceipient_walletTransaction(
       ),
     };
     //...
-    collectionDrivers_profiles
-      .find(regFiler)
-      .toArray(function (err, driverProfile) {
-        if (err) {
-          resolve({ response: "error", flag: "transaction_error" });
-        }
-        //...
+    dynamo_find_query({
+      table_name: "drivers_profiles",
+      IndexName: "phone_number",
+      KeyConditionExpression: "phone_number = :val1",
+      ExpressionAttributeValues: {
+        ":val1": dataBundle.payNumberOrPhoneNumber,
+      },
+    })
+      .then((driverProfile) => {
         if (
           driverProfile.length !== undefined &&
           driverProfile.length > 0 &&
@@ -987,12 +1024,14 @@ function checkReceipient_walletTransaction(
               date_captured: new Date(chaineDateUTC),
             };
             //...
-            collectionGlobalEvents.insertOne(
-              eventSaverObj,
-              function (err, reslt) {
+            dynamo_insert("global_events", eventSaverObj)
+              .then((result) => {
                 resEventSave(true);
-              }
-            );
+              })
+              .catch((error) => {
+                logger.error(error);
+                resEventSave(true);
+              });
           }).then(
             () => {},
             () => {}
@@ -1013,59 +1052,63 @@ function checkReceipient_walletTransaction(
               dataBundle.payNumberOrPhoneNumber.toUpperCase(),
           };
           logger.warn(regFiler);
+          resolve({ response: "error", flag: "transaction_error" });
           //...
-          collectionDrivers_profiles
-            .find(regFiler)
-            .toArray(function (err, driverProfile) {
-              if (err) {
-                resolve({ response: "error", flag: "transaction_error" });
-              }
-              //...
-              if (
-                driverProfile.length !== undefined &&
-                driverProfile.length > 0 &&
-                driverProfile[0].driver_fingerprint !== undefined &&
-                driverProfile[0].driver_fingerprint !== null
-              ) {
-                //Found the receipient
-                new Promise((resEventSave) => {
-                  //Save the event
-                  let eventSaverObj = {
-                    event_name: "checking_receipient_walletTransaction",
-                    receipient_category: "driver",
-                    user_fingerprint: dataBundle.user_fingerprint,
-                    receiver_fingerprint: driverProfile[0].driver_fingerprint,
-                    date_captured: new Date(chaineDateUTC),
-                  };
-                  //...
-                  collectionGlobalEvents.insertOne(
-                    eventSaverObj,
-                    function (err, reslt) {
-                      resEventSave(true);
-                    }
-                  );
-                }).then(
-                  () => {},
-                  () => {}
-                );
-                //...DONE
-                resolve({
-                  response: "verified",
-                  user_nature: "driver",
-                  receipient_name: driverProfile[0].name,
-                  recipient_fp: includeReceipient_fp
-                    ? driverProfile[0].driver_fingerprint
-                    : null,
-                });
-              } //! Strange - no active account foundd
-              else {
-                resolve({
-                  response: "error",
-                  flag: "transaction_error_unregistered",
-                });
-              }
-            });
+          // collectionDrivers_profiles
+          //   .fi/nd(regFiler)
+          //   .toArray(function (err, driverProfile) {
+          //     if (err) {
+          //       resolve({ response: "error", flag: "transaction_error" });
+          //     }
+          //     //...
+          //     if (
+          //       driverProfile.length !== undefined &&
+          //       driverProfile.length > 0 &&
+          //       driverProfile[0].driver_fingerprint !== undefined &&
+          //       driverProfile[0].driver_fingerprint !== null
+          //     ) {
+          //       //Found the receipient
+          //       new Promise((resEventSave) => {
+          //         //Save the event
+          //         let eventSaverObj = {
+          //           event_name: "checking_receipient_walletTransaction",
+          //           receipient_category: "driver",
+          //           user_fingerprint: dataBundle.user_fingerprint,
+          //           receiver_fingerprint: driverProfile[0].driver_fingerprint,
+          //           date_captured: new Date(chaineDateUTC),
+          //         };
+          //         //...
+          //         collectionGlobalEvents.inse\rtOne(
+          //           eventSaverObj,
+          //           function (err, reslt) {
+          //             resEventSave(true);
+          //           }
+          //         );
+          //       }).then(
+          //         () => {},
+          //         () => {}
+          //       );
+          //       //...DONE
+          //       resolve({
+          //         response: "verified",
+          //         user_nature: "driver",
+          //         receipient_name: driverProfile[0].name,
+          //         recipient_fp: includeReceipient_fp
+          //           ? driverProfile[0].driver_fingerprint
+          //           : null,
+          //       });
+          //     } //! Strange - no active account foundd
+          //     else {
+          //       resolve({
+          //         response: "error",
+          //         flag: "transaction_error_unregistered",
+          //       });
+          //     }
+          //   });
         }
+      })
+      .catch((error) => {
+        resolve({ response: "error", flag: "transaction_error" });
       });
   }
 }
@@ -1096,40 +1139,41 @@ function execSendMoney_fromRiderWallet_transaction(
       timestamp: dateTmp.getTime(),
     };
     //...
-    collectionWalletTransactions_logs.insertOne(
-      transaction_obj,
-      function (err, result) {
-        if (err) {
+    dynamo_insert("wallet_transactions_logs", transaction_obj)
+      .then((result) => {
+        if (!result) {
           resolve({ response: "error", flag: "transaction_error" });
         }
         //? NOTIFY THE RECEIVER
         //Send the push notifications
         /*let message = {
-          app_id: process.env.RIDERS_APP_ID_ONESIGNAL,
-          android_channel_id:
-            process.env
-              .RIDERS_ONESIGNAL_CHANNEL_ACCEPTTEDD_REQUEST, //Wallet transaction
-          priority: 10,
-          contents: {
-            en:
-              "Your wallet ",
-          },
-          headings: { en: "Unable to find a ride" },
-          content_available: true,
-          include_player_ids: [
-            recordData.pushNotif_token,
-          ],
-        };
-        //Send
-        sendPushUPNotification(message);*/
+        app_id: process.env.RIDERS_APP_ID_ONESIGNAL,
+        android_channel_id:
+          process.env
+            .RIDERS_ONESIGNAL_CHANNEL_ACCEPTTEDD_REQUEST, //Wallet transaction
+        priority: 10,
+        contents: {
+          en:
+            "Your wallet ",
+        },
+        headings: { en: "Unable to find a ride" },
+        content_available: true,
+        include_player_ids: [
+          recordData.pushNotif_token,
+        ],
+      };
+      //Send
+      sendPushUPNotification(message);*/
         //...
         resolve({
           response: "successful",
           amount: dataBundle.amount,
           payment_currency: process.env.PAYMENT_CURRENCY,
         });
-      }
-    );
+      })
+      .catch((error) => {
+        resolve({ response: "error", flag: "transaction_error" });
+      });
   } else if (/driver/i.test(dataBundle.user_nature)) {
     //Driver
     let transaction_obj = {
@@ -1142,10 +1186,9 @@ function execSendMoney_fromRiderWallet_transaction(
       timestamp: dateTmp.getTime(),
     };
     //...
-    collectionWalletTransactions_logs.insertOne(
-      transaction_obj,
-      function (err, result) {
-        if (err) {
+    dynamo_insert("wallet_transactions_logs", transaction_obj)
+      .then((result) => {
+        if (!result) {
           resolve({ response: "error", flag: "transaction_error" });
         }
         //...
@@ -1154,8 +1197,10 @@ function execSendMoney_fromRiderWallet_transaction(
           amount: dataBundle.amount,
           payment_currency: process.env.PAYMENT_CURRENCY,
         });
-      }
-    );
+      })
+      .catch((error) => {
+        resolve({ response: "error", flag: "transaction_error" });
+      });
   }
 }
 
@@ -1177,15 +1222,15 @@ function checkNonSelf_sendingFunds_user(
 ) {
   if (/friend/i.test(user_nature)) {
     //To friend - check
-    collectionPassengers_profiles
-      .find({
-        phone_number: payNumberOrPhoneNumber.trim(),
-      })
-      .toArray(function (err, senderDetails) {
-        if (err) {
-          resolve({ response: false, flag: "invalid_sender" });
-        }
-        //...
+    dynamo_find_query({
+      table_name: "passengers_profiles",
+      IndexName: "phone_number",
+      KeyConditionExpression: "phone_number = :val1",
+      ExpressionAttributeValues: {
+        ":val1": payNumberOrPhoneNumber.trim(),
+      },
+    })
+      .then((senderDetails) => {
         if (
           senderDetails.length > 0 &&
           senderDetails[0].user_fingerprint !== undefined &&
@@ -1199,6 +1244,9 @@ function checkNonSelf_sendingFunds_user(
         else {
           resolve({ response: true, flag: "valid_sender" });
         }
+      })
+      .catch((error) => {
+        resolve({ response: false, flag: "invalid_sender" });
       });
   } //TO any other nature - pass
   else {
@@ -1252,15 +1300,15 @@ function sendReceipt(metaDataBundle, scenarioType, resolve) {
 
     //...
     //Get the company data
-    collectionDedicatedServices_accounts
-      .find({
-        company_fp: metaDataBundle.user_fp,
-      })
-      .toArray(function (err, companyData) {
-        if (err) {
-          logger.error(err);
-          resolve(false);
-        }
+    dynamo_find_query({
+      table_name: "dedicated_services_accounts",
+      IndexName: "company_fp",
+      KeyConditionExpression: "company_fp = :val1",
+      ExpressionAttributeValues: {
+        ":val1": metaDataBundle.user_fp,
+      },
+    })
+      .then((companyData) => {
         logger.info(companyData);
         //...
         if (companyData !== undefined && companyData.length > 0) {
@@ -1286,398 +1334,398 @@ function sendReceipt(metaDataBundle, scenarioType, resolve) {
             })
             .finally(() => {
               let emailTemplate = `
-              <!doctype html>
-              <html>
+            <!doctype html>
+            <html>
 
-              <head>
-                <meta charset="utf-8">
-                <meta http-equiv="x-ua-compatible" content="ie=edge">
-                <title></title>
-                <meta name="description" content="">
-                <meta name="viewport" content="width=device-width, initial-scale=1">
+            <head>
+              <meta charset="utf-8">
+              <meta http-equiv="x-ua-compatible" content="ie=edge">
+              <title></title>
+              <meta name="description" content="">
+              <meta name="viewport" content="width=device-width, initial-scale=1">
 
 
-                <style type="text/css">
-                  a {
-                    color: #0000ee;
-                    text-decoration: underline;
+              <style type="text/css">
+                a {
+                  color: #0000ee;
+                  text-decoration: underline;
+                }
+                
+                a:hover {
+                  color: #0000ee;
+                  text-decoration: underline;
+                }
+                
+                .u-row {
+                  display: flex;
+                  flex-wrap: nowrap;
+                  margin-left: 0;
+                  margin-right: 0;
+                }
+                
+                .u-row .u-col {
+                  position: relative;
+                  width: 100%;
+                  padding-right: 0;
+                  padding-left: 0;
+                }
+                
+                .u-row .u-col.u-col-100 {
+                  flex: 0 0 100%;
+                  max-width: 100%;
+                }
+                
+                @media (max-width: 767px) {
+                  .u-row:not(.no-stack) {
+                    flex-wrap: wrap;
                   }
-                  
-                  a:hover {
-                    color: #0000ee;
-                    text-decoration: underline;
+                  .u-row:not(.no-stack) .u-col {
+                    flex: 0 0 100% !important;
+                    max-width: 100% !important;
                   }
-                  
-                  .u-row {
-                    display: flex;
-                    flex-wrap: nowrap;
-                    margin-left: 0;
-                    margin-right: 0;
+                }
+                
+                body,
+                html {
+                  padding: 0;
+                  margin: 0;background-color:#fff;
+                }
+                
+                html {
+                  box-sizing: border-box
+                }
+                
+                *,
+                :after,
+                :before {
+                  box-sizing: inherit
+                }
+                
+                html {
+                  font-size: 14px;
+                  -ms-overflow-style: scrollbar;
+                  -webkit-tap-highlight-color: rgba(0, 0, 0, 0)
+                }
+                
+                body {
+                  font-family: Arial, Helvetica, sans-serif;
+                  font-size: 1rem;
+                  line-height: 1.5;
+                  color: #373a3c;
+                  background-color: #fff
+                }
+                
+                p {
+                  margin: 0
+                }
+                
+                .error-field {
+                  -webkit-animation-name: shake;
+                  animation-name: shake;
+                  -webkit-animation-duration: 1s;
+                  animation-duration: 1s;
+                  -webkit-animation-fill-mode: both;
+                  animation-fill-mode: both
+                }
+                
+                .error-field input,
+                .error-field textarea {
+                  border-color: #a94442!important;
+                  color: #a94442!important
+                }
+                
+                .field-error {
+                  padding: 5px 10px;
+                  font-size: 14px;
+                  font-weight: 700;
+                  position: absolute;
+                  top: -20px;
+                  right: 10px
+                }
+                
+                .field-error:after {
+                  top: 100%;
+                  left: 50%;
+                  border: solid transparent;
+                  content: " ";
+                  height: 0;
+                  width: 0;
+                  position: absolute;
+                  pointer-events: none;
+                  border-color: rgba(136, 183, 213, 0);
+                  border-top-color: #ebcccc;
+                  border-width: 5px;
+                  margin-left: -5px
+                }
+                
+                .spinner {
+                  margin: 0 auto;
+                  width: 70px;
+                  text-align: center
+                }
+                
+                .spinner>div {
+                  width: 12px;
+                  height: 12px;
+                  background-color: hsla(0, 0%, 100%, .5);
+                  margin: 0 2px;
+                  border-radius: 100%;
+                  display: inline-block;
+                  -webkit-animation: sk-bouncedelay 1.4s infinite ease-in-out both;
+                  animation: sk-bouncedelay 1.4s infinite ease-in-out both
+                }
+                
+                .spinner .bounce1 {
+                  -webkit-animation-delay: -.32s;
+                  animation-delay: -.32s
+                }
+                
+                .spinner .bounce2 {
+                  -webkit-animation-delay: -.16s;
+                  animation-delay: -.16s
+                }
+                
+                @-webkit-keyframes sk-bouncedelay {
+                  0%,
+                  80%,
+                  to {
+                    -webkit-transform: scale(0)
                   }
-                  
-                  .u-row .u-col {
-                    position: relative;
-                    width: 100%;
-                    padding-right: 0;
-                    padding-left: 0;
+                  40% {
+                    -webkit-transform: scale(1)
                   }
-                  
-                  .u-row .u-col.u-col-100 {
-                    flex: 0 0 100%;
-                    max-width: 100%;
+                }
+                
+                @keyframes sk-bouncedelay {
+                  0%,
+                  80%,
+                  to {
+                    -webkit-transform: scale(0);
+                    transform: scale(0)
                   }
-                  
-                  @media (max-width: 767px) {
-                    .u-row:not(.no-stack) {
-                      flex-wrap: wrap;
-                    }
-                    .u-row:not(.no-stack) .u-col {
-                      flex: 0 0 100% !important;
-                      max-width: 100% !important;
-                    }
+                  40% {
+                    -webkit-transform: scale(1);
+                    transform: scale(1)
                   }
-                  
-                  body,
-                  html {
-                    padding: 0;
-                    margin: 0;background-color:#fff;
+                }
+                
+                @-webkit-keyframes shake {
+                  0%,
+                  to {
+                    -webkit-transform: translateZ(0);
+                    transform: translateZ(0)
                   }
-                  
-                  html {
-                    box-sizing: border-box
+                  10%,
+                  30%,
+                  50%,
+                  70%,
+                  90% {
+                    -webkit-transform: translate3d(-10px, 0, 0);
+                    transform: translate3d(-10px, 0, 0)
                   }
-                  
-                  *,
-                  :after,
-                  :before {
-                    box-sizing: inherit
+                  20%,
+                  40%,
+                  60%,
+                  80% {
+                    -webkit-transform: translate3d(10px, 0, 0);
+                    transform: translate3d(10px, 0, 0)
                   }
-                  
-                  html {
-                    font-size: 14px;
-                    -ms-overflow-style: scrollbar;
-                    -webkit-tap-highlight-color: rgba(0, 0, 0, 0)
+                }
+                
+                @keyframes shake {
+                  0%,
+                  to {
+                    -webkit-transform: translateZ(0);
+                    transform: translateZ(0)
                   }
-                  
-                  body {
-                    font-family: Arial, Helvetica, sans-serif;
-                    font-size: 1rem;
-                    line-height: 1.5;
-                    color: #373a3c;
-                    background-color: #fff
+                  10%,
+                  30%,
+                  50%,
+                  70%,
+                  90% {
+                    -webkit-transform: translate3d(-10px, 0, 0);
+                    transform: translate3d(-10px, 0, 0)
                   }
-                  
-                  p {
-                    margin: 0
+                  20%,
+                  40%,
+                  60%,
+                  80% {
+                    -webkit-transform: translate3d(10px, 0, 0);
+                    transform: translate3d(10px, 0, 0)
                   }
-                  
-                  .error-field {
-                    -webkit-animation-name: shake;
-                    animation-name: shake;
-                    -webkit-animation-duration: 1s;
-                    animation-duration: 1s;
-                    -webkit-animation-fill-mode: both;
-                    animation-fill-mode: both
-                  }
-                  
-                  .error-field input,
-                  .error-field textarea {
-                    border-color: #a94442!important;
-                    color: #a94442!important
-                  }
-                  
-                  .field-error {
-                    padding: 5px 10px;
-                    font-size: 14px;
-                    font-weight: 700;
-                    position: absolute;
-                    top: -20px;
-                    right: 10px
-                  }
-                  
-                  .field-error:after {
-                    top: 100%;
-                    left: 50%;
-                    border: solid transparent;
-                    content: " ";
-                    height: 0;
-                    width: 0;
-                    position: absolute;
-                    pointer-events: none;
-                    border-color: rgba(136, 183, 213, 0);
-                    border-top-color: #ebcccc;
-                    border-width: 5px;
-                    margin-left: -5px
-                  }
-                  
-                  .spinner {
-                    margin: 0 auto;
-                    width: 70px;
-                    text-align: center
-                  }
-                  
-                  .spinner>div {
-                    width: 12px;
-                    height: 12px;
-                    background-color: hsla(0, 0%, 100%, .5);
-                    margin: 0 2px;
-                    border-radius: 100%;
-                    display: inline-block;
-                    -webkit-animation: sk-bouncedelay 1.4s infinite ease-in-out both;
-                    animation: sk-bouncedelay 1.4s infinite ease-in-out both
-                  }
-                  
-                  .spinner .bounce1 {
-                    -webkit-animation-delay: -.32s;
-                    animation-delay: -.32s
-                  }
-                  
-                  .spinner .bounce2 {
-                    -webkit-animation-delay: -.16s;
-                    animation-delay: -.16s
-                  }
-                  
-                  @-webkit-keyframes sk-bouncedelay {
-                    0%,
-                    80%,
-                    to {
-                      -webkit-transform: scale(0)
-                    }
-                    40% {
-                      -webkit-transform: scale(1)
-                    }
-                  }
-                  
-                  @keyframes sk-bouncedelay {
-                    0%,
-                    80%,
-                    to {
-                      -webkit-transform: scale(0);
-                      transform: scale(0)
-                    }
-                    40% {
-                      -webkit-transform: scale(1);
-                      transform: scale(1)
-                    }
-                  }
-                  
-                  @-webkit-keyframes shake {
-                    0%,
-                    to {
-                      -webkit-transform: translateZ(0);
-                      transform: translateZ(0)
-                    }
-                    10%,
-                    30%,
-                    50%,
-                    70%,
-                    90% {
-                      -webkit-transform: translate3d(-10px, 0, 0);
-                      transform: translate3d(-10px, 0, 0)
-                    }
-                    20%,
-                    40%,
-                    60%,
-                    80% {
-                      -webkit-transform: translate3d(10px, 0, 0);
-                      transform: translate3d(10px, 0, 0)
-                    }
-                  }
-                  
-                  @keyframes shake {
-                    0%,
-                    to {
-                      -webkit-transform: translateZ(0);
-                      transform: translateZ(0)
-                    }
-                    10%,
-                    30%,
-                    50%,
-                    70%,
-                    90% {
-                      -webkit-transform: translate3d(-10px, 0, 0);
-                      transform: translate3d(-10px, 0, 0)
-                    }
-                    20%,
-                    40%,
-                    60%,
-                    80% {
-                      -webkit-transform: translate3d(10px, 0, 0);
-                      transform: translate3d(10px, 0, 0)
-                    }
-                  }
-                  
-                  @media only screen and (max-width:480px) {
-                    .container {
-                      max-width: 100%!important
-                    }
-                  }
-                  
+                }
+                
+                @media only screen and (max-width:480px) {
                   .container {
-                    width: 100%;
-                    padding-right: 0;
-                    padding-left: 0;
-                    margin-right: auto;
-                    margin-left: auto
+                    max-width: 100%!important
                   }
-                  
-                  
-                  
-                  a[onclick] {
-                    cursor: pointer;
-                  }
-                </style>
+                }
+                
+                .container {
+                  width: 100%;
+                  padding-right: 0;
+                  padding-left: 0;
+                  margin-right: auto;
+                  margin-left: auto
+                }
+                
+                
+                
+                a[onclick] {
+                  cursor: pointer;
+                }
+              </style>
 
 
-              </head>
+            </head>
 
-              <body style="background-color:#fff;">
+            <body style="background-color:#fff;">
 
-                <div id="u_body" class="u_body" style="min-height: 100vh; color: #000000; background-color: #fff; font-family: arial,helvetica,sans-serif;">
+              <div id="u_body" class="u_body" style="min-height: 100vh; color: #000000; background-color: #fff; font-family: arial,helvetica,sans-serif;">
 
-                  <div id="u_row_1" class="u_row" style="padding: 0px;">
-                    <div class="container" style="width:100%;margin: 0 auto;">
-                      <div class="u-row">
+                <div id="u_row_1" class="u_row" style="padding: 0px;">
+                  <div class="container" style="width:100%;margin: 0 auto;">
+                    <div class="u-row">
 
-                        <div id="u_column_1" class="u-col u-col-100 u_column">
-                          <div style="padding: 0px;border-top: 0px solid transparent;border-left: 0px solid transparent;border-right: 0px solid transparent;border-bottom: 0px solid transparent;">
+                      <div id="u_column_1" class="u-col u-col-100 u_column">
+                        <div style="padding: 0px;border-top: 0px solid transparent;border-left: 0px solid transparent;border-right: 0px solid transparent;border-bottom: 0px solid transparent;">
 
-                            <div id="u_content_html_1" class="u_content_html" style="overflow-wrap: break-word;padding: 10px;">
-                            <div class="u-col u_column style="display: flex;flex-direction: column;align-items: flex-start;justify-content: center;padding:20px;padding-left:5%;padding-right:5%;font-family:Arial, Helvetica, sans-serif;font-size: 15px;flex:1;width:100%">
-                            <div style="width: 100px;height:100px;bottom:20px;position: relative;margin:auto">
-                                <img alt="TaxiConnect" src="https://ads-central-tc.s3.us-west-1.amazonaws.com/logo_ios.png" style="width: 100%;height: 100%;object-fit: contain;" />
-                            </div>
-                            <div style="border-bottom:1px solid #d0d0d0;display: flex;flex-direction: row;justify-content: space-between;margin-bottom: 15px;width: 100%;">
-                                <div style="display: flex;flex-direction: row;">
-                                    <div style="margin-left: 2%;">
-                                        <div style="font-weight: bold;font-size: 17px;">Posterity TaxiConnect Technologies CC</div>
-                                        <div style="font-size: 14px;margin-top: 5px;color:#272626bb">
-                                        <div>17 Schinz street</div>
-                                        <div>Windhoek</div>
-                                        <div>+264814400089</div>
-                                        <div>support@taxiconnectna.com</div>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div style="text-align: right;width:100%">
-                                    <div style="margin-bottom: 13px;">
-                                        <div style="font-weight: bold;font-size: 11px;">RECEIPT</div>
-                                        <div style="font-size: 14px;color:#272626bb;margin-top: 4px;">${receiptFp}</div>
-                                    </div>
-                                    <div style="margin-bottom: 13px;">
-                                        <div style="font-weight: bold;font-size: 11px;">DATE</div>
-                                        <div style="font-size: 14px;color:#272626bb;margin-top: 4px;">${
-                                          new Date(chaineDateUTC)
-                                            .toDateString()
-                                            .split(" ")[1]
-                                        } ${new Date(
+                          <div id="u_content_html_1" class="u_content_html" style="overflow-wrap: break-word;padding: 10px;">
+                          <div class="u-col u_column style="display: flex;flex-direction: column;align-items: flex-start;justify-content: center;padding:20px;padding-left:5%;padding-right:5%;font-family:Arial, Helvetica, sans-serif;font-size: 15px;flex:1;width:100%">
+                          <div style="width: 100px;height:100px;bottom:20px;position: relative;margin:auto">
+                              <img alt="TaxiConnect" src="https://ads-central-tc.s3.us-west-1.amazonaws.com/logo_ios.png" style="width: 100%;height: 100%;object-fit: contain;" />
+                          </div>
+                          <div style="border-bottom:1px solid #d0d0d0;display: flex;flex-direction: row;justify-content: space-between;margin-bottom: 15px;width: 100%;">
+                              <div style="display: flex;flex-direction: row;">
+                                  <div style="margin-left: 2%;">
+                                      <div style="font-weight: bold;font-size: 17px;">Posterity TaxiConnect Technologies CC</div>
+                                      <div style="font-size: 14px;margin-top: 5px;color:#272626bb">
+                                      <div>17 Schinz street</div>
+                                      <div>Windhoek</div>
+                                      <div>+264814400089</div>
+                                      <div>support@taxiconnectna.com</div>
+                                      </div>
+                                  </div>
+                              </div>
+                              <div style="text-align: right;width:100%">
+                                  <div style="margin-bottom: 13px;">
+                                      <div style="font-weight: bold;font-size: 11px;">RECEIPT</div>
+                                      <div style="font-size: 14px;color:#272626bb;margin-top: 4px;">${receiptFp}</div>
+                                  </div>
+                                  <div style="margin-bottom: 13px;">
+                                      <div style="font-weight: bold;font-size: 11px;">DATE</div>
+                                      <div style="font-size: 14px;color:#272626bb;margin-top: 4px;">${
+                                        new Date(chaineDateUTC)
+                                          .toDateString()
+                                          .split(" ")[1]
+                                      } ${new Date(
                 chaineDateUTC
               ).getDate()}, ${new Date(chaineDateUTC).getFullYear()}</div>
-                                    </div>
-                                    <div style="margin-bottom: 25px;min-width: 100px;">
-                                        <div style="font-weight: bold;font-size: 11px;">BALANCE DUE</div>
-                                        <div style="font-size: 14px;color:#272626bb;margin-top: 4px;">NAD $${parseFloat(
-                                          metaDataBundle.amount
-                                        ).toFixed(2)}</div>
-                                    </div>
-                                </div>
-                            </div>
-                        
-                            <div style="border:1px solid #fff;margin-top: 10px;width:100%">
-                                <div  style="font-size: 11px;margin-top: 5px;color:#272626bb">BILL TO</div>
-                                <div  style="font-weight: bold;font-size: 17px;margin-top: 10px;margin-bottom: 20px;">${companyData.company_name.toUpperCase()}</div>
-                                <div style="font-size: 14px;margin-top: 5px;color:#272626bb;line-height: 20px;">
-                                    <div>Windhoek</div>
-                                    <div>${companyData.phone}</div>
-                                    </div>
-                            </div>
-                        
-                            <div style="border-top:1px solid #272626bb;border-bottom:1px solid #272626bb; display: flex;flex-direction: row;color:#000;padding-bottom: 10px;padding-top:10px;margin-top: 40px;width:100%">
-                                <div style="flex:1;align-items: flex-end;font-weight: bold;font-size: 12px;width:50%;">DESCRIPTION</div>
-                                <div style="display: flex;flex-direction: row;text-align: right;font-size: 12px;font-weight: bold;flex:1;justify-content: space-between;width:50%">
-                                    <div style="flex:1;width:33%;">RATE</div>
-                                    <div style="flex:1;width:33%">QTY</div>
-                                    <div style="flex:1;width:33%">AMOUNT</div>
-                                </div>
-                            </div>
-
-                            <div style="border-bottom:1px dashed #272626bb; display: flex;flex-direction: row;color:#000;padding-bottom: 10px;padding-top:10px;margin-top: 10px;width:100%">
-                                <div style="flex:1;width:50%;">
-                                <div style="align-items: flex-end;font-weight: bold;font-size: 15px;margin-bottom: 5px;">${
-                                  metaDataBundle.plan_name
-                                }</div>
-                                <div style="color: #272626bb;font-size: 13px;">
-                                    Package purchased
-                                </div>
-                                </div>
-                                <div style="display: flex;flex-direction: row;text-align: right;font-size: 14px;color:#272626bb;flex:1;justify-content: space-between;width:50%">
-                                    <div style="flex:1;width:33%;">$${parseFloat(
-                                      amountRecomputed
-                                    ).toFixed(2)}</div>
-                                    <div style="flex:1;width:33%;">1</div>
-                                    <div style="flex:1;width:33%;">$${parseFloat(
-                                      amountRecomputed
-                                    ).toFixed(2)}</div>
-                                </div>
-                            </div>
-                        
-                            <div style="display: flex;flex-direction: row;justify-content: space-between;margin-top: 30px;align-items: center;width:100%">
-                                <div style="flex:1;color:#272626bb;font-size: 12px;padding-right: 30px;min-width:150px;">Thank you for choosing TaxiConnect for all your business delivery needs.</div>
-                                
-                                <di class="u-col u_column" style="flex:2;display:flex;flex-direction:column;width:70%;">
-                                  <table style="width:100%;">
-                                      <tr>
-                                          <div style="display:flex;flex-direction:row;justify-content: space-between;align-items: center;margin-bottom: 5px;width:100%;">
-                                              <div style="font-weight: bold;font-size:11px;width:50%;position:relative;top:5px;text-align:left;">SUBTOTAL</div>
-                                              <div style="font-size: 14px;color:#272626bb;width:50%;text-align:right;position:relative;bottom:3px">$${parseFloat(
-                                                amountRecomputed
-                                              ).toFixed(2)}</div>
-                                          </div>
-                                      </tr>
-                                      <tr>
-                                          <div style="border-bottom:1px solid #d0d0d0;padding-bottom:10px;display:flex;flex-direction:row;justify-content: space-between;align-items: center;margin-bottom: 10px;">
-                                              <div style="font-weight: bold;font-size:11px;width:50%;position:relative;top:5px">SERVICE FEE (4%)</div>
-                                              <div style="font-size: 14px;color:#272626bb;width:50%;text-align:right;position:relative;bottom:3px">$${
-                                                dpo_gateway_deduction_fees +
-                                                taxiconnect_service_fees
-                                              }</div>
-                                          </div>
-                                      </tr>
-                                      <tr>
-                                          <div style="border-bottom:1px solid #d0d0d0;padding-bottom:10px;display:flex;flex-direction:row;justify-content: space-between;align-items: center;margin-bottom: 15px;">
-                                              <div style="font-weight: bold;font-size:11px;width:50%;position:relative;top:5px">TOTAL</div>
-                                              <div style="font-size: 14px;color:#272626bb;width:50%;text-align:right;position:relative;bottom:3px">$${parseFloat(
-                                                metaDataBundle.amount
-                                              ).toFixed(2)}</div>
-                                          </div>
-                                      </tr>
-                                      <tr>
-                                          <div style="border-bottom:1px solid #d0d0d0;padding-bottom:10px;display:flex;flex-direction:row;justify-content: space-between;align-items: center;margin-bottom: 5px;">
-                                              <div style="font-weight: bold;font-size:12px;flex:1;width:50%;position:relative;top:5px">BALANCE PAID</div>
-                                              <div style="font-size: 15px;color:#272626bb;font-weight: bold;width:50%;text-align:right;position:relative;bottom:3px">NAD $${parseFloat(
-                                                metaDataBundle.amount
-                                              ).toFixed(2)}</div>
-                                          </div>
-                                      </tr>
-                                  </table>
-                                </div>
-                            </div>
-                        </div>
-                            </div>
-
+                                  </div>
+                                  <div style="margin-bottom: 25px;min-width: 100px;">
+                                      <div style="font-weight: bold;font-size: 11px;">BALANCE DUE</div>
+                                      <div style="font-size: 14px;color:#272626bb;margin-top: 4px;">NAD $${parseFloat(
+                                        metaDataBundle.amount
+                                      ).toFixed(2)}</div>
+                                  </div>
+                              </div>
                           </div>
-                        </div>
+                      
+                          <div style="border:1px solid #fff;margin-top: 10px;width:100%">
+                              <div  style="font-size: 11px;margin-top: 5px;color:#272626bb">BILL TO</div>
+                              <div  style="font-weight: bold;font-size: 17px;margin-top: 10px;margin-bottom: 20px;">${companyData.company_name.toUpperCase()}</div>
+                              <div style="font-size: 14px;margin-top: 5px;color:#272626bb;line-height: 20px;">
+                                  <div>Windhoek</div>
+                                  <div>${companyData.phone}</div>
+                                  </div>
+                          </div>
+                      
+                          <div style="border-top:1px solid #272626bb;border-bottom:1px solid #272626bb; display: flex;flex-direction: row;color:#000;padding-bottom: 10px;padding-top:10px;margin-top: 40px;width:100%">
+                              <div style="flex:1;align-items: flex-end;font-weight: bold;font-size: 12px;width:50%;">DESCRIPTION</div>
+                              <div style="display: flex;flex-direction: row;text-align: right;font-size: 12px;font-weight: bold;flex:1;justify-content: space-between;width:50%">
+                                  <div style="flex:1;width:33%;">RATE</div>
+                                  <div style="flex:1;width:33%">QTY</div>
+                                  <div style="flex:1;width:33%">AMOUNT</div>
+                              </div>
+                          </div>
 
+                          <div style="border-bottom:1px dashed #272626bb; display: flex;flex-direction: row;color:#000;padding-bottom: 10px;padding-top:10px;margin-top: 10px;width:100%">
+                              <div style="flex:1;width:50%;">
+                              <div style="align-items: flex-end;font-weight: bold;font-size: 15px;margin-bottom: 5px;">${
+                                metaDataBundle.plan_name
+                              }</div>
+                              <div style="color: #272626bb;font-size: 13px;">
+                                  Package purchased
+                              </div>
+                              </div>
+                              <div style="display: flex;flex-direction: row;text-align: right;font-size: 14px;color:#272626bb;flex:1;justify-content: space-between;width:50%">
+                                  <div style="flex:1;width:33%;">$${parseFloat(
+                                    amountRecomputed
+                                  ).toFixed(2)}</div>
+                                  <div style="flex:1;width:33%;">1</div>
+                                  <div style="flex:1;width:33%;">$${parseFloat(
+                                    amountRecomputed
+                                  ).toFixed(2)}</div>
+                              </div>
+                          </div>
+                      
+                          <div style="display: flex;flex-direction: row;justify-content: space-between;margin-top: 30px;align-items: center;width:100%">
+                              <div style="flex:1;color:#272626bb;font-size: 12px;padding-right: 30px;min-width:150px;">Thank you for choosing TaxiConnect for all your business delivery needs.</div>
+                              
+                              <di class="u-col u_column" style="flex:2;display:flex;flex-direction:column;width:70%;">
+                                <table style="width:100%;">
+                                    <tr>
+                                        <div style="display:flex;flex-direction:row;justify-content: space-between;align-items: center;margin-bottom: 5px;width:100%;">
+                                            <div style="font-weight: bold;font-size:11px;width:50%;position:relative;top:5px;text-align:left;">SUBTOTAL</div>
+                                            <div style="font-size: 14px;color:#272626bb;width:50%;text-align:right;position:relative;bottom:3px">$${parseFloat(
+                                              amountRecomputed
+                                            ).toFixed(2)}</div>
+                                        </div>
+                                    </tr>
+                                    <tr>
+                                        <div style="border-bottom:1px solid #d0d0d0;padding-bottom:10px;display:flex;flex-direction:row;justify-content: space-between;align-items: center;margin-bottom: 10px;">
+                                            <div style="font-weight: bold;font-size:11px;width:50%;position:relative;top:5px">SERVICE FEE (4%)</div>
+                                            <div style="font-size: 14px;color:#272626bb;width:50%;text-align:right;position:relative;bottom:3px">$${
+                                              dpo_gateway_deduction_fees +
+                                              taxiconnect_service_fees
+                                            }</div>
+                                        </div>
+                                    </tr>
+                                    <tr>
+                                        <div style="border-bottom:1px solid #d0d0d0;padding-bottom:10px;display:flex;flex-direction:row;justify-content: space-between;align-items: center;margin-bottom: 15px;">
+                                            <div style="font-weight: bold;font-size:11px;width:50%;position:relative;top:5px">TOTAL</div>
+                                            <div style="font-size: 14px;color:#272626bb;width:50%;text-align:right;position:relative;bottom:3px">$${parseFloat(
+                                              metaDataBundle.amount
+                                            ).toFixed(2)}</div>
+                                        </div>
+                                    </tr>
+                                    <tr>
+                                        <div style="border-bottom:1px solid #d0d0d0;padding-bottom:10px;display:flex;flex-direction:row;justify-content: space-between;align-items: center;margin-bottom: 5px;">
+                                            <div style="font-weight: bold;font-size:12px;flex:1;width:50%;position:relative;top:5px">BALANCE PAID</div>
+                                            <div style="font-size: 15px;color:#272626bb;font-weight: bold;width:50%;text-align:right;position:relative;bottom:3px">NAD $${parseFloat(
+                                              metaDataBundle.amount
+                                            ).toFixed(2)}</div>
+                                        </div>
+                                    </tr>
+                                </table>
+                              </div>
+                          </div>
                       </div>
+                          </div>
+
+                        </div>
+                      </div>
+
                     </div>
                   </div>
-
                 </div>
 
-              </body>
+              </div>
 
-              </html>
-        `;
+            </body>
+
+            </html>
+      `;
 
               //? Save the email dispatch event
               new Promise((saveEvent) => {
@@ -1691,17 +1739,18 @@ function sendReceipt(metaDataBundle, scenarioType, resolve) {
                   date: new Date(chaineDateUTC),
                 };
                 //...
-                collectionGlobalEvents.insertOne(
-                  eventBundle,
-                  function (err, reslt) {
-                    if (err) {
-                      logger.error(err);
+                dynamo_insert("global_events", eventBundle)
+                  .then((result) => {
+                    if (!result) {
                       saveEvent(false);
                     }
                     //...
                     saveEvent(true);
-                  }
-                );
+                  })
+                  .catch((error) => {
+                    logger.error(error);
+                    saveEvent(false);
+                  });
               })
                 .then()
                 .catch((error) => logger.error(error));
@@ -1723,6 +1772,10 @@ function sendReceipt(metaDataBundle, scenarioType, resolve) {
         else {
           resolve(false);
         }
+      })
+      .catch((error) => {
+        logger.error(error);
+        resolve(false);
       });
   } else {
     resolve(false);
@@ -1867,72 +1920,79 @@ requestAPI(
             let dynamicRequesterFetcher =
               /normal/i.test(dataBundle.request_globality) ||
               dataBundle.request_globality === undefined
-                ? collectionPassengers_profiles.find({
-                    user_fingerprint: dataBundle.user_fp,
+                ? dynamo_find_query({
+                    table_name: "passengers_profiles",
+                    IndexName: "user_fingerprint",
+                    KeyConditionExpression: "user_fingerprint = :val1",
+                    ExpressionAttributeValues: {
+                      ":val1": dataBundle.user_fp,
+                    },
                   })
-                : collectionDedicatedServices_accounts.find({
-                    company_fp: dataBundle.user_fp,
+                : dynamo_find_query({
+                    table_name: "dedicated_services_accounts",
+                    IndexName: "company_fp",
+                    KeyConditionExpression: "company_fp = :val1",
+                    ExpressionAttributeValues: {
+                      ":val1": dataBundle.user_fp,
+                    },
                   });
             //...
             logger.warn(dataBundle);
-            dynamicRequesterFetcher.toArray(function (error, usersDetails) {
-              if (error) {
-                logger.info(error);
-                res.send({ response: false, message: "transaction_error" });
-              }
-              //...
-              let dynamicConds =
-                /normal/i.test(dataBundle.request_globality) ||
-                dataBundle.request_globality === undefined
-                  ? usersDetails.length > 0 &&
-                    usersDetails[0].user_fingerprint !== undefined &&
-                    usersDetails[0].user_fingerprint !== null
-                  : usersDetails.length > 0 &&
-                    usersDetails[0].company_fp !== undefined &&
-                    usersDetails[0].company_fp !== null;
-              //Isoltate the phone number
-              let customerPhone =
-                /normal/i.test(dataBundle.request_globality) ||
-                dataBundle.request_globality === undefined
-                  ? usersDetails[0].phone_number
-                  : usersDetails[0].phone;
-              let dialCode = "NA";
-              //...
-              customerPhone = customerPhone.replace("+", "");
-              //Isolate the firstname and lastname
-              let customerFirstName =
-                /normal/i.test(dataBundle.request_globality) ||
-                dataBundle.request_globality === undefined
-                  ? usersDetails[0].name
-                  : usersDetails[0].user_registerer.first_name;
-              //...
-              let customerLastName =
-                /normal/i.test(dataBundle.request_globality) ||
-                dataBundle.request_globality === undefined
-                  ? usersDetails[0].surname
-                  : usersDetails[0].user_registerer.last_name;
-              //...
-              if (dynamicConds) {
-                //?Found some valid details
+            dynamicRequesterFetcher
+              .then((usersDetails) => {
                 //...
-                //! LIMIT THE TRANSACTION AMOUNT TO N$1000 (N$50-N$1000)
-                //? Make dynamic limit based on the request globality
-                let maxAmountLimit =
+                let dynamicConds =
                   /normal/i.test(dataBundle.request_globality) ||
                   dataBundle.request_globality === undefined
-                    ? 1000
-                    : 15000;
+                    ? usersDetails.length > 0 &&
+                      usersDetails[0].user_fingerprint !== undefined &&
+                      usersDetails[0].user_fingerprint !== null
+                    : usersDetails.length > 0 &&
+                      usersDetails[0].company_fp !== undefined &&
+                      usersDetails[0].company_fp !== null;
+                //Isoltate the phone number
+                let customerPhone =
+                  /normal/i.test(dataBundle.request_globality) ||
+                  dataBundle.request_globality === undefined
+                    ? usersDetails[0].phone_number
+                    : usersDetails[0].phone;
+                let dialCode = "NA";
                 //...
-                if (
-                  parseFloat(dataBundle.amount) >= 50 &&
-                  parseFloat(dataBundle.amount) <= maxAmountLimit
-                ) {
-                  //? Remove _ from the name
-                  dataBundle.name = dataBundle.name.replace(/_/g, " ");
-                  //CREATE TOKEN
-                  new Promise((resolve) => {
-                    //? XML TOKEN responsible for creating a transaction token before any payment.
-                    let xmlCreateToken = `
+                customerPhone = customerPhone.replace("+", "");
+                //Isolate the firstname and lastname
+                let customerFirstName =
+                  /normal/i.test(dataBundle.request_globality) ||
+                  dataBundle.request_globality === undefined
+                    ? usersDetails[0].name
+                    : usersDetails[0].user_registerer.first_name;
+                //...
+                let customerLastName =
+                  /normal/i.test(dataBundle.request_globality) ||
+                  dataBundle.request_globality === undefined
+                    ? usersDetails[0].surname
+                    : usersDetails[0].user_registerer.last_name;
+                //...
+                if (dynamicConds) {
+                  //?Found some valid details
+                  //...
+                  //! LIMIT THE TRANSACTION AMOUNT TO N$1000 (N$50-N$1000)
+                  //? Make dynamic limit based on the request globality
+                  let maxAmountLimit =
+                    /normal/i.test(dataBundle.request_globality) ||
+                    dataBundle.request_globality === undefined
+                      ? 1000
+                      : 15000;
+                  //...
+                  if (
+                    parseFloat(dataBundle.amount) >= 50 &&
+                    parseFloat(dataBundle.amount) <= maxAmountLimit
+                  ) {
+                    //? Remove _ from the name
+                    dataBundle.name = dataBundle.name.replace(/_/g, " ");
+                    //CREATE TOKEN
+                    new Promise((resolve) => {
+                      //? XML TOKEN responsible for creating a transaction token before any payment.
+                      let xmlCreateToken = `
                       <?xml version="1.0" encoding="utf-8"?>
                       <API3G>
                       <CompanyToken>${
@@ -1997,100 +2057,106 @@ requestAPI(
                       </API3G>
                       `;
 
-                    // logger.info(xmlCreateToken);
+                      // logger.info(xmlCreateToken);
 
-                    createPaymentTransaction(
-                      xmlCreateToken,
-                      dataBundle.user_fp,
-                      collectionWalletTransactions_logs,
-                      resolve
-                    );
-                  }).then(
-                    (reslt) => {
-                      logger.warn(reslt);
-                      //Deduct XML response
-                      new Promise((resolve) => {
-                        deductXML_responses(reslt, "createToken", resolve);
-                      }).then(
-                        (result_createTokenDeducted) => {
-                          if (result_createTokenDeducted !== false) {
-                            //? Continue the top-up process
-                            new Promise((resFollower) => {
-                              processExecute_paymentCardWallet_topup(
-                                dataBundle,
-                                result_createTokenDeducted,
-                                collectionWalletTransactions_logs,
-                                collectionPassengers_profiles,
-                                collectionGlobalEvents,
-                                resFollower
+                      createPaymentTransaction(
+                        xmlCreateToken,
+                        dataBundle.user_fp,
+                        collectionWalletTransactions_logs,
+                        resolve
+                      );
+                    }).then(
+                      (reslt) => {
+                        logger.warn(reslt);
+                        //Deduct XML response
+                        new Promise((resolve) => {
+                          deductXML_responses(reslt, "createToken", resolve);
+                        }).then(
+                          (result_createTokenDeducted) => {
+                            if (result_createTokenDeducted !== false) {
+                              //? Continue the top-up process
+                              new Promise((resFollower) => {
+                                processExecute_paymentCardWallet_topup(
+                                  dataBundle,
+                                  result_createTokenDeducted,
+                                  collectionWalletTransactions_logs,
+                                  collectionPassengers_profiles,
+                                  collectionGlobalEvents,
+                                  resFollower
+                                );
+                              }).then(
+                                (result_final) => {
+                                  res.send(result_final); //!Remove dpoFinal object and remove object bracket form!
+                                },
+                                (error) => {
+                                  logger.info(error);
+                                  res.send({
+                                    response: false,
+                                    message: "transaction_error",
+                                  });
+                                }
                               );
-                            }).then(
-                              (result_final) => {
-                                res.send(result_final); //!Remove dpoFinal object and remove object bracket form!
-                              },
-                              (error) => {
-                                logger.info(error);
-                                res.send({
-                                  response: false,
-                                  message: "transaction_error",
-                                });
-                              }
-                            );
-                          } //Error
-                          else {
+                            } //Error
+                            else {
+                              res.send({
+                                response: false,
+                                message: "transaction_error",
+                              });
+                            }
+                          },
+                          (error) => {
+                            logger.info(error);
                             res.send({
                               response: false,
-                              message: "transaction_error",
+                              message: "token_error",
                             });
                           }
-                        },
-                        (error) => {
-                          logger.info(error);
-                          res.send({
-                            response: false,
-                            message: "token_error",
-                          });
-                        }
-                      );
-                    },
-                    (error) => {
-                      logger.info(error);
-                      res.send({ response: false, message: "token_error" });
-                    }
-                  );
-                } //! AMOUNT TOO LARGE - DECLINE
+                        );
+                      },
+                      (error) => {
+                        logger.info(error);
+                        res.send({ response: false, message: "token_error" });
+                      }
+                    );
+                  } //! AMOUNT TOO LARGE - DECLINE
+                  else {
+                    res.send({
+                      response: false,
+                      message: "transaction_error_exceeded_limit",
+                    });
+                  }
+                } //?Strange - did not find a rider account linked to this request
                 else {
-                  res.send({
-                    response: false,
-                    message: "transaction_error_exceeded_limit",
-                  });
-                }
-              } //?Strange - did not find a rider account linked to this request
-              else {
-                logger.info("Not found users");
-                //Save error event log
-                new Promise((resFailedTransaction) => {
-                  let faildTransObj = {
-                    event_name: "unlinked_rider_account_topup_failed_trial",
-                    user_fingerprint: dataBundle.user_fp,
-                    inputData: dataBundle,
-                    date_captured: new Date(chaineDateUTC),
-                  };
-                  //...
-                  collectionGlobalEvents.insertOne(
-                    faildTransObj,
-                    function (err, reslt) {
-                      resFailedTransaction(true);
-                    }
+                  logger.info("Not found users");
+                  //Save error event log
+                  new Promise((resFailedTransaction) => {
+                    let faildTransObj = {
+                      event_name: "unlinked_rider_account_topup_failed_trial",
+                      user_fingerprint: dataBundle.user_fp,
+                      inputData: dataBundle,
+                      date_captured: new Date(chaineDateUTC),
+                    };
+                    //...
+                    dynamo_insert("global_events", faildTransObj)
+                      .then((result) => {
+                        resFailedTransaction(true);
+                      })
+                      .catch((error) => {
+                        logger.error(error);
+                        resFailedTransaction(false);
+                      });
+                  }).then(
+                    () => {},
+                    () => {}
                   );
-                }).then(
-                  () => {},
-                  () => {}
-                );
-                //...
+                  //...
+                  res.send({ response: false, message: "transaction_error" });
+                }
+              })
+              .catch((error) => {
+                logger.info(error);
                 res.send({ response: false, message: "transaction_error" });
-              }
-            });
+              });
           } //Invalid input data
           else {
             res.send({
@@ -2369,173 +2435,181 @@ requestAPI(
          * Responsible for creating one time (with voucher money) and recursive (% based) rewards for specific organizations.
          */
         app.post("/createOneTimeOrRecusiveRewards", function (req, res) {
-          new Promise((resolve) => {
-            resolveDate();
-            req = req.body;
+          res.status(404).json({
+            status: "missing",
+          });
+          // new Promise((resolve) => {
+          //   resolveDate();
+          //   req = req.body;
 
-            let api_keys = [
-              "kdasdfhjlajksdlasjkdlkscnklajsflskdjl;asdjlsjkdfaklsdjlaskdjlaskjdlaskdjdehjsfhsljdlsk",
-            ];
-            let allowed_roganizations = ["SANLAM"];
+          //   let api_keys = [
+          //     "kdasdfhjlajksdlasjkdlkscnklajsflskdjl;asdjlsjkdfaklsdjlaskdjlaskjdlaskdjdehjsfhsljdlsk",
+          //   ];
+          //   let allowed_roganizations = ["SANLAM"];
 
-            //! Detect the reward type
-            if (
-              req.customer_infos !== undefined &&
-              req.customer_infos !== null &&
-              req.key !== undefined &&
-              req.key !== null &&
-              req.organization_infos !== undefined &&
-              req.organization_infos !== null &&
-              req.organization_infos.name !== undefined &&
-              req.organization_infos.name !== null &&
-              api_keys.includes(req.key) &&
-              allowed_roganizations.includes(req.organization_infos.name) &&
-              req.voucher_code !== undefined &&
-              req.voucher_code !== null
-            ) {
-              //! Transaction nature: onetime_voucher, recursive_voucher
-              //! Use the phone number as the reference
-              //? Check that the voucher code is unique
-              collectionWalletTransactions_logs
-                .find({ voucher_code: req.voucher_code })
-                .toArray(function (err, voucherData) {
-                  if (err) {
-                    logger.error(err);
-                    resolve({
-                      response:
-                        "Unexpected error occured, it this error perists contact support@taxiconnectna.com",
-                    });
-                  }
-                  //...
-                  if (voucherData !== undefined && voucherData.length === 0) {
-                    //? Unique, allow
-                    if (
-                      req.reward_type === "onetime" &&
-                      req.voucher_value !== undefined &&
-                      req.voucher_value !== null
-                    ) {
-                      //One time rewards
-                      let bundleReward = {
-                        transaction_nature: "onetime_voucher",
-                        organization: req.organization_infos,
-                        ref_phone_number: req.customer_infos.phone_number,
-                        recipient_fp: "",
-                        amount: parseFloat(req.voucher_value),
-                        payment_currency: "NAD",
-                        voucher_code: req.voucher_code,
-                        timestamp: Math.round(
-                          new Date(chaineDateUTC).getTime()
-                        ),
-                        date_captured: new Date(chaineDateUTC),
-                      };
-                      //...
-                      collectionWalletTransactions_logs.insertOne(
-                        bundleReward,
-                        function (err, insrtData) {
-                          if (err) {
-                            logger.error(err);
-                            resolve({
-                              response:
-                                "Unable to create the one-time reward, it this error perists contact support@taxiconnectna.com",
-                            });
-                          }
-                          //...
-                          resolve({
-                            response: {
-                              status: "onetime_reward_successfully_created",
-                              user: req.customer_infos.phone_number,
-                              amount: req.voucher_value,
-                              time_signature: bundleReward.timestamp,
-                            },
-                          });
-                        }
-                      );
-                    } else if (
-                      req.reward_type === "recursive" &&
-                      req.apply_after !== undefined &&
-                      req.apply_after !== null &&
-                      req.apply_to !== undefined &&
-                      req.apply_to !== null &&
-                      req.discount_percentage !== undefined &&
-                      req.discount_percentage !== null
-                    ) {
-                      //Recursive rewards
-                      //! Check that no previous recusrive discount is active
-                      let bundleReward = {
-                        transaction_nature: "recursive_voucher",
-                        organization: req.organization_infos,
-                        ref_phone_number: req.customer_infos.phone_number,
-                        recipient_fp: "",
-                        discount_percentage: parseFloat(
-                          req.discount_percentage
-                        ),
-                        apply_after: req.apply_after, //Number of trips after which to start applying the reward
-                        apply_to: req.apply_to, //Number of trips to which the discount should be applied
-                        payment_currency: "NAD",
-                        voucher_code: req.voucher_code,
-                        timestamp: Math.round(
-                          new Date(chaineDateUTC).getTime()
-                        ),
-                        date_captured: new Date(chaineDateUTC),
-                      };
-                      //...
-                      collectionWalletTransactions_logs.insertOne(
-                        bundleReward,
-                        function (err, insrtData) {
-                          if (err) {
-                            logger.error(err);
-                            resolve({
-                              response:
-                                "Unable to create the one-time reward, it this error perists contact support@taxiconnectna.com",
-                            });
-                          }
-                          //...
-                          resolve({
-                            response: {
-                              status: "recursive_reward_successfully_created",
-                              user: req.customer_infos.phone_number,
-                              apply_after: req.apply_after,
-                              apply_to: req.apply_to,
-                              discount_percentage: req.discount_percentage,
-                              time_signature: bundleReward.timestamp,
-                            },
-                          });
-                        }
-                      );
-                    } //No type specified
-                    else {
-                      resolve({
-                        response:
-                          "Missing parameters, please refer the the documentation for more details on how to use the parameters.",
-                      });
-                    }
-                  } //! Not unique voucher code detected
-                  else {
-                    resolve({
-                      response:
-                        "The voucher code provided is not unique, please regenerate it preferably based on the current timestamp and try again.",
-                    });
-                  }
-                });
-            } //! Invalid data
-            else {
-              resolve({
-                response:
-                  "Missing parameters, please refer the the documentation for more details on how to use the parameters.",
-              });
-            }
-          })
-            .then((result) => {
-              logger.info(result);
-              res.send(result);
-            })
-            .catch((error) => {
-              logger.error(error);
-              res.send({
-                response:
-                  "Unexpected error occured, it this error perists contact support@taxiconnectna.com",
-              });
-            });
+          //   //! Detect the reward type
+          //   if (
+          //     req.customer_infos !== undefined &&
+          //     req.customer_infos !== null &&
+          //     req.key !== undefined &&
+          //     req.key !== null &&
+          //     req.organization_infos !== undefined &&
+          //     req.organization_infos !== null &&
+          //     req.organization_infos.name !== undefined &&
+          //     req.organization_infos.name !== null &&
+          //     api_keys.includes(req.key) &&
+          //     allowed_roganizations.includes(req.organization_infos.name) &&
+          //     req.voucher_code !== undefined &&
+          //     req.voucher_code !== null
+          //   ) {
+          //     //! Transaction nature: onetime_voucher, recursive_voucher
+          //     //! Use the phone number as the reference
+          //     //? Check that the voucher code is unique
+          //     dynamo_find_query({
+          //       table_name: "wallet_transactions_logs",
+          //       IndexName: "voucher_code",
+          //       KeyConditionExpression: "voucher_code = :val1",
+          //       ExpressionAttributeValues: {
+          //         ":val1": req.voucher_code,
+          //       },
+          //     })
+          //       .then((voucherData) => {
+          //         if (voucherData !== undefined && voucherData.length === 0) {
+          //           //? Unique, allow
+          //           if (
+          //             req.reward_type === "onetime" &&
+          //             req.voucher_value !== undefined &&
+          //             req.voucher_value !== null
+          //           ) {
+          //             //One time rewards
+          //             let bundleReward = {
+          //               transaction_nature: "onetime_voucher",
+          //               organization: req.organization_infos,
+          //               ref_phone_number: req.customer_infos.phone_number,
+          //               recipient_fp: "",
+          //               amount: parseFloat(req.voucher_value),
+          //               payment_currency: "NAD",
+          //               voucher_code: req.voucher_code,
+          //               timestamp: Math.round(
+          //                 new Date(chaineDateUTC).getTime()
+          //               ),
+          //               date_captured: new Date(chaineDateUTC),
+          //             };
+          //             //...
+          //             collectionWalletTransactions_logs.ins\ertOne(
+          //               bundleReward,
+          //               function (err, insrtData) {
+          //                 if (err) {
+          //                   logger.error(err);
+          //                   resolve({
+          //                     response:
+          //                       "Unable to create the one-time reward, it this error perists contact support@taxiconnectna.com",
+          //                   });
+          //                 }
+          //                 //...
+          //                 resolve({
+          //                   response: {
+          //                     status: "onetime_reward_successfully_created",
+          //                     user: req.customer_infos.phone_number,
+          //                     amount: req.voucher_value,
+          //                     time_signature: bundleReward.timestamp,
+          //                   },
+          //                 });
+          //               }
+          //             );
+          //           } else if (
+          //             req.reward_type === "recursive" &&
+          //             req.apply_after !== undefined &&
+          //             req.apply_after !== null &&
+          //             req.apply_to !== undefined &&
+          //             req.apply_to !== null &&
+          //             req.discount_percentage !== undefined &&
+          //             req.discount_percentage !== null
+          //           ) {
+          //             //Recursive rewards
+          //             //! Check that no previous recusrive discount is active
+          //             let bundleReward = {
+          //               transaction_nature: "recursive_voucher",
+          //               organization: req.organization_infos,
+          //               ref_phone_number: req.customer_infos.phone_number,
+          //               recipient_fp: "",
+          //               discount_percentage: parseFloat(
+          //                 req.discount_percentage
+          //               ),
+          //               apply_after: req.apply_after, //Number of trips after which to start applying the reward
+          //               apply_to: req.apply_to, //Number of trips to which the discount should be applied
+          //               payment_currency: "NAD",
+          //               voucher_code: req.voucher_code,
+          //               timestamp: Math.round(
+          //                 new Date(chaineDateUTC).getTime()
+          //               ),
+          //               date_captured: new Date(chaineDateUTC),
+          //             };
+          //             //...
+          //             collectionWalletTransactions_logs.ins\ertOne(
+          //               bundleReward,
+          //               function (err, insrtData) {
+          //                 if (err) {
+          //                   logger.error(err);
+          //                   resolve({
+          //                     response:
+          //                       "Unable to create the one-time reward, it this error perists contact support@taxiconnectna.com",
+          //                   });
+          //                 }
+          //                 //...
+          //                 resolve({
+          //                   response: {
+          //                     status: "recursive_reward_successfully_created",
+          //                     user: req.customer_infos.phone_number,
+          //                     apply_after: req.apply_after,
+          //                     apply_to: req.apply_to,
+          //                     discount_percentage: req.discount_percentage,
+          //                     time_signature: bundleReward.timestamp,
+          //                   },
+          //                 });
+          //               }
+          //             );
+          //           } //No type specified
+          //           else {
+          //             resolve({
+          //               response:
+          //                 "Missing parameters, please refer the the documentation for more details on how to use the parameters.",
+          //             });
+          //           }
+          //         } //! Not unique voucher code detected
+          //         else {
+          //           resolve({
+          //             response:
+          //               "The voucher code provided is not unique, please regenerate it preferably based on the current timestamp and try again.",
+          //           });
+          //         }
+          //       })
+          //       .catch((error) => {
+          //         logger.error(error);
+          //         resolve({
+          //           response:
+          //             "Unexpected error occured, it this error perists contact support@taxiconnectna.com",
+          //         });
+          //       });
+          //   } //! Invalid data
+          //   else {
+          //     resolve({
+          //       response:
+          //         "Missing parameters, please refer the the documentation for more details on how to use the parameters.",
+          //     });
+          //   }
+          // })
+          //   .then((result) => {
+          //     logger.info(result);
+          //     res.send(result);
+          //   })
+          //   .catch((error) => {
+          //     logger.error(error);
+          //     res.send({
+          //       response:
+          //         "Unexpected error occured, it this error perists contact support@taxiconnectna.com",
+          //     });
+          //   });
         });
 
         /**
@@ -2543,114 +2617,117 @@ requestAPI(
          * Responsible for getting the reward information for an organization based on a phone number
          */
         app.post("/getRewardListFromUserId", function (req, res) {
-          new Promise((resolve) => {
-            resolveDate();
-            req = req.body;
+          // new Promise((resolve) => {
+          // resolveDate();
+          res.send({
+            response:
+              "Unexpected error occured, it this error perists contact support@taxiconnectna.com",
+          });
+          //   req = req.body;
 
-            let api_keys = ["123"];
-            let allowed_roganizations = ["SANLAM"];
+          //   let api_keys = ["123"];
+          //   let allowed_roganizations = ["SANLAM"];
 
-            //! Detect the reward type
-            if (
-              req.customer_infos !== undefined &&
-              req.customer_infos !== null &&
-              req.customer_infos.phone_number !== undefined &&
-              req.customer_infos.phone_number !== null &&
-              req.key !== undefined &&
-              req.key !== null &&
-              req.organization_infos !== undefined &&
-              req.organization_infos !== null &&
-              req.organization_infos.name !== undefined &&
-              req.organization_infos.name !== null &&
-              api_keys.includes(req.key) &&
-              allowed_roganizations.includes(req.organization_infos.name)
-            ) {
-              //! Transaction nature: onetime_voucher, recursive_voucher
-              //! Use the phone number as the reference
-              // let redisKey = `${req.customer_infos.phone_number}-listOfRewardsLinkedToTHisPhone_number`;
-
-              collectionWalletTransactions_logs
-                .find({
-                  ref_phone_number: req.customer_infos.phone_number.trim(),
-                })
-                .toArray(function (err, rewardsData) {
-                  if (err) {
-                    logger.error(err);
-                    resolve({
-                      response:
-                        "Unexpected error occured, it this error perists contact support@taxiconnectna.com",
-                    });
-                  }
-                  //...
-                  if (rewardsData !== undefined && rewardsData.length > 0) {
-                    //Has data
-                    let distilledRewardsList = [];
-                    //...
-                    rewardsData.map((r) => {
-                      if (r.transaction_nature === "onetime_voucher") {
-                        let tmp = {
-                          reward_type: r.transaction_nature,
-                          user_phone_number: r.ref_phone_number,
-                          amount: r.amount,
-                          voucher_code: r.voucher_code,
-                          timestamp: r.timestamp,
-                          is_it_applied: r.user_fingerprint.length > 0,
-                          date_created: r.date_captured,
-                        };
-                        //...Save
-                        distilledRewardsList.push(tmp);
-                      } else if (r.transaction_nature === "recursive_voucher") {
-                        let tmp = {
-                          reward_type: r.transaction_nature,
-                          user_phone_number: r.ref_phone_number,
-                          discount_percentage: r.discount_percentage,
-                          apply_after: r.apply_after,
-                          apply_to: r.apply_to,
-                          voucher_code: r.voucher_code,
-                          timestamp: r.timestamp,
-                          is_it_applied: r.user_fingerprint.length > 0,
-                          date_created: r.date_captured,
-                        };
-                        //...Save
-                        distilledRewardsList.push(tmp);
-                      }
-                    });
-                    //...
-                    resolve({
-                      response: {
-                        status: "success",
-                        data: distilledRewardsList,
-                      },
-                    });
-                  } //No data
-                  else {
-                    resolve({
-                      response: {
-                        status: "No rewards data found",
-                        date: new Date(chaineDateUTC),
-                      },
-                    });
-                  }
-                });
-            } //! Invalid data
-            else {
-              resolve({
-                response:
-                  "Missing parameters, please refer the the documentation for more details on how to use the parameters.",
-              });
-            }
-          })
-            .then((result) => {
-              logger.info(result);
-              res.send(result);
-            })
-            .catch((error) => {
-              logger.error(error);
-              res.send({
-                response:
-                  "Unexpected error occured, it this error perists contact support@taxiconnectna.com",
-              });
-            });
+          //   //! Detect the reward type
+          //   if (
+          //     req.customer_infos !== undefined &&
+          //     req.customer_infos !== null &&
+          //     req.customer_infos.phone_number !== undefined &&
+          //     req.customer_infos.phone_number !== null &&
+          //     req.key !== undefined &&
+          //     req.key !== null &&
+          //     req.organization_infos !== undefined &&
+          //     req.organization_infos !== null &&
+          //     req.organization_infos.name !== undefined &&
+          //     req.organization_infos.name !== null &&
+          //     api_keys.includes(req.key) &&
+          //     allowed_roganizations.includes(req.organization_infos.name)
+          //   ) {
+          //     //! Transaction nature: onetime_voucher, recursive_voucher
+          //     //! Use the phone number as the reference
+          //     // let redisKey = `${req.customer_infos.phone_number}-listOfRewardsLinkedToTHisPhone_number`;
+          //     collectionWalletTransactions_logs
+          //       .fi\nd({
+          //         ref_phone_number: req.customer_infos.phone_number.trim(),
+          //       })
+          //       .toArray(function (err, rewardsData) {
+          //         if (err) {
+          //           logger.error(err);
+          //           resolve({
+          //             response:
+          //               "Unexpected error occured, it this error perists contact support@taxiconnectna.com",
+          //           });
+          //         }
+          //         //...
+          //         if (rewardsData !== undefined && rewardsData.length > 0) {
+          //           //Has data
+          //           let distilledRewardsList = [];
+          //           //...
+          //           rewardsData.map((r) => {
+          //             if (r.transaction_nature === "onetime_voucher") {
+          //               let tmp = {
+          //                 reward_type: r.transaction_nature,
+          //                 user_phone_number: r.ref_phone_number,
+          //                 amount: r.amount,
+          //                 voucher_code: r.voucher_code,
+          //                 timestamp: r.timestamp,
+          //                 is_it_applied: r.user_fingerprint.length > 0,
+          //                 date_created: r.date_captured,
+          //               };
+          //               //...Save
+          //               distilledRewardsList.push(tmp);
+          //             } else if (r.transaction_nature === "recursive_voucher") {
+          //               let tmp = {
+          //                 reward_type: r.transaction_nature,
+          //                 user_phone_number: r.ref_phone_number,
+          //                 discount_percentage: r.discount_percentage,
+          //                 apply_after: r.apply_after,
+          //                 apply_to: r.apply_to,
+          //                 voucher_code: r.voucher_code,
+          //                 timestamp: r.timestamp,
+          //                 is_it_applied: r.user_fingerprint.length > 0,
+          //                 date_created: r.date_captured,
+          //               };
+          //               //...Save
+          //               distilledRewardsList.push(tmp);
+          //             }
+          //           });
+          //           //...
+          //           resolve({
+          //             response: {
+          //               status: "success",
+          //               data: distilledRewardsList,
+          //             },
+          //           });
+          //         } //No data
+          //         else {
+          //           resolve({
+          //             response: {
+          //               status: "No rewards data found",
+          //               date: new Date(chaineDateUTC),
+          //             },
+          //           });
+          //         }
+          //       });
+          //   } //! Invalid data
+          //   else {
+          //     resolve({
+          //       response:
+          //         "Missing parameters, please refer the the documentation for more details on how to use the parameters.",
+          //     });
+          //   }
+          // })
+          //   .then((result) => {
+          //     logger.info(result);
+          //     res.send(result);
+          //   })
+          //   .catch((error) => {
+          //     logger.error(error);
+          //     res.send({
+          //       response:
+          //         "Unexpected error occured, it this error perists contact support@taxiconnectna.com",
+          //     });
+          //   });
         });
 
         /**
@@ -2658,128 +2735,129 @@ requestAPI(
          * Responsible for checking and applying any voucher code
          */
         app.post("/voucherProcessorExec", function (req, res) {
-          new Promise((resolve) => {
-            req = req.body;
+          res.send({ response: "error_no_rider_data" });
+          // new Promise((resolve) => {
+          //   req = req.body;
 
-            if (
-              req.op !== undefined &&
-              req.op !== null &&
-              req.user_fp !== undefined &&
-              req.user_fp !== null
-            ) {
-              if (
-                req.op === "applyVoucher" &&
-                req.voucher_code !== undefined &&
-                req.voucher_code !== null
-              ) {
-                //To apply any voucher
-                //1. Get the user's details
-                collectionPassengers_profiles
-                  .find({ user_fingerprint: req.user_fp })
-                  .toArray(function (err, userData) {
-                    if (err) {
-                      logger.error(err);
-                      resolve({ response: "error_no_rider_data" });
-                    }
-                    //....
-                    if (userData !== undefined && userData.length > 0) {
-                      userData = userData[0];
-                      //...
-                      //2. Check that the voucher code is valid
-                      collectionWalletTransactions_logs
-                        .find({
-                          ref_phone_number: userData.phone_number,
-                          voucher_code: req.voucher_code,
-                          recipient_fp: "", //! Not yet used
-                        })
-                        .toArray(function (err, voucherData) {
-                          if (err) {
-                            logger.error(err);
-                            resolve({ response: "error_no_voucher_data" });
-                          }
-                          logger.info({
-                            ref_phone_number: userData.phone_number,
-                            voucher_code: req.voucher_code,
-                            recipient_fp: "", //! Not yet used
-                          });
-                          //...
-                          if (
-                            voucherData !== undefined &&
-                            voucherData.length > 0
-                          ) {
-                            voucherData = voucherData[0];
-                            //Has data
-                            //? Apply this voucher to the user
-                            collectionWalletTransactions_logs.updateOne(
-                              {
-                                ref_phone_number: userData.phone_number,
-                                recipient_fp: "",
-                              },
-                              {
-                                $set: {
-                                  recipient_fp: req.user_fp,
-                                  date_applied: new Date(chaineDateUTC),
-                                },
-                              },
-                              function (err, resltUpdate) {
-                                if (err) {
-                                  logger.error(err);
-                                  resolve({
-                                    response: "error_unable_to_apply_voucher",
-                                  });
-                                }
-                                //...
-                                resolve({
-                                  response: "successfully_applied_voucher",
-                                  data: {
-                                    reward_type: voucherData.transaction_nature,
-                                    amount: voucherData.amount,
-                                    payment_currency:
-                                      voucherData.payment_currency,
-                                    discount_percentage:
-                                      voucherData.discount_percentage,
-                                    apply_after: voucherData.apply_after,
-                                    apply_to: voucherData.apply_to,
-                                    organization_name:
-                                      voucherData.organization.name,
-                                    organization_logo: `${
-                                      process.env.AWS_S3_COMPANIES_DATA_ADS
-                                    }/Rewards_organizations/${voucherData.organization.name.toLowerCase()}.png`,
-                                  },
-                                });
-                              }
-                            );
-                          } //No voucher available
-                          else {
-                            resolve({ response: "error_invalid_voucher" });
-                          }
-                        });
-                    } //! No user data?!
-                    else {
-                      resolve({ response: "error_no_rider_data" });
-                    }
-                  });
-              } else if (req.op === "getVouchersList") {
-                //To get the list of all the applied vouchers
-              } //? Almost impossible case
-              else {
-                resolve({ response: "error_invalid_operation" });
-              }
-            } //No valid operation
-            else {
-              resolve({ response: "error_invalid_operation" });
-            }
-          })
-            .then((result) => {
-              logger.info(result);
-              res.send(result);
-            })
-            .catch((error) => {
-              logger.error(error);
-              res.send({
-                response: "error_unable_toProcess_voucher",
-              });
-            });
+          //   if (
+          //     req.op !== undefined &&
+          //     req.op !== null &&
+          //     req.user_fp !== undefined &&
+          //     req.user_fp !== null
+          //   ) {
+          //     if (
+          //       req.op === "applyVoucher" &&
+          //       req.voucher_code !== undefined &&
+          //       req.voucher_code !== null
+          //     ) {
+          //       //To apply any voucher
+          //       //1. Get the user's details
+          //       collectionPassengers_profiles
+          //         .f\ind({ user_fingerprint: req.user_fp })
+          //         .toArray(function (err, userData) {
+          //           if (err) {
+          //             logger.error(err);
+          //             resolve({ response: "error_no_rider_data" });
+          //           }
+          //           //....
+          //           if (userData !== undefined && userData.length > 0) {
+          //             userData = userData[0];
+          //             //...
+          //             //2. Check that the voucher code is valid
+          //             collectionWalletTransactions_logs
+          //               .fi\nd({
+          //                 ref_phone_number: userData.phone_number,
+          //                 voucher_code: req.voucher_code,
+          //                 recipient_fp: "", //! Not yet used
+          //               })
+          //               .toArray(function (err, voucherData) {
+          //                 if (err) {
+          //                   logger.error(err);
+          //                   resolve({ response: "error_no_voucher_data" });
+          //                 }
+          //                 logger.info({
+          //                   ref_phone_number: userData.phone_number,
+          //                   voucher_code: req.voucher_code,
+          //                   recipient_fp: "", //! Not yet used
+          //                 });
+          //                 //...
+          //                 if (
+          //                   voucherData !== undefined &&
+          //                   voucherData.length > 0
+          //                 ) {
+          //                   voucherData = voucherData[0];
+          //                   //Has data
+          //                   //? Apply this voucher to the user
+          //                   collectionWalletTransactions_logs.updat\eOne(
+          //                     {
+          //                       ref_phone_number: userData.phone_number,
+          //                       recipient_fp: "",
+          //                     },
+          //                     {
+          //                       $set: {
+          //                         recipient_fp: req.user_fp,
+          //                         date_applied: new Date(chaineDateUTC),
+          //                       },
+          //                     },
+          //                     function (err, resltUpdate) {
+          //                       if (err) {
+          //                         logger.error(err);
+          //                         resolve({
+          //                           response: "error_unable_to_apply_voucher",
+          //                         });
+          //                       }
+          //                       //...
+          //                       resolve({
+          //                         response: "successfully_applied_voucher",
+          //                         data: {
+          //                           reward_type: voucherData.transaction_nature,
+          //                           amount: voucherData.amount,
+          //                           payment_currency:
+          //                             voucherData.payment_currency,
+          //                           discount_percentage:
+          //                             voucherData.discount_percentage,
+          //                           apply_after: voucherData.apply_after,
+          //                           apply_to: voucherData.apply_to,
+          //                           organization_name:
+          //                             voucherData.organization.name,
+          //                           organization_logo: `${
+          //                             process.env.AWS_S3_COMPANIES_DATA_ADS
+          //                           }/Rewards_organizations/${voucherData.organization.name.toLowerCase()}.png`,
+          //                         },
+          //                       });
+          //                     }
+          //                   );
+          //                 } //No voucher available
+          //                 else {
+          //                   resolve({ response: "error_invalid_voucher" });
+          //                 }
+          //               });
+          //           } //! No user data?!
+          //           else {
+          //             resolve({ response: "error_no_rider_data" });
+          //           }
+          //         });
+          //     } else if (req.op === "getVouchersList") {
+          //       //To get the list of all the applied vouchers
+          //     } //? Almost impossible case
+          //     else {
+          //       resolve({ response: "error_invalid_operation" });
+          //     }
+          //   } //No valid operation
+          //   else {
+          //     resolve({ response: "error_invalid_operation" });
+          //   }
+          // })
+          //   .then((result) => {
+          //     logger.info(result);
+          //     res.send(result);
+          //   })
+          //   .catch((error) => {
+          //     logger.error(error);
+          //     res.send({
+          //       response: "error_unable_toProcess_voucher",
+          //     });
+          //   });
         });
       }
     );
