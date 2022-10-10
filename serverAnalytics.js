@@ -4,8 +4,6 @@ require("dotenv").config();
 var express = require("express");
 const http = require("http");
 const fs = require("fs");
-const MongoClient = require("mongodb").MongoClient;
-const certFile = fs.readFileSync("./rds-combined-ca-bundle.pem");
 
 const { logger } = require("./LogService");
 
@@ -1166,265 +1164,215 @@ redisCluster.on("connect", function () {
       process.env.URL_MONGODB_DEV = body.URL_MONGODB_DEV;
       process.env.URL_MONGODB_PROD = body.URL_MONGODB_PROD;
 
-      MongoClient.connect(
-        /live/i.test(process.env.SERVER_TYPE)
-          ? process.env.URL_MONGODB_PROD
-          : process.env.URL_MONGODB_DEV,
-        /production/i.test(process.env.EVIRONMENT)
-          ? {
-              tlsCAFile: certFile, //The DocDB cert
-              useUnifiedTopology: true,
-              useNewUrlParser: true,
-            }
-          : {
-              useUnifiedTopology: true,
-              useNewUrlParser: true,
-            },
-        function (err, clientMongo) {
-          if (err) throw err;
+      app
+        .get("/", function (req, res) {
+          res.send("Map services up");
+        })
+        .use(
+          express.json({
+            limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
+            extended: true,
+          })
+        )
+        .use(
+          express.urlencoded({
+            limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
+            extended: true,
+          })
+        )
+        .use(helmet());
 
-          //if (err) throw err;
-          logger.info("[+] Analytics services active.");
-          const dbMongo = clientMongo.db(process.env.DB_NAME_MONGODDB);
-          collectionRidesDeliveries_data = dbMongo.collection(
-            "rides_deliveries_requests"
-          ); //Hold all the requests made (rides and deliveries)
-          collectionRelativeDistances = dbMongo.collection(
-            "relative_distances_riders_drivers"
-          ); //Hold the relative distances between rider and the drivers (online, same city, same country) at any given time
-          collectionRidersLocation_log = dbMongo.collection(
-            "historical_positioning_logs"
-          ); //Hold all the location updated from the rider
-          collectionDrivers_profiles = dbMongo.collection("drivers_profiles"); //Hold all the drivers profiles
-          collectionPassengers_profiles = dbMongo.collection(
-            "passengers_profiles"
-          ); //Hold all the passengers profiles.
-          collectionGlobalEvents = dbMongo.collection("global_events"); //Hold all the random events that happened somewhere.
-          collectionWalletTransactions_logs = dbMongo.collection(
-            "wallet_transactions_logs"
-          ); //Hold the latest information about the riders topups
-          collectionDedicatedServices_accounts = dbMongo.collection(
-            "dedicated_services_accounts"
-          ); //Hold all the accounts for dedicated servics like deliveries, etc.
-          collection_cancelledRidesDeliveryData = dbMongo.collection(
-            "cancelled_rides_deliveries_requests"
-          ); //Hold all the cancelled requests made (rides and deliveries)
-          //-------------
-          app
-            .get("/", function (req, res) {
-              res.send("Map services up");
-            })
-            .use(
-              express.json({
-                limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
-                extended: true,
-              })
-            )
-            .use(
-              express.urlencoded({
-                limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
-                extended: true,
-              })
-            )
-            .use(helmet());
+      /**
+       * GET GENERAL OBSERVABILITY DATA
+       *? Responsible for getting all the data in motion that will reflect the current or historical
+       *? state of the all network.
+       * REDIS propertiy
+       */
+      app.post("/getGlobalObservabilityData", function (req, res) {
+        new Promise((resMAIN) => {
+          let request = req.body;
 
-          /**
-           * GET GENERAL OBSERVABILITY DATA
-           *? Responsible for getting all the data in motion that will reflect the current or historical
-           *? state of the all network.
-           * REDIS propertiy
-           */
-          app.post("/getGlobalObservabilityData", function (req, res) {
-            new Promise((resMAIN) => {
-              let request = req.body;
-
-              getGlobalObservabilityData("Windhoek", resMAIN);
-            })
-              .then((result) => {
-                res.send(result);
-              })
-              .catch((error) => {
-                logger.error(error);
-                res.send(false);
-              });
+          getGlobalObservabilityData("Windhoek", resMAIN);
+        })
+          .then((result) => {
+            res.send(result);
+          })
+          .catch((error) => {
+            logger.error(error);
+            res.send(false);
           });
+      });
 
-          /**
-           * GET GENERAL OBSERVABILITY DATA FOR DELIVERY WEB
-           *? Responsible for getting all the data in motion that will reflect the current or historical
-           *? state of the a specific delivery web profile.
-           * REDIS propertiy
-           */
-          app.post(
-            "/getGlobalObservabilityDataDeliverWeb",
-            function (req, res) {
-              let request = req.body;
-              if (request.user_fp !== undefined && request.user_fp !== null) {
-                //! Reuse the req var
-                req = request;
-                //Check for graph readiness - default - false
-                req.make_graphReady =
-                  req.make_graphReady !== undefined &&
-                  req.make_graphReady !== null
-                    ? true
-                    : false;
+      /**
+       * GET GENERAL OBSERVABILITY DATA FOR DELIVERY WEB
+       *? Responsible for getting all the data in motion that will reflect the current or historical
+       *? state of the a specific delivery web profile.
+       * REDIS propertiy
+       */
+      app.post("/getGlobalObservabilityDataDeliverWeb", function (req, res) {
+        let request = req.body;
+        if (request.user_fp !== undefined && request.user_fp !== null) {
+          //! Reuse the req var
+          req = request;
+          //Check for graph readiness - default - false
+          req.make_graphReady =
+            req.make_graphReady !== undefined && req.make_graphReady !== null
+              ? true
+              : false;
 
-                //Has the required data
-                new Promise((resMAIN) => {
-                  getObservabilityDataForDeliveryWeb(request, resMAIN);
-                })
-                  .then((result) => {
-                    //Isolate response based on the isolation_factor
-                    new Promise((resTokenize) => {
-                      //?Generate unique hash representing the current state of the data
-                      generateUniqueFingerprint(
-                        `${JSON.stringify(result)}-${JSON.stringify(req)}`,
-                        "sha256",
-                        resTokenize
-                      );
-                    })
-                      .then((dataStateHash) => {
-                        logger.warn(result);
-                        result = result.data;
-                        if (result !== undefined && result !== null) {
-                          //? Use generic_view by default
-                          req.isolation_factor =
-                            req.isolation_factor !== undefined &&
-                            req.isolation_factor !== null
-                              ? req.isolation_factor
-                              : "generic_view";
-                          //?...
-                          if (req.isolation_factor === "req.isolation_factor") {
-                            res.send({
-                              stateHash: dataStateHash,
-                              response: result.genericGlobalStats,
-                            });
-                          } else if (req.isolation_factor === "generic_view") {
-                            res.send({
-                              stateHash: dataStateHash,
-                              response: {
-                                genericGlobalStats: result.genericGlobalStats,
-                              },
-                            });
-                          } else if (
-                            req.isolation_factor === "generic_view|weekly_view"
-                          ) {
-                            res.send({
-                              stateHash: dataStateHash,
-                              response: {
-                                genericGlobalStats: result.genericGlobalStats,
-                                weekly_view: req.make_graphReady
-                                  ? makegraphReady(result.weekly_view)
-                                  : result.weekly_view,
-                              },
-                            });
-                          } else if (req.isolation_factor === "weekly_view") {
-                            res.send({
-                              stateHash: dataStateHash,
-                              response: {
-                                weekly_view: req.make_graphReady
-                                  ? makegraphReady(result.weekly_view)
-                                  : result.weekly_view,
-                              },
-                            });
-                          } else if (
-                            req.isolation_factor === "generic_view|daily_view"
-                          ) {
-                            res.send({
-                              stateHash: dataStateHash,
-                              response: {
-                                genericGlobalStats: result.genericGlobalStats,
-                                daily_view: req.make_graphReady
-                                  ? makegraphReady(result.daily_view)
-                                  : result.daily_view,
-                              },
-                            });
-                          } else if (req.isolation_factor === "daily_view") {
-                            res.send({
-                              stateHash: dataStateHash,
-                              response: {
-                                daily_view: req.make_graphReady
-                                  ? makegraphReady(result.daily_view)
-                                  : result.daily_view,
-                              },
-                            });
-                          } else if (
-                            req.isolation_factor === "generic_view|monthly_view"
-                          ) {
-                            res.send({
-                              stateHash: dataStateHash,
-                              response: {
-                                genericGlobalStats: result.genericGlobalStats,
-                                monthly_view: req.make_graphReady
-                                  ? makegraphReady(result.monthly_view)
-                                  : result.monthly_view,
-                              },
-                            });
-                          } else if (req.isolation_factor === "monthly_view") {
-                            res.send({
-                              stateHash: dataStateHash,
-                              response: {
-                                monthly_view: req.make_graphReady
-                                  ? makegraphReady(result.monthly_view)
-                                  : result.monthly_view,
-                              },
-                            });
-                          } else if (
-                            req.isolation_factor === "generic_view|yearly_view"
-                          ) {
-                            res.send({
-                              stateHash: dataStateHash,
-                              response: {
-                                genericGlobalStats: result.genericGlobalStats,
-                                yearly_view: req.make_graphReady
-                                  ? makegraphReady(result.yearly_view)
-                                  : result.yearly_view,
-                              },
-                            });
-                          } else if (req.isolation_factor === "yearly_view") {
-                            res.send({
-                              stateHash: dataStateHash,
-                              response: {
-                                yearly_view: req.make_graphReady
-                                  ? makegraphReady(result.yearly_view)
-                                  : result.yearly_view,
-                              },
-                            });
-                          } else if (req.isolation_factor === "all") {
-                            //! Too heavy!
-                            res.send({
-                              stateHash: dataStateHash,
-                              response: result,
-                            });
-                          } else {
-                            //Generic view
-                            res.send({
-                              stateHash: dataStateHash,
-                              response: result.genericGlobalStats,
-                            });
-                          }
-                        } //No data
-                        else {
-                          res.send(result);
-                        }
-                      })
-                      .catch((error) => {
-                        logger.error(error);
-                        res.send({ response: "error" });
+          //Has the required data
+          new Promise((resMAIN) => {
+            getObservabilityDataForDeliveryWeb(request, resMAIN);
+          })
+            .then((result) => {
+              //Isolate response based on the isolation_factor
+              new Promise((resTokenize) => {
+                //?Generate unique hash representing the current state of the data
+                generateUniqueFingerprint(
+                  `${JSON.stringify(result)}-${JSON.stringify(req)}`,
+                  "sha256",
+                  resTokenize
+                );
+              })
+                .then((dataStateHash) => {
+                  logger.warn(result);
+                  result = result.data;
+                  if (result !== undefined && result !== null) {
+                    //? Use generic_view by default
+                    req.isolation_factor =
+                      req.isolation_factor !== undefined &&
+                      req.isolation_factor !== null
+                        ? req.isolation_factor
+                        : "generic_view";
+                    //?...
+                    if (req.isolation_factor === "req.isolation_factor") {
+                      res.send({
+                        stateHash: dataStateHash,
+                        response: result.genericGlobalStats,
                       });
-                  })
-                  .catch((error) => {
-                    logger.error(error);
-                    res.send({ response: "error" });
-                  });
-              } else {
-                logger.warn("Could not find the required fp data");
-                res.send({ response: "error" });
-              }
-            }
-          );
+                    } else if (req.isolation_factor === "generic_view") {
+                      res.send({
+                        stateHash: dataStateHash,
+                        response: {
+                          genericGlobalStats: result.genericGlobalStats,
+                        },
+                      });
+                    } else if (
+                      req.isolation_factor === "generic_view|weekly_view"
+                    ) {
+                      res.send({
+                        stateHash: dataStateHash,
+                        response: {
+                          genericGlobalStats: result.genericGlobalStats,
+                          weekly_view: req.make_graphReady
+                            ? makegraphReady(result.weekly_view)
+                            : result.weekly_view,
+                        },
+                      });
+                    } else if (req.isolation_factor === "weekly_view") {
+                      res.send({
+                        stateHash: dataStateHash,
+                        response: {
+                          weekly_view: req.make_graphReady
+                            ? makegraphReady(result.weekly_view)
+                            : result.weekly_view,
+                        },
+                      });
+                    } else if (
+                      req.isolation_factor === "generic_view|daily_view"
+                    ) {
+                      res.send({
+                        stateHash: dataStateHash,
+                        response: {
+                          genericGlobalStats: result.genericGlobalStats,
+                          daily_view: req.make_graphReady
+                            ? makegraphReady(result.daily_view)
+                            : result.daily_view,
+                        },
+                      });
+                    } else if (req.isolation_factor === "daily_view") {
+                      res.send({
+                        stateHash: dataStateHash,
+                        response: {
+                          daily_view: req.make_graphReady
+                            ? makegraphReady(result.daily_view)
+                            : result.daily_view,
+                        },
+                      });
+                    } else if (
+                      req.isolation_factor === "generic_view|monthly_view"
+                    ) {
+                      res.send({
+                        stateHash: dataStateHash,
+                        response: {
+                          genericGlobalStats: result.genericGlobalStats,
+                          monthly_view: req.make_graphReady
+                            ? makegraphReady(result.monthly_view)
+                            : result.monthly_view,
+                        },
+                      });
+                    } else if (req.isolation_factor === "monthly_view") {
+                      res.send({
+                        stateHash: dataStateHash,
+                        response: {
+                          monthly_view: req.make_graphReady
+                            ? makegraphReady(result.monthly_view)
+                            : result.monthly_view,
+                        },
+                      });
+                    } else if (
+                      req.isolation_factor === "generic_view|yearly_view"
+                    ) {
+                      res.send({
+                        stateHash: dataStateHash,
+                        response: {
+                          genericGlobalStats: result.genericGlobalStats,
+                          yearly_view: req.make_graphReady
+                            ? makegraphReady(result.yearly_view)
+                            : result.yearly_view,
+                        },
+                      });
+                    } else if (req.isolation_factor === "yearly_view") {
+                      res.send({
+                        stateHash: dataStateHash,
+                        response: {
+                          yearly_view: req.make_graphReady
+                            ? makegraphReady(result.yearly_view)
+                            : result.yearly_view,
+                        },
+                      });
+                    } else if (req.isolation_factor === "all") {
+                      //! Too heavy!
+                      res.send({
+                        stateHash: dataStateHash,
+                        response: result,
+                      });
+                    } else {
+                      //Generic view
+                      res.send({
+                        stateHash: dataStateHash,
+                        response: result.genericGlobalStats,
+                      });
+                    }
+                  } //No data
+                  else {
+                    res.send(result);
+                  }
+                })
+                .catch((error) => {
+                  logger.error(error);
+                  res.send({ response: "error" });
+                });
+            })
+            .catch((error) => {
+              logger.error(error);
+              res.send({ response: "error" });
+            });
+        } else {
+          logger.warn("Could not find the required fp data");
+          res.send({ response: "error" });
         }
-      );
+      });
     }
   );
 });

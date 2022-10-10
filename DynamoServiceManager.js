@@ -58,7 +58,7 @@ async function insert(table_name, data) {
         resolve(false);
       }
       //...
-      logger.info(resultPut);
+      // logger.info(resultPut);
       resolve(true);
     });
   });
@@ -80,7 +80,7 @@ async function insert_many({ table_name, array_data }) {
         ? String(el["_id"])
         : uuidv4();
 
-    console.log(el);
+    // console.log(el);
     // console.error(el["date_added"]);
     //? TO USE ONLY FOR DATA MIGRATION FROM MONGODB -> DYNAMODB
     // if (el["date_requested"] !== undefined && el["date_requested"] !== null)
@@ -151,7 +151,9 @@ async function insert_many({ table_name, array_data }) {
     //...
     dynamoClient.batchWrite(params, function (err, resultPut) {
       if (err) {
+        logger.error("INSERT MANY OPERATION");
         logger.error(err);
+        logger.error(err.stack);
       }
       //...
       logger.info(resultPut);
@@ -182,7 +184,9 @@ async function delete_r(table_name, _idKey) {
     //...
     dynamoClient.delete(params, function (err, resultDel) {
       if (err) {
+        logger.error("DELETE OPERATION");
         logger.error(err);
+        logger.error(err.stack);
         resolve(false);
       }
       //...
@@ -231,11 +235,13 @@ async function update({
     dynamoClient.update(params, function (err, resultUpdate) {
       if (err) {
         logger.warn(params);
+        logger.error("UPDATE OPERATION");
         logger.error(err);
+        logger.error(err.stack);
         resolve(false);
       }
       //...
-      logger.info(resultUpdate);
+      // logger.info(resultUpdate);
       resolve(true);
     });
   });
@@ -300,12 +306,13 @@ async function find_query({
 
     if (ScanIndexForward === null) delete params["ScanIndexForward"];
 
-    logger.warn(params);
     //...
     dynamoClient.query(params, function (err, resultFindget) {
       if (err) {
-        logger.warn("ERROR HERE");
-        logger.warn(err);
+        logger.warn(params);
+        logger.error("FIND QUERY OPERATION");
+        logger.error(err);
+        logger.error(err.stack);
         resolve([]);
       }
       //...
@@ -334,7 +341,9 @@ async function find_get(table_name, _idKey) {
     //...
     dynamoClient.get(params, function (err, resultFindget) {
       if (err) {
+        logger.error("FIND GET OPERATION");
         logger.error(err);
+        logger.error(err.stack);
         resolve([]);
       }
       //...
@@ -378,7 +387,10 @@ async function get_all({
     // logger.warn(params);
     dynamoClient.scan(params, function (err, resultFindget) {
       if (err) {
+        logger.warn(params);
+        logger.error("GET ALL OPERATION");
         logger.error(err);
+        logger.error(err.stack);
         resolve([]);
       }
       //...

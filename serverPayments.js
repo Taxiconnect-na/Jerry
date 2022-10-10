@@ -3,8 +3,6 @@ require("dotenv").config();
 var express = require("express");
 const http = require("http");
 const fs = require("fs");
-const MongoClient = require("mongodb").MongoClient;
-const certFile = fs.readFileSync("./rds-combined-ca-bundle.pem");
 const nodemailer = require("nodemailer");
 var parser = require("xml2json");
 
@@ -1809,1058 +1807,1025 @@ requestAPI(
     process.env.URL_MONGODB_DEV = body.URL_MONGODB_DEV;
     process.env.URL_MONGODB_PROD = body.URL_MONGODB_PROD;
 
-    MongoClient.connect(
-      /live/i.test(process.env.SERVER_TYPE)
-        ? process.env.URL_MONGODB_PROD
-        : process.env.URL_MONGODB_DEV,
-      /production/i.test(process.env.EVIRONMENT)
-        ? {
-            tlsCAFile: certFile, //The DocDB cert
-            useUnifiedTopology: true,
-            useNewUrlParser: true,
-          }
-        : {
-            useUnifiedTopology: true,
-            useNewUrlParser: true,
-          },
-      function (err, clientMongo) {
-        if (err) throw err;
-        logger.info("[*] Payments services up");
-        const dbMongo = clientMongo.db(process.env.DB_NAME_MONGODDB);
-        collectionPassengers_profiles = dbMongo.collection(
-          "passengers_profiles"
-        ); //Hold the information about the riders
-        collectionDrivers_profiles = dbMongo.collection("drivers_profiles"); //Hold all the drivers profiles
-        collectionWalletTransactions_logs = dbMongo.collection(
-          "wallet_transactions_logs"
-        ); //Hold the latest information about the riders topups
-        collectionRidesDeliveryData = dbMongo.collection(
-          "rides_deliveries_requests"
-        ); //Hold all the requests made (rides and deliveries)
-        collectionGlobalEvents = dbMongo.collection("global_events"); //Hold all the random events that happened somewhere.
-        collectionDedicatedServices_accounts = dbMongo.collection(
-          "dedicated_services_accounts"
-        ); //Hold all the accounts for dedicated servics like deliveries, etc.
-        //-------------
-        app
-          .get("/", function (req, res) {
-            logger.info("Payments services up");
-          })
-          .use(
-            express.json({
-              limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
-              extended: true,
-            })
-          )
-          .use(
-            express.urlencoded({
-              limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
-              extended: true,
-            })
-          );
+    logger.info("[*] Payments services up");
 
-        /**
-         * WALLET TOP-UP
-         * Responsible for topping up wallets and securing the all process
-         */
-        app.get("/topUPThisWalletTaxiconnect", function (req, res) {
-          resolveDate();
-          //...
-          /*let dataBundle = {
-            user_fp:
-              "7c57cb6c9471fd33fd265d5441f253eced2a6307c0207dea57c987035b496e6e8dfa7105b86915da",
-            amount: 45,
-            number: 1,
-            expiry: 1,
-            cvv: 1,
-            name: "Dominique", //? Optional
-            type: "VISA",
-          };*/
-          // let params = urlParser.parse(req.url, true);
-          req = req.body;
-          //? Make sure that the city and country are provided or - defaults them to Windhoek Namibia
-          req.city =
-            req.city !== undefined && req.city !== null && req.city !== false
-              ? req.city
-              : "Windhoek";
-          req.country =
-            req.country !== undefined &&
-            req.country !== null &&
-            req.country !== false &&
-            req.country.length <= 2
-              ? req.country
-              : "NA"; //! Required 2 digits for countries - DPO ref
-          //?....
-          dataBundle = req;
+    app
+      .get("/", function (req, res) {
+        logger.info("Payments services up");
+      })
+      .use(
+        express.json({
+          limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
+          extended: true,
+        })
+      )
+      .use(
+        express.urlencoded({
+          limit: process.env.MAX_DATA_BANDWIDTH_EXPRESS,
+          extended: true,
+        })
+      );
 
-          //! CHECK INPUTS
-          if (
-            dataBundle.user_fp !== undefined &&
-            dataBundle.user_fp !== null &&
-            dataBundle.amount !== undefined &&
-            dataBundle.amount !== null &&
-            dataBundle.number !== undefined &&
-            dataBundle.number !== null &&
-            dataBundle.expiry !== undefined &&
-            dataBundle.expiry !== null &&
-            dataBundle.cvv !== undefined &&
-            dataBundle.cvv !== null &&
-            dataBundle.type !== undefined &&
-            dataBundle.type !== null &&
-            dataBundle.name !== undefined &&
-            dataBundle.name !== null &&
-            dataBundle.city !== undefined &&
-            dataBundle.city !== null &&
-            dataBundle.country !== undefined &&
-            dataBundle.country !== null
-          ) {
-            //?PASSED
-            //Get user's details
-            //! Use dynamic user finding based on the scope of the user (normal/corporate) [request_globality]
-            let dynamicRequesterFetcher =
+    /**
+     * WALLET TOP-UP
+     * Responsible for topping up wallets and securing the all process
+     */
+    app.get("/topUPThisWalletTaxiconnect", function (req, res) {
+      resolveDate();
+      //...
+      /*let dataBundle = {
+          user_fp:
+            "7c57cb6c9471fd33fd265d5441f253eced2a6307c0207dea57c987035b496e6e8dfa7105b86915da",
+          amount: 45,
+          number: 1,
+          expiry: 1,
+          cvv: 1,
+          name: "Dominique", //? Optional
+          type: "VISA",
+        };*/
+      // let params = urlParser.parse(req.url, true);
+      req = req.body;
+      //? Make sure that the city and country are provided or - defaults them to Windhoek Namibia
+      req.city =
+        req.city !== undefined && req.city !== null && req.city !== false
+          ? req.city
+          : "Windhoek";
+      req.country =
+        req.country !== undefined &&
+        req.country !== null &&
+        req.country !== false &&
+        req.country.length <= 2
+          ? req.country
+          : "NA"; //! Required 2 digits for countries - DPO ref
+      //?....
+      dataBundle = req;
+
+      //! CHECK INPUTS
+      if (
+        dataBundle.user_fp !== undefined &&
+        dataBundle.user_fp !== null &&
+        dataBundle.amount !== undefined &&
+        dataBundle.amount !== null &&
+        dataBundle.number !== undefined &&
+        dataBundle.number !== null &&
+        dataBundle.expiry !== undefined &&
+        dataBundle.expiry !== null &&
+        dataBundle.cvv !== undefined &&
+        dataBundle.cvv !== null &&
+        dataBundle.type !== undefined &&
+        dataBundle.type !== null &&
+        dataBundle.name !== undefined &&
+        dataBundle.name !== null &&
+        dataBundle.city !== undefined &&
+        dataBundle.city !== null &&
+        dataBundle.country !== undefined &&
+        dataBundle.country !== null
+      ) {
+        //?PASSED
+        //Get user's details
+        //! Use dynamic user finding based on the scope of the user (normal/corporate) [request_globality]
+        let dynamicRequesterFetcher =
+          /normal/i.test(dataBundle.request_globality) ||
+          dataBundle.request_globality === undefined
+            ? dynamo_find_query({
+                table_name: "passengers_profiles",
+                IndexName: "user_fingerprint",
+                KeyConditionExpression: "user_fingerprint = :val1",
+                ExpressionAttributeValues: {
+                  ":val1": dataBundle.user_fp,
+                },
+              })
+            : dynamo_find_query({
+                table_name: "dedicated_services_accounts",
+                IndexName: "company_fp",
+                KeyConditionExpression: "company_fp = :val1",
+                ExpressionAttributeValues: {
+                  ":val1": dataBundle.user_fp,
+                },
+              });
+        //...
+        logger.warn(dataBundle);
+        dynamicRequesterFetcher
+          .then((usersDetails) => {
+            //...
+            let dynamicConds =
               /normal/i.test(dataBundle.request_globality) ||
               dataBundle.request_globality === undefined
-                ? dynamo_find_query({
-                    table_name: "passengers_profiles",
-                    IndexName: "user_fingerprint",
-                    KeyConditionExpression: "user_fingerprint = :val1",
-                    ExpressionAttributeValues: {
-                      ":val1": dataBundle.user_fp,
-                    },
-                  })
-                : dynamo_find_query({
-                    table_name: "dedicated_services_accounts",
-                    IndexName: "company_fp",
-                    KeyConditionExpression: "company_fp = :val1",
-                    ExpressionAttributeValues: {
-                      ":val1": dataBundle.user_fp,
-                    },
-                  });
+                ? usersDetails.length > 0 &&
+                  usersDetails[0].user_fingerprint !== undefined &&
+                  usersDetails[0].user_fingerprint !== null
+                : usersDetails.length > 0 &&
+                  usersDetails[0].company_fp !== undefined &&
+                  usersDetails[0].company_fp !== null;
+            //Isoltate the phone number
+            let customerPhone =
+              /normal/i.test(dataBundle.request_globality) ||
+              dataBundle.request_globality === undefined
+                ? usersDetails[0].phone_number
+                : usersDetails[0].phone;
+            let dialCode = "NA";
             //...
-            logger.warn(dataBundle);
-            dynamicRequesterFetcher
-              .then((usersDetails) => {
-                //...
-                let dynamicConds =
-                  /normal/i.test(dataBundle.request_globality) ||
-                  dataBundle.request_globality === undefined
-                    ? usersDetails.length > 0 &&
-                      usersDetails[0].user_fingerprint !== undefined &&
-                      usersDetails[0].user_fingerprint !== null
-                    : usersDetails.length > 0 &&
-                      usersDetails[0].company_fp !== undefined &&
-                      usersDetails[0].company_fp !== null;
-                //Isoltate the phone number
-                let customerPhone =
-                  /normal/i.test(dataBundle.request_globality) ||
-                  dataBundle.request_globality === undefined
-                    ? usersDetails[0].phone_number
-                    : usersDetails[0].phone;
-                let dialCode = "NA";
-                //...
-                customerPhone = customerPhone.replace("+", "");
-                //Isolate the firstname and lastname
-                let customerFirstName =
-                  /normal/i.test(dataBundle.request_globality) ||
-                  dataBundle.request_globality === undefined
-                    ? usersDetails[0].name
-                    : usersDetails[0].user_registerer.first_name;
-                //...
-                let customerLastName =
-                  /normal/i.test(dataBundle.request_globality) ||
-                  dataBundle.request_globality === undefined
-                    ? usersDetails[0].surname
-                    : usersDetails[0].user_registerer.last_name;
-                //...
-                if (dynamicConds) {
-                  //?Found some valid details
-                  //...
-                  //! LIMIT THE TRANSACTION AMOUNT TO N$1000 (N$50-N$1000)
-                  //? Make dynamic limit based on the request globality
-                  let maxAmountLimit =
-                    /normal/i.test(dataBundle.request_globality) ||
-                    dataBundle.request_globality === undefined
-                      ? 1000
-                      : 15000;
-                  //...
-                  if (
-                    parseFloat(dataBundle.amount) >= 50 &&
-                    parseFloat(dataBundle.amount) <= maxAmountLimit
-                  ) {
-                    //? Remove _ from the name
-                    dataBundle.name = dataBundle.name.replace(/_/g, " ");
-                    //CREATE TOKEN
+            customerPhone = customerPhone.replace("+", "");
+            //Isolate the firstname and lastname
+            let customerFirstName =
+              /normal/i.test(dataBundle.request_globality) ||
+              dataBundle.request_globality === undefined
+                ? usersDetails[0].name
+                : usersDetails[0].user_registerer.first_name;
+            //...
+            let customerLastName =
+              /normal/i.test(dataBundle.request_globality) ||
+              dataBundle.request_globality === undefined
+                ? usersDetails[0].surname
+                : usersDetails[0].user_registerer.last_name;
+            //...
+            if (dynamicConds) {
+              //?Found some valid details
+              //...
+              //! LIMIT THE TRANSACTION AMOUNT TO N$1000 (N$50-N$1000)
+              //? Make dynamic limit based on the request globality
+              let maxAmountLimit =
+                /normal/i.test(dataBundle.request_globality) ||
+                dataBundle.request_globality === undefined
+                  ? 1000
+                  : 15000;
+              //...
+              if (
+                parseFloat(dataBundle.amount) >= 50 &&
+                parseFloat(dataBundle.amount) <= maxAmountLimit
+              ) {
+                //? Remove _ from the name
+                dataBundle.name = dataBundle.name.replace(/_/g, " ");
+                //CREATE TOKEN
+                new Promise((resolve) => {
+                  //? XML TOKEN responsible for creating a transaction token before any payment.
+                  let xmlCreateToken = `
+                    <?xml version="1.0" encoding="utf-8"?>
+                    <API3G>
+                    <CompanyToken>${
+                      /^enabled/i.test(process.env.DEV_DELIVERY_STATE) &&
+                      /corporate/i.test(dataBundle.request_globality)
+                        ? process.env.DEV_TOKEN_PAYMENT_CP
+                        : process.env.TOKEN_PAYMENT_CP
+                    }</CompanyToken>
+                    <Request>createToken</Request>
+                    <Transaction>
+                    <PaymentAmount>${dataBundle.amount}</PaymentAmount>
+                    <customerCountry>${
+                      dataBundle.country !== undefined &&
+                      dataBundle.country !== null &&
+                      dataBundle.country !== "false"
+                        ? dataBundle.country
+                        : "Namibia"
+                    }</customerCountry>
+                    <customerCity>${
+                      dataBundle.city !== undefined &&
+                      dataBundle.city !== null &&
+                      dataBundle.city !== "false"
+                        ? dataBundle.city
+                        : "Windhoek"
+                    }</customerCity>
+                    <CardHolderName>${dataBundle.name}</CardHolderName>
+                    <customerEmail>${usersDetails[0].email}</customerEmail>
+                    <customerPhone>${customerPhone}</customerPhone>
+                    <customerDialCode>${dialCode}</customerDialCode>
+                    <customerFirstName>${customerFirstName}</customerFirstName>
+                    <customerLastName>${customerLastName}</customerLastName>
+                    <PaymentCurrency>${
+                      process.env.PAYMENT_CURRENCY
+                    }</PaymentCurrency>
+                    <CompanyRef>${
+                      /^enabled/i.test(process.env.DEV_DELIVERY_STATE) &&
+                      /corporate/i.test(dataBundle.request_globality)
+                        ? process.env.DEV_COMPANY_DPO_REF
+                        : process.env.COMPANY_DPO_REF
+                    }</CompanyRef>
+                    <RedirectURL>${
+                      process.env.REDIRECT_URL_AFTER_PROCESSES
+                    }</RedirectURL>
+                    <BackURL>${
+                      process.env.REDIRECT_URL_AFTER_PROCESSES
+                    }</BackURL>
+                    <CompanyRefUnique>0</CompanyRefUnique>
+                    <PTL>5</PTL>
+                    </Transaction>
+                    <Services>
+                      <Service>
+                        <ServiceType>${
+                          /^enabled/i.test(process.env.DEV_DELIVERY_STATE) &&
+                          /corporate/i.test(dataBundle.request_globality)
+                            ? process.env.DEV_DPO_CREATETOKEN_SERVICE_TYPE
+                            : process.env.DPO_CREATETOKEN_SERVICE_TYPE
+                        }</ServiceType>
+                        <ServiceDescription>TaxiConnect wallet top-up</ServiceDescription>
+                        <ServiceDate>${dateObjectImute}</ServiceDate>
+                      </Service>
+                    </Services>
+                    </API3G>
+                    `;
+
+                  // logger.info(xmlCreateToken);
+
+                  createPaymentTransaction(
+                    xmlCreateToken,
+                    dataBundle.user_fp,
+                    collectionWalletTransactions_logs,
+                    resolve
+                  );
+                }).then(
+                  (reslt) => {
+                    logger.warn(reslt);
+                    //Deduct XML response
                     new Promise((resolve) => {
-                      //? XML TOKEN responsible for creating a transaction token before any payment.
-                      let xmlCreateToken = `
-                      <?xml version="1.0" encoding="utf-8"?>
-                      <API3G>
-                      <CompanyToken>${
-                        /^enabled/i.test(process.env.DEV_DELIVERY_STATE) &&
-                        /corporate/i.test(dataBundle.request_globality)
-                          ? process.env.DEV_TOKEN_PAYMENT_CP
-                          : process.env.TOKEN_PAYMENT_CP
-                      }</CompanyToken>
-                      <Request>createToken</Request>
-                      <Transaction>
-                      <PaymentAmount>${dataBundle.amount}</PaymentAmount>
-                      <customerCountry>${
-                        dataBundle.country !== undefined &&
-                        dataBundle.country !== null &&
-                        dataBundle.country !== "false"
-                          ? dataBundle.country
-                          : "Namibia"
-                      }</customerCountry>
-                      <customerCity>${
-                        dataBundle.city !== undefined &&
-                        dataBundle.city !== null &&
-                        dataBundle.city !== "false"
-                          ? dataBundle.city
-                          : "Windhoek"
-                      }</customerCity>
-                      <CardHolderName>${dataBundle.name}</CardHolderName>
-                      <customerEmail>${usersDetails[0].email}</customerEmail>
-                      <customerPhone>${customerPhone}</customerPhone>
-                      <customerDialCode>${dialCode}</customerDialCode>
-                      <customerFirstName>${customerFirstName}</customerFirstName>
-                      <customerLastName>${customerLastName}</customerLastName>
-                      <PaymentCurrency>${
-                        process.env.PAYMENT_CURRENCY
-                      }</PaymentCurrency>
-                      <CompanyRef>${
-                        /^enabled/i.test(process.env.DEV_DELIVERY_STATE) &&
-                        /corporate/i.test(dataBundle.request_globality)
-                          ? process.env.DEV_COMPANY_DPO_REF
-                          : process.env.COMPANY_DPO_REF
-                      }</CompanyRef>
-                      <RedirectURL>${
-                        process.env.REDIRECT_URL_AFTER_PROCESSES
-                      }</RedirectURL>
-                      <BackURL>${
-                        process.env.REDIRECT_URL_AFTER_PROCESSES
-                      }</BackURL>
-                      <CompanyRefUnique>0</CompanyRefUnique>
-                      <PTL>5</PTL>
-                      </Transaction>
-                      <Services>
-                        <Service>
-                          <ServiceType>${
-                            /^enabled/i.test(process.env.DEV_DELIVERY_STATE) &&
-                            /corporate/i.test(dataBundle.request_globality)
-                              ? process.env.DEV_DPO_CREATETOKEN_SERVICE_TYPE
-                              : process.env.DPO_CREATETOKEN_SERVICE_TYPE
-                          }</ServiceType>
-                          <ServiceDescription>TaxiConnect wallet top-up</ServiceDescription>
-                          <ServiceDate>${dateObjectImute}</ServiceDate>
-                        </Service>
-                      </Services>
-                      </API3G>
-                      `;
-
-                      // logger.info(xmlCreateToken);
-
-                      createPaymentTransaction(
-                        xmlCreateToken,
-                        dataBundle.user_fp,
-                        collectionWalletTransactions_logs,
-                        resolve
-                      );
+                      deductXML_responses(reslt, "createToken", resolve);
                     }).then(
-                      (reslt) => {
-                        logger.warn(reslt);
-                        //Deduct XML response
-                        new Promise((resolve) => {
-                          deductXML_responses(reslt, "createToken", resolve);
-                        }).then(
-                          (result_createTokenDeducted) => {
-                            if (result_createTokenDeducted !== false) {
-                              //? Continue the top-up process
-                              new Promise((resFollower) => {
-                                processExecute_paymentCardWallet_topup(
-                                  dataBundle,
-                                  result_createTokenDeducted,
-                                  collectionWalletTransactions_logs,
-                                  collectionPassengers_profiles,
-                                  collectionGlobalEvents,
-                                  resFollower
-                                );
-                              }).then(
-                                (result_final) => {
-                                  res.send(result_final); //!Remove dpoFinal object and remove object bracket form!
-                                },
-                                (error) => {
-                                  logger.info(error);
-                                  res.send({
-                                    response: false,
-                                    message: "transaction_error",
-                                  });
-                                }
-                              );
-                            } //Error
-                            else {
+                      (result_createTokenDeducted) => {
+                        if (result_createTokenDeducted !== false) {
+                          //? Continue the top-up process
+                          new Promise((resFollower) => {
+                            processExecute_paymentCardWallet_topup(
+                              dataBundle,
+                              result_createTokenDeducted,
+                              collectionWalletTransactions_logs,
+                              collectionPassengers_profiles,
+                              collectionGlobalEvents,
+                              resFollower
+                            );
+                          }).then(
+                            (result_final) => {
+                              res.send(result_final); //!Remove dpoFinal object and remove object bracket form!
+                            },
+                            (error) => {
+                              logger.info(error);
                               res.send({
                                 response: false,
                                 message: "transaction_error",
                               });
                             }
-                          },
-                          (error) => {
-                            logger.info(error);
-                            res.send({
-                              response: false,
-                              message: "token_error",
-                            });
-                          }
-                        );
+                          );
+                        } //Error
+                        else {
+                          res.send({
+                            response: false,
+                            message: "transaction_error",
+                          });
+                        }
                       },
                       (error) => {
                         logger.info(error);
-                        res.send({ response: false, message: "token_error" });
-                      }
-                    );
-                  } //! AMOUNT TOO LARGE - DECLINE
-                  else {
-                    res.send({
-                      response: false,
-                      message: "transaction_error_exceeded_limit",
-                    });
-                  }
-                } //?Strange - did not find a rider account linked to this request
-                else {
-                  logger.info("Not found users");
-                  //Save error event log
-                  new Promise((resFailedTransaction) => {
-                    let faildTransObj = {
-                      event_name: "unlinked_rider_account_topup_failed_trial",
-                      user_fingerprint: dataBundle.user_fp,
-                      inputData: dataBundle,
-                      date_captured: new Date(chaineDateUTC),
-                    };
-                    //...
-                    dynamo_insert("global_events", faildTransObj)
-                      .then((result) => {
-                        resFailedTransaction(true);
-                      })
-                      .catch((error) => {
-                        logger.error(error);
-                        resFailedTransaction(false);
-                      });
-                  }).then(
-                    () => {},
-                    () => {}
-                  );
-                  //...
-                  res.send({ response: false, message: "transaction_error" });
-                }
-              })
-              .catch((error) => {
-                logger.info(error);
-                res.send({ response: false, message: "transaction_error" });
-              });
-          } //Invalid input data
-          else {
-            res.send({
-              response: false,
-              message: "transaction_error_missing_details",
-            });
-          }
-        });
-
-        /**
-         * CHECK RECEIVER'S DETAIL
-         * Responsible for checking the receiver's details while making a wallet transaction.
-         * ? Friends/Family: Phone number (Check if it's an active TaxiConnect number).
-         * ? Drivers: Check the payment number (or Taxi number) - 5 digits number.
-         * ? User nature: friend or driver ONLY.
-         */
-        app.get("/checkReceiverDetails_walletTransaction", function (req, res) {
-          resolveDate();
-          let params = urlParser.parse(req.url, true);
-          req = params.query;
-          logger.info(req);
-
-          if (
-            req.user_fingerprint !== undefined &&
-            req.user_fingerprint !== null &&
-            req.user_nature !== undefined &&
-            req.user_nature !== null &&
-            req.payNumberOrPhoneNumber !== undefined &&
-            req.payNumberOrPhoneNumber !== null
-          ) {
-            //Valid infos
-            //! CHECK IF THE USER IS NOT SENDING TO HIMSELF
-            new Promise((resCheckValidSender) => {
-              checkNonSelf_sendingFunds_user(
-                collectionPassengers_profiles,
-                req.payNumberOrPhoneNumber,
-                req.user_nature,
-                req.user_fingerprint,
-                resCheckValidSender
-              );
-            }).then(
-              (resultCheckSender) => {
-                if (
-                  resultCheckSender.response !== undefined &&
-                  resultCheckSender.response &&
-                  /^valid_sender$/i.test(resultCheckSender.flag)
-                ) {
-                  //Valid sender
-                  new Promise((resolve) => {
-                    checkReceipient_walletTransaction(
-                      req,
-                      collectionPassengers_profiles,
-                      collectionDrivers_profiles,
-                      collectionGlobalEvents,
-                      resolve
-                    );
-                  }).then(
-                    (result) => {
-                      res.send(result);
-                    },
-                    (error) => {
-                      logger.info(error);
-                      res.send({
-                        response: "error",
-                        flag: "transaction_error",
-                      });
-                    }
-                  );
-                } //! The user wants to send to himself
-                else {
-                  res.send({
-                    response: "error",
-                    flag: "transaction_error_want_toSend_toHiHermslef",
-                  });
-                }
-              },
-              (error) => {
-                logger.info(error);
-                res.send({ response: "error", flag: "transaction_error" });
-              }
-            );
-          } //Invalid infos
-          else {
-            res.send({
-              response: "error",
-              flag: "transaction_error_invalid_information",
-            });
-          }
-        });
-
-        /**
-         * SEND FUNDS FROM WALLET
-         * Responsible for sending funds from the rider's wallet to friends/family or drivers.
-         * ? Amount (No more than N$1000), user nature, user_fingerprint (sender), payNumberOrPhoneNumber (phone number, payment number/taxi number).
-         */
-        app.get("/sendMoney_fromWalletRider_transaction", function (req, res) {
-          resolveDate();
-          let params = urlParser.parse(req.url, true);
-          req = params.query;
-          logger.info(req);
-          //...
-          if (
-            req.user_fingerprint !== undefined &&
-            req.user_fingerprint !== null &&
-            req.amount !== undefined &&
-            req.amount !== null &&
-            req.user_nature !== undefined &&
-            req.user_nature !== null &&
-            req.payNumberOrPhoneNumber !== undefined &&
-            req.payNumberOrPhoneNumber !== null
-          ) {
-            //! Valid infos
-            new Promise((resolve) => {
-              checkReceipient_walletTransaction(
-                req,
-                collectionPassengers_profiles,
-                collectionDrivers_profiles,
-                collectionGlobalEvents,
-                resolve,
-                true
-              );
-            }).then(
-              (result) => {
-                if (
-                  /verified/i.test(result.response) &&
-                  result.recipient_fp !== null &&
-                  result.recipient_fp !== undefined
-                ) {
-                  //Active user
-                  //ADD THE RECIPIENT FINGERPRINT
-                  req["recipient_fp"] = result.recipient_fp;
-                  //! CHECK THAT THE USER IS NOT SENDING TO HIMSELF
-                  new Promise((resCheckValidSender) => {
-                    checkNonSelf_sendingFunds_user(
-                      collectionPassengers_profiles,
-                      req.payNumberOrPhoneNumber,
-                      req.user_nature,
-                      req.user_fingerprint,
-                      resCheckValidSender
-                    );
-                  }).then(
-                    (resultCheckSender) => {
-                      if (
-                        resultCheckSender.response !== undefined &&
-                        resultCheckSender.response &&
-                        /^valid_sender$/i.test(resultCheckSender.flag)
-                      ) {
-                        //Valid sender
-                        //! CHECK THE WALLET BALANCE FOR THE SENDER, it should be >= to the amount to send
-                        new Promise((resCheckBalance) => {
-                          let url =
-                            `${
-                              /production/i.test(process.env.EVIRONMENT)
-                                ? `http://${process.env.INSTANCE_PRIVATE_IP}`
-                                : process.env.LOCAL_URL
-                            }` +
-                            ":" +
-                            process.env.ACCOUNTS_SERVICE_PORT +
-                            "/getRiders_walletInfos?user_fingerprint=" +
-                            req.user_fingerprint +
-                            "&mode=total&avoidCached_data=true";
-
-                          requestAPI(url, function (error, response, body) {
-                            if (error === null) {
-                              try {
-                                body = JSON.parse(body);
-                                resCheckBalance(body);
-                              } catch (error) {
-                                resCheckBalance({
-                                  total: 0,
-                                  response: "error",
-                                  tag: "invalid_parameters",
-                                });
-                              }
-                            } else {
-                              resCheckBalance({
-                                total: 0,
-                                response: "error",
-                                tag: "invalid_parameters",
-                              });
-                            }
-                          });
-                        }).then(
-                          (senderBalance_infos) => {
-                            if (
-                              !/error/i.test(senderBalance_infos.response) &&
-                              senderBalance_infos.total !== undefined &&
-                              senderBalance_infos.total !== null
-                            ) {
-                              //Good to Go
-                              if (
-                                parseFloat(senderBalance_infos.total) >=
-                                parseFloat(req.amount)
-                              ) {
-                                //? Has enough funds
-                                new Promise((resolve) => {
-                                  execSendMoney_fromRiderWallet_transaction(
-                                    req,
-                                    collectionWalletTransactions_logs,
-                                    resolve
-                                  );
-                                }).then(
-                                  (result) => {
-                                    res.send(result);
-                                  },
-                                  (error) => {
-                                    logger.info(error);
-                                    res.send({
-                                      response: "error",
-                                      flag: "transaction_error",
-                                    });
-                                  }
-                                );
-                              } //! The sender has not enough funds in his/her wallet to proceed
-                              else {
-                                res.send({
-                                  response: "error",
-                                  flag: "transaction_error_unsifficient_funds",
-                                });
-                              }
-                            } //Error getting the sender's total wallet amount
-                            else {
-                              res.send({
-                                response: "error",
-                                flag: "transaction_error",
-                              });
-                            }
-                          },
-                          (error) => {
-                            //Error getting balance information
-                            logger.info(error);
-                            res.send({
-                              response: "error",
-                              flag: "transaction_error",
-                            });
-                          }
-                        );
-                      } //! The user wants to send to himself
-                      else {
                         res.send({
-                          response: "error",
-                          flag: "transaction_error_want_toSend_toHiHermslef",
+                          response: false,
+                          message: "token_error",
                         });
                       }
-                    },
-                    (error) => {
-                      logger.info(error);
-                      res.send({
-                        response: "error",
-                        flag: "transaction_error",
-                      });
-                    }
-                  );
-                } //No recipient found
-                else {
+                    );
+                  },
+                  (error) => {
+                    logger.info(error);
+                    res.send({ response: false, message: "token_error" });
+                  }
+                );
+              } //! AMOUNT TOO LARGE - DECLINE
+              else {
+                res.send({
+                  response: false,
+                  message: "transaction_error_exceeded_limit",
+                });
+              }
+            } //?Strange - did not find a rider account linked to this request
+            else {
+              logger.info("Not found users");
+              //Save error event log
+              new Promise((resFailedTransaction) => {
+                let faildTransObj = {
+                  event_name: "unlinked_rider_account_topup_failed_trial",
+                  user_fingerprint: dataBundle.user_fp,
+                  inputData: dataBundle,
+                  date_captured: new Date(chaineDateUTC),
+                };
+                //...
+                dynamo_insert("global_events", faildTransObj)
+                  .then((result) => {
+                    resFailedTransaction(true);
+                  })
+                  .catch((error) => {
+                    logger.error(error);
+                    resFailedTransaction(false);
+                  });
+              }).then(
+                () => {},
+                () => {}
+              );
+              //...
+              res.send({ response: false, message: "transaction_error" });
+            }
+          })
+          .catch((error) => {
+            logger.info(error);
+            res.send({ response: false, message: "transaction_error" });
+          });
+      } //Invalid input data
+      else {
+        res.send({
+          response: false,
+          message: "transaction_error_missing_details",
+        });
+      }
+    });
+
+    /**
+     * CHECK RECEIVER'S DETAIL
+     * Responsible for checking the receiver's details while making a wallet transaction.
+     * ? Friends/Family: Phone number (Check if it's an active TaxiConnect number).
+     * ? Drivers: Check the payment number (or Taxi number) - 5 digits number.
+     * ? User nature: friend or driver ONLY.
+     */
+    app.get("/checkReceiverDetails_walletTransaction", function (req, res) {
+      resolveDate();
+      let params = urlParser.parse(req.url, true);
+      req = params.query;
+      logger.info(req);
+
+      if (
+        req.user_fingerprint !== undefined &&
+        req.user_fingerprint !== null &&
+        req.user_nature !== undefined &&
+        req.user_nature !== null &&
+        req.payNumberOrPhoneNumber !== undefined &&
+        req.payNumberOrPhoneNumber !== null
+      ) {
+        //Valid infos
+        //! CHECK IF THE USER IS NOT SENDING TO HIMSELF
+        new Promise((resCheckValidSender) => {
+          checkNonSelf_sendingFunds_user(
+            collectionPassengers_profiles,
+            req.payNumberOrPhoneNumber,
+            req.user_nature,
+            req.user_fingerprint,
+            resCheckValidSender
+          );
+        }).then(
+          (resultCheckSender) => {
+            if (
+              resultCheckSender.response !== undefined &&
+              resultCheckSender.response &&
+              /^valid_sender$/i.test(resultCheckSender.flag)
+            ) {
+              //Valid sender
+              new Promise((resolve) => {
+                checkReceipient_walletTransaction(
+                  req,
+                  collectionPassengers_profiles,
+                  collectionDrivers_profiles,
+                  collectionGlobalEvents,
+                  resolve
+                );
+              }).then(
+                (result) => {
+                  res.send(result);
+                },
+                (error) => {
+                  logger.info(error);
                   res.send({
                     response: "error",
                     flag: "transaction_error",
                   });
                 }
-              },
-              (error) => {
-                logger.info(error);
-                res.send({ response: "error", flag: "transaction_error" });
-              }
-            );
-          } else {
+              );
+            } //! The user wants to send to himself
+            else {
+              res.send({
+                response: "error",
+                flag: "transaction_error_want_toSend_toHiHermslef",
+              });
+            }
+          },
+          (error) => {
+            logger.info(error);
             res.send({ response: "error", flag: "transaction_error" });
           }
-        });
-
-        //? REWARDS API SUITE
-
-        /**
-         * CREATE ONE-TIME AND RECURSIVE REWARDS API
-         * Responsible for creating one time (with voucher money) and recursive (% based) rewards for specific organizations.
-         */
-        app.post("/createOneTimeOrRecusiveRewards", function (req, res) {
-          res.status(404).json({
-            status: "missing",
-          });
-          // new Promise((resolve) => {
-          //   resolveDate();
-          //   req = req.body;
-
-          //   let api_keys = [
-          //     "kdasdfhjlajksdlasjkdlkscnklajsflskdjl;asdjlsjkdfaklsdjlaskdjlaskjdlaskdjdehjsfhsljdlsk",
-          //   ];
-          //   let allowed_roganizations = ["SANLAM"];
-
-          //   //! Detect the reward type
-          //   if (
-          //     req.customer_infos !== undefined &&
-          //     req.customer_infos !== null &&
-          //     req.key !== undefined &&
-          //     req.key !== null &&
-          //     req.organization_infos !== undefined &&
-          //     req.organization_infos !== null &&
-          //     req.organization_infos.name !== undefined &&
-          //     req.organization_infos.name !== null &&
-          //     api_keys.includes(req.key) &&
-          //     allowed_roganizations.includes(req.organization_infos.name) &&
-          //     req.voucher_code !== undefined &&
-          //     req.voucher_code !== null
-          //   ) {
-          //     //! Transaction nature: onetime_voucher, recursive_voucher
-          //     //! Use the phone number as the reference
-          //     //? Check that the voucher code is unique
-          //     dynamo_find_query({
-          //       table_name: "wallet_transactions_logs",
-          //       IndexName: "voucher_code",
-          //       KeyConditionExpression: "voucher_code = :val1",
-          //       ExpressionAttributeValues: {
-          //         ":val1": req.voucher_code,
-          //       },
-          //     })
-          //       .then((voucherData) => {
-          //         if (voucherData !== undefined && voucherData.length === 0) {
-          //           //? Unique, allow
-          //           if (
-          //             req.reward_type === "onetime" &&
-          //             req.voucher_value !== undefined &&
-          //             req.voucher_value !== null
-          //           ) {
-          //             //One time rewards
-          //             let bundleReward = {
-          //               transaction_nature: "onetime_voucher",
-          //               organization: req.organization_infos,
-          //               ref_phone_number: req.customer_infos.phone_number,
-          //               recipient_fp: "",
-          //               amount: parseFloat(req.voucher_value),
-          //               payment_currency: "NAD",
-          //               voucher_code: req.voucher_code,
-          //               timestamp: Math.round(
-          //                 new Date(chaineDateUTC).getTime()
-          //               ),
-          //               date_captured: new Date(chaineDateUTC),
-          //             };
-          //             //...
-          //             collectionWalletTransactions_logs.ins\ertOne(
-          //               bundleReward,
-          //               function (err, insrtData) {
-          //                 if (err) {
-          //                   logger.error(err);
-          //                   resolve({
-          //                     response:
-          //                       "Unable to create the one-time reward, it this error perists contact support@taxiconnectna.com",
-          //                   });
-          //                 }
-          //                 //...
-          //                 resolve({
-          //                   response: {
-          //                     status: "onetime_reward_successfully_created",
-          //                     user: req.customer_infos.phone_number,
-          //                     amount: req.voucher_value,
-          //                     time_signature: bundleReward.timestamp,
-          //                   },
-          //                 });
-          //               }
-          //             );
-          //           } else if (
-          //             req.reward_type === "recursive" &&
-          //             req.apply_after !== undefined &&
-          //             req.apply_after !== null &&
-          //             req.apply_to !== undefined &&
-          //             req.apply_to !== null &&
-          //             req.discount_percentage !== undefined &&
-          //             req.discount_percentage !== null
-          //           ) {
-          //             //Recursive rewards
-          //             //! Check that no previous recusrive discount is active
-          //             let bundleReward = {
-          //               transaction_nature: "recursive_voucher",
-          //               organization: req.organization_infos,
-          //               ref_phone_number: req.customer_infos.phone_number,
-          //               recipient_fp: "",
-          //               discount_percentage: parseFloat(
-          //                 req.discount_percentage
-          //               ),
-          //               apply_after: req.apply_after, //Number of trips after which to start applying the reward
-          //               apply_to: req.apply_to, //Number of trips to which the discount should be applied
-          //               payment_currency: "NAD",
-          //               voucher_code: req.voucher_code,
-          //               timestamp: Math.round(
-          //                 new Date(chaineDateUTC).getTime()
-          //               ),
-          //               date_captured: new Date(chaineDateUTC),
-          //             };
-          //             //...
-          //             collectionWalletTransactions_logs.ins\ertOne(
-          //               bundleReward,
-          //               function (err, insrtData) {
-          //                 if (err) {
-          //                   logger.error(err);
-          //                   resolve({
-          //                     response:
-          //                       "Unable to create the one-time reward, it this error perists contact support@taxiconnectna.com",
-          //                   });
-          //                 }
-          //                 //...
-          //                 resolve({
-          //                   response: {
-          //                     status: "recursive_reward_successfully_created",
-          //                     user: req.customer_infos.phone_number,
-          //                     apply_after: req.apply_after,
-          //                     apply_to: req.apply_to,
-          //                     discount_percentage: req.discount_percentage,
-          //                     time_signature: bundleReward.timestamp,
-          //                   },
-          //                 });
-          //               }
-          //             );
-          //           } //No type specified
-          //           else {
-          //             resolve({
-          //               response:
-          //                 "Missing parameters, please refer the the documentation for more details on how to use the parameters.",
-          //             });
-          //           }
-          //         } //! Not unique voucher code detected
-          //         else {
-          //           resolve({
-          //             response:
-          //               "The voucher code provided is not unique, please regenerate it preferably based on the current timestamp and try again.",
-          //           });
-          //         }
-          //       })
-          //       .catch((error) => {
-          //         logger.error(error);
-          //         resolve({
-          //           response:
-          //             "Unexpected error occured, it this error perists contact support@taxiconnectna.com",
-          //         });
-          //       });
-          //   } //! Invalid data
-          //   else {
-          //     resolve({
-          //       response:
-          //         "Missing parameters, please refer the the documentation for more details on how to use the parameters.",
-          //     });
-          //   }
-          // })
-          //   .then((result) => {
-          //     logger.info(result);
-          //     res.send(result);
-          //   })
-          //   .catch((error) => {
-          //     logger.error(error);
-          //     res.send({
-          //       response:
-          //         "Unexpected error occured, it this error perists contact support@taxiconnectna.com",
-          //     });
-          //   });
-        });
-
-        /**
-         * GET REWARDS DATA
-         * Responsible for getting the reward information for an organization based on a phone number
-         */
-        app.post("/getRewardListFromUserId", function (req, res) {
-          // new Promise((resolve) => {
-          // resolveDate();
-          res.send({
-            response:
-              "Unexpected error occured, it this error perists contact support@taxiconnectna.com",
-          });
-          //   req = req.body;
-
-          //   let api_keys = ["123"];
-          //   let allowed_roganizations = ["SANLAM"];
-
-          //   //! Detect the reward type
-          //   if (
-          //     req.customer_infos !== undefined &&
-          //     req.customer_infos !== null &&
-          //     req.customer_infos.phone_number !== undefined &&
-          //     req.customer_infos.phone_number !== null &&
-          //     req.key !== undefined &&
-          //     req.key !== null &&
-          //     req.organization_infos !== undefined &&
-          //     req.organization_infos !== null &&
-          //     req.organization_infos.name !== undefined &&
-          //     req.organization_infos.name !== null &&
-          //     api_keys.includes(req.key) &&
-          //     allowed_roganizations.includes(req.organization_infos.name)
-          //   ) {
-          //     //! Transaction nature: onetime_voucher, recursive_voucher
-          //     //! Use the phone number as the reference
-          //     // let redisKey = `${req.customer_infos.phone_number}-listOfRewardsLinkedToTHisPhone_number`;
-          //     collectionWalletTransactions_logs
-          //       .fi\nd({
-          //         ref_phone_number: req.customer_infos.phone_number.trim(),
-          //       })
-          //       .toArray(function (err, rewardsData) {
-          //         if (err) {
-          //           logger.error(err);
-          //           resolve({
-          //             response:
-          //               "Unexpected error occured, it this error perists contact support@taxiconnectna.com",
-          //           });
-          //         }
-          //         //...
-          //         if (rewardsData !== undefined && rewardsData.length > 0) {
-          //           //Has data
-          //           let distilledRewardsList = [];
-          //           //...
-          //           rewardsData.map((r) => {
-          //             if (r.transaction_nature === "onetime_voucher") {
-          //               let tmp = {
-          //                 reward_type: r.transaction_nature,
-          //                 user_phone_number: r.ref_phone_number,
-          //                 amount: r.amount,
-          //                 voucher_code: r.voucher_code,
-          //                 timestamp: r.timestamp,
-          //                 is_it_applied: r.user_fingerprint.length > 0,
-          //                 date_created: r.date_captured,
-          //               };
-          //               //...Save
-          //               distilledRewardsList.push(tmp);
-          //             } else if (r.transaction_nature === "recursive_voucher") {
-          //               let tmp = {
-          //                 reward_type: r.transaction_nature,
-          //                 user_phone_number: r.ref_phone_number,
-          //                 discount_percentage: r.discount_percentage,
-          //                 apply_after: r.apply_after,
-          //                 apply_to: r.apply_to,
-          //                 voucher_code: r.voucher_code,
-          //                 timestamp: r.timestamp,
-          //                 is_it_applied: r.user_fingerprint.length > 0,
-          //                 date_created: r.date_captured,
-          //               };
-          //               //...Save
-          //               distilledRewardsList.push(tmp);
-          //             }
-          //           });
-          //           //...
-          //           resolve({
-          //             response: {
-          //               status: "success",
-          //               data: distilledRewardsList,
-          //             },
-          //           });
-          //         } //No data
-          //         else {
-          //           resolve({
-          //             response: {
-          //               status: "No rewards data found",
-          //               date: new Date(chaineDateUTC),
-          //             },
-          //           });
-          //         }
-          //       });
-          //   } //! Invalid data
-          //   else {
-          //     resolve({
-          //       response:
-          //         "Missing parameters, please refer the the documentation for more details on how to use the parameters.",
-          //     });
-          //   }
-          // })
-          //   .then((result) => {
-          //     logger.info(result);
-          //     res.send(result);
-          //   })
-          //   .catch((error) => {
-          //     logger.error(error);
-          //     res.send({
-          //       response:
-          //         "Unexpected error occured, it this error perists contact support@taxiconnectna.com",
-          //     });
-          //   });
-        });
-
-        /**
-         * VOUCHER CHECKS AND APPLY
-         * Responsible for checking and applying any voucher code
-         */
-        app.post("/voucherProcessorExec", function (req, res) {
-          res.send({ response: "error_no_rider_data" });
-          // new Promise((resolve) => {
-          //   req = req.body;
-
-          //   if (
-          //     req.op !== undefined &&
-          //     req.op !== null &&
-          //     req.user_fp !== undefined &&
-          //     req.user_fp !== null
-          //   ) {
-          //     if (
-          //       req.op === "applyVoucher" &&
-          //       req.voucher_code !== undefined &&
-          //       req.voucher_code !== null
-          //     ) {
-          //       //To apply any voucher
-          //       //1. Get the user's details
-          //       collectionPassengers_profiles
-          //         .f\ind({ user_fingerprint: req.user_fp })
-          //         .toArray(function (err, userData) {
-          //           if (err) {
-          //             logger.error(err);
-          //             resolve({ response: "error_no_rider_data" });
-          //           }
-          //           //....
-          //           if (userData !== undefined && userData.length > 0) {
-          //             userData = userData[0];
-          //             //...
-          //             //2. Check that the voucher code is valid
-          //             collectionWalletTransactions_logs
-          //               .fi\nd({
-          //                 ref_phone_number: userData.phone_number,
-          //                 voucher_code: req.voucher_code,
-          //                 recipient_fp: "", //! Not yet used
-          //               })
-          //               .toArray(function (err, voucherData) {
-          //                 if (err) {
-          //                   logger.error(err);
-          //                   resolve({ response: "error_no_voucher_data" });
-          //                 }
-          //                 logger.info({
-          //                   ref_phone_number: userData.phone_number,
-          //                   voucher_code: req.voucher_code,
-          //                   recipient_fp: "", //! Not yet used
-          //                 });
-          //                 //...
-          //                 if (
-          //                   voucherData !== undefined &&
-          //                   voucherData.length > 0
-          //                 ) {
-          //                   voucherData = voucherData[0];
-          //                   //Has data
-          //                   //? Apply this voucher to the user
-          //                   collectionWalletTransactions_logs.updat\eOne(
-          //                     {
-          //                       ref_phone_number: userData.phone_number,
-          //                       recipient_fp: "",
-          //                     },
-          //                     {
-          //                       $set: {
-          //                         recipient_fp: req.user_fp,
-          //                         date_applied: new Date(chaineDateUTC),
-          //                       },
-          //                     },
-          //                     function (err, resltUpdate) {
-          //                       if (err) {
-          //                         logger.error(err);
-          //                         resolve({
-          //                           response: "error_unable_to_apply_voucher",
-          //                         });
-          //                       }
-          //                       //...
-          //                       resolve({
-          //                         response: "successfully_applied_voucher",
-          //                         data: {
-          //                           reward_type: voucherData.transaction_nature,
-          //                           amount: voucherData.amount,
-          //                           payment_currency:
-          //                             voucherData.payment_currency,
-          //                           discount_percentage:
-          //                             voucherData.discount_percentage,
-          //                           apply_after: voucherData.apply_after,
-          //                           apply_to: voucherData.apply_to,
-          //                           organization_name:
-          //                             voucherData.organization.name,
-          //                           organization_logo: `${
-          //                             process.env.AWS_S3_COMPANIES_DATA_ADS
-          //                           }/Rewards_organizations/${voucherData.organization.name.toLowerCase()}.png`,
-          //                         },
-          //                       });
-          //                     }
-          //                   );
-          //                 } //No voucher available
-          //                 else {
-          //                   resolve({ response: "error_invalid_voucher" });
-          //                 }
-          //               });
-          //           } //! No user data?!
-          //           else {
-          //             resolve({ response: "error_no_rider_data" });
-          //           }
-          //         });
-          //     } else if (req.op === "getVouchersList") {
-          //       //To get the list of all the applied vouchers
-          //     } //? Almost impossible case
-          //     else {
-          //       resolve({ response: "error_invalid_operation" });
-          //     }
-          //   } //No valid operation
-          //   else {
-          //     resolve({ response: "error_invalid_operation" });
-          //   }
-          // })
-          //   .then((result) => {
-          //     logger.info(result);
-          //     res.send(result);
-          //   })
-          //   .catch((error) => {
-          //     logger.error(error);
-          //     res.send({
-          //       response: "error_unable_toProcess_voucher",
-          //     });
-          //   });
+        );
+      } //Invalid infos
+      else {
+        res.send({
+          response: "error",
+          flag: "transaction_error_invalid_information",
         });
       }
-    );
+    });
+
+    /**
+     * SEND FUNDS FROM WALLET
+     * Responsible for sending funds from the rider's wallet to friends/family or drivers.
+     * ? Amount (No more than N$1000), user nature, user_fingerprint (sender), payNumberOrPhoneNumber (phone number, payment number/taxi number).
+     */
+    app.get("/sendMoney_fromWalletRider_transaction", function (req, res) {
+      resolveDate();
+      let params = urlParser.parse(req.url, true);
+      req = params.query;
+      logger.info(req);
+      //...
+      if (
+        req.user_fingerprint !== undefined &&
+        req.user_fingerprint !== null &&
+        req.amount !== undefined &&
+        req.amount !== null &&
+        req.user_nature !== undefined &&
+        req.user_nature !== null &&
+        req.payNumberOrPhoneNumber !== undefined &&
+        req.payNumberOrPhoneNumber !== null
+      ) {
+        //! Valid infos
+        new Promise((resolve) => {
+          checkReceipient_walletTransaction(
+            req,
+            collectionPassengers_profiles,
+            collectionDrivers_profiles,
+            collectionGlobalEvents,
+            resolve,
+            true
+          );
+        }).then(
+          (result) => {
+            if (
+              /verified/i.test(result.response) &&
+              result.recipient_fp !== null &&
+              result.recipient_fp !== undefined
+            ) {
+              //Active user
+              //ADD THE RECIPIENT FINGERPRINT
+              req["recipient_fp"] = result.recipient_fp;
+              //! CHECK THAT THE USER IS NOT SENDING TO HIMSELF
+              new Promise((resCheckValidSender) => {
+                checkNonSelf_sendingFunds_user(
+                  collectionPassengers_profiles,
+                  req.payNumberOrPhoneNumber,
+                  req.user_nature,
+                  req.user_fingerprint,
+                  resCheckValidSender
+                );
+              }).then(
+                (resultCheckSender) => {
+                  if (
+                    resultCheckSender.response !== undefined &&
+                    resultCheckSender.response &&
+                    /^valid_sender$/i.test(resultCheckSender.flag)
+                  ) {
+                    //Valid sender
+                    //! CHECK THE WALLET BALANCE FOR THE SENDER, it should be >= to the amount to send
+                    new Promise((resCheckBalance) => {
+                      let url =
+                        `${
+                          /production/i.test(process.env.EVIRONMENT)
+                            ? `http://${process.env.INSTANCE_PRIVATE_IP}`
+                            : process.env.LOCAL_URL
+                        }` +
+                        ":" +
+                        process.env.ACCOUNTS_SERVICE_PORT +
+                        "/getRiders_walletInfos?user_fingerprint=" +
+                        req.user_fingerprint +
+                        "&mode=total&avoidCached_data=true";
+
+                      requestAPI(url, function (error, response, body) {
+                        if (error === null) {
+                          try {
+                            body = JSON.parse(body);
+                            resCheckBalance(body);
+                          } catch (error) {
+                            resCheckBalance({
+                              total: 0,
+                              response: "error",
+                              tag: "invalid_parameters",
+                            });
+                          }
+                        } else {
+                          resCheckBalance({
+                            total: 0,
+                            response: "error",
+                            tag: "invalid_parameters",
+                          });
+                        }
+                      });
+                    }).then(
+                      (senderBalance_infos) => {
+                        if (
+                          !/error/i.test(senderBalance_infos.response) &&
+                          senderBalance_infos.total !== undefined &&
+                          senderBalance_infos.total !== null
+                        ) {
+                          //Good to Go
+                          if (
+                            parseFloat(senderBalance_infos.total) >=
+                            parseFloat(req.amount)
+                          ) {
+                            //? Has enough funds
+                            new Promise((resolve) => {
+                              execSendMoney_fromRiderWallet_transaction(
+                                req,
+                                collectionWalletTransactions_logs,
+                                resolve
+                              );
+                            }).then(
+                              (result) => {
+                                res.send(result);
+                              },
+                              (error) => {
+                                logger.info(error);
+                                res.send({
+                                  response: "error",
+                                  flag: "transaction_error",
+                                });
+                              }
+                            );
+                          } //! The sender has not enough funds in his/her wallet to proceed
+                          else {
+                            res.send({
+                              response: "error",
+                              flag: "transaction_error_unsifficient_funds",
+                            });
+                          }
+                        } //Error getting the sender's total wallet amount
+                        else {
+                          res.send({
+                            response: "error",
+                            flag: "transaction_error",
+                          });
+                        }
+                      },
+                      (error) => {
+                        //Error getting balance information
+                        logger.info(error);
+                        res.send({
+                          response: "error",
+                          flag: "transaction_error",
+                        });
+                      }
+                    );
+                  } //! The user wants to send to himself
+                  else {
+                    res.send({
+                      response: "error",
+                      flag: "transaction_error_want_toSend_toHiHermslef",
+                    });
+                  }
+                },
+                (error) => {
+                  logger.info(error);
+                  res.send({
+                    response: "error",
+                    flag: "transaction_error",
+                  });
+                }
+              );
+            } //No recipient found
+            else {
+              res.send({
+                response: "error",
+                flag: "transaction_error",
+              });
+            }
+          },
+          (error) => {
+            logger.info(error);
+            res.send({ response: "error", flag: "transaction_error" });
+          }
+        );
+      } else {
+        res.send({ response: "error", flag: "transaction_error" });
+      }
+    });
+
+    //? REWARDS API SUITE
+
+    /**
+     * CREATE ONE-TIME AND RECURSIVE REWARDS API
+     * Responsible for creating one time (with voucher money) and recursive (% based) rewards for specific organizations.
+     */
+    app.post("/createOneTimeOrRecusiveRewards", function (req, res) {
+      res.status(404).json({
+        status: "missing",
+      });
+      // new Promise((resolve) => {
+      //   resolveDate();
+      //   req = req.body;
+
+      //   let api_keys = [
+      //     "kdasdfhjlajksdlasjkdlkscnklajsflskdjl;asdjlsjkdfaklsdjlaskdjlaskjdlaskdjdehjsfhsljdlsk",
+      //   ];
+      //   let allowed_roganizations = ["SANLAM"];
+
+      //   //! Detect the reward type
+      //   if (
+      //     req.customer_infos !== undefined &&
+      //     req.customer_infos !== null &&
+      //     req.key !== undefined &&
+      //     req.key !== null &&
+      //     req.organization_infos !== undefined &&
+      //     req.organization_infos !== null &&
+      //     req.organization_infos.name !== undefined &&
+      //     req.organization_infos.name !== null &&
+      //     api_keys.includes(req.key) &&
+      //     allowed_roganizations.includes(req.organization_infos.name) &&
+      //     req.voucher_code !== undefined &&
+      //     req.voucher_code !== null
+      //   ) {
+      //     //! Transaction nature: onetime_voucher, recursive_voucher
+      //     //! Use the phone number as the reference
+      //     //? Check that the voucher code is unique
+      //     dynamo_find_query({
+      //       table_name: "wallet_transactions_logs",
+      //       IndexName: "voucher_code",
+      //       KeyConditionExpression: "voucher_code = :val1",
+      //       ExpressionAttributeValues: {
+      //         ":val1": req.voucher_code,
+      //       },
+      //     })
+      //       .then((voucherData) => {
+      //         if (voucherData !== undefined && voucherData.length === 0) {
+      //           //? Unique, allow
+      //           if (
+      //             req.reward_type === "onetime" &&
+      //             req.voucher_value !== undefined &&
+      //             req.voucher_value !== null
+      //           ) {
+      //             //One time rewards
+      //             let bundleReward = {
+      //               transaction_nature: "onetime_voucher",
+      //               organization: req.organization_infos,
+      //               ref_phone_number: req.customer_infos.phone_number,
+      //               recipient_fp: "",
+      //               amount: parseFloat(req.voucher_value),
+      //               payment_currency: "NAD",
+      //               voucher_code: req.voucher_code,
+      //               timestamp: Math.round(
+      //                 new Date(chaineDateUTC).getTime()
+      //               ),
+      //               date_captured: new Date(chaineDateUTC),
+      //             };
+      //             //...
+      //             collectionWalletTransactions_logs.ins\ertOne(
+      //               bundleReward,
+      //               function (err, insrtData) {
+      //                 if (err) {
+      //                   logger.error(err);
+      //                   resolve({
+      //                     response:
+      //                       "Unable to create the one-time reward, it this error perists contact support@taxiconnectna.com",
+      //                   });
+      //                 }
+      //                 //...
+      //                 resolve({
+      //                   response: {
+      //                     status: "onetime_reward_successfully_created",
+      //                     user: req.customer_infos.phone_number,
+      //                     amount: req.voucher_value,
+      //                     time_signature: bundleReward.timestamp,
+      //                   },
+      //                 });
+      //               }
+      //             );
+      //           } else if (
+      //             req.reward_type === "recursive" &&
+      //             req.apply_after !== undefined &&
+      //             req.apply_after !== null &&
+      //             req.apply_to !== undefined &&
+      //             req.apply_to !== null &&
+      //             req.discount_percentage !== undefined &&
+      //             req.discount_percentage !== null
+      //           ) {
+      //             //Recursive rewards
+      //             //! Check that no previous recusrive discount is active
+      //             let bundleReward = {
+      //               transaction_nature: "recursive_voucher",
+      //               organization: req.organization_infos,
+      //               ref_phone_number: req.customer_infos.phone_number,
+      //               recipient_fp: "",
+      //               discount_percentage: parseFloat(
+      //                 req.discount_percentage
+      //               ),
+      //               apply_after: req.apply_after, //Number of trips after which to start applying the reward
+      //               apply_to: req.apply_to, //Number of trips to which the discount should be applied
+      //               payment_currency: "NAD",
+      //               voucher_code: req.voucher_code,
+      //               timestamp: Math.round(
+      //                 new Date(chaineDateUTC).getTime()
+      //               ),
+      //               date_captured: new Date(chaineDateUTC),
+      //             };
+      //             //...
+      //             collectionWalletTransactions_logs.ins\ertOne(
+      //               bundleReward,
+      //               function (err, insrtData) {
+      //                 if (err) {
+      //                   logger.error(err);
+      //                   resolve({
+      //                     response:
+      //                       "Unable to create the one-time reward, it this error perists contact support@taxiconnectna.com",
+      //                   });
+      //                 }
+      //                 //...
+      //                 resolve({
+      //                   response: {
+      //                     status: "recursive_reward_successfully_created",
+      //                     user: req.customer_infos.phone_number,
+      //                     apply_after: req.apply_after,
+      //                     apply_to: req.apply_to,
+      //                     discount_percentage: req.discount_percentage,
+      //                     time_signature: bundleReward.timestamp,
+      //                   },
+      //                 });
+      //               }
+      //             );
+      //           } //No type specified
+      //           else {
+      //             resolve({
+      //               response:
+      //                 "Missing parameters, please refer the the documentation for more details on how to use the parameters.",
+      //             });
+      //           }
+      //         } //! Not unique voucher code detected
+      //         else {
+      //           resolve({
+      //             response:
+      //               "The voucher code provided is not unique, please regenerate it preferably based on the current timestamp and try again.",
+      //           });
+      //         }
+      //       })
+      //       .catch((error) => {
+      //         logger.error(error);
+      //         resolve({
+      //           response:
+      //             "Unexpected error occured, it this error perists contact support@taxiconnectna.com",
+      //         });
+      //       });
+      //   } //! Invalid data
+      //   else {
+      //     resolve({
+      //       response:
+      //         "Missing parameters, please refer the the documentation for more details on how to use the parameters.",
+      //     });
+      //   }
+      // })
+      //   .then((result) => {
+      //     logger.info(result);
+      //     res.send(result);
+      //   })
+      //   .catch((error) => {
+      //     logger.error(error);
+      //     res.send({
+      //       response:
+      //         "Unexpected error occured, it this error perists contact support@taxiconnectna.com",
+      //     });
+      //   });
+    });
+
+    /**
+     * GET REWARDS DATA
+     * Responsible for getting the reward information for an organization based on a phone number
+     */
+    app.post("/getRewardListFromUserId", function (req, res) {
+      // new Promise((resolve) => {
+      // resolveDate();
+      res.send({
+        response:
+          "Unexpected error occured, it this error perists contact support@taxiconnectna.com",
+      });
+      //   req = req.body;
+
+      //   let api_keys = ["123"];
+      //   let allowed_roganizations = ["SANLAM"];
+
+      //   //! Detect the reward type
+      //   if (
+      //     req.customer_infos !== undefined &&
+      //     req.customer_infos !== null &&
+      //     req.customer_infos.phone_number !== undefined &&
+      //     req.customer_infos.phone_number !== null &&
+      //     req.key !== undefined &&
+      //     req.key !== null &&
+      //     req.organization_infos !== undefined &&
+      //     req.organization_infos !== null &&
+      //     req.organization_infos.name !== undefined &&
+      //     req.organization_infos.name !== null &&
+      //     api_keys.includes(req.key) &&
+      //     allowed_roganizations.includes(req.organization_infos.name)
+      //   ) {
+      //     //! Transaction nature: onetime_voucher, recursive_voucher
+      //     //! Use the phone number as the reference
+      //     // let redisKey = `${req.customer_infos.phone_number}-listOfRewardsLinkedToTHisPhone_number`;
+      //     collectionWalletTransactions_logs
+      //       .fi\nd({
+      //         ref_phone_number: req.customer_infos.phone_number.trim(),
+      //       })
+      //       .toArray(function (err, rewardsData) {
+      //         if (err) {
+      //           logger.error(err);
+      //           resolve({
+      //             response:
+      //               "Unexpected error occured, it this error perists contact support@taxiconnectna.com",
+      //           });
+      //         }
+      //         //...
+      //         if (rewardsData !== undefined && rewardsData.length > 0) {
+      //           //Has data
+      //           let distilledRewardsList = [];
+      //           //...
+      //           rewardsData.map((r) => {
+      //             if (r.transaction_nature === "onetime_voucher") {
+      //               let tmp = {
+      //                 reward_type: r.transaction_nature,
+      //                 user_phone_number: r.ref_phone_number,
+      //                 amount: r.amount,
+      //                 voucher_code: r.voucher_code,
+      //                 timestamp: r.timestamp,
+      //                 is_it_applied: r.user_fingerprint.length > 0,
+      //                 date_created: r.date_captured,
+      //               };
+      //               //...Save
+      //               distilledRewardsList.push(tmp);
+      //             } else if (r.transaction_nature === "recursive_voucher") {
+      //               let tmp = {
+      //                 reward_type: r.transaction_nature,
+      //                 user_phone_number: r.ref_phone_number,
+      //                 discount_percentage: r.discount_percentage,
+      //                 apply_after: r.apply_after,
+      //                 apply_to: r.apply_to,
+      //                 voucher_code: r.voucher_code,
+      //                 timestamp: r.timestamp,
+      //                 is_it_applied: r.user_fingerprint.length > 0,
+      //                 date_created: r.date_captured,
+      //               };
+      //               //...Save
+      //               distilledRewardsList.push(tmp);
+      //             }
+      //           });
+      //           //...
+      //           resolve({
+      //             response: {
+      //               status: "success",
+      //               data: distilledRewardsList,
+      //             },
+      //           });
+      //         } //No data
+      //         else {
+      //           resolve({
+      //             response: {
+      //               status: "No rewards data found",
+      //               date: new Date(chaineDateUTC),
+      //             },
+      //           });
+      //         }
+      //       });
+      //   } //! Invalid data
+      //   else {
+      //     resolve({
+      //       response:
+      //         "Missing parameters, please refer the the documentation for more details on how to use the parameters.",
+      //     });
+      //   }
+      // })
+      //   .then((result) => {
+      //     logger.info(result);
+      //     res.send(result);
+      //   })
+      //   .catch((error) => {
+      //     logger.error(error);
+      //     res.send({
+      //       response:
+      //         "Unexpected error occured, it this error perists contact support@taxiconnectna.com",
+      //     });
+      //   });
+    });
+
+    /**
+     * VOUCHER CHECKS AND APPLY
+     * Responsible for checking and applying any voucher code
+     */
+    app.post("/voucherProcessorExec", function (req, res) {
+      res.send({ response: "error_no_rider_data" });
+      // new Promise((resolve) => {
+      //   req = req.body;
+
+      //   if (
+      //     req.op !== undefined &&
+      //     req.op !== null &&
+      //     req.user_fp !== undefined &&
+      //     req.user_fp !== null
+      //   ) {
+      //     if (
+      //       req.op === "applyVoucher" &&
+      //       req.voucher_code !== undefined &&
+      //       req.voucher_code !== null
+      //     ) {
+      //       //To apply any voucher
+      //       //1. Get the user's details
+      //       collectionPassengers_profiles
+      //         .f\ind({ user_fingerprint: req.user_fp })
+      //         .toArray(function (err, userData) {
+      //           if (err) {
+      //             logger.error(err);
+      //             resolve({ response: "error_no_rider_data" });
+      //           }
+      //           //....
+      //           if (userData !== undefined && userData.length > 0) {
+      //             userData = userData[0];
+      //             //...
+      //             //2. Check that the voucher code is valid
+      //             collectionWalletTransactions_logs
+      //               .fi\nd({
+      //                 ref_phone_number: userData.phone_number,
+      //                 voucher_code: req.voucher_code,
+      //                 recipient_fp: "", //! Not yet used
+      //               })
+      //               .toArray(function (err, voucherData) {
+      //                 if (err) {
+      //                   logger.error(err);
+      //                   resolve({ response: "error_no_voucher_data" });
+      //                 }
+      //                 logger.info({
+      //                   ref_phone_number: userData.phone_number,
+      //                   voucher_code: req.voucher_code,
+      //                   recipient_fp: "", //! Not yet used
+      //                 });
+      //                 //...
+      //                 if (
+      //                   voucherData !== undefined &&
+      //                   voucherData.length > 0
+      //                 ) {
+      //                   voucherData = voucherData[0];
+      //                   //Has data
+      //                   //? Apply this voucher to the user
+      //                   collectionWalletTransactions_logs.updat\eOne(
+      //                     {
+      //                       ref_phone_number: userData.phone_number,
+      //                       recipient_fp: "",
+      //                     },
+      //                     {
+      //                       $set: {
+      //                         recipient_fp: req.user_fp,
+      //                         date_applied: new Date(chaineDateUTC),
+      //                       },
+      //                     },
+      //                     function (err, resltUpdate) {
+      //                       if (err) {
+      //                         logger.error(err);
+      //                         resolve({
+      //                           response: "error_unable_to_apply_voucher",
+      //                         });
+      //                       }
+      //                       //...
+      //                       resolve({
+      //                         response: "successfully_applied_voucher",
+      //                         data: {
+      //                           reward_type: voucherData.transaction_nature,
+      //                           amount: voucherData.amount,
+      //                           payment_currency:
+      //                             voucherData.payment_currency,
+      //                           discount_percentage:
+      //                             voucherData.discount_percentage,
+      //                           apply_after: voucherData.apply_after,
+      //                           apply_to: voucherData.apply_to,
+      //                           organization_name:
+      //                             voucherData.organization.name,
+      //                           organization_logo: `${
+      //                             process.env.AWS_S3_COMPANIES_DATA_ADS
+      //                           }/Rewards_organizations/${voucherData.organization.name.toLowerCase()}.png`,
+      //                         },
+      //                       });
+      //                     }
+      //                   );
+      //                 } //No voucher available
+      //                 else {
+      //                   resolve({ response: "error_invalid_voucher" });
+      //                 }
+      //               });
+      //           } //! No user data?!
+      //           else {
+      //             resolve({ response: "error_no_rider_data" });
+      //           }
+      //         });
+      //     } else if (req.op === "getVouchersList") {
+      //       //To get the list of all the applied vouchers
+      //     } //? Almost impossible case
+      //     else {
+      //       resolve({ response: "error_invalid_operation" });
+      //     }
+      //   } //No valid operation
+      //   else {
+      //     resolve({ response: "error_invalid_operation" });
+      //   }
+      // })
+      //   .then((result) => {
+      //     logger.info(result);
+      //     res.send(result);
+      //   })
+      //   .catch((error) => {
+      //     logger.error(error);
+      //     res.send({
+      //       response: "error_unable_toProcess_voucher",
+      //     });
+      //   });
+    });
   }
 );
 
