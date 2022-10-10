@@ -430,7 +430,7 @@ function parseRequestData(inputData, resolve) {
             parsedData.taxi_id =
               inputData.taxi_id !== undefined && inputData.taxi_id !== null
                 ? inputData.taxi_id
-                : false;
+                : "false";
             parsedData.payment_method = inputData.paymentMethod
               .trim()
               .toUpperCase();
@@ -1470,11 +1470,11 @@ function sendStagedNotificationsDrivers(
             return null; //Only notify the drivers that are online.
           }
         }); //Push notification token
-        logger.error(driversPushNotif_token);
+        // logger.error(driversPushNotif_token);
 
         dynamo_update({
           table_name: "rides_deliveries_requests",
-          _idKey: { request_fp: snapshotTripInfos.request_fp },
+          _idKey: snapshotTripInfos._id,
           UpdateExpression: "set allowed_drivers_see = :val1",
           ExpressionAttributeValues: {
             ":val1": driversFp,
@@ -4635,42 +4635,57 @@ function INIT_RIDE_DELIVERY_DISPATCH_ENTRY(
 
                   //2. INITIATE STAGED toDrivers DISPATCH
                   new Promise((resStaged) => {
-                    //FORM THE REQUEST SNAPSHOT
-                    let snapshotTripInfos = {
-                      user_fingerprint: parsedReqest_data.client_id,
-                      isIntercity_trip: parsedReqest_data.isIntercity_trip,
-                      city: parsedReqest_data.pickup_location_infos.city,
-                      region: parsedReqest_data.pickup_location_infos.state
-                        .replace(/ Region/i, "")
-                        .trim()
-                        .toUpperCase(),
-                      country: parsedReqest_data.country,
-                      ride_type: parsedReqest_data.ride_mode,
-                      request_type: parsedReqest_data.request_type,
-                      vehicle_type: parsedReqest_data.carTypeSelected,
-                      org_latitude:
-                        parsedReqest_data.pickup_location_infos.coordinates
-                          .latitude,
-                      org_longitude:
-                        parsedReqest_data.pickup_location_infos.coordinates
-                          .longitude,
-                      request_fp: parsedReqest_data.request_fp,
-                      pickup_suburb:
-                        parsedReqest_data.pickup_location_infos.suburb,
-                      destination_suburb:
-                        parsedReqest_data.destinationData[0].suburb,
-                      fare: parsedReqest_data.fare,
-                      passengers_number: parsedReqest_data.passengers_number,
-                      destination_infos: parsedReqest_data.destinationData, //? Full destination data
-                    };
+                    dynamo_find_query({
+                      table_name: "rides_deliveries_requests",
+                      IndexName: "request_fp",
+                      KeyConditionExpression: "request_fp = :val1",
+                      ExpressionAttributeValues: {
+                        ":val1": parsedReqest_data.request_fp,
+                      },
+                    })
+                      .then((newRequestData) => {
+                        //FORM THE REQUEST SNAPSHOT
+                        let snapshotTripInfos = {
+                          _id: newRequestData[0]._id,
+                          user_fingerprint: parsedReqest_data.client_id,
+                          isIntercity_trip: parsedReqest_data.isIntercity_trip,
+                          city: parsedReqest_data.pickup_location_infos.city,
+                          region: parsedReqest_data.pickup_location_infos.state
+                            .replace(/ Region/i, "")
+                            .trim()
+                            .toUpperCase(),
+                          country: parsedReqest_data.country,
+                          ride_type: parsedReqest_data.ride_mode,
+                          request_type: parsedReqest_data.request_type,
+                          vehicle_type: parsedReqest_data.carTypeSelected,
+                          org_latitude:
+                            parsedReqest_data.pickup_location_infos.coordinates
+                              .latitude,
+                          org_longitude:
+                            parsedReqest_data.pickup_location_infos.coordinates
+                              .longitude,
+                          request_fp: parsedReqest_data.request_fp,
+                          pickup_suburb:
+                            parsedReqest_data.pickup_location_infos.suburb,
+                          destination_suburb:
+                            parsedReqest_data.destinationData[0].suburb,
+                          fare: parsedReqest_data.fare,
+                          passengers_number:
+                            parsedReqest_data.passengers_number,
+                          destination_infos: parsedReqest_data.destinationData, //? Full destination data
+                        };
 
-                    intitiateStagedDispatch(
-                      snapshotTripInfos,
-                      collectionDrivers_profiles,
-                      collectionRidesDeliveryData,
-                      distilledUnwantedDrivers,
-                      resStaged
-                    );
+                        intitiateStagedDispatch(
+                          snapshotTripInfos,
+                          collectionDrivers_profiles,
+                          collectionRidesDeliveryData,
+                          distilledUnwantedDrivers,
+                          resStaged
+                        );
+                      })
+                      .catch((error) => {
+                        logger.error(error);
+                      });
                   }).then(
                     (result) => {
                       logger.info(result);
@@ -5409,6 +5424,7 @@ redisCluster.on("connect", function () {
        */
       app.post("/dispatchRidesOrDeliveryRequests", function (req, res) {
         req = req.body;
+        // logger.info(req);
         //TEST DATA
         // let testData = {
         //   actualRider: "someonelese",
@@ -5509,6 +5525,7 @@ redisCluster.on("connect", function () {
             },
           })
             .then((prevRequest) => {
+              logger.info(prevRequest);
               //! PLANS QUOTAS
               //! Batches
               let QUOTAS_BATCHES = {

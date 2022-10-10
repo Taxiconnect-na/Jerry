@@ -171,8 +171,12 @@ function newLoaction_search_engine(
   dynamo_find_query({
     table_name: "searched_locations_persist",
     IndexName: "query",
-    KeyConditionExpression: "query = :val1",
-    FilterExpression: "city = :val2 AND state = :val3",
+    KeyConditionExpression: "#queryName = :val1",
+    FilterExpression: "city = :val2 AND #stateName = :val3",
+    ExpressionAttributeNames: {
+      "#stateName": "state",
+      "#queryName": "query",
+    },
     ExpressionAttributeValues: {
       ":val1": queryOR,
       ":val2": city,

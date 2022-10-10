@@ -300,6 +300,7 @@ function checkUserStatus(
           //Send the fingerprint
           resolve({
             response: "registered",
+            _id: result[0]._id,
             user_fp: result[0].user_fingerprint,
             name: result[0].name,
             surname: result[0].surname,
@@ -349,6 +350,7 @@ function checkUserStatus(
           //Send the fingerprint
           resolve({
             response: "registered",
+            _id: result[0]._id,
             user_fp: result[0].driver_fingerprint,
             name: result[0].name,
             surname: result[0].surname,
@@ -3645,15 +3647,18 @@ function updateRiders_generalProfileInfos(
           //2. Update the new data
           dynamo_update({
             table_name: "passengers_profiles",
-            _idKey: { user_fingerprint: requestData.user_fingerprint },
-            UpdateExpression: "set name = :val1, last_updated = :val2",
+            _idKey: riderProfile[0]._id,
+            UpdateExpression: "set #nameUser = :val1, last_updated = :val2",
+            ExpressionAttributeNames: {
+              "#nameUser": "name",
+            },
             ExpressionAttributeValues: {
               ":val1": ucFirst(requestData.dataToUpdate),
               ":val2": new Date(chaineDateUTC).toISOString(),
             },
           }).then((result) => {
             if (!result)
-              res.send({ response: "error", flag: "unexpected_error" });
+              resolve({ response: "error", flag: "unexpected_error" });
 
             //...Update the general event log
             new Promise((res) => {
@@ -3715,7 +3720,7 @@ function updateRiders_generalProfileInfos(
           //2. Update the new data
           dynamo_update({
             table_name: "passengers_profiles",
-            _idKey: { user_fingerprint: requestData.user_fingerprint },
+            _idKey: riderProfile[0]._id,
             UpdateExpression: "set surname = :val1, last_updated = :val2",
             ExpressionAttributeValues: {
               ":val1": ucFirst(requestData.dataToUpdate),
@@ -3723,7 +3728,7 @@ function updateRiders_generalProfileInfos(
             },
           }).then((result) => {
             if (!result)
-              res.send({ response: "error", flag: "unexpected_error" });
+              resolve({ response: "error", flag: "unexpected_error" });
 
             //...Update the general event log
             new Promise((res) => {
@@ -3793,7 +3798,7 @@ function updateRiders_generalProfileInfos(
           //2. Update the new data
           dynamo_update({
             table_name: "passengers_profiles",
-            _idKey: { user_fingerprint: requestData.user_fingerprint },
+            _idKey: riderProfile[0]._id,
             UpdateExpression: "set gender = :val1, last_updated = :val2",
             ExpressionAttributeValues: {
               ":val1": requestData.dataToUpdate.toUpperCase(),
@@ -3802,7 +3807,7 @@ function updateRiders_generalProfileInfos(
           })
             .then((result) => {
               if (!result)
-                res.send({ response: "error", flag: "unexpected_error" });
+                resolve({ response: "error", flag: "unexpected_error" });
 
               //...Update the general event log
               new Promise((res) => {
@@ -3869,7 +3874,7 @@ function updateRiders_generalProfileInfos(
           //2. Update the new data
           dynamo_update({
             table_name: "passengers_profiles",
-            _idKey: { user_fingerprint: requestData.user_fingerprint },
+            _idKey: riderProfile[0]._id,
             UpdateExpression: "set email = :val1, last_updated = :val2",
             ExpressionAttributeValues: {
               ":val1": requestData.dataToUpdate.trim().toLowerCase(),
@@ -4009,7 +4014,7 @@ function updateRiders_generalProfileInfos(
                   //2. Update the new data
                   dynamo_update({
                     table_name: "passengers_profiles",
-                    _idKey: { user_fingerprint: requestData.user_fingerprint },
+                    _idKey: riderProfile[0]._id,
                     UpdateExpression:
                       "set phone_number = :val1, last_updated = :val2",
                     ExpressionAttributeValues: {
@@ -5997,13 +6002,13 @@ redisCluster.on("connect", function () {
 
             dynamo_find_query({
               table_name: "global_events",
-              IndexName: "phone_number",
-              KeyConditionExpression: "phone_number = :val1",
+              IndexName: "event_name",
+              KeyConditionExpression: "event_name = :val1",
+              FilterExpression: "phone_number = :val2",
               // FilterExpression: 'event_name = :val2 AND date >= :val3',
-              FilterExpression: "event_name = :val2",
               ExpressionAttributeValues: {
-                ":val1": onlyDigitsPhone,
-                ":val2": "SMS_dispatch_otp",
+                ":val1": "SMS_dispatch_otp",
+                ":val2": onlyDigitsPhone,
                 // ':val3': new Date(
                 //   `${refDate.getFullYear()}-${
                 //     String(refDate.getMonth() + 1).length > 1
@@ -6153,7 +6158,7 @@ redisCluster.on("connect", function () {
                       ) {
                         dynamo_update({
                           table_name: "passengers_profiles",
-                          _idKey: { user_fingerprint: result.user_fp },
+                          _idKey: result._id,
                           UpdateExpression: "set #acc.#phoneS = :val1",
                           ExpressionAttributeNames: {
                             "#acc": "account_verifications",

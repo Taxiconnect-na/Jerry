@@ -170,7 +170,6 @@ function checkInputIntegrity(input) {
 /**
  * @func autocompleteInputData
  * @param inputData: data that passed successfully the integrity test
- * @param collectionSavedSuburbResults: collection of already completed similar places to refer to if needed
  * @param resolve: from the promise
  * Responsible for filling up additional data required for a very accurate price estimation.
  * Specifically the suburbs infos and the drop off types of the destinations.
@@ -179,11 +178,7 @@ function checkInputIntegrity(input) {
  * key: savedSuburbResults-location_name-street_name-city
  * data: [{}, {}, ...]
  */
-function autocompleteInputData(
-  resolve,
-  inputData,
-  collectionSavedSuburbResults
-) {
+function autocompleteInputData(resolve, inputData) {
   let pickupInfos = inputData.pickup_location_infos;
 
   //! APPLY BLUE OCEAN BUG FIX FOR THE PICKUP LOCATION COORDINATES
@@ -351,14 +346,12 @@ function autocompleteInputData(
  * @func doMongoSearchForAutocompletedSuburbs
  * @param locationInfos: object containing specific single location infos
  * @param resolve
- * @param collectionSavedSuburbResults: collection containing all the already proccessed records
  * @param annotate: whether or not the put index annotations
  * Responsible for checking in mongodb for previous exact record already searched.
  */
 function doMongoSearchForAutocompletedSuburbs(
   resolve,
   locationInfos,
-  collectionSavedSuburbResults,
   annotate = false
 ) {
   //! Make sure that "make_new" is provided
@@ -427,20 +420,12 @@ function doMongoSearchForAutocompletedSuburbs(
  * @func estimateFullVehiclesCatPrices
  * @param resolve
  * @param completedInputData: input data that passed the integrity test and that was autocompleted ONLY!
- * @param collectionVehiclesInfos: collection of all the vehicle categories with their details (not explicit vehicles from mysql)
  * @param collectionNamibiaPricesLocationsMapWindhoek: collection of all the prices reference.
- * @param collectionNotFoundSubursPricesMap: collection of all not found suburbs prices map in the global maps
  * Responsible for determining the prices for each vehicle category based on the availability (should be available),
  * the country, city and the type of ride (RIDE or DELIVERY).
  * Actual cars from mysql MUST be linked the the corresponding vehicle category from mongo in order to receive targeted requests.
  */
-function estimateFullVehiclesCatPrices(
-  resolve,
-  completedInputData,
-  collectionVehiclesInfos,
-  collectionPricesLocationsMap,
-  collectionNotFoundSubursPricesMap
-) {
+function estimateFullVehiclesCatPrices(resolve, completedInputData) {
   //DEBUG
   //completedInputData.pickup_location_infos.pickup_type = "Airport";
   //completedInputData.destination_location_infos[0].dropoff_type = "PrivateLocation";
@@ -577,7 +562,6 @@ function estimateFullVehiclesCatPrices(
                     //Check to avoid duplicates
                     dynamo_find_query({
                       table_name: "not_found_suburbs_prices_map",
-                      IndexName: "point1_suburb",
                       KeyConditionExpression:
                         "point1_suburb = :val1 AND point2_suburb = :val2",
                       FilterExpression: "city = :val3 AND country = :val4",
@@ -631,8 +615,7 @@ function estimateFullVehiclesCatPrices(
                   res,
                   completedInputData,
                   globalPricesMap,
-                  genericRidesInfos,
-                  collectionNotFoundSubursPricesMap
+                  genericRidesInfos
                 );
               }).then(
                 (reslt) => {
@@ -692,7 +675,6 @@ function doubleTheFareIfNecessary(initialFare, goingUntilHome) {
  * @param completedInputData: completed operations input data
  * @param globalPricesMap: suburbs based prices reference
  * @param genericRidesInfos: generic vehicles categories
- * @param collectionNotFoundSubursPricesMap: collection of all not found suburbs from the global prices map.
  * Responsible for performing all the operations of header prices, multipliers (time and passengers) and outputing the final price map
  * ! DO NOT CACHE.
  */
@@ -700,8 +682,7 @@ function computeInDepthPricesMap(
   resolve,
   completedInputData,
   globalPricesMap,
-  genericRidesInfos,
-  collectionNotFoundSubursPricesMap
+  genericRidesInfos
 ) {
   resolveDate();
   logger.info("compute in depth called");
@@ -1025,7 +1006,7 @@ function computeInDepthPricesMap(
                         //   };
                         //   //Check to avoid duplicates
                         //   //New record
-                        //   collectionNotFoundSubursPricesMap.upda\teOne(
+                        //   collectionNotFoundSubursPr\icesMap.upda\teOne(
                         //     checkQuery,
                         //     { $set: queryNoMatch },
                         //     { upsert: true },
@@ -1662,11 +1643,7 @@ redisCluster.on("connect", function () {
                     //Valid input
                     //Autocomplete the input data
                     new Promise((res) => {
-                      autocompleteInputData(
-                        res,
-                        parsedData,
-                        collectionSavedSuburbResults
-                      );
+                      autocompleteInputData(res, parsedData);
                     }).then(
                       (result) => {
                         if (result !== false) {
@@ -1678,13 +1655,7 @@ redisCluster.on("connect", function () {
                             "Computing prices metadata of relevant car categories"
                           );
                           new Promise((res) => {
-                            estimateFullVehiclesCatPrices(
-                              res,
-                              completeInput,
-                              collectionVehiclesInfos,
-                              collectionPricesLocationsMap,
-                              collectionNotFoundSubursPricesMap
-                            );
+                            estimateFullVehiclesCatPrices(res, completeInput);
                           }).then(
                             (result) => {
                               logger.warn(result);
@@ -1757,26 +1728,22 @@ redisCluster.on("connect", function () {
 
           if (req !== undefined && req.user_fingerprint !== undefined) {
             new Promise((res) => {
-              doMongoSearchForAutocompletedSuburbs(
-                res,
-                {
-                  location_name: req.location_name,
-                  street_name: req.street_name,
-                  city: req.city,
-                  country: req.country,
-                  coordinates: {
-                    latitude: req.latitude,
-                    longitude: req.longitude,
-                  },
-                  make_new:
-                    req.make_new !== undefined &&
-                    req.make_new !== null &&
-                    /true/i.test(req.make_new)
-                      ? true
-                      : false,
+              doMongoSearchForAutocompletedSuburbs(res, {
+                location_name: req.location_name,
+                street_name: req.street_name,
+                city: req.city,
+                country: req.country,
+                coordinates: {
+                  latitude: req.latitude,
+                  longitude: req.longitude,
                 },
-                collectionSavedSuburbResults
-              );
+                make_new:
+                  req.make_new !== undefined &&
+                  req.make_new !== null &&
+                  /true/i.test(req.make_new)
+                    ? true
+                    : false,
+              });
             }).then(
               (result) => {
                 logger.info(result);
