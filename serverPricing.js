@@ -1786,10 +1786,10 @@ redisCluster.on("connect", function () {
           ) {
             dynamo_find_query({
               table_name: "rides_deliveries_requests",
-              IndexName: "request_fp = :val1 AND client_id = :val2",
+              IndexName: "request_fp",
+              KeyConditionExpression: "request_fp = :val1",
               ExpressionAttributeValues: {
                 ":val1": req.request_fp,
-                ":val2": req.user_fp,
               },
             })
               .then((requestData) => {
@@ -1798,7 +1798,7 @@ redisCluster.on("connect", function () {
                   requestData = requestData[0];
                   dynamo_update({
                     table_name: "rides_deliveries_requests",
-                    _idKey: { request_fp: req.request_fp },
+                    _idKey: requestData._id,
                     UpdateExpression: "set fare = :val1",
                     ExpressionAttributeValues: {
                       ":val1": req.new_fare,
