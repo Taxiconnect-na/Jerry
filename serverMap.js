@@ -674,7 +674,7 @@ function updateRiderLocationsLog(
                   "operational_state.last_location.date_updated": new Date(
                     chaineDateUTC
                   ),
-                  date_updated: new Date(chaineDateUTC),
+                  date_updated: new Date(chaineDateUTC).toISOString(),
                 },
               };
 
@@ -730,8 +730,8 @@ function updateRiderLocationsLog(
                       latitude: locationData.latitude,
                       longitude: locationData.longitude,
                     },
-                    date_updated: new Date(chaineDateUTC),
-                    date_logged: new Date(chaineDateUTC),
+                    date_updated: new Date(chaineDateUTC).toISOString(),
+                    date_logged: new Date(chaineDateUTC).toISOString(),
                   },
                 },
               };
@@ -754,8 +754,12 @@ function updateRiderLocationsLog(
                       latitude: locationData.latitude,
                       longitude: locationData.longitude,
                     },
-                    date_updated: new Date(chaineDateUTC).toISOString(),
-                    date_logged: new Date(chaineDateUTC).toISOString(),
+                    date_updated: new Date(chaineDateUTC)
+                      .toISOString()
+                      .toISOString(),
+                    date_logged: new Date(chaineDateUTC)
+                      .toISOString()
+                      .toISOString(),
                   },
                 },
               })
@@ -791,8 +795,8 @@ function updateRiderLocationsLog(
                     latitude: locationData.latitude,
                     longitude: locationData.longitude,
                   },
-                  date_updated: new Date(chaineDateUTC),
-                  date_logged: new Date(chaineDateUTC),
+                  date_updated: new Date(chaineDateUTC).toISOString(),
+                  date_logged: new Date(chaineDateUTC).toISOString(),
                 },
               },
             };
@@ -815,8 +819,12 @@ function updateRiderLocationsLog(
                     latitude: locationData.latitude,
                     longitude: locationData.longitude,
                   },
-                  date_updated: new Date(chaineDateUTC).toISOString(),
-                  date_logged: new Date(chaineDateUTC).toISOString(),
+                  date_updated: new Date(chaineDateUTC)
+                    .toISOString()
+                    .toISOString(),
+                  date_logged: new Date(chaineDateUTC)
+                    .toISOString()
+                    .toISOString(),
                 },
               },
             })
@@ -1164,6 +1172,8 @@ async function execTripChecker_Dispatcher(
         },
       });
 
+      logger.info(userDataRepr);
+
       if (userDataRepr.length <= 0) {
         //! SAVE THE FINAL FULL RESULT - for 15 min ------
         redisCluster.setex(
@@ -1183,7 +1193,6 @@ async function execTripChecker_Dispatcher(
           if (
             userDataRepr[0].ride_state_vars.isRideCompleted_riderSide === false
           ) {
-            console.log(userDataRepr);
             //REQUEST FP
             let request_fp = userDataRepr[0].request_fp;
             //Check if there are any requests cached
@@ -2405,10 +2414,10 @@ function execDriver_requests_parsing(request, driverData, redisKey, resolve) {
           //Scheduled request
           parsedRequestsArray.ride_basic_infos.date_state_wishedPickup_time =
             new Date(request.wished_pickup_time).getDate() ===
-            new Date(chaineDateUTC).getDate()
+            new Date(chaineDateUTC).toISOString().getDate()
               ? "Today"
               : new Date(request.wished_pickup_time).getDate() >
-                new Date(chaineDateUTC).getDate()
+                new Date(chaineDateUTC).toISOString().getDate()
               ? "Tomorrow"
               : "Yesterday";
         } //Immediate request
@@ -2717,8 +2726,6 @@ async function getMongoRecordTrip_cacheLater(
         ":val1": request_fp,
       },
     });
-
-    logger.warn(tripData);
 
     computeRouteDetails_skeleton(
       tripData,
@@ -3975,7 +3982,7 @@ function storedUpDriversGeospatialData(req, resolve) {
  */
 function updateRiderLocationInfosCache(req, resolve) {
   resolveDate();
-  req.date_logged = new Date(chaineDateUTC); //Attach date
+  req.date_logged = new Date(chaineDateUTC).toISOString(); //Attach date
   //! Update geospatial data cached -----
   if (/rider/i.test(req.user_nature)) {
     //Rider
@@ -4633,7 +4640,7 @@ function updateRelativeDistancesRiderDrivers(
   //         country: relativeHeader.country,
   //         eta: relativeHeader.eta,
   //         distance: relativeHeader.distance,
-  //         date_updated: new Date(chaineDateUTC),
+  //         date_updated: new Date(chaineDateUTC).toISOString(),
   //       };
   //       //...
   //       collectionRelativeDistances.insert\One(record, function (err, res) {
@@ -4649,7 +4656,7 @@ function updateRelativeDistancesRiderDrivers(
   //           country: relativeHeader.country,
   //           eta: relativeHeader.eta,
   //           distance: relativeHeader.distance,
-  //           date_updated: new Date(chaineDateUTC),
+  //           date_updated: new Date(chaineDateUTC).toISOString(),
   //         },
   //       };
   //       //...
@@ -5600,7 +5607,7 @@ redisCluster.on("connect", function () {
           ) {
             resolveDate();
             //? Update the rider's push notification var only if got a new value
-            let pro1 = new Promise(async (resUpdateNotifToken) => {
+            new Promise(async (resUpdateNotifToken) => {
               if (
                 req.pushnotif_token.userId !== undefined &&
                 req.pushnotif_token.userId !== null &&
@@ -5609,8 +5616,6 @@ redisCluster.on("connect", function () {
                 //Got something - can update
                 if (/^rider$/i.test(req.user_nature)) {
                   try {
-                    logger.info("RIDER PUSH UPDATE");
-                    logger.info(req.user_fingerprint);
                     //Rider
                     const riderData = await dynamo_find_query({
                       table_name: "passengers_profiles",
@@ -5623,28 +5628,20 @@ redisCluster.on("connect", function () {
 
                     // logger.info(riderData);
 
-                    dynamo_update({
+                    const updateRiderData = await dynamo_update({
                       table_name: "passengers_profiles",
                       _idKey: riderData[0]._id,
                       UpdateExpression:
                         "set pushnotif_token = :val1, last_updated = :val2",
                       ExpressionAttributeValues: {
                         ":val1": JSON.parse(req.pushnotif_token),
-                        ":val2": new Date(chaineDateUTC).toISOString(),
+                        ":val2": new Date(chaineDateUTC)
+                          .toISOString()
+                          .toISOString(),
                       },
-                    })
-                      .then((result) => {
-                        if (!result) {
-                          //logger.info(err);
-                          resUpdateNotifToken(false);
-                        }
-                        //...
-                        resUpdateNotifToken(true);
-                      })
-                      .catch((error) => {
-                        logger.info(error);
-                        resUpdateNotifToken(false);
-                      });
+                    });
+
+                    resUpdateNotifToken(updateRiderData);
                   } catch (error) {
                     logger.error(error);
                   }
@@ -5676,6 +5673,7 @@ redisCluster.on("connect", function () {
                         } //No annotation yet - create one
                         else {
                           let tmpDate = new Date(chaineDateUTC)
+                            .toISOString()
                             .toDateString()
                             .split(" ")[0];
                           if (/(mon|tue)/i.test(tmpDate)) {
@@ -5754,7 +5752,9 @@ redisCluster.on("connect", function () {
                     },
                     ExpressionAttributeValues: {
                       ":val1": JSON.parse(req.pushnotif_token),
-                      ":val2": new Date(chaineDateUTC).toISOString(),
+                      ":val2": new Date(chaineDateUTC)
+                        .toISOString()
+                        .toISOString(),
                     },
                   })
                     .then((result) => {
@@ -5804,7 +5804,6 @@ redisCluster.on("connect", function () {
               //}
             }).then(
               (result) => {
-                console.log(`TRIP CHECKER RESULT => ${JSON.stringify(result)}`);
                 //Update the rider
                 if (result !== false) {
                   if (result != "no_rides") {
@@ -5928,7 +5927,7 @@ redisCluster.on("connect", function () {
                 bundleData = {
                   user_fingerprint: request.user_fingerprint,
                   gps_data: request.geolocationData,
-                  date: new Date(chaineDateUTC),
+                  date: new Date(chaineDateUTC).toISOString(),
                 };
                 //..
                 dynamo_insert("historical_gps_positioning", bundleData)
@@ -6702,7 +6701,7 @@ redisCluster.on("connect", function () {
         //           owner_rider_fingerprint: parentTripDetails[0].client_id,
         //           request_fp: parentTripDetails[0].request_fp,
         //           response_got: null, //The response of the request.
-        //           date_captured: new Date(chaineDateUTC),
+        //           date_captured: new Date(chaineDateUTC).toISOString(),
         //         };
         //         //Check for any existing ride
         //         new Promise((res) => {

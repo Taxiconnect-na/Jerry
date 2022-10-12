@@ -516,7 +516,7 @@ function estimateFullVehiclesCatPrices(resolve, completedInputData) {
               table_name: "global_prices_to_locations_map",
               IndexName: "pickup_suburb",
               KeyConditionExpression: "pickup_suburb = :val1",
-              FilterExpression: "country = :val1 AND city = :val2",
+              FilterExpression: "country = :val2 AND city = :val3",
               ExpressionAttributeValues: {
                 ":val1": filterQuery.pickup_suburb,
                 ":val2": completedInputData.country,
@@ -548,7 +548,7 @@ function estimateFullVehiclesCatPrices(resolve, completedInputData) {
                           / Region/i,
                           ""
                         ),
-                      date: new Date(chaineDateUTC),
+                      date: new Date(chaineDateUTC).toISOString(),
                     };
                     let checkQuery = {
                       point1_suburb:
@@ -996,7 +996,7 @@ function computeInDepthPricesMap(
                         //     point2_suburb: tmpDestinationSuburb,
                         //     city: destination.city,
                         //     country: request_country,
-                        //     date: new Date(chaineDateUTC),
+                        //     date: new Date(chaineDateUTC).toISOString(),
                         //   };
                         //   let checkQuery = {
                         //     point1_suburb: tmpPickupPickup,

@@ -583,7 +583,9 @@ function attachCoordinatesAndRegion(littlePack, resolve) {
             littlePack.state = state;
             littlePack.suburb = false;
             //..Save the body in mongo
-            body["date_updated"] = new Date(chaineDateUTC).toISOString;
+            body["date_updated"] = new Date(
+              chaineDateUTC
+            ).toISOString().toISOString;
             body["place_id"] = littlePack.place_id;
             //...
             new Promise((resSave) => {
@@ -678,7 +680,7 @@ function doFreshGoogleSearchAndReturn(littlePack, redisKey, resolve) {
         littlePack.state = state;
         littlePack.suburb = false;
         //..Save the body in mongo
-        body["date_updated"] = new Date(chaineDateUTC);
+        body["date_updated"] = new Date(chaineDateUTC).toISOString();
         body["place_id"] = littlePack.place_id;
 
         new Promise((resSave) => {

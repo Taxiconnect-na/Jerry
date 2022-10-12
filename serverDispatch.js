@@ -91,6 +91,7 @@ const {
   dynamo_get_all,
   dynamo_update,
   dynamo_insert,
+  dynamo_delete,
 } = require("./DynamoServiceManager");
 function SendSMSTo(phone_number, message) {
   if (phone_number !== false && phone_number !== "false") {
@@ -471,7 +472,9 @@ function parseRequestData(inputData, resolve) {
             new Promise((res1) => {
               if (/immediate/i.test(parsedData.request_type)) {
                 //Now request - now date
-                parsedData.wished_pickup_time = new Date(chaineDateUTC);
+                parsedData.wished_pickup_time = new Date(
+                  chaineDateUTC
+                ).toISOString();
                 res1(true);
               } //Scheduled
               else {
@@ -600,7 +603,7 @@ function parseRequestData(inputData, resolve) {
                       inputData.date_requested !== undefined &&
                       inputData.date_requested !== null
                         ? inputData.date_requested
-                        : new Date(chaineDateUTC);
+                        : new Date(chaineDateUTC).toISOString();
                     parsedData.date_accepted =
                       inputData.date_accepted !== undefined &&
                       inputData.date_accepted !== null
@@ -2271,7 +2274,7 @@ function confirmDropoff_fromRider_side(
   let dropOffDataUpdate = {
     $set: {
       isArrivedToDestination: true,
-      date_dropoff: new Date(chaineDateUTC),
+      date_dropoff: new Date(chaineDateUTC).toISOString(),
       ride_state_vars: {
         isAccepted: true,
         inRideToDestination: true,
@@ -2309,10 +2312,9 @@ function confirmDropoff_fromRider_side(
       dynamo_find_query({
         table_name: "rides_deliveries_requests",
         IndexName: "request_fp",
-        KeyConditionExpression: "request_fp = :val1 AND client_id = :val2",
+        KeyConditionExpression: "request_fp = :val1",
         ExpressionAttributeValues: {
           ":val1": retrieveTrip.request_fp,
-          ":val2": retrieveTrip.client_id,
         },
       })
         .then((result) => {
@@ -2408,7 +2410,9 @@ function sendReceipt(metaDataBundle, scenarioType, resolve) {
           //? Generate a receipt fingerprint
           new Promise((resGenerateFp) => {
             generateUniqueFingerprint(
-              `${metaDataBundle.user_fp}-${new Date(chaineDateUTC).getTime()}`,
+              `${metaDataBundle.user_fp}-${new Date(chaineDateUTC)
+                .toISOString()
+                .getTime()}`,
               "md5",
               resGenerateFp
             );
@@ -2726,11 +2730,14 @@ function sendReceipt(metaDataBundle, scenarioType, resolve) {
                                         <div style="font-weight: bold;font-size: 11px;">DATE</div>
                                         <div style="font-size: 14px;color:#272626bb;margin-top: 4px;">${
                                           new Date(chaineDateUTC)
+                                            .toISOString()
                                             .toDateString()
                                             .split(" ")[1]
                                         } ${new Date(
                 chaineDateUTC
-              ).getDate()}, ${new Date(chaineDateUTC).getFullYear()}</div>
+              ).getDate()}, ${new Date(chaineDateUTC)
+                .toISOString()
+                .getFullYear()}</div>
                                     </div>
                                     <div style="margin-bottom: 25px;min-width: 100px;">
                                         <div style="font-weight: bold;font-size: 11px;">BALANCE DUE</div>
@@ -2867,7 +2874,7 @@ function sendReceipt(metaDataBundle, scenarioType, resolve) {
                   city: "Windhoek",
                   receipt_fp: receiptFp,
                   email_data: emailTemplate,
-                  date: new Date(chaineDateUTC),
+                  date: new Date(chaineDateUTC).toISOString(),
                 };
                 //...
                 dynamo_insert("global_events", eventBundle)
@@ -2923,7 +2930,7 @@ function sendReceipt(metaDataBundle, scenarioType, resolve) {
  * @param additionalData: contains additional data like the flag and so on.
  * Responsible for cancelling requests for riders and all the related processes.
  */
-function cancelRider_request(
+async function cancelRider_request(
   requestBundle_data,
   collectionRidesDeliveryData,
   collection_cancelledRidesDeliveryData,
@@ -2939,124 +2946,120 @@ function cancelRider_request(
     request_fp: requestBundle_data.request_fp,
   };
   //Get data
-  dynamo_find_query({
-    table_name: "rides_deliveries_requests",
-    IndexName: "request_fp",
-    KeyConditionExpression: "request_fp = :val1 AND client_id = :val2",
-    ExpressionAttributeValues: {
-      ":val1": requestBundle_data.request_fp,
-      ":val2": requestBundle_data.user_fingerprint,
-    },
-  })
-    .then((requestData) => {
-      if (requestData.length > 0) {
-        let driver_fp = requestData[0].taxi_id; //If any
-        let pickup_suburb = requestData[0].pickup_location_infos.suburb;
-        let destination_suburb = requestData[0].destinationData[0].suburb;
-        //Found something
-        //Add the cancelling reason
-        requestData[0]["rider_cancellation_reason"] = requestBundle_data.reason;
-        //Add the deleted date
-        requestData[0].date_deleted = new Date(chaineDateUTC);
-        //Add any additional data
-        requestData[0].additionalData = additionalData;
-        //Save in the cancelled collection
-        dynamo_insert("cancelled_rides_deliveries_requests", requestData[0])
-          .then((result) => {
-            if (!result) {
-              resolve({ response: "error_cancelling" });
-            }
-            //...
-            //Remove from the active collection!!!!
-            collectionRidesDeliveryData.deleteOne(
-              checkRequest,
-              function (err3, result) {
-                if (err3) {
-                  resolve({ response: "error_cancelling" });
-                }
-                //? Notify the driver if any is linked to this request
-                //Send the push notifications - FOR drivers
-                new Promise((resSendNotif) => {
-                  if (
-                    driver_fp !== false &&
-                    driver_fp !== "false" &&
-                    driver_fp !== undefined &&
-                    driver_fp !== null
-                  ) {
-                    //Has a linked driver
-                    //? Get the driver's notification ID
-                    //? Get the rider's details
-                    dynamo_find_query({
-                      table_name: "drivers_profiles",
-                      IndexName: "driver_fingerprint",
-                      KeyConditionExpression: "driver_fingerprint = :val1",
-                      ExpressionAttributeValues: {
-                        ":val1": driver_fp,
-                      },
-                    })
-                      .then((driverDetails) => {
-                        //...push_notification_token
-                        if (
-                          driverDetails.length > 0 &&
-                          driverDetails[0].driver_fingerprint !== undefined &&
-                          driverDetails[0].operational_state.pushnotif_token !==
-                            null &&
-                          driverDetails[0].operational_state.pushnotif_token !==
-                            undefined &&
-                          driverDetails[0].operational_state.pushnotif_token
-                            .userId !== undefined
-                        ) {
-                          let message = {
-                            app_id: process.env.DRIVERS_APP_ID_ONESIGNAL,
-                            android_channel_id:
-                              process.env
-                                .DRIVERS_ONESIGNAL_CHANNEL_NEW_NOTIFICATION, //Ride or delivery channel
-                            priority: 10,
-                            contents: {
-                              en: `Your request from ${pickup_suburb} to ${destination_suburb} has been cancelled.`,
-                            },
-                            headings: { en: "Request cancelled" },
-                            content_available: true,
-                            include_player_ids: [
-                              String(
-                                driverDetails[0].operational_state
-                                  .pushnotif_token.userId
-                              ),
-                            ],
-                          };
-                          logger.info(message);
-                          //Send
-                          sendPushUPNotification(message);
-                          resSendNotif(false);
-                        } else {
-                          resSendNotif(false);
-                        }
-                      })
-                      .catch((error) => {
-                        resSendNotif(false);
-                      });
-                  }
-                }).then(
-                  () => {},
-                  () => {}
-                );
-                //...DONE
-                resolve({ response: "successully_cancelled" });
-              }
-            );
-          })
-          .catch((error) => {
-            logger.error(error);
-            resolve({ response: "error_cancelling" });
-          });
-      } //No records found of the request - very strange -error
-      else {
+  try {
+    let requestData = await dynamo_find_query({
+      table_name: "rides_deliveries_requests",
+      IndexName: "request_fp",
+      KeyConditionExpression: "request_fp = :val1",
+      ExpressionAttributeValues: {
+        ":val1": requestBundle_data.request_fp,
+      },
+    });
+
+    if (requestData.length > 0) {
+      let driver_fp = requestData[0].taxi_id; //If any
+      let pickup_suburb = requestData[0].pickup_location_infos.suburb;
+      let destination_suburb = requestData[0].destinationData[0].suburb;
+      //Found something
+      //Add the cancelling reason
+      requestData[0]["rider_cancellation_reason"] = requestBundle_data.reason;
+      //Add the deleted date
+      requestData[0].date_deleted = new Date(chaineDateUTC).toISOString();
+      //Add any additional data
+      requestData[0].additionalData = additionalData;
+      //Save in the cancelled collection
+      let saveCancelled = await dynamo_insert(
+        "cancelled_rides_deliveries_requests",
+        requestData[0]
+      );
+
+      if (!saveCancelled) {
         resolve({ response: "error_cancelling" });
       }
-    })
-    .catch((error) => {
+
+      //Remove from the active collection!!!!
+      const deleteRequest = await dynamo_delete(
+        "rides_deliveries_requests",
+        requestData[0]._id
+      );
+
+      if (!deleteRequest) {
+        resolve({ response: "error_cancelling" });
+      }
+
+      //? Notify the driver if any is linked to this request
+      //Send the push notifications - FOR drivers
+      new Promise((resSendNotif) => {
+        if (
+          driver_fp !== false &&
+          driver_fp !== "false" &&
+          driver_fp !== undefined &&
+          driver_fp !== null
+        ) {
+          //Has a linked driver
+          //? Get the driver's notification ID
+          //? Get the rider's details
+          dynamo_find_query({
+            table_name: "drivers_profiles",
+            IndexName: "driver_fingerprint",
+            KeyConditionExpression: "driver_fingerprint = :val1",
+            ExpressionAttributeValues: {
+              ":val1": driver_fp,
+            },
+          })
+            .then((driverDetails) => {
+              //...push_notification_token
+              if (
+                driverDetails.length > 0 &&
+                driverDetails[0].driver_fingerprint !== undefined &&
+                driverDetails[0].operational_state.pushnotif_token !== null &&
+                driverDetails[0].operational_state.pushnotif_token !==
+                  undefined &&
+                driverDetails[0].operational_state.pushnotif_token.userId !==
+                  undefined
+              ) {
+                let message = {
+                  app_id: process.env.DRIVERS_APP_ID_ONESIGNAL,
+                  android_channel_id:
+                    process.env.DRIVERS_ONESIGNAL_CHANNEL_NEW_NOTIFICATION, //Ride or delivery channel
+                  priority: 10,
+                  contents: {
+                    en: `Your request from ${pickup_suburb} to ${destination_suburb} has been cancelled.`,
+                  },
+                  headings: { en: "Request cancelled" },
+                  content_available: true,
+                  include_player_ids: [
+                    String(
+                      driverDetails[0].operational_state.pushnotif_token.userId
+                    ),
+                  ],
+                };
+                logger.info(message);
+                //Send
+                sendPushUPNotification(message);
+                resSendNotif(false);
+              } else {
+                resSendNotif(false);
+              }
+            })
+            .catch((error) => {
+              resSendNotif(false);
+            });
+        }
+      }).then(
+        () => {},
+        () => {}
+      );
+      //...DONE
+      resolve({ response: "successully_cancelled" });
+    } //No records found of the request - very strange -error
+    else {
       resolve({ response: "error_cancelling" });
-    });
+    }
+  } catch (error) {
+    logger.error(error);
+    resolve({ response: "error_cancelling" });
+  }
 }
 
 /**
@@ -3360,7 +3363,9 @@ function acceptRequest_driver(
                             },
                             ExpressionAttributeValues: {
                               ":val1": prevAcceptedData,
-                              ":val2": new Date(chaineDateUTC).toISOString(),
+                              ":val2": new Date(chaineDateUTC)
+                                .toISOString()
+                                .toISOString(),
                             },
                           })
                             .then((result) => {
@@ -3465,7 +3470,7 @@ function cancelRequest_driver(
       if (result.length > 0) {
         let tripData = result[0];
         //...
-        let tmpRefDate = new Date(chaineDateUTC);
+        let tmpRefDate = new Date(chaineDateUTC).toISOString();
         //! Check if the driver did not cancel more than MAXIMUM_CANCELLATION_DRIVER_REQUESTS_LIMIT requests today
         dynamo_find_query({
           table_name: "global_events",
@@ -4126,10 +4131,9 @@ function confirmPickupRequest_driver(
       : dynamo_find_query({
           table_name: "rides_deliveries_requests",
           IndexName: "request_fp",
-          KeyConditionExpression: "request_fp = :val1 AND client_id = :val2",
+          KeyConditionExpression: "request_fp = :val1",
           ExpressionAttributeValues: {
             ":val1": bundleWorkingData.request_fp,
-            ":val2": bundleWorkingData.rider_fingerprint,
           },
         });
   //Only confirm pickup if not yet accepted by the driver
@@ -4421,7 +4425,9 @@ function confirmDropoffRequest_driver(
                             },
                             ExpressionAttributeValues: {
                               ":val1": prevAcceptedData,
-                              ":val2": new Date(chaineDateUTC).toISOString(),
+                              ":val2": new Date(chaineDateUTC)
+                                .toISOString()
+                                .toISOString(),
                             },
                           })
                             .then((result) => {
@@ -5025,7 +5031,8 @@ var collectionDedicatedServices_accounts = null;
  * MAIN
  */
 redisCluster.on("connect", function () {
-  //logger.info("[*] Redis connected");
+  logger.info("[*] Redis connected");
+
   requestAPI(
     /development/i.test(process.env.EVIRONMENT)
       ? `${process.env.AUTHENTICATOR_URL}get_API_CRED_DATA?environment=dev_local` //? Development localhost url
@@ -5041,6 +5048,8 @@ redisCluster.on("connect", function () {
       process.env.AWS_S3_SECRET = body.AWS_S3_SECRET;
       process.env.URL_MONGODB_DEV = body.URL_MONGODB_DEV;
       process.env.URL_MONGODB_PROD = body.URL_MONGODB_PROD;
+
+      logger.info("[*] Dispatch service up!");
 
       app
         .get("/", function (req, res) {
