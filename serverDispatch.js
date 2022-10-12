@@ -92,6 +92,7 @@ const {
   dynamo_update,
   dynamo_insert,
   dynamo_delete,
+  dynamo_find_get,
 } = require("./DynamoServiceManager");
 function SendSMSTo(phone_number, message) {
   if (phone_number !== false && phone_number !== "false") {
@@ -2258,7 +2259,7 @@ function registerAllowedDriversForRidesAndNotify(
  * 5. Assign custom note (if any)
  * ! Reinforce all drop off vars in case
  */
-function confirmDropoff_fromRider_side(
+async function confirmDropoff_fromRider_side(
   dropOffMeta_bundle,
   collectionRidesDeliveryData,
   collectionDrivers_profiles,
@@ -2270,84 +2271,98 @@ function confirmDropoff_fromRider_side(
     client_id: dropOffMeta_bundle.user_fingerprint,
     request_fp: dropOffMeta_bundle.request_fp,
   };
-  //Updatedd data
-  let dropOffDataUpdate = {
-    $set: {
-      isArrivedToDestination: true,
-      date_dropoff: new Date(chaineDateUTC).toISOString(),
-      ride_state_vars: {
-        isAccepted: true,
-        inRideToDestination: true,
-        isRideCompleted_driverSide: true,
-        isRideCompleted_riderSide: true,
-        rider_driverRating: dropOffMeta_bundle.rating_score,
-        rating_compliment: dropOffMeta_bundle.dropoff_compliments,
-        rating_personal_note: dropOffMeta_bundle.dropoff_personal_note,
-      },
-    },
-  };
-  //..
-  dynamo_update({
-    table_name: "rides_deliveries_requests",
-    _idKey: { request_fp: dropOffMeta_bundle.request_fp },
-    UpdateExpression:
-      "set isArrivedToDestination = :val1, date_dropoff = :val2, ride_state_vars = :val3",
-    ExpressionAttributeValues: {
-      ":val1": true,
-      ":val2": new Date(chaineDateUTC).toISOString(),
-      ":val3": {
-        isAccepted: true,
-        inRideToDestination: true,
-        isRideCompleted_driverSide: true,
-        isRideCompleted_riderSide: true,
-        rider_driverRating: dropOffMeta_bundle.rating_score,
-        rating_compliment: dropOffMeta_bundle.dropoff_compliments,
-        rating_personal_note: dropOffMeta_bundle.dropoff_personal_note,
-      },
-    },
-  })
-    .then((result) => {
-      if (!result) resolve({ response: "error" });
 
-      dynamo_find_query({
-        table_name: "rides_deliveries_requests",
-        IndexName: "request_fp",
-        KeyConditionExpression: "request_fp = :val1",
-        ExpressionAttributeValues: {
-          ":val1": retrieveTrip.request_fp,
-        },
-      })
-        .then((result) => {
-          if (result !== undefined && result.length > 0) {
-            result = result[0];
-            //? Send the drop off receipt for corporate deliveries
-            new Promise((resSendReceipt) => {
-              let dataBundle = {
-                amount: result.fare,
-                user_fp: result.client_id,
-                tripHistory: result,
-              };
-              sendReceipt(dataBundle, "dropoffReceipt", resSendReceipt);
-            })
-              .then()
-              .catch((error) => logger.error(error));
-            //?...
-
-            resolve({
-              response: "successfully_confirmed",
-              driver_fp: result.taxi_id,
-            });
-          } else {
-            resolve({ response: "successfully_confirmed" });
-          }
-        })
-        .catch((error) => {
-          resolve({ response: "successfully_confirmed" });
-        });
-    })
-    .catch((error) => {
-      resolve({ response: "error" });
+  try {
+    const tripData = await dynamo_find_query({
+      table_name: "rides_deliveries_requests",
+      IndexName: "request_fp",
+      KeyConditionExpression: "request_fp = :val1",
+      ExpressionAttributeValues: {
+        ":val1": dropOffMeta_bundle.request_fp,
+      },
     });
+
+    //Updatedd data
+    let dropOffDataUpdate = {
+      $set: {
+        isArrivedToDestination: true,
+        date_dropoff: new Date(chaineDateUTC).toISOString(),
+        ride_state_vars: {
+          isAccepted: true,
+          inRideToDestination: true,
+          isRideCompleted_driverSide: true,
+          isRideCompleted_riderSide: true,
+          rider_driverRating: dropOffMeta_bundle.rating_score,
+          rating_compliment: dropOffMeta_bundle.dropoff_compliments,
+          rating_personal_note: dropOffMeta_bundle.dropoff_personal_note,
+        },
+      },
+    };
+    //..
+    dynamo_update({
+      table_name: "rides_deliveries_requests",
+      _idKey: tripData[0]._id,
+      UpdateExpression:
+        "set isArrivedToDestination = :val1, date_dropoff = :val2, ride_state_vars = :val3",
+      ExpressionAttributeValues: {
+        ":val1": true,
+        ":val2": new Date(chaineDateUTC).toISOString(),
+        ":val3": {
+          isAccepted: true,
+          inRideToDestination: true,
+          isRideCompleted_driverSide: true,
+          isRideCompleted_riderSide: true,
+          rider_driverRating: dropOffMeta_bundle.rating_score,
+          rating_compliment: dropOffMeta_bundle.dropoff_compliments,
+          rating_personal_note: dropOffMeta_bundle.dropoff_personal_note,
+        },
+      },
+    })
+      .then((result) => {
+        if (!result) resolve({ response: "error" });
+
+        dynamo_find_query({
+          table_name: "rides_deliveries_requests",
+          IndexName: "request_fp",
+          KeyConditionExpression: "request_fp = :val1",
+          ExpressionAttributeValues: {
+            ":val1": retrieveTrip.request_fp,
+          },
+        })
+          .then((result) => {
+            if (result !== undefined && result.length > 0) {
+              result = result[0];
+              //? Send the drop off receipt for corporate deliveries
+              new Promise((resSendReceipt) => {
+                let dataBundle = {
+                  amount: result.fare,
+                  user_fp: result.client_id,
+                  tripHistory: result,
+                };
+                sendReceipt(dataBundle, "dropoffReceipt", resSendReceipt);
+              })
+                .then()
+                .catch((error) => logger.error(error));
+              //?...
+
+              resolve({
+                response: "successfully_confirmed",
+                driver_fp: result.taxi_id,
+              });
+            } else {
+              resolve({ response: "successfully_confirmed" });
+            }
+          })
+          .catch((error) => {
+            resolve({ response: "successfully_confirmed" });
+          });
+      })
+      .catch((error) => {
+        resolve({ response: "error" });
+      });
+  } catch (error) {
+    resolve({ response: "error" });
+  }
 }
 
 /**
