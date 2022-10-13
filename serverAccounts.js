@@ -4181,9 +4181,7 @@ function updateRiders_generalProfileInfos(
                       },
                       ExpressionAttributeValues: {
                         ":val1": tmpPicture_name,
-                        ":val2": new Date(chaineDateUTC)
-                          .toISOString()
-                          .toISOString(),
+                        ":val2": new Date(chaineDateUTC).toISOString(),
                       },
                     })
                       .then((result) => {
@@ -6075,9 +6073,7 @@ redisCluster.on("connect", function () {
                         event_name: "SMS_dispatch_otp_abuse_event",
                         phone_number: onlyDigitsPhone,
                         otp: otp,
-                        date: new Date(chaineDateUTC)
-                          .toISOString()
-                          .toISOString(),
+                        date: new Date(chaineDateUTC).toISOString(),
                       })
                         .then((result) => {
                           resSave(true);
@@ -6102,9 +6098,7 @@ redisCluster.on("connect", function () {
                         event_name: "SMS_dispatch_otp",
                         phone_number: onlyDigitsPhone,
                         otp: otp,
-                        date: new Date(chaineDateUTC)
-                          .toISOString()
-                          .toISOString(),
+                        date: new Date(chaineDateUTC).toISOString(),
                       })
                         .then((result) => {
                           resSave(true);
@@ -6893,9 +6887,7 @@ redisCluster.on("connect", function () {
                               //No active requests - proceed
                               dynamo_update({
                                 table_name: "drivers_profiles",
-                                _idKey: {
-                                  driver_fingerprint: req.driver_fingerprint,
-                                },
+                                _idKey: driverData[0]._id,
                                 UpdateExpression: "set #op.#stat = :val1",
                                 ExpressionAttributeNames: {
                                   "#op": "operational_state",
@@ -6983,9 +6975,7 @@ redisCluster.on("connect", function () {
                           else {
                             dynamo_update({
                               table_name: "drivers_profiles",
-                              _idKey: {
-                                driver_fingerprint: req.driver_fingerprint,
-                              },
+                              _idKey: driverData[0]._id,
                               UpdateExpression: "set #op.#stat = :val1",
                               ExpressionAttributeNames: {
                                 "#op": "operational_state",

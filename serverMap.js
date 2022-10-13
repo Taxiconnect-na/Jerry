@@ -1040,7 +1040,6 @@ function tripChecker_Dispatcher(
   redisGet(RIDE_REDIS_KEY)
     .then((resp) => {
       if (resp !== null && avoidCached_data === false) {
-        logger.error("CACHED");
         //Has a record
         try {
           //Make a rehydrate request
@@ -1281,6 +1280,10 @@ async function execTripChecker_Dispatcher(
       IndexName: "driver_fingerprint",
       KeyConditionExpression: "driver_fingerprint = :val1",
       FilterExpression: "isDriverSuspended = :val2 AND #op.#st = :val3",
+      ExpressionAttributeNames: {
+        "#op": "operational_state",
+        "#st": "status",
+      },
       ExpressionAttributeValues: {
         ":val1": user_fingerprint,
         ":val2": false, //! When a driver is suspended - lock all requests.
@@ -1336,14 +1339,15 @@ async function execTripChecker_Dispatcher(
             },
           };
           //-----
-          logger.warn(checkRide0);
+          // logger.warn(checkRide0);
 
           dynamo_find_query({
             table_name: "rides_deliveries_requests",
             IndexName: "taxi_id",
             KeyConditionExpression: "taxi_id = :val1",
             FilterExpression:
-              "#r.#isAcc = :val2 AND #r.#isComplDriver = :val3 AND isArrivedToDestination = :val4 AND ride_mode NOT IN (:type1, :type2)",
+              "#r.#isAcc = :val2 AND #r.#isComplDriver = :val3 AND isArrivedToDestination = :val4 AND ride_mode in (:type1, :type2)",
+            // "#r.#isAcc = :val2 AND #r.#isComplDriver = :val3 AND isArrivedToDestination = :val4",
             ExpressionAttributeNames: {
               "#r": "ride_state_vars",
               "#isAcc": "isAccepted",
@@ -1364,6 +1368,7 @@ async function execTripChecker_Dispatcher(
             },
           })
             .then((acceptedRidesArray) => {
+              logger.info(acceptedRidesArray);
               if (
                 acceptedRidesArray !== undefined &&
                 acceptedRidesArray.length > 0
@@ -1436,10 +1441,10 @@ async function execTripChecker_Dispatcher(
                     IndexName: "taxi_id",
                     KeyConditionExpression: "taxi_id = :val1",
                     FilterExpression:
-                      "connect_type = :val2 AND #r.#isComplDriver = :val3 AND ride_mode NOT IN (:type1, :type2) AND #intention NOT IN (:type3)",
+                      "connect_type = :val2 AND #r.#isComplDriver = :val3 AND ride_mode in (:type1, :type2) AND not contains(#intention ,:type3)",
                     ExpressionAttributeNames: {
                       "#r": "ride_state_vars",
-                      "#isAcc": "isAccepted",
+                      // "#isAcc": "isAccepted",
                       "#isComplDriver": "isRideCompleted_driverSide",
                       "#intention": "intentional_request_decline",
                     },
@@ -1696,7 +1701,7 @@ function execGetDrivers_requests_and_provide(
         "#intention": "intentional_request_decline",
       },
       ExpressionAttributeValues: {
-        ":val1": false,
+        ":val1": "false",
         ":val2": false,
         ":val3": false,
         ":val4": false,
@@ -1877,13 +1882,14 @@ function execGetDrivers_requests_and_provide(
     dynamo_find_query({
       table_name: "rides_deliveries_requests",
       IndexName: "taxi_id",
-      KeyConditionExpression:
-        "taxi_id = :val1 AND country = :val2 AND NOT CONTAINS(#intention, :val3) AND carTypeSelected = :val4 AND ride_mode IN (:type1, :type2)",
+      KeyConditionExpression: "taxi_id = :val1",
+      FilterExpression:
+        "country = :val2 AND not contains(#intention, :val3) AND carTypeSelected = :val4 AND ride_mode IN (:type1, :type2)",
       ExpressionAttributeNames: {
         "#intention": "intentional_request_decline",
       },
       ExpressionAttributeValues: {
-        ":val1": false,
+        ":val1": "false",
         ":val2": requestFilter.country,
         ":val3": driverData.driver_fingerprint,
         ":val4": driverData.operational_state.default_selected_car.vehicle_type,
@@ -1897,7 +1903,6 @@ function execGetDrivers_requests_and_provide(
       },
     })
       .then((requestsData) => {
-        logger.error(requestsData);
         //...
         if (requestsData !== undefined && requestsData.length > 0) {
           //Found some data
@@ -2262,12 +2267,6 @@ function parseRequests_forDrivers_view(requestsArray, driverData, resolve) {
                   ? driverData.operational_state.last_location.city
                   : "Windhoek";
               //...
-              logger.error(
-                trip.origin_destination_infos.pickup_infos.city
-                  .trim()
-                  .toUpperCase(),
-                driverCity.trim().toUpperCase()
-              );
               resFilter(
                 trip.origin_destination_infos.pickup_infos.city
                   .trim()
@@ -5551,9 +5550,7 @@ redisCluster.on("connect", function () {
                         //? Update the rule to the driver's profile
                         dynamo_update({
                           table_name: "drivers_profiles",
-                          _idKey: {
-                            driver_fingerprint: req.user_fingerprint,
-                          },
+                          _idKey: driverData._id,
                           UpdateExpression: "set regional_clearances = :val1",
                           ExpressionAttributeValues: {
                             ":val1":
@@ -5635,9 +5632,7 @@ redisCluster.on("connect", function () {
                         "set pushnotif_token = :val1, last_updated = :val2",
                       ExpressionAttributeValues: {
                         ":val1": JSON.parse(req.pushnotif_token),
-                        ":val2": new Date(chaineDateUTC)
-                          .toISOString()
-                          .toISOString(),
+                        ":val2": new Date(chaineDateUTC).toISOString(),
                       },
                     });
 
@@ -5741,32 +5736,68 @@ redisCluster.on("connect", function () {
                     () => {}
                   );
                   //...
-                  dynamo_update({
+                  const driverData = await dynamo_find_query({
                     table_name: "drivers_profiles",
-                    _idKey: { driver_fingerprint: req.user_fingerprint },
-                    UpdateExpression:
-                      "set #op.#push = :val1, date_updated = :val2",
-                    ExpressionAttributeNames: {
-                      "#op": "operational_state",
-                      "#push": "push_notification_token",
-                    },
+                    IndexName: "driver_fingerprint",
+                    KeyConditionExpression: "driver_fingerprint = :val1",
                     ExpressionAttributeValues: {
-                      ":val1": JSON.parse(req.pushnotif_token),
-                      ":val2": new Date(chaineDateUTC)
-                        .toISOString()
-                        .toISOString(),
+                      ":val1": req.user_fingerprint,
                     },
-                  })
-                    .then((result) => {
-                      if (!result) {
-                        resUpdateNotifToken(false);
-                      }
-                      //...
-                      resUpdateNotifToken(true);
+                  });
+
+                  try {
+                    dynamo_update({
+                      table_name: "drivers_profiles",
+                      _idKey: driverData[0]._id,
+                      UpdateExpression:
+                        "set #op.#push = :val1, date_updated = :val2",
+                      ExpressionAttributeNames: {
+                        "#op": "operational_state",
+                        "#push": "push_notification_token",
+                      },
+                      ExpressionAttributeValues: {
+                        ":val1": JSON.parse(req.pushnotif_token),
+                        ":val2": new Date(chaineDateUTC).toISOString(),
+                      },
                     })
-                    .catch((error) => {
-                      resUpdateNotifToken(false);
-                    });
+                      .then((result) => {
+                        if (!result) {
+                          resUpdateNotifToken(false);
+                        }
+                        //...
+                        resUpdateNotifToken(true);
+                      })
+                      .catch((error) => {
+                        resUpdateNotifToken(false);
+                      });
+                  } catch (error) {
+                    logger.info(typeof req.pushnotif_token);
+                    // logger.error(error.stack);
+                    dynamo_update({
+                      table_name: "drivers_profiles",
+                      _idKey: driverData[0]._id,
+                      UpdateExpression:
+                        "set #op.#push = :val1, date_updated = :val2",
+                      ExpressionAttributeNames: {
+                        "#op": "operational_state",
+                        "#push": "push_notification_token",
+                      },
+                      ExpressionAttributeValues: {
+                        ":val1": req.pushnotif_token,
+                        ":val2": new Date(chaineDateUTC).toISOString(),
+                      },
+                    })
+                      .then((result) => {
+                        if (!result) {
+                          resUpdateNotifToken(false);
+                        }
+                        //...
+                        resUpdateNotifToken(true);
+                      })
+                      .catch((error) => {
+                        resUpdateNotifToken(false);
+                      });
+                  }
                 } //Invalid user nature - skip
                 else {
                   resUpdateNotifToken(false);
@@ -5920,7 +5951,6 @@ redisCluster.on("connect", function () {
             request.user_fingerprint !== null &&
             request.user_fingerprint !== undefined
           ) {
-            logger.error(JSON.stringify(request.user_fingerprint));
             //Save the history of the geolocation
             new Promise((resHistory) => {
               if (request.geolocationData !== undefined) {
