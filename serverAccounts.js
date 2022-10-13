@@ -3319,9 +3319,7 @@ function execGet_driversDeepInsights_fromWalletData(
                                   })
                                     .then((result) => {
                                       let lastPayoutDate = new Date(
-                                        new Date(chaineDateUTC)
-                                          .toISOString()
-                                          .getTime() +
+                                        new Date(chaineDateUTC).getTime() +
                                           parseFloat(
                                             process.env
                                               .TAXICONNECT_PAYMENT_FREQUENCY
