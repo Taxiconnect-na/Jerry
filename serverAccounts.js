@@ -257,7 +257,7 @@ function checkUserStatus(
     let dispatchMap = {
       phone_number: userData.phone_number,
       otp: parseInt(otp),
-      date_sent: new Date(chaineDateUTC),
+      date_sent: new Date(chaineDateUTC).toISOString(),
     };
 
     dynamo_insert("OTP_dispatch_map", dispatchMap)
@@ -265,7 +265,7 @@ function checkUserStatus(
         res(true);
       })
       .catch((error) => {
-        logger.error(error);
+        logger.error(error.stack);
       });
   }).then(
     () => {},
@@ -1421,7 +1421,7 @@ function exec_computeDaily_amountMade(
               requestsArray.map((request) => {
                 if (
                   checkIfSameDay(
-                    new Date(chaineDateUTC),
+                    new Date(chaineDateUTC).toISOString(),
                     new Date(request.date_requested)
                   )
                 ) {
@@ -1702,8 +1702,8 @@ function parseDetailed_walletGetData(
             try {
               tmpClean.rawDate_made = tmpDateCaptured.toISOString(); //! Save the ISO date captured.
             } catch (error) {
-              logger.error(error);
-              logger.warn(transaction.date_captured);
+              // logger.error(error.stack);
+              // logger.warn(transaction.date_captured);
               tmpClean.rawDate_made = transaction.date_requestedRaw;
             }
             tmpClean.timestamp = tmpDateCaptured.getTime();
@@ -2065,7 +2065,7 @@ function truelyExec_ridersDrivers_walletSummary(
           //? Find the total of all the received transactions
           resultTransactionsReceived.map((transaction) => {
             if (/(onetime_voucher)/i.test(transaction.transaction_nature)) {
-              logger.warn(transaction);
+              // logger.warn(transaction);
             }
             //! Add all except the TaxiConnect commission
             if (
@@ -2764,7 +2764,7 @@ function computeDriver_walletDeepInsights(
             );
           })
             .then((result) => {
-              logger.warn(result);
+              // logger.warn(result);
               resolve(result);
             })
             .catch((error) => {
@@ -3331,7 +3331,7 @@ function execGet_driversDeepInsights_fromWalletData(
                                       resFindNexyPayoutDate(lastPayoutDate);
                                     })
                                     .catch((error) => {
-                                      logger.error(error);
+                                      logger.error(error.stack);
                                     });
                                 }
                               })
@@ -3510,7 +3510,7 @@ function execGet_driversDeepInsights_fromWalletData(
                       resFindNexyPayoutDate(lastPayoutDate);
                     })
                     .catch((error) => {
-                      logger.error(error);
+                      logger.error(error.stack);
                     });
                 }
               })
@@ -3630,7 +3630,7 @@ function updateRiders_generalProfileInfos(
       let updateData = {
         $set: {
           name: ucFirst(requestData.dataToUpdate),
-          last_updated: new Date(chaineDateUTC),
+          last_updated: new Date(chaineDateUTC).toISOString(),
         },
       };
       //..
@@ -3667,7 +3667,7 @@ function updateRiders_generalProfileInfos(
                 user_fingerprint: requestData.user_fingerprint,
                 old_data: riderProfile[0].name,
                 new_data: requestData.dataToUpdate,
-                date: new Date(chaineDateUTC),
+                date: new Date(chaineDateUTC).toISOString(),
               };
 
               dynamo_insert("global_events", dataEvent)
@@ -3675,7 +3675,7 @@ function updateRiders_generalProfileInfos(
                   res(true);
                 })
                 .catch((error) => {
-                  logger.error(error);
+                  logger.error(error.stack);
                   res(true);
                 });
             }).then(
@@ -3703,7 +3703,7 @@ function updateRiders_generalProfileInfos(
       let updateData = {
         $set: {
           surname: ucFirst(requestData.dataToUpdate),
-          last_updated: new Date(chaineDateUTC),
+          last_updated: new Date(chaineDateUTC).toISOString(),
         },
       };
       //..
@@ -3737,14 +3737,14 @@ function updateRiders_generalProfileInfos(
                 user_fingerprint: requestData.user_fingerprint,
                 old_data: riderProfile[0].surname,
                 new_data: requestData.dataToUpdate,
-                date: new Date(chaineDateUTC),
+                date: new Date(chaineDateUTC).toISOString(),
               };
               dynamo_insert("global_events", dataEvent)
                 .then((result) => {
                   res(true);
                 })
                 .catch((error) => {
-                  logger.error(error);
+                  logger.error(error.stack);
                   res(true);
                 });
             }).then(
@@ -3781,7 +3781,7 @@ function updateRiders_generalProfileInfos(
       let updateData = {
         $set: {
           gender: requestData.dataToUpdate.toUpperCase(),
-          last_updated: new Date(chaineDateUTC),
+          last_updated: new Date(chaineDateUTC).toISOString(),
         },
       };
       //..
@@ -3816,14 +3816,14 @@ function updateRiders_generalProfileInfos(
                   user_fingerprint: requestData.user_fingerprint,
                   old_data: riderProfile[0].gender,
                   new_data: requestData.dataToUpdate,
-                  date: new Date(chaineDateUTC),
+                  date: new Date(chaineDateUTC).toISOString(),
                 };
                 dynamo_insert("global_events", dataEvent)
                   .then((result) => {
                     res(true);
                   })
                   .catch((error) => {
-                    logger.error(error);
+                    logger.error(error.stack);
                     res(true);
                   });
               }).then(
@@ -3857,7 +3857,7 @@ function updateRiders_generalProfileInfos(
       let updateData = {
         $set: {
           email: requestData.dataToUpdate.trim().toLowerCase(),
-          last_updated: new Date(chaineDateUTC),
+          last_updated: new Date(chaineDateUTC).toISOString(),
         },
       };
       //..
@@ -3889,14 +3889,14 @@ function updateRiders_generalProfileInfos(
                   user_fingerprint: requestData.user_fingerprint,
                   old_data: riderProfile[0].email.trim().toLowerCase(),
                   new_data: requestData.dataToUpdate,
-                  date: new Date(chaineDateUTC),
+                  date: new Date(chaineDateUTC).toISOString(),
                 };
                 dynamo_insert("global_events", dataEvent)
                   .then((result) => {
                     res(true);
                   })
                   .catch((error) => {
-                    logger.error(error);
+                    logger.error(error.stack);
                     res(true);
                   });
               }).then(
@@ -3997,7 +3997,7 @@ function updateRiders_generalProfileInfos(
                   phone_number: /^\+/i.test(requestData.dataToUpdate.trim())
                     ? requestData.dataToUpdate.trim()
                     : `+${requestData.dataToUpdate.trim()}`,
-                  last_updated: new Date(chaineDateUTC),
+                  last_updated: new Date(chaineDateUTC).toISOString(),
                 },
               };
               //..
@@ -4021,7 +4021,9 @@ function updateRiders_generalProfileInfos(
                       ":val1": /^\+/i.test(requestData.dataToUpdate.trim())
                         ? requestData.dataToUpdate.trim()
                         : `+${requestData.dataToUpdate.trim()}`,
-                      ":val2": new Date(chaineDateUTC).toISOString(),
+                      ":val2": new Date(chaineDateUTC)
+                        .toISOString()
+                        .toISOString(),
                     },
                   })
                     .then((result) => {
@@ -4037,14 +4039,14 @@ function updateRiders_generalProfileInfos(
                           user_fingerprint: requestData.user_fingerprint,
                           old_data: riderProfile[0].phone_number,
                           new_data: requestData.dataToUpdate,
-                          date: new Date(chaineDateUTC),
+                          date: new Date(chaineDateUTC).toISOString(),
                         };
                         dynamo_insert("global_events", dataEvent)
                           .then((result) => {
                             res(true);
                           })
                           .catch((error) => {
-                            logger.error(error);
+                            logger.error(error.stack);
                             res(true);
                           });
                       }).then(
@@ -4206,14 +4208,14 @@ function updateRiders_generalProfileInfos(
                                     requestData.user_fingerprint,
                                   old_data: riderData[0].media.profile_picture,
                                   new_data: tmpPicture_name,
-                                  date: new Date(chaineDateUTC),
+                                  date: new Date(chaineDateUTC).toISOString(),
                                 };
                                 dynamo_insert("global_events", dataEvent)
                                   .then((result) => {
                                     res(true);
                                   })
                                   .catch((error) => {
-                                    logger.error(error);
+                                    logger.error(error.stack);
                                     res(true);
                                   });
                               } //No riders with the providedd fingerprint
@@ -4462,7 +4464,7 @@ function getAdsManagerRunningInfos(req, resolve) {
       user_fingerprint: req.user_fingerprint,
       user_nature: req.user_nature,
       city: req.city,
-      date: new Date(chaineDateUTC),
+      date: new Date(chaineDateUTC).toISOString(),
     };
     //! -----
     dynamo_insert("global_events", eventBundle)
@@ -4470,7 +4472,7 @@ function getAdsManagerRunningInfos(req, resolve) {
         resSaveRecord(true);
       })
       .catch((error) => {
-        logger.error(error);
+        logger.error(error.stack);
         resSaveRecord(true);
       });
   }).then(
@@ -4611,7 +4613,7 @@ function getReferredDrivers_list(
               //? Compute the time left
               let timeLeftRaw =
                 new Date(itemReferral.expiration_time) -
-                new Date(chaineDateUTC);
+                new Date(chaineDateUTC).toISOString();
               if (timeLeftRaw < 0) {
                 freshObject.time_left = "Expired";
               } //Still have some time left
@@ -4671,7 +4673,7 @@ function getReferredDrivers_list(
               //? Compute the time left
               let timeLeftRaw =
                 new Date(itemReferral.expiration_time) -
-                new Date(chaineDateUTC);
+                new Date(chaineDateUTC).toISOString();
               if (timeLeftRaw < 0) {
                 freshObject.time_left = "Expired";
               } //Still have some time left
@@ -4775,14 +4777,14 @@ function getDriversGlobalAccountNumbers(driver_fingerprint, resolve) {
         })
           .then((result) => {})
           .catch((error) => {
-            logger.error(error);
+            logger.error(error.stack);
           });
         //...
         logger.warn("Cached data");
         resp = JSON.parse(resp);
         resolve(resp);
       } catch (error) {
-        logger.error(error);
+        logger.error(error.stack);
         new Promise((resCompute) => {
           ExecgetDriversGlobalAccountNumbers(
             driver_fingerprint,
@@ -4794,7 +4796,7 @@ function getDriversGlobalAccountNumbers(driver_fingerprint, resolve) {
             resolve(result);
           })
           .catch((error) => {
-            logger.error(error);
+            logger.error(error.stack);
             resolve({
               response: {
                 rides: 0,
@@ -4818,7 +4820,7 @@ function getDriversGlobalAccountNumbers(driver_fingerprint, resolve) {
           resolve(result);
         })
         .catch((error) => {
-          logger.error(error);
+          logger.error(error.stack);
           resolve({
             response: {
               rides: 0,
@@ -4910,7 +4912,7 @@ function ExecgetDriversGlobalAccountNumbers(
       }
     })
     .catch((error) => {
-      logger.error(error);
+      logger.error(error.stack);
       resolve({ response: "error_getting_data" });
     });
 }
@@ -5006,14 +5008,14 @@ function performCorporateDeliveryAccountAuthOps(inputData, resolve) {
                             isIDConfirmed: false,
                           },
                         },
-                        date_registered: new Date(chaineDateUTC),
-                        last_updated: new Date(chaineDateUTC),
+                        date_registered: new Date(chaineDateUTC).toISOString(),
+                        last_updated: new Date(chaineDateUTC).toISOString(),
                       };
                       //...Save
                       dynamo_insert("dedicated_services_accounts", accountObj)
                         .then((result) => {
                           if (!result) {
-                            logger.error(err);
+                            logger.error(err.stack);
                             resolve({ response: "error_creating_account" });
                           }
                           //...
@@ -5044,23 +5046,23 @@ function performCorporateDeliveryAccountAuthOps(inputData, resolve) {
                           });
                         })
                         .catch((error) => {
-                          logger.error(error);
+                          logger.error(error.stack);
                           resolve({ response: "error_creating_account" });
                         });
                     })
                     .catch((error) => {
-                      logger.error(error);
+                      logger.error(error.stack);
                       resolve({ response: "error_creating_account" });
                     });
                 })
                 .catch((error) => {
-                  logger.error(error);
+                  logger.error(error.stack);
                   resolve({ response: "error_creating_account" });
                 });
             }
           })
           .catch((error) => {
-            logger.error(error);
+            logger.error(error.stack);
             resolve({ response: "error_creating_account" });
           });
       } //Invalid signup data provided
@@ -5113,12 +5115,12 @@ function performCorporateDeliveryAccountAuthOps(inputData, resolve) {
                 }
               })
               .catch((error) => {
-                logger.error(error);
+                logger.error(error.stack);
                 resolve({ response: "error_logging_in" });
               });
           })
           .catch((error) => {
-            logger.error(error);
+            logger.error(error.stack);
             resolve({ response: "error_logging_in" });
           });
       } //Invalid data
@@ -5187,7 +5189,7 @@ function performCorporateDeliveryAccountAuthOps(inputData, resolve) {
                   ":val1": new Date(chaineDateUTC).toISOString(),
                   ":val2": {
                     otp: parseInt(otp),
-                    date_created: new Date(chaineDateUTC),
+                    date_created: new Date(chaineDateUTC).toISOString(),
                   },
                 },
               })
@@ -5196,7 +5198,7 @@ function performCorporateDeliveryAccountAuthOps(inputData, resolve) {
                   resolve({ response: "successfully_sent" });
                 })
                 .catch((error) => {
-                  logger.error(error);
+                  logger.error(error.stack);
                   resolve({ response: "error" });
                 });
             } //Unknown company
@@ -5205,7 +5207,7 @@ function performCorporateDeliveryAccountAuthOps(inputData, resolve) {
             }
           })
           .catch((error) => {
-            logger.error(error);
+            logger.error(error.stack);
             resolve({ response: "error" });
           });
       } //Invalid data
@@ -5262,7 +5264,7 @@ function performCorporateDeliveryAccountAuthOps(inputData, resolve) {
                   });
                 })
                 .catch((error) => {
-                  logger.error(error);
+                  logger.error(error.stack);
                   resolve({ response: "error" });
                 });
             } //Unknown company
@@ -5271,7 +5273,7 @@ function performCorporateDeliveryAccountAuthOps(inputData, resolve) {
             }
           })
           .catch((error) => {
-            logger.error(error);
+            logger.error(error.stack);
             resolve({ response: "error" });
           });
       } //Invalid data
@@ -5343,7 +5345,7 @@ function performCorporateDeliveryAccountAuthOps(inputData, resolve) {
                   });
                 })
                 .catch((error) => {
-                  logger.error(error);
+                  logger.error(error.stack);
                   resolve({ response: "error" });
                 });
             } //Invalid code
@@ -5352,7 +5354,7 @@ function performCorporateDeliveryAccountAuthOps(inputData, resolve) {
             }
           })
           .catch((error) => {
-            logger.error(error);
+            logger.error(error.stack);
             resolve({ response: "error" });
           });
       } //Invalid data
@@ -5383,13 +5385,13 @@ function performCorporateDeliveryAccountAuthOps(inputData, resolve) {
                     .catch();
                 })
                 .catch((error) => {
-                  logger.error(error);
+                  logger.error(error.stack);
                 });
               //Return quickly
               resp = JSON.parse(resp);
               resolve(resp);
             } catch (error) {
-              logger.error(error);
+              logger.error(error.stack);
               //Make fresh request
               new Promise((resCompute) => {
                 execCorporateAccountData(inputData, resCompute);
@@ -5406,7 +5408,7 @@ function performCorporateDeliveryAccountAuthOps(inputData, resolve) {
                   resolve(result);
                 })
                 .catch((error) => {
-                  logger.error(error);
+                  logger.error(error.stack);
                   resolve({ response: "error" });
                 });
             }
@@ -5427,7 +5429,7 @@ function performCorporateDeliveryAccountAuthOps(inputData, resolve) {
                 resolve(result);
               })
               .catch((error) => {
-                logger.error(error);
+                logger.error(error.stack);
                 resolve({ response: "error" });
               });
           }
@@ -5443,7 +5445,7 @@ function performCorporateDeliveryAccountAuthOps(inputData, resolve) {
       resolve({ response: "error" });
     }
   } catch (error) {
-    logger.error(error);
+    logger.error(error.stack);
     resolve({ response: "error" });
   }
 }
@@ -5504,7 +5506,7 @@ function execCorporateAccountData(inputData, resolve) {
                     `;
         //!----
         requestAPI(url, function (error, response, body) {
-          logger.error(error);
+          logger.error(error.stack);
           if (error === null) {
             try {
               body = JSON.parse(body);
@@ -5517,7 +5519,7 @@ function execCorporateAccountData(inputData, resolve) {
                 resolve(responseFinal);
               }
             } catch (error) {
-              logger.error(error);
+              logger.error(error.stack);
               //DONE
               resolve(responseFinal);
             }
@@ -5533,7 +5535,7 @@ function execCorporateAccountData(inputData, resolve) {
       }
     })
     .catch((error) => {
-      logger.error(error);
+      logger.error(error.stack);
       resolve({ response: "error" });
     });
 }
@@ -5573,13 +5575,13 @@ function getWalletSummaryForDeliveryCorps(
               //! -------------------
             })
             .catch((error) => {
-              logger.error(error);
+              logger.error(error.stack);
             });
           //? Quickly response
           resp = JSON.parse(resp);
           resolve(resp);
         } catch (error) {
-          logger.error(error);
+          logger.error(error.stack);
           //Make a fresh request
           new Promise((resCompute) => {
             execGetWalletSummaryForDeliveryCorps(company_fp, resCompute);
@@ -5596,7 +5598,7 @@ function getWalletSummaryForDeliveryCorps(
               resolve(result);
             })
             .catch((error) => {
-              logger.error(error);
+              logger.error(error.stack);
               resolve({
                 balance: 0,
                 usage: 0,
@@ -5621,7 +5623,7 @@ function getWalletSummaryForDeliveryCorps(
             resolve(result);
           })
           .catch((error) => {
-            logger.error(error);
+            logger.error(error.stack);
             resolve({
               balance: 0,
               usage: 0,
@@ -5630,7 +5632,7 @@ function getWalletSummaryForDeliveryCorps(
       }
     })
     .catch((error) => {
-      logger.error(error);
+      logger.error(error.stack);
       new Promise((resCompute) => {
         execGetWalletSummaryForDeliveryCorps(company_fp, resCompute);
       })
@@ -5646,7 +5648,7 @@ function getWalletSummaryForDeliveryCorps(
           resolve(result);
         })
         .catch((error) => {
-          logger.error(error);
+          logger.error(error.stack);
           resolve({
             balance: 0,
             usage: 0,
@@ -5715,7 +5717,7 @@ function execGetWalletSummaryForDeliveryCorps(company_fp, resolve) {
             }
           })
           .catch((error) => {
-            logger.error(error);
+            logger.error(error.stack);
             resolve({
               balance: 0,
               usage: 0,
@@ -5730,7 +5732,7 @@ function execGetWalletSummaryForDeliveryCorps(company_fp, resolve) {
       }
     })
     .catch((error) => {
-      logger.error(err);
+      logger.error(err.stack);
       resolve({
         balance: 0,
         usage: 0,
@@ -5765,13 +5767,13 @@ function getTargetedNotificationsOps(requestData, resolve) {
             })
               .then()
               .catch((error) => {
-                logger.error(error);
+                logger.error(error.stack);
               });
             //...
             resp = JSON.parse(resp);
             resolve(resp);
           } catch (error) {
-            logger.error(error);
+            logger.error(error.stack);
             new Promise((resCompute) => {
               execGetTargetedNotificationsOps(
                 requestData,
@@ -5783,7 +5785,7 @@ function getTargetedNotificationsOps(requestData, resolve) {
                 resolve(result);
               })
               .catch((error) => {
-                logger.error(error);
+                logger.error(error.stack);
                 resolve({ response: "error" });
               });
           }
@@ -5796,13 +5798,13 @@ function getTargetedNotificationsOps(requestData, resolve) {
               resolve(result);
             })
             .catch((error) => {
-              logger.error(error);
+              logger.error(error.stack);
               resolve({ response: "error" });
             });
         }
       })
       .catch((error) => {
-        logger.error(error);
+        logger.error(error.stack);
         new Promise((resCompute) => {
           execGetTargetedNotificationsOps(requestData, redisKey, resCompute);
         })
@@ -5810,7 +5812,7 @@ function getTargetedNotificationsOps(requestData, resolve) {
             resolve(result);
           })
           .catch((error) => {
-            logger.error(error);
+            logger.error(error.stack);
             resolve({ response: "error" });
           });
       });
@@ -5995,10 +5997,10 @@ redisCluster.on("connect", function () {
               event_name: "SMS_dispatch_otp",
               phone_number: onlyDigitsPhone,
               otp: otp,
-              date: new Date(chaineDateUTC),
+              date: new Date(chaineDateUTC).toISOString(),
             };
 
-            let refDate = new Date(chaineDateUTC);
+            let refDate = new Date(chaineDateUTC).toISOString();
 
             dynamo_find_query({
               table_name: "global_events",
@@ -6043,13 +6045,15 @@ redisCluster.on("connect", function () {
                           event_name: "SMS_dispatch_otp",
                           phone_number: onlyDigitsPhone,
                           otp: otp,
-                          date: new Date(chaineDateUTC).toISOString(),
+                          date: new Date(chaineDateUTC)
+                            .toISOString()
+                            .toISOString(),
                         })
                           .then((result) => {
                             resSave(true);
                           })
                           .catch((error) => {
-                            logger.error(error);
+                            logger.error(error.stack);
                             resSave(true);
                           });
                       })
@@ -6073,7 +6077,7 @@ redisCluster.on("connect", function () {
                           resSave(true);
                         })
                         .catch((error) => {
-                          logger.error(error);
+                          logger.error(error.stack);
                           resSave(true);
                         });
                     })
@@ -6098,7 +6102,7 @@ redisCluster.on("connect", function () {
                           resSave(true);
                         })
                         .catch((error) => {
-                          logger.error(error);
+                          logger.error(error.stack);
                           resSave(true);
                         });
                     })
@@ -6111,7 +6115,7 @@ redisCluster.on("connect", function () {
                 }
               })
               .catch((error) => {
-                logger.error(error);
+                logger.error(error.stack);
                 res0(false);
               });
           }).then(
@@ -6145,7 +6149,7 @@ redisCluster.on("connect", function () {
                         $set: {
                           "account_verifications.phone_verification_secrets": {
                             otp: parseInt(otp),
-                            date_sent: new Date(chaineDateUTC),
+                            date_sent: new Date(chaineDateUTC).toISOString(),
                           },
                         },
                       };
@@ -6167,7 +6171,7 @@ redisCluster.on("connect", function () {
                           ExpressionAttributeValues: {
                             ":val1": {
                               otp: parseInt(otp),
-                              date_sent: new Date(chaineDateUTC),
+                              date_sent: new Date(chaineDateUTC).toISOString(),
                             },
                           },
                         })
@@ -6198,7 +6202,7 @@ redisCluster.on("connect", function () {
                           ExpressionAttributeValues: {
                             ":val1": {
                               otp: parseInt(otp),
-                              date_sent: new Date(chaineDateUTC),
+                              date_sent: new Date(chaineDateUTC).toISOString(),
                             },
                           },
                         })
@@ -6451,10 +6455,10 @@ redisCluster.on("connect", function () {
                       ? decodeURIComponent(req.pushnotif_token)
                       : false,
                   last_updated: {
-                    date: new Date(chaineDateUTC),
+                    date: new Date(chaineDateUTC).toISOString(),
                   },
                   date_registered: {
-                    date: new Date(chaineDateUTC),
+                    date: new Date(chaineDateUTC).toISOString(),
                   },
                 };
                 // logger.info(minimalAccount);
@@ -6471,7 +6475,7 @@ redisCluster.on("connect", function () {
                     });
                   })
                   .catch((error) => {
-                    logger.error(error);
+                    logger.error(error.stack);
                     res0({ response: "error_creating_account" });
                   });
               },
@@ -6533,7 +6537,7 @@ redisCluster.on("connect", function () {
                   email: req.email,
                   gender: req.gender,
                   account_state: "full", //! ADDD ACCOUNT STATE - full
-                  last_updated: new Date(chaineDateUTC),
+                  last_updated: new Date(chaineDateUTC).toISOString(),
                 },
               };
               //Update
@@ -6881,9 +6885,7 @@ redisCluster.on("connect", function () {
                               //No active requests - proceed
                               dynamo_update({
                                 table_name: "drivers_profiles",
-                                _idKey: {
-                                  driver_fingerprint: req.driver_fingerprint,
-                                },
+                                _idKey: driverData[0]._id,
                                 UpdateExpression: "set #op.#stat = :val1",
                                 ExpressionAttributeNames: {
                                   "#op": "operational_state",
@@ -6918,7 +6920,7 @@ redisCluster.on("connect", function () {
                                     })
                                       .then((result) => {})
                                       .catch((error) => {
-                                        logger.error(error);
+                                        logger.error(error.stack);
                                       });
                                     res(true);
                                   }).then(
@@ -6971,9 +6973,7 @@ redisCluster.on("connect", function () {
                           else {
                             dynamo_update({
                               table_name: "drivers_profiles",
-                              _idKey: {
-                                driver_fingerprint: req.driver_fingerprint,
-                              },
+                              _idKey: driverData[0]._id,
                               UpdateExpression: "set #op.#stat = :val1",
                               ExpressionAttributeNames: {
                                 "#op": "operational_state",
@@ -7001,11 +7001,13 @@ redisCluster.on("connect", function () {
                                       ? "online"
                                       : "offline",
                                     driver_fingerprint: req.driver_fingerprint,
-                                    date: new Date(chaineDateUTC).toISOString(),
+                                    date: new Date(chaineDateUTC)
+                                      .toISOString()
+                                      .toISOString(),
                                   })
                                     .then((result) => {})
                                     .catch((error) => {
-                                      logger.error(error);
+                                      logger.error(error.stack);
                                     });
 
                                   res(true);
@@ -7639,7 +7641,7 @@ redisCluster.on("connect", function () {
                 company_identifier: req.company_identifier,
                 campaign_identifier: req.campaign_identifier,
               },
-              date: new Date(chaineDateUTC),
+              date: new Date(chaineDateUTC).toISOString(),
             };
             //! -----
             collectionGlobalEvents.inse\rtOne(eventBundle, function (err, result) {
@@ -7752,7 +7754,7 @@ redisCluster.on("connect", function () {
         //         event_name: "getting_referral_forTaxiDriver_userList",
         //         user_referrer: req.user_fingerprint,
         //         user_referrer_nature: req.user_nature,
-        //         date: new Date(chaineDateUTC),
+        //         date: new Date(chaineDateUTC).toISOString(),
         //       };
         //       //...
         //       collectionGlobalEvents.ins\ertOne(
@@ -7829,7 +7831,7 @@ redisCluster.on("connect", function () {
         //         user_referrer: req.user_fingerprint,
         //         user_referrer_nature: req.user_nature,
         //         taxi_number: req.taxi_number,
-        //         date: new Date(chaineDateUTC),
+        //         date: new Date(chaineDateUTC).toISOString(),
         //       };
         //       //...
         //       collectionGlobalEvents.insertO\ne(
@@ -7993,7 +7995,7 @@ redisCluster.on("connect", function () {
         //               amount_paid_percentage: 50,
         //               is_referral_rejected: false, //! Whether the referral is rejected or not: Rejected referrals cannot receive payments.
         //               is_official_deleted_user_side: false, //! Deleted referrals on the user side cannot receive payment or be seen ever again by the user, only not paid referrals can be deleted.
-        //               date_referred: new Date(chaineDateUTC),
+        //               date_referred: new Date(chaineDateUTC).toISOString(),
         //             };
         //             new Promise((res) => {
         //               generateUniqueFingerprint(
@@ -8065,7 +8067,7 @@ redisCluster.on("connect", function () {
         //       .fi\nd({ user_fingerprint: req.referrer_fingerprint })
         //       .toArray(function (err, userData) {
         //         if (err) {
-        //           logger.error(err);
+        //           logger.error(err.stack);
         //           resCompute({ response: "error" });
         //         }
         //         //...
@@ -8173,7 +8175,7 @@ redisCluster.on("connect", function () {
         //     res.send(result);
         //   })
         //   .catch((error) => {
-        //     logger.error(error);
+        //     logger.error(error.stack);
         //     res.send({ response: "error" });
         //   });
       });
@@ -8203,7 +8205,7 @@ redisCluster.on("connect", function () {
             res.send(result);
           })
           .catch((error) => {
-            logger.error(error);
+            logger.error(error.stack);
             res.send({ response: "error_invalid_data" });
           });
       });
@@ -8225,7 +8227,7 @@ redisCluster.on("connect", function () {
             res.send(result);
           })
           .catch((error) => {
-            logger.error(error);
+            logger.error(error.stack);
             res.send({ response: "error_invalid_data" });
           });
       });
@@ -8274,7 +8276,7 @@ redisCluster.on("connect", function () {
                   }
                 })
                 .catch((error) => {
-                  logger.error(error);
+                  logger.error(error.stack);
                   resolve({ response: "error_invalid_data" });
                 });
             } else if (
@@ -8306,7 +8308,9 @@ redisCluster.on("connect", function () {
                         ? userData.drivers_blacklist
                         : [];
                     //...Attach the date unblocked
-                    req.driver_data["date"] = new Date(chaineDateUTC);
+                    req.driver_data["date"] = new Date(
+                      chaineDateUTC
+                    ).toISOString();
                     //...
                     blockedList.push(req.driver_data);
                     let blockedListUnique = [];
@@ -8324,8 +8328,8 @@ redisCluster.on("connect", function () {
                     //? Update
                     dynamo_update({
                       table_name: "passengers_profiles",
-                      _idKey: { user_fingerprint: req.user_fp },
-                      UpdateExpression: "drivers_blacklist = :val1",
+                      _idKey: userData._id,
+                      UpdateExpression: "set drivers_blacklist = :val1",
                       ExpressionAttributeValues: {
                         ":val1": blockedListUnique,
                       },
@@ -8346,7 +8350,7 @@ redisCluster.on("connect", function () {
                         resolve({ response: "successfully_blocked" });
                       })
                       .catch((error) => {
-                        logger.error(error);
+                        logger.error(error.stack);
                         resolve({ response: "error_unable_to_block" });
                       });
                   } //Invalid user?
@@ -8355,7 +8359,7 @@ redisCluster.on("connect", function () {
                   }
                 })
                 .catch((error) => {
-                  logger.error(error);
+                  logger.error(error.stack);
                   resolve({ response: "error_unable_to_block" });
                 });
             } else if (
@@ -8397,10 +8401,10 @@ redisCluster.on("connect", function () {
                     //? Update
                     dynamo_update({
                       table_name: "passengers_profiles",
-                      _idKey: { user_fingerprint: req.user_fp },
-                      UpdateExpression: "drivers_blacklist = :val1",
+                      _idKey: userData._id,
+                      UpdateExpression: "set drivers_blacklist = :val1",
                       ExpressionAttributeValues: {
-                        ":val1": blockedListUnique,
+                        ":val1": updatedBlockedList,
                       },
                     })
                       .then((result) => {
@@ -8418,7 +8422,7 @@ redisCluster.on("connect", function () {
                         resolve({ response: "successfully_unblocked" });
                       })
                       .catch((error) => {
-                        logger.error(error);
+                        logger.error(error.stack);
                         resolve({ response: "error_unable_to_unblock" });
                       });
                   } //Invalid user?
@@ -8427,7 +8431,7 @@ redisCluster.on("connect", function () {
                   }
                 })
                 .catch((error) => {
-                  logger.error(error);
+                  logger.error(error.stack);
                   resolve({ response: "error_unable_to_unblock" });
                 });
             } else if (
@@ -8438,8 +8442,9 @@ redisCluster.on("connect", function () {
               let RIDE_REDIS_KEY = `${req.user_fp}-getListOfBlockedDrivers`;
               //Get blocked account list
               redisGet(RIDE_REDIS_KEY).then((resp) => {
-                if (resp !== null) {
+                if (resp !== null && resp != "[]") {
                   logger.warn("Cached list for blocked drivers found");
+                  console.log(resp);
                   //Has some cached data
                   try {
                     //? Rehydrate
@@ -8477,12 +8482,12 @@ redisCluster.on("connect", function () {
                           }
                         })
                         .catch((error) => {
-                          logger.error(error);
+                          logger.error(error.stack);
                           resCompute(true);
                         });
                     })
                       .then()
-                      .catch((error) => logger.error(error));
+                      .catch((error) => logger.error(error.stack));
                     //? ---
                     resolve({ response: JSON.parse(resp) });
                   } catch (error) {
@@ -8519,7 +8524,7 @@ redisCluster.on("connect", function () {
                         }
                       })
                       .catch((error) => {
-                        logger.error(error);
+                        logger.error(error.stack);
                         resolve({ response: [] });
                       });
                   }
@@ -8558,7 +8563,7 @@ redisCluster.on("connect", function () {
                       }
                     })
                     .catch((error) => {
-                      logger.error(error);
+                      logger.error(error.stack);
                       resolve({ response: [] });
                     });
                 }
@@ -8574,7 +8579,7 @@ redisCluster.on("connect", function () {
             res.send(result);
           })
           .catch((error) => {
-            logger.error(error);
+            logger.error(error.stack);
             res.send({ response: "error_invalid_data" });
           });
       });
@@ -8615,7 +8620,7 @@ redisCluster.on("connect", function () {
             res.send(result);
           })
           .catch((error) => {
-            logger.error(error);
+            logger.error(error.stack);
             res.send({
               balance: 0,
               usage: 0,
@@ -8656,7 +8661,7 @@ redisCluster.on("connect", function () {
             res.send(result);
           })
           .catch((error) => {
-            logger.error(error);
+            logger.error(error.stack);
             res.send({ response: "error" });
           });
       });
@@ -8771,7 +8776,7 @@ redisCluster.on("connect", function () {
                               "base64",
                               function (err) {
                                 if (err) {
-                                  logger.error(err);
+                                  logger.error(err.stack);
                                   resCompute(1); //Failed
                                 }
                                 //...success
@@ -8856,7 +8861,9 @@ redisCluster.on("connect", function () {
                                       .then((resDel) =>
                                         logger.info(`Deleted: ${resDel}`)
                                       )
-                                      .catch((error) => logger.error(error));
+                                      .catch((error) =>
+                                        logger.error(error.stack)
+                                      );
                                     //.............
                                     //? Save applicate to db
                                     let applicationBundle = {
@@ -8881,7 +8888,9 @@ redisCluster.on("connect", function () {
                                         did_certify_data_veracity:
                                           req.did_certify_data_veracity,
                                       },
-                                      date_applied: new Date(chaineDateUTC),
+                                      date_applied: new Date(
+                                        chaineDateUTC
+                                      ).toISOString(),
                                     };
                                     //...
                                     dynamo_insert(
@@ -8901,7 +8910,7 @@ redisCluster.on("connect", function () {
                                         });
                                       })
                                       .catch((error) => {
-                                        logger.error(error);
+                                        logger.error(error.stack);
                                         resolve({
                                           response: "error_failed_application",
                                         });
@@ -8915,7 +8924,7 @@ redisCluster.on("connect", function () {
                                           fs.unlink(
                                             `.${process.env.DRIVERS_PROFILE_PICTURES_PATH}${uneededFileData.name}`,
                                             (err) => {
-                                              logger.error(err);
+                                              logger.error(err.stack);
                                             }
                                           );
                                           resDelFiles(true);
@@ -8926,7 +8935,9 @@ redisCluster.on("connect", function () {
                                       .then((resDel) =>
                                         logger.info(`Deleted: ${resDel}`)
                                       )
-                                      .catch((error) => logger.error(error));
+                                      .catch((error) =>
+                                        logger.error(error.stack)
+                                      );
                                     //.............
                                     //...
                                     resolve({
@@ -8935,7 +8946,7 @@ redisCluster.on("connect", function () {
                                   }
                                 })
                                 .catch((error) => {
-                                  logger.error(error);
+                                  logger.error(error.stack);
                                   //Delete local file
                                   let parentRemoveUneededFiles = filesData.map(
                                     (uneededFileData) => {
@@ -8943,7 +8954,7 @@ redisCluster.on("connect", function () {
                                         fs.unlink(
                                           `.${process.env.DRIVERS_PROFILE_PICTURES_PATH}${uneededFileData.name}`,
                                           (err) => {
-                                            logger.error(err);
+                                            logger.error(err.stack);
                                           }
                                         );
                                         resDelFiles(true);
@@ -8955,7 +8966,9 @@ redisCluster.on("connect", function () {
                                     .then((resDel) =>
                                       logger.info(`Deleted: ${resDel}`)
                                     )
-                                    .catch((error) => logger.error(error));
+                                    .catch((error) =>
+                                      logger.error(error.stack)
+                                    );
                                   //.............
                                   //...
                                   resolve({
@@ -8968,22 +8981,22 @@ redisCluster.on("connect", function () {
                             }
                           })
                           .catch((error) => {
-                            logger.error(error);
+                            logger.error(error.stack);
                             resolve({ response: "error_reformation" });
                           });
                       })
                       .catch((error) => {
-                        logger.error(error);
+                        logger.error(error.stack);
                         resolve({ response: "error_parsing_data" });
                       });
                   }
                 })
                 .catch((error) => {
-                  logger.error(error);
+                  logger.error(error.stack);
                   resolve({ response: "error_failed_integrity_checks" });
                 });
             } catch (error) {
-              logger.error(error);
+              logger.error(error.stack);
               resolve({ response: "error_parsing_data" });
             }
           } //Incomplete data
@@ -8995,7 +9008,7 @@ redisCluster.on("connect", function () {
             res.send(result);
           })
           .catch((error) => {
-            logger.error(error);
+            logger.error(error.stack);
             res.send({ response: "error" });
           });
       });
@@ -9133,7 +9146,7 @@ redisCluster.on("connect", function () {
                               "base64",
                               function (err) {
                                 if (err) {
-                                  logger.error(err);
+                                  logger.error(err.stack);
                                   resCompute(1); //Failed
                                 }
                                 //...success
@@ -9218,7 +9231,9 @@ redisCluster.on("connect", function () {
                                       .then((resDel) =>
                                         logger.info(`Deleted: ${resDel}`)
                                       )
-                                      .catch((error) => logger.error(error));
+                                      .catch((error) =>
+                                        logger.error(error.stack)
+                                      );
                                     //.............
                                     //? Save applicate to db
                                     let applicationBundle = {
@@ -9254,7 +9269,7 @@ redisCluster.on("connect", function () {
                                     )
                                       .then((result) => {
                                         if (!result) {
-                                          logger.error(err);
+                                          logger.error(err.stack);
                                           resolve({
                                             response:
                                               "error_failed_application",
@@ -9266,7 +9281,7 @@ redisCluster.on("connect", function () {
                                         });
                                       })
                                       .catch((error) => {
-                                        logger.error(error);
+                                        logger.error(error.stack);
                                         resolve({
                                           response: "error_failed_application",
                                         });
@@ -9280,7 +9295,7 @@ redisCluster.on("connect", function () {
                                           fs.unlink(
                                             `.${process.env.DRIVERS_PROFILE_PICTURES_PATH}${uneededFileData.name}`,
                                             (err) => {
-                                              logger.error(err);
+                                              logger.error(err.stack);
                                             }
                                           );
                                           resDelFiles(true);
@@ -9291,7 +9306,9 @@ redisCluster.on("connect", function () {
                                       .then((resDel) =>
                                         logger.info(`Deleted: ${resDel}`)
                                       )
-                                      .catch((error) => logger.error(error));
+                                      .catch((error) =>
+                                        logger.error(error.stack)
+                                      );
                                     //.............
                                     //...
                                     resolve({
@@ -9300,7 +9317,7 @@ redisCluster.on("connect", function () {
                                   }
                                 })
                                 .catch((error) => {
-                                  logger.error(error);
+                                  logger.error(error.stack);
                                   //Delete local file
                                   let parentRemoveUneededFiles = filesData.map(
                                     (uneededFileData) => {
@@ -9308,7 +9325,7 @@ redisCluster.on("connect", function () {
                                         fs.unlink(
                                           `.${process.env.DRIVERS_PROFILE_PICTURES_PATH}${uneededFileData.name}`,
                                           (err) => {
-                                            logger.error(err);
+                                            logger.error(err.stack);
                                           }
                                         );
                                         resDelFiles(true);
@@ -9320,7 +9337,9 @@ redisCluster.on("connect", function () {
                                     .then((resDel) =>
                                       logger.info(`Deleted: ${resDel}`)
                                     )
-                                    .catch((error) => logger.error(error));
+                                    .catch((error) =>
+                                      logger.error(error.stack)
+                                    );
                                   //.............
                                   //...
                                   resolve({
@@ -9333,22 +9352,22 @@ redisCluster.on("connect", function () {
                             }
                           })
                           .catch((error) => {
-                            logger.error(error);
+                            logger.error(error.stack);
                             resolve({ response: "error_reformation" });
                           });
                       })
                       .catch((error) => {
-                        logger.error(error);
+                        logger.error(error.stack);
                         resolve({ response: "error_parsing_data" });
                       });
                   }
                 })
                 .catch((error) => {
-                  logger.error(error);
+                  logger.error(error.stack);
                   resolve({ response: "error_failed_integrity_checks" });
                 });
             } catch (error) {
-              logger.error(error);
+              logger.error(error.stack);
               resolve({ response: "error_parsing_data" });
             }
           } //Incomplete data
@@ -9360,7 +9379,7 @@ redisCluster.on("connect", function () {
             res.send(result);
           })
           .catch((error) => {
-            logger.error(error);
+            logger.error(error.stack);
             res.send({ response: "error" });
           });
       });

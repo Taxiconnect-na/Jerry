@@ -435,7 +435,7 @@ function saveLogForTopups(
     responseStatusCode: responseStatusCode,
     payment_currency: payment_currency,
     transactionToken: additionalData,
-    date_captured: new Date(chaineDateUTC),
+    date_captured: new Date(chaineDateUTC).toISOString(),
     timestamp: tmpDate.getTime(),
   };
 
@@ -502,7 +502,7 @@ function saveLogForTopupsSuccess(
       transaction_nature: "topup",
       transactionToken: transactionToken,
       transactionRef: transactionRef,
-      date_captured: new Date(chaineDateUTC),
+      date_captured: new Date(chaineDateUTC).toISOString(),
       timestamp: tmpDate.getTime(),
     };
     //...
@@ -558,7 +558,7 @@ function saveLogForTopupsSuccess(
       transactionToken: transactionToken,
       transaction_fp: transactionToken,
       transactionRef: transactionRef,
-      date_captured: new Date(chaineDateUTC),
+      date_captured: new Date(chaineDateUTC).toISOString(),
       timestamp: tmpDate.getTime(),
     };
     //...
@@ -829,7 +829,7 @@ function processExecute_paymentCardWallet_topup(
                         amount: dataBundle.amount,
                         transactionRef: transRef,
                         responseBody: result_paymentExecDeducted,
-                        date_captured: new Date(chaineDateUTC),
+                        date_captured: new Date(chaineDateUTC).toISOString(),
                       };
                       //...
                       dynamo_insert("global_events", faildTransObj)
@@ -953,7 +953,7 @@ function checkReceipient_walletTransaction(
               receipient_category: "friendOrFamily",
               user_fingerprint: dataBundle.user_fingerprint,
               receiver_fingerprint: riderProfile[0].user_fingerprint,
-              date_captured: new Date(chaineDateUTC),
+              date_captured: new Date(chaineDateUTC).toISOString(),
             };
             //...
             dynamo_insert("global_events", eventSaverObj)
@@ -1019,7 +1019,7 @@ function checkReceipient_walletTransaction(
               receipient_category: "driver",
               user_fingerprint: dataBundle.user_fingerprint,
               receiver_fingerprint: driverProfile[0].driver_fingerprint,
-              date_captured: new Date(chaineDateUTC),
+              date_captured: new Date(chaineDateUTC).toISOString(),
             };
             //...
             dynamo_insert("global_events", eventSaverObj)
@@ -1073,7 +1073,7 @@ function checkReceipient_walletTransaction(
           //           receipient_category: "driver",
           //           user_fingerprint: dataBundle.user_fingerprint,
           //           receiver_fingerprint: driverProfile[0].driver_fingerprint,
-          //           date_captured: new Date(chaineDateUTC),
+          //           date_captured: new Date(chaineDateUTC).toISOString(),
           //         };
           //         //...
           //         collectionGlobalEvents.inse\rtOne(
@@ -1133,7 +1133,7 @@ function execSendMoney_fromRiderWallet_transaction(
       amount: parseFloat(dataBundle.amount),
       payment_currency: process.env.PAYMENT_CURRENCY,
       transaction_nature: "sentToFriend",
-      date_captured: new Date(chaineDateUTC),
+      date_captured: new Date(chaineDateUTC).toISOString(),
       timestamp: dateTmp.getTime(),
     };
     //...
@@ -1180,7 +1180,7 @@ function execSendMoney_fromRiderWallet_transaction(
       amount: parseFloat(dataBundle.amount),
       payment_currency: process.env.PAYMENT_CURRENCY,
       transaction_nature: "paidDriver",
-      date_captured: new Date(chaineDateUTC),
+      date_captured: new Date(chaineDateUTC).toISOString(),
       timestamp: dateTmp.getTime(),
     };
     //...
@@ -1318,7 +1318,9 @@ function sendReceipt(metaDataBundle, scenarioType, resolve) {
           //? Generate a receipt fingerprint
           new Promise((resGenerateFp) => {
             generateUniqueFingerprint(
-              `${metaDataBundle.user_fp}-${new Date(chaineDateUTC).getTime()}`,
+              `${metaDataBundle.user_fp}-${new Date(chaineDateUTC)
+                .toISOString()
+                .getTime()}`,
               "md5",
               resGenerateFp
             );
@@ -1614,11 +1616,14 @@ function sendReceipt(metaDataBundle, scenarioType, resolve) {
                                       <div style="font-weight: bold;font-size: 11px;">DATE</div>
                                       <div style="font-size: 14px;color:#272626bb;margin-top: 4px;">${
                                         new Date(chaineDateUTC)
+                                          .toISOString()
                                           .toDateString()
                                           .split(" ")[1]
                                       } ${new Date(
                 chaineDateUTC
-              ).getDate()}, ${new Date(chaineDateUTC).getFullYear()}</div>
+              ).getDate()}, ${new Date(chaineDateUTC)
+                .toISOString()
+                .getFullYear()}</div>
                                   </div>
                                   <div style="margin-bottom: 25px;min-width: 100px;">
                                       <div style="font-weight: bold;font-size: 11px;">BALANCE DUE</div>
@@ -1734,7 +1739,7 @@ function sendReceipt(metaDataBundle, scenarioType, resolve) {
                   city: "Windhoek",
                   receipt_fp: receiptFp,
                   email_data: emailTemplate,
-                  date: new Date(chaineDateUTC),
+                  date: new Date(chaineDateUTC).toISOString(),
                 };
                 //...
                 dynamo_insert("global_events", eventBundle)
@@ -2101,7 +2106,7 @@ requestAPI(
                   event_name: "unlinked_rider_account_topup_failed_trial",
                   user_fingerprint: dataBundle.user_fp,
                   inputData: dataBundle,
-                  date_captured: new Date(chaineDateUTC),
+                  date_captured: new Date(chaineDateUTC).toISOString(),
                 };
                 //...
                 dynamo_insert("global_events", faildTransObj)
@@ -2460,7 +2465,7 @@ requestAPI(
       //               timestamp: Math.round(
       //                 new Date(chaineDateUTC).getTime()
       //               ),
-      //               date_captured: new Date(chaineDateUTC),
+      //               date_captured: new Date(chaineDateUTC).toISOString(),
       //             };
       //             //...
       //             collectionWalletTransactions_logs.ins\ertOne(
@@ -2510,7 +2515,7 @@ requestAPI(
       //               timestamp: Math.round(
       //                 new Date(chaineDateUTC).getTime()
       //               ),
-      //               date_captured: new Date(chaineDateUTC),
+      //               date_captured: new Date(chaineDateUTC).toISOString(),
       //             };
       //             //...
       //             collectionWalletTransactions_logs.ins\ertOne(
@@ -2671,7 +2676,7 @@ requestAPI(
       //           resolve({
       //             response: {
       //               status: "No rewards data found",
-      //               date: new Date(chaineDateUTC),
+      //               date: new Date(chaineDateUTC).toISOString(),
       //             },
       //           });
       //         }
@@ -2763,7 +2768,7 @@ requestAPI(
       //                     {
       //                       $set: {
       //                         recipient_fp: req.user_fp,
-      //                         date_applied: new Date(chaineDateUTC),
+      //                         date_applied: new Date(chaineDateUTC).toISOString(),
       //                       },
       //                     },
       //                     function (err, resltUpdate) {

@@ -317,6 +317,7 @@ async function find_query({
       }
       //...
       // logger.info(resultFindget.Items.length);
+      // logger.warn(params);
       resolve(
         resultFindget !== undefined && resultFindget !== null
           ? resultFindget.Items

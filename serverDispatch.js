@@ -91,6 +91,8 @@ const {
   dynamo_get_all,
   dynamo_update,
   dynamo_insert,
+  dynamo_delete,
+  dynamo_find_get,
 } = require("./DynamoServiceManager");
 function SendSMSTo(phone_number, message) {
   if (phone_number !== false && phone_number !== "false") {
@@ -471,7 +473,9 @@ function parseRequestData(inputData, resolve) {
             new Promise((res1) => {
               if (/immediate/i.test(parsedData.request_type)) {
                 //Now request - now date
-                parsedData.wished_pickup_time = new Date(chaineDateUTC);
+                parsedData.wished_pickup_time = new Date(
+                  chaineDateUTC
+                ).toISOString();
                 res1(true);
               } //Scheduled
               else {
@@ -600,7 +604,7 @@ function parseRequestData(inputData, resolve) {
                       inputData.date_requested !== undefined &&
                       inputData.date_requested !== null
                         ? inputData.date_requested
-                        : new Date(chaineDateUTC);
+                        : new Date(chaineDateUTC).toISOString();
                     parsedData.date_accepted =
                       inputData.date_accepted !== undefined &&
                       inputData.date_accepted !== null
@@ -2255,7 +2259,7 @@ function registerAllowedDriversForRidesAndNotify(
  * 5. Assign custom note (if any)
  * ! Reinforce all drop off vars in case
  */
-function confirmDropoff_fromRider_side(
+async function confirmDropoff_fromRider_side(
   dropOffMeta_bundle,
   collectionRidesDeliveryData,
   collectionDrivers_profiles,
@@ -2267,85 +2271,98 @@ function confirmDropoff_fromRider_side(
     client_id: dropOffMeta_bundle.user_fingerprint,
     request_fp: dropOffMeta_bundle.request_fp,
   };
-  //Updatedd data
-  let dropOffDataUpdate = {
-    $set: {
-      isArrivedToDestination: true,
-      date_dropoff: new Date(chaineDateUTC),
-      ride_state_vars: {
-        isAccepted: true,
-        inRideToDestination: true,
-        isRideCompleted_driverSide: true,
-        isRideCompleted_riderSide: true,
-        rider_driverRating: dropOffMeta_bundle.rating_score,
-        rating_compliment: dropOffMeta_bundle.dropoff_compliments,
-        rating_personal_note: dropOffMeta_bundle.dropoff_personal_note,
-      },
-    },
-  };
-  //..
-  dynamo_update({
-    table_name: "rides_deliveries_requests",
-    _idKey: { request_fp: dropOffMeta_bundle.request_fp },
-    UpdateExpression:
-      "set isArrivedToDestination = :val1, date_dropoff = :val2, ride_state_vars = :val3",
-    ExpressionAttributeValues: {
-      ":val1": true,
-      ":val2": new Date(chaineDateUTC).toISOString(),
-      ":val3": {
-        isAccepted: true,
-        inRideToDestination: true,
-        isRideCompleted_driverSide: true,
-        isRideCompleted_riderSide: true,
-        rider_driverRating: dropOffMeta_bundle.rating_score,
-        rating_compliment: dropOffMeta_bundle.dropoff_compliments,
-        rating_personal_note: dropOffMeta_bundle.dropoff_personal_note,
-      },
-    },
-  })
-    .then((result) => {
-      if (!result) resolve({ response: "error" });
 
-      dynamo_find_query({
-        table_name: "rides_deliveries_requests",
-        IndexName: "request_fp",
-        KeyConditionExpression: "request_fp = :val1 AND client_id = :val2",
-        ExpressionAttributeValues: {
-          ":val1": retrieveTrip.request_fp,
-          ":val2": retrieveTrip.client_id,
-        },
-      })
-        .then((result) => {
-          if (result !== undefined && result.length > 0) {
-            result = result[0];
-            //? Send the drop off receipt for corporate deliveries
-            new Promise((resSendReceipt) => {
-              let dataBundle = {
-                amount: result.fare,
-                user_fp: result.client_id,
-                tripHistory: result,
-              };
-              sendReceipt(dataBundle, "dropoffReceipt", resSendReceipt);
-            })
-              .then()
-              .catch((error) => logger.error(error));
-            //?...
-
-            resolve({
-              response: "successfully_confirmed",
-              driver_fp: result.taxi_id,
-            });
-          } else {
-            resolve({ response: "successfully_confirmed" });
-          }
-        })
-        .catch((error) => {
-          resolve({ response: "successfully_confirmed" });
-        });
-    })
-    .catch((error) => {
-      resolve({ response: "error" });
+  try {
+    const tripData = await dynamo_find_query({
+      table_name: "rides_deliveries_requests",
+      IndexName: "request_fp",
+      KeyConditionExpression: "request_fp = :val1",
+      ExpressionAttributeValues: {
+        ":val1": dropOffMeta_bundle.request_fp,
+      },
     });
+
+    //Updatedd data
+    let dropOffDataUpdate = {
+      $set: {
+        isArrivedToDestination: true,
+        date_dropoff: new Date(chaineDateUTC).toISOString(),
+        ride_state_vars: {
+          isAccepted: true,
+          inRideToDestination: true,
+          isRideCompleted_driverSide: true,
+          isRideCompleted_riderSide: true,
+          rider_driverRating: dropOffMeta_bundle.rating_score,
+          rating_compliment: dropOffMeta_bundle.dropoff_compliments,
+          rating_personal_note: dropOffMeta_bundle.dropoff_personal_note,
+        },
+      },
+    };
+    //..
+    dynamo_update({
+      table_name: "rides_deliveries_requests",
+      _idKey: tripData[0]._id,
+      UpdateExpression:
+        "set isArrivedToDestination = :val1, date_dropoff = :val2, ride_state_vars = :val3",
+      ExpressionAttributeValues: {
+        ":val1": true,
+        ":val2": new Date(chaineDateUTC).toISOString(),
+        ":val3": {
+          isAccepted: true,
+          inRideToDestination: true,
+          isRideCompleted_driverSide: true,
+          isRideCompleted_riderSide: true,
+          rider_driverRating: dropOffMeta_bundle.rating_score,
+          rating_compliment: dropOffMeta_bundle.dropoff_compliments,
+          rating_personal_note: dropOffMeta_bundle.dropoff_personal_note,
+        },
+      },
+    })
+      .then((result) => {
+        if (!result) resolve({ response: "error" });
+
+        dynamo_find_query({
+          table_name: "rides_deliveries_requests",
+          IndexName: "request_fp",
+          KeyConditionExpression: "request_fp = :val1",
+          ExpressionAttributeValues: {
+            ":val1": retrieveTrip.request_fp,
+          },
+        })
+          .then((result) => {
+            if (result !== undefined && result.length > 0) {
+              result = result[0];
+              //? Send the drop off receipt for corporate deliveries
+              new Promise((resSendReceipt) => {
+                let dataBundle = {
+                  amount: result.fare,
+                  user_fp: result.client_id,
+                  tripHistory: result,
+                };
+                sendReceipt(dataBundle, "dropoffReceipt", resSendReceipt);
+              })
+                .then()
+                .catch((error) => logger.error(error));
+              //?...
+
+              resolve({
+                response: "successfully_confirmed",
+                driver_fp: result.taxi_id,
+              });
+            } else {
+              resolve({ response: "successfully_confirmed" });
+            }
+          })
+          .catch((error) => {
+            resolve({ response: "successfully_confirmed" });
+          });
+      })
+      .catch((error) => {
+        resolve({ response: "error" });
+      });
+  } catch (error) {
+    resolve({ response: "error" });
+  }
 }
 
 /**
@@ -2408,7 +2425,9 @@ function sendReceipt(metaDataBundle, scenarioType, resolve) {
           //? Generate a receipt fingerprint
           new Promise((resGenerateFp) => {
             generateUniqueFingerprint(
-              `${metaDataBundle.user_fp}-${new Date(chaineDateUTC).getTime()}`,
+              `${metaDataBundle.user_fp}-${new Date(chaineDateUTC)
+                .toISOString()
+                .getTime()}`,
               "md5",
               resGenerateFp
             );
@@ -2726,11 +2745,14 @@ function sendReceipt(metaDataBundle, scenarioType, resolve) {
                                         <div style="font-weight: bold;font-size: 11px;">DATE</div>
                                         <div style="font-size: 14px;color:#272626bb;margin-top: 4px;">${
                                           new Date(chaineDateUTC)
+                                            .toISOString()
                                             .toDateString()
                                             .split(" ")[1]
                                         } ${new Date(
                 chaineDateUTC
-              ).getDate()}, ${new Date(chaineDateUTC).getFullYear()}</div>
+              ).getDate()}, ${new Date(chaineDateUTC)
+                .toISOString()
+                .getFullYear()}</div>
                                     </div>
                                     <div style="margin-bottom: 25px;min-width: 100px;">
                                         <div style="font-weight: bold;font-size: 11px;">BALANCE DUE</div>
@@ -2867,7 +2889,7 @@ function sendReceipt(metaDataBundle, scenarioType, resolve) {
                   city: "Windhoek",
                   receipt_fp: receiptFp,
                   email_data: emailTemplate,
-                  date: new Date(chaineDateUTC),
+                  date: new Date(chaineDateUTC).toISOString(),
                 };
                 //...
                 dynamo_insert("global_events", eventBundle)
@@ -2923,7 +2945,7 @@ function sendReceipt(metaDataBundle, scenarioType, resolve) {
  * @param additionalData: contains additional data like the flag and so on.
  * Responsible for cancelling requests for riders and all the related processes.
  */
-function cancelRider_request(
+async function cancelRider_request(
   requestBundle_data,
   collectionRidesDeliveryData,
   collection_cancelledRidesDeliveryData,
@@ -2939,124 +2961,120 @@ function cancelRider_request(
     request_fp: requestBundle_data.request_fp,
   };
   //Get data
-  dynamo_find_query({
-    table_name: "rides_deliveries_requests",
-    IndexName: "request_fp",
-    KeyConditionExpression: "request_fp = :val1 AND client_id = :val2",
-    ExpressionAttributeValues: {
-      ":val1": requestBundle_data.request_fp,
-      ":val2": requestBundle_data.user_fingerprint,
-    },
-  })
-    .then((requestData) => {
-      if (requestData.length > 0) {
-        let driver_fp = requestData[0].taxi_id; //If any
-        let pickup_suburb = requestData[0].pickup_location_infos.suburb;
-        let destination_suburb = requestData[0].destinationData[0].suburb;
-        //Found something
-        //Add the cancelling reason
-        requestData[0]["rider_cancellation_reason"] = requestBundle_data.reason;
-        //Add the deleted date
-        requestData[0].date_deleted = new Date(chaineDateUTC);
-        //Add any additional data
-        requestData[0].additionalData = additionalData;
-        //Save in the cancelled collection
-        dynamo_insert("cancelled_rides_deliveries_requests", requestData[0])
-          .then((result) => {
-            if (!result) {
-              resolve({ response: "error_cancelling" });
-            }
-            //...
-            //Remove from the active collection!!!!
-            collectionRidesDeliveryData.deleteOne(
-              checkRequest,
-              function (err3, result) {
-                if (err3) {
-                  resolve({ response: "error_cancelling" });
-                }
-                //? Notify the driver if any is linked to this request
-                //Send the push notifications - FOR drivers
-                new Promise((resSendNotif) => {
-                  if (
-                    driver_fp !== false &&
-                    driver_fp !== "false" &&
-                    driver_fp !== undefined &&
-                    driver_fp !== null
-                  ) {
-                    //Has a linked driver
-                    //? Get the driver's notification ID
-                    //? Get the rider's details
-                    dynamo_find_query({
-                      table_name: "drivers_profiles",
-                      IndexName: "driver_fingerprint",
-                      KeyConditionExpression: "driver_fingerprint = :val1",
-                      ExpressionAttributeValues: {
-                        ":val1": driver_fp,
-                      },
-                    })
-                      .then((driverDetails) => {
-                        //...push_notification_token
-                        if (
-                          driverDetails.length > 0 &&
-                          driverDetails[0].driver_fingerprint !== undefined &&
-                          driverDetails[0].operational_state.pushnotif_token !==
-                            null &&
-                          driverDetails[0].operational_state.pushnotif_token !==
-                            undefined &&
-                          driverDetails[0].operational_state.pushnotif_token
-                            .userId !== undefined
-                        ) {
-                          let message = {
-                            app_id: process.env.DRIVERS_APP_ID_ONESIGNAL,
-                            android_channel_id:
-                              process.env
-                                .DRIVERS_ONESIGNAL_CHANNEL_NEW_NOTIFICATION, //Ride or delivery channel
-                            priority: 10,
-                            contents: {
-                              en: `Your request from ${pickup_suburb} to ${destination_suburb} has been cancelled.`,
-                            },
-                            headings: { en: "Request cancelled" },
-                            content_available: true,
-                            include_player_ids: [
-                              String(
-                                driverDetails[0].operational_state
-                                  .pushnotif_token.userId
-                              ),
-                            ],
-                          };
-                          logger.info(message);
-                          //Send
-                          sendPushUPNotification(message);
-                          resSendNotif(false);
-                        } else {
-                          resSendNotif(false);
-                        }
-                      })
-                      .catch((error) => {
-                        resSendNotif(false);
-                      });
-                  }
-                }).then(
-                  () => {},
-                  () => {}
-                );
-                //...DONE
-                resolve({ response: "successully_cancelled" });
-              }
-            );
-          })
-          .catch((error) => {
-            logger.error(error);
-            resolve({ response: "error_cancelling" });
-          });
-      } //No records found of the request - very strange -error
-      else {
+  try {
+    let requestData = await dynamo_find_query({
+      table_name: "rides_deliveries_requests",
+      IndexName: "request_fp",
+      KeyConditionExpression: "request_fp = :val1",
+      ExpressionAttributeValues: {
+        ":val1": requestBundle_data.request_fp,
+      },
+    });
+
+    if (requestData.length > 0) {
+      let driver_fp = requestData[0].taxi_id; //If any
+      let pickup_suburb = requestData[0].pickup_location_infos.suburb;
+      let destination_suburb = requestData[0].destinationData[0].suburb;
+      //Found something
+      //Add the cancelling reason
+      requestData[0]["rider_cancellation_reason"] = requestBundle_data.reason;
+      //Add the deleted date
+      requestData[0].date_deleted = new Date(chaineDateUTC).toISOString();
+      //Add any additional data
+      requestData[0].additionalData = additionalData;
+      //Save in the cancelled collection
+      let saveCancelled = await dynamo_insert(
+        "cancelled_rides_deliveries_requests",
+        requestData[0]
+      );
+
+      if (!saveCancelled) {
         resolve({ response: "error_cancelling" });
       }
-    })
-    .catch((error) => {
+
+      //Remove from the active collection!!!!
+      const deleteRequest = await dynamo_delete(
+        "rides_deliveries_requests",
+        requestData[0]._id
+      );
+
+      if (!deleteRequest) {
+        resolve({ response: "error_cancelling" });
+      }
+
+      //? Notify the driver if any is linked to this request
+      //Send the push notifications - FOR drivers
+      new Promise((resSendNotif) => {
+        if (
+          driver_fp !== false &&
+          driver_fp !== "false" &&
+          driver_fp !== undefined &&
+          driver_fp !== null
+        ) {
+          //Has a linked driver
+          //? Get the driver's notification ID
+          //? Get the rider's details
+          dynamo_find_query({
+            table_name: "drivers_profiles",
+            IndexName: "driver_fingerprint",
+            KeyConditionExpression: "driver_fingerprint = :val1",
+            ExpressionAttributeValues: {
+              ":val1": driver_fp,
+            },
+          })
+            .then((driverDetails) => {
+              //...push_notification_token
+              if (
+                driverDetails.length > 0 &&
+                driverDetails[0].driver_fingerprint !== undefined &&
+                driverDetails[0].operational_state.pushnotif_token !== null &&
+                driverDetails[0].operational_state.pushnotif_token !==
+                  undefined &&
+                driverDetails[0].operational_state.pushnotif_token.userId !==
+                  undefined
+              ) {
+                let message = {
+                  app_id: process.env.DRIVERS_APP_ID_ONESIGNAL,
+                  android_channel_id:
+                    process.env.DRIVERS_ONESIGNAL_CHANNEL_NEW_NOTIFICATION, //Ride or delivery channel
+                  priority: 10,
+                  contents: {
+                    en: `Your request from ${pickup_suburb} to ${destination_suburb} has been cancelled.`,
+                  },
+                  headings: { en: "Request cancelled" },
+                  content_available: true,
+                  include_player_ids: [
+                    String(
+                      driverDetails[0].operational_state.pushnotif_token.userId
+                    ),
+                  ],
+                };
+                logger.info(message);
+                //Send
+                sendPushUPNotification(message);
+                resSendNotif(false);
+              } else {
+                resSendNotif(false);
+              }
+            })
+            .catch((error) => {
+              resSendNotif(false);
+            });
+        }
+      }).then(
+        () => {},
+        () => {}
+      );
+      //...DONE
+      resolve({ response: "successully_cancelled" });
+    } //No records found of the request - very strange -error
+    else {
       resolve({ response: "error_cancelling" });
-    });
+    }
+  } catch (error) {
+    logger.error(error);
+    resolve({ response: "error_cancelling" });
+  }
 }
 
 /**
@@ -3068,7 +3086,7 @@ function cancelRider_request(
  * @param bundleWorkingData: contains the driver_fp and the request_fp.
  * @param resolve
  */
-function declineRequest_driver(
+async function declineRequest_driver(
   bundleWorkingData,
   collectionRidesDeliveryData,
   collectionGlobalEvents,
@@ -3076,91 +3094,106 @@ function declineRequest_driver(
 ) {
   resolveDate();
   //Only decline if not yet accepted by the driver
-  dynamo_find_query({
-    table_name: "rides_deliveries_requests",
-    IndexName: "request_fp",
-    KeyConditionExpression: "request_fp = :val1 AND taxi_id = :val2",
-    ExpressionAttributeValues: {
-      ":val1": bundleWorkingData.request_fp,
-      ":val2": bundleWorkingData.driver_fingerprint,
-    },
-  })
-    .then((result) => {
-      if (result.length <= 0) {
-        //Wasn't accepted by this driver - proceed to the declining
-        //Save the declining event
-        new Promise((res) => {
-          dynamo_insert("global_events", {
-            event_name: "driver_declining_request",
-            request_fp: bundleWorkingData.request_fp,
-            driver_fingerprint: bundleWorkingData.driver_fingerprint,
-            date: new Date(chaineDateUTC).toISOString(),
+  try {
+    const driverData = await dynamo_find_query({
+      table_name: "drivers_profiles",
+      IndexName: "driver_fingerprint",
+      KeyConditionExpression: "driver_fingerprint = :val1",
+      ExpressionAttributeValues: {
+        ":val1": bundleWorkingData.driver_fingerprint,
+      },
+    });
+
+    dynamo_find_query({
+      table_name: "rides_deliveries_requests",
+      IndexName: "request_fp",
+      KeyConditionExpression: "request_fp = :val1",
+      ExpressionAttributeValues: {
+        ":val1": bundleWorkingData.request_fp,
+      },
+    })
+      .then((result) => {
+        if (result.length >= 0) {
+          //Wasn't accepted by this driver - proceed to the declining
+          //Save the declining event
+          new Promise((res) => {
+            dynamo_insert("global_events", {
+              event_name: "driver_declining_request",
+              request_fp: bundleWorkingData.request_fp,
+              driver_fingerprint: bundleWorkingData.driver_fingerprint,
+              date: new Date(chaineDateUTC).toISOString(),
+            })
+              .then((result) => {
+                logger.info(result);
+              })
+              .catch((error) => {
+                logger.error(error);
+              });
+            //...
+            res(true);
+          }).then(
+            () => {},
+            () => {}
+          );
+          //...Get the request
+          dynamo_find_query({
+            table_name: "rides_deliveries_requests",
+            IndexName: "request_fp",
+            KeyConditionExpression: "request_fp = :val1",
+            ExpressionAttributeValues: {
+              ":val1": bundleWorkingData.request_fp,
+            },
           })
-            .then((result) => {
-              logger.info(result);
+            .then((trueRequest) => {
+              if (trueRequest.length > 0) {
+                //Request still exists - proceed
+                let oldItDeclineList =
+                  trueRequest.intentional_request_decline !== undefined &&
+                  trueRequest.intentional_request_decline !== null
+                    ? trueRequest.intentional_request_decline
+                    : [];
+                //Update the old list
+                oldItDeclineList.push(bundleWorkingData.driver_fingerprint);
+                //..
+                dynamo_update({
+                  table_name: "rides_deliveries_requests",
+                  _idKey: driverData[0]._id,
+                  UpdateExpression: "set intentional_request_decline = :val1",
+                  ExpressionAttributeValues: {
+                    ":val1": oldItDeclineList,
+                  },
+                })
+                  .then((result) => {
+                    if (!result)
+                      resolve({ response: "unable_to_decline_request_error" });
+                    //DONE
+                    resolve({ response: "successfully_declined" });
+                  })
+                  .catch((error) => {
+                    resolve({ response: "unable_to_decline_request_error" });
+                  });
+              } //Request not existing anymore - error
+              else {
+                resolve({
+                  response: "unable_to_decline_request_error_notExist",
+                });
+              }
             })
             .catch((error) => {
-              logger.error(error);
+              resolve({ response: "unable_to_decline_request_error" });
             });
-          //...
-          res(true);
-        }).then(
-          () => {},
-          () => {}
-        );
-        //...Get the request
-        dynamo_find_query({
-          table_name: "rides_deliveries_requests",
-          IndexName: "request_fp",
-          KeyConditionExpression: "request_fp = :val1",
-          ExpressionAttributeValues: {
-            ":val1": bundleWorkingData.request_fp,
-          },
-        })
-          .then((trueRequest) => {
-            if (trueRequest.length > 0) {
-              //Request still exists - proceed
-              let oldItDeclineList =
-                trueRequest.intentional_request_decline !== undefined &&
-                trueRequest.intentional_request_decline !== null
-                  ? trueRequest.intentional_request_decline
-                  : [];
-              //Update the old list
-              oldItDeclineList.push(bundleWorkingData.driver_fingerprint);
-              //..
-              dynamo_update({
-                table_name: "rides_deliveries_requests",
-                _idKey: { request_fp: bundleWorkingData.request_fp },
-                UpdateExpression: "set intentional_request_decline = :val1",
-                ExpressionAttributeValues: {
-                  ":val1": oldItDeclineList,
-                },
-              })
-                .then((result) => {
-                  if (!result)
-                    resolve({ response: "unable_to_decline_request_error" });
-                  //DONE
-                  resolve({ response: "successfully_declined" });
-                })
-                .catch((error) => {
-                  resolve({ response: "unable_to_decline_request_error" });
-                });
-            } //Request not existing anymore - error
-            else {
-              resolve({ response: "unable_to_decline_request_error_notExist" });
-            }
-          })
-          .catch((error) => {
-            resolve({ response: "unable_to_decline_request_error" });
-          });
-      } //Ride accepted by this driver previously - abort the declining
-      else {
-        resolve({ response: "unable_to_decline_request_prev_accepted" });
-      }
-    })
-    .catch((error) => {
-      resolve({ response: "unable_to_decline_request_error" });
-    });
+        } //Ride accepted by this driver previously - abort the declining
+        else {
+          resolve({ response: "unable_to_decline_request_prev_accepted" });
+        }
+      })
+      .catch((error) => {
+        resolve({ response: "unable_to_decline_request_error" });
+      });
+  } catch (error) {
+    logger.error(error.stack);
+    resolve({ response: "unable_to_decline_request_error" });
+  }
 }
 
 /**
@@ -3168,33 +3201,24 @@ function declineRequest_driver(
  * Responsible for accepting any request from the driver app, If and only if the request was not declined by the driver and if it's
  * not already accepted by another driver.
  * @param bundleWorkingData: contains the driver_fp and the request_fp.
- * @param collectionRidesDeliveryData: list of all the requests made.
- * @param collectionGlobalEvents: hold all the random events that happened somewhere.
- * @param collectionDrivers_profiles: list of all the drivers.
- * @param collectionPassengers_profiles: list off all the riders.
  * @param resolve
  */
-function acceptRequest_driver(
-  bundleWorkingData,
-  collectionRidesDeliveryData,
-  collectionGlobalEvents,
-  collectionDrivers_profiles,
-  collectionPassengers_profiles,
-  resolve
-) {
+async function acceptRequest_driver(bundleWorkingData, resolve) {
   resolveDate();
   //Only decline if not yet accepted by the driver
   dynamo_find_query({
     table_name: "rides_deliveries_requests",
     IndexName: "request_fp",
-    KeyConditionExpression: "request_fp = :val1 AND taxi_id = :val2",
+    KeyConditionExpression: "request_fp = :val1",
+    FilterExpression: "taxi_id = :val2",
     ExpressionAttributeValues: {
       ":val1": bundleWorkingData.request_fp,
-      ":val2": false,
+      ":val2": "false",
     },
   })
     .then((result) => {
       if (result !== undefined && result !== null && result.length > 0) {
+        const requestData = result[0];
         //Wasn't accepted by a driver yet - proceed to the accepting
         //Save the accepting event
         new Promise((res) => {
@@ -3235,7 +3259,7 @@ function acceptRequest_driver(
               //Update the true request
               dynamo_update({
                 table_name: "rides_deliveries_requests",
-                _idKey: { request_fp: bundleWorkingData.request_fp },
+                _idKey: requestData._id,
                 UpdateExpression:
                   "set taxi_id = :val1, #r.#isAcc = :val2, date_accepted = :val3, car_fingerprint = :val4",
                 ExpressionAttributeNames: {
@@ -3244,14 +3268,23 @@ function acceptRequest_driver(
                 },
                 ExpressionAttributeValues: {
                   ":val1": bundleWorkingData.driver_fingerprint,
-                  ":val2": false,
+                  ":val2": true,
                   ":val3": new Date(chaineDateUTC).toISOString(),
                   ":val4":
                     driverData[0].operational_state.default_selected_car
                       .car_fingerprint,
                 },
               })
-                .then((result) => {
+                .then(async (result) => {
+                  const tripData = await dynamo_find_query({
+                    table_name: "rides_deliveries_requests",
+                    IndexName: "request_fp",
+                    KeyConditionExpression: "request_fp = :val1",
+                    ExpressionAttributeValues: {
+                      ":val1": bundleWorkingData.request_fp,
+                    },
+                  });
+                  result = tripData;
                   //Get the regional list of all the drivers online/offline
                   //?Notify the cllient
                   //Send the push notifications - FOR Passengers
@@ -3360,7 +3393,9 @@ function acceptRequest_driver(
                             },
                             ExpressionAttributeValues: {
                               ":val1": prevAcceptedData,
-                              ":val2": new Date(chaineDateUTC).toISOString(),
+                              ":val2": new Date(chaineDateUTC)
+                                .toISOString()
+                                .toISOString(),
                             },
                           })
                             .then((result) => {
@@ -3397,7 +3432,7 @@ function acceptRequest_driver(
                   });
                 })
                 .catch((error) => {
-                  //logger.info(error);
+                  logger.info(error.stack);
                   resolve({ response: "unable_to_accept_request_error" });
                 });
             } //?Very strange, could not find the driver's information
@@ -3406,7 +3441,7 @@ function acceptRequest_driver(
             }
           })
           .catch((error) => {
-            //logger.info(error);
+            logger.info(error.stack);
             resolve({ response: "unable_to_accept_request_error" });
           });
       } //abort the accepting
@@ -3415,7 +3450,7 @@ function acceptRequest_driver(
       }
     })
     .catch((error) => {
-      //logger.info(error);
+      logger.info(error.stack);
       resolve({ response: "unable_to_accept_request_error" });
     });
 }
@@ -3436,345 +3471,293 @@ function arrayEquals(a, b) {
 /**
  * @func cancelRequest_driver
  * Responsible for cancelling any request from the driver app, If and only if the request was accepted by the driver who's requesting for the cancellation.
- * @param collectionRidesDeliveryData: list of all the requests made.
- * @param collectionGlobalEvents: hold all the random events that happened somewhere.
- * @param bundleWorkingData: contains the driver_fp and the request_fp.
- * @param collectionPassengers_profiles: list of all the drivers.
- * @param collectionDrivers_profiles: the liist of all the drivers.
  * @param resolve
  */
-function cancelRequest_driver(
-  bundleWorkingData,
-  collectionRidesDeliveryData,
-  collectionGlobalEvents,
-  collectionPassengers_profiles,
-  collectionDrivers_profiles,
-  resolve
-) {
+async function cancelRequest_driver(bundleWorkingData, resolve) {
   resolveDate();
-  dynamo_find_query({
-    table_name: "rides_deliveries_requests",
-    IndexName: "request_fp",
-    KeyConditionExpression: "request_fp = :val1 AND taxi_id = :val2",
-    ExpressionAttributeValues: {
-      ":val1": bundleWorkingData.request_fp,
-      ":val2": bundleWorkingData.driver_fingerprint,
-    },
-  })
-    .then((result) => {
-      if (result.length > 0) {
-        let tripData = result[0];
-        //...
-        let tmpRefDate = new Date(chaineDateUTC);
-        //! Check if the driver did not cancel more than MAXIMUM_CANCELLATION_DRIVER_REQUESTS_LIMIT requests today
-        dynamo_find_query({
-          table_name: "global_events",
-          IndexName: "event_name",
-          KeyConditionExpression: "event_name = :val1",
-          FilterExpression:
-            "driver_fingerprint = :val2 AND date BETWEEN :val3 AND :val4",
-          ExpressionAttributeValues: {
-            ":val1": "driver_cancelling_request",
-            ":val2": bundleWorkingData.driver_fingerprint,
-            ":val3": new Date(
-              `${tmpRefDate.getFullYear()}-${
-                tmpRefDate.getMonth() + 1
-              }-${tmpRefDate.getDate()} 23:59:59.59`
-            ).toISOString(),
-            ":val4": new Date(
-              `${tmpRefDate.getFullYear()}-${
-                tmpRefDate.getMonth() + 1
-              }-${tmpRefDate.getDate()} 00:00:00.00`
-            ).toISOString(),
-          },
-        })
-          .then((resultCancelledRequests) => {
-            // logger.info(resultCancelledRequests);
-            // logger.info(resultCancelledRequests.length);
-            // logger.info(
-            //   resultCancelledRequests !== undefined &&
-            //     resultCancelledRequests.length <
-            //       parseInt(
-            //         process.env.MAXIMUM_CANCELLATION_DRIVER_REQUESTS_LIMIT
-            //       )
-            // );
-            //...
-            if (
-              resultCancelledRequests !== undefined &&
-              resultCancelledRequests.length <=
-                parseInt(process.env.MAXIMUM_CANCELLATION_DRIVER_REQUESTS_LIMIT)
-            ) {
-              //! Check if the driver held the request for more than 15min.
-              let requestDateMade = new Date(tripData.date_requested);
-              let diff = (tmpRefDate - requestDateMade) / (1000 * 60); //In minutes
+  try {
+    const driverData = await dynamo_find_query({
+      table_name: "drivers_profiles",
+      IndexName: "driver_fingerprint",
+      KeyConditionExpression: "driver_fingerprint = :val1",
+      ExpressionAttributeValues: {
+        ":val1": bundleWorkingData.driver_fingerprint,
+      },
+    });
 
-              // if (diff >= 15) {
-              //!The driver held the request for at least 15min - can cancel
-              //Can cancel
-              //The driver requesting for the cancellation is the one who's currently associated to the request - proceed to the cancellation
-              //Save the cancellation event
-              new Promise((res) => {
-                dynamo_insert("global_events", {
-                  event_name: "driver_cancelling_request",
-                  request_fp: bundleWorkingData.request_fp,
-                  driver_fingerprint: bundleWorkingData.driver_fingerprint,
-                  date: new Date(chaineDateUTC).toISOString(),
-                })
-                  .then((result) => {
-                    logger.info(result);
-                    res(true);
-                  })
-                  .catch((error) => {
-                    logger.error(error);
-                    res(true);
-                  });
-              }).then(
-                () => {},
-                () => {}
-              );
-              //Update the true request
-              dynamo_update({
-                table_name: "rides_deliveries_requests",
-                _idKey: {
-                  request_fp: bundleWorkingData.request_fp,
-                },
-                UpdateExpression:
-                  "set taxi_id = :val1, #r.#isAcc = :val2, date_updated = :val3",
-                ExpressionAttributeNames: {
-                  "#r": "ride_state_vars",
-                  "#isAcc": "isAccepted",
-                },
-                ExpressionAttributeValues: {
-                  ":val1": false,
-                  ":val2": false,
-                  ":val3": new Date(chaineDateUTC).toISOString(),
-                },
+    dynamo_find_query({
+      table_name: "rides_deliveries_requests",
+      IndexName: "request_fp",
+      KeyConditionExpression: "request_fp = :val1",
+      ExpressionAttributeValues: {
+        ":val1": bundleWorkingData.request_fp,
+      },
+    })
+      .then((result) => {
+        if (result.length > 0) {
+          let tripData = result[0];
+          //...
+          let tmpRefDate = new Date(chaineDateUTC).toISOString();
+          //! Check if the driver did not cancel more than MAXIMUM_CANCELLATION_DRIVER_REQUESTS_LIMIT requests today
+          // dynamo_find_query({
+          //   table_name: "global_events",
+          //   IndexName: "event_name",
+          //   KeyConditionExpression: "event_name = :val1",
+          //   FilterExpression:
+          //     "driver_fingerprint = :val2 AND date BETWEEN :val3 AND :val4",
+          //   ExpressionAttributeValues: {
+          //     ":val1": "driver_cancelling_request",
+          //     ":val2": bundleWorkingData.driver_fingerprint,
+          //     ":val3": new Date(
+          //       `${tmpRefDate.getFullYear()}-${
+          //         tmpRefDate.getMonth() + 1
+          //       }-${tmpRefDate.getDate()} 23:59:59.59`
+          //     ).toISOString(),
+          //     ":val4": new Date(
+          //       `${tmpRefDate.getFullYear()}-${
+          //         tmpRefDate.getMonth() + 1
+          //       }-${tmpRefDate.getDate()} 00:00:00.00`
+          //     ).toISOString(),
+          //   },
+          // })
+          //   .then((resultCancelledRequests) => {
+          //     // logger.info(resultCancelledRequests);
+          //     // logger.info(resultCancelledRequests.length);
+          //     // logger.info(
+          //     //   resultCancelledRequests !== undefined &&
+          //     //     resultCancelledRequests.length <
+          //     //       parseInt(
+          //     //         process.env.MAXIMUM_CANCELLATION_DRIVER_REQUESTS_LIMIT
+          //     //       )
+          //     // );
+          //     //...
+          //     if (
+          //       resultCancelledRequests !== undefined &&
+          //       resultCancelledRequests.length <=
+          //         parseInt(process.env.MAXIMUM_CANCELLATION_DRIVER_REQUESTS_LIMIT)
+          //     ) {
+          //       //! Check if the driver held the request for more than 15min.
+          //       let requestDateMade = new Date(tripData.date_requested);
+          //       let diff = (tmpRefDate - requestDateMade) / (1000 * 60); //In minutes
+
+          //       // if (diff >= 15) {
+
+          //     } //!Has exceeded the daily cancellation limit
+          //     else {
+          //       resolve({
+          //         response:
+          //           "unable_to_cancel_request_error_daily_cancellation_limit_exceeded",
+          //         limit: process.env.MAXIMUM_CANCELLATION_DRIVER_REQUESTS_LIMIT,
+          //       });
+          //     }
+          //   })
+          //   .catch((error) => {
+          //     logger.warn(error);
+          //     resolve({ response: "unable_to_cancel_request_error" });
+          //   });
+          //!The driver held the request for at least 15min - can cancel
+          //Can cancel
+          //The driver requesting for the cancellation is the one who's currently associated to the request - proceed to the cancellation
+          //Save the cancellation event
+          new Promise((res) => {
+            dynamo_insert("global_events", {
+              event_name: "driver_cancelling_request",
+              request_fp: bundleWorkingData.request_fp,
+              driver_fingerprint: bundleWorkingData.driver_fingerprint,
+              date: new Date(chaineDateUTC).toISOString(),
+            })
+              .then((result) => {
+                logger.info(result);
+                res(true);
               })
-                .then((result) => {
-                  if (!result)
-                    resolve({ response: "unable_to_cancel_request_error" });
-                  //Send the push notifications - FOR ALL DRIVERS except the canceller
-                  new Promise((resNotify) => {
-                    //! Get all the drivers
-                    let driverFilter = {
-                      "operational_state.status": { $in: ["online"] },
-                      // "operational_state.last_location.city":
-                      //   result[0].pickup_location_infos.city,
-                      /*"operational_state.last_location.country": snapshotTripInfos.country,
-            operation_clearances: snapshotTripInfos.ride_type,*/
-                      //Filter the drivers based on the vehicle type if provided
-                      "operational_state.default_selected_car.vehicle_type":
-                        result[0].carTypeSelected,
-                    };
-                    //..
-                    dynamo_get_all({
-                      table_name: "drivers_profiles",
-                      FilterExpression:
-                        "#op.#st = :val1 AND #op.#def.#vehi = :val2",
-                      ExpressionAttributeNames: {
-                        "#op": "operational_state",
-                        "#st": "status",
-                        "#def": "default_selected_car",
-                        "#vehi": "vehicle_type",
-                      },
-                      ExpressionAttributeValues: {
-                        ":val1": "online",
-                        ":val2": result[0].carTypeSelected,
-                      },
-                    })
-                      .then((driversProfiles) => {
-                        //Filter the drivers based on their car's maximum capacity (the amount of passengers it can handle)
-                        //They can receive 3 additional requests on top of the limit of sits in their selected cars.
-                        //! DISBALE PASSENGERS CHECK
-                        /*driversProfiles = driversProfiles.filter(
-                        (dData) =>
-                          dData.operational_state.accepted_requests_infos === null ||
-                          dData.operational_state.accepted_requests_infos
-                            .total_passengers_number <=
-                            dData.operational_state.default_selected_car.max_passengers + 3 ||
-                          dData.operational_state.accepted_requests_infos === undefined ||
-                          dData.operational_state.accepted_requests_infos === null ||
-                          dData.operational_state.accepted_requests_infos
-                            .total_passengers_number === undefined ||
-                          dData.operational_state.accepted_requests_infos
-                            .total_passengers_number === null
-                      );*/
+              .catch((error) => {
+                logger.error(error);
+                res(true);
+              });
+          }).then(
+            () => {},
+            () => {}
+          );
+          //Update the true request
 
-                        //...Register the drivers fp so that thei can see tne requests
-                        let driversPushNotif_token = driversProfiles.map(
-                          (data) => {
-                            logger.error(data.operational_state.status);
-                            logger.error(
-                              data.driver_fingerprint.trim() !==
-                                bundleWorkingData.driver_fingerprint.trim()
-                            );
+          dynamo_update({
+            table_name: "rides_deliveries_requests",
+            _idKey: tripData._id,
+            UpdateExpression:
+              "set taxi_id = :val1, #r.#isAcc = :val2, date_updated = :val3",
+            ExpressionAttributeNames: {
+              "#r": "ride_state_vars",
+              "#isAcc": "isAccepted",
+            },
+            ExpressionAttributeValues: {
+              ":val1": "false",
+              ":val2": false,
+              ":val3": new Date(chaineDateUTC).toISOString(),
+            },
+          })
+            .then((result) => {
+              if (!result)
+                resolve({ response: "unable_to_cancel_request_error" });
+              //Send the push notifications - FOR ALL DRIVERS except the canceller
+              result = [tripData];
+              new Promise((resNotify) => {
+                //! Get all the drivers
+                let driverFilter = {
+                  "operational_state.status": { $in: ["online"] },
+                  // "operational_state.last_location.city":
+                  //   result[0].pickup_location_infos.city,
+                  /*"operational_state.last_location.country": snapshotTripInfos.country,
+	            operation_clearances: snapshotTripInfos.ride_type,*/
+                  //Filter the drivers based on the vehicle type if provided
+                  "operational_state.default_selected_car.vehicle_type":
+                    tripData.carTypeSelected,
+                };
+                //..
+                dynamo_get_all({
+                  table_name: "drivers_profiles",
+                  FilterExpression:
+                    "#op.#st = :val1 AND #op.#def.#vehi = :val2",
+                  ExpressionAttributeNames: {
+                    "#op": "operational_state",
+                    "#st": "status",
+                    "#def": "default_selected_car",
+                    "#vehi": "vehicle_type",
+                  },
+                  ExpressionAttributeValues: {
+                    ":val1": "online",
+                    ":val2": tripData.carTypeSelected,
+                  },
+                })
+                  .then((driversProfiles) => {
+                    //Filter the drivers based on their car's maximum capacity (the amount of passengers it can handle)
+                    //They can receive 3 additional requests on top of the limit of sits in their selected cars.
+                    //! DISBALE PASSENGERS CHECK
+                    /*driversProfiles = driversProfiles.filter(
+	                        (dData) =>
+	                          dData.operational_state.accepted_requests_infos === null ||
+	                          dData.operational_state.accepted_requests_infos
+	                            .total_passengers_number <=
+	                            dData.operational_state.default_selected_car.max_passengers + 3 ||
+	                          dData.operational_state.accepted_requests_infos === undefined ||
+	                          dData.operational_state.accepted_requests_infos === null ||
+	                          dData.operational_state.accepted_requests_infos
+	                            .total_passengers_number === undefined ||
+	                          dData.operational_state.accepted_requests_infos
+	                            .total_passengers_number === null
+	                      );*/
+
+                    //...Register the drivers fp so that thei can see tne requests
+                    let driversPushNotif_token = driversProfiles.map((data) => {
+                      logger.error(data.operational_state.status);
+                      logger.error(
+                        data.driver_fingerprint.trim() !==
+                          bundleWorkingData.driver_fingerprint.trim()
+                      );
+                      if (
+                        /online/i.test(data.operational_state.status) &&
+                        data.driver_fingerprint.trim() !==
+                          bundleWorkingData.driver_fingerprint.trim()
+                      ) {
+                        let driverData = data;
+                        let snapshotTripInfos = {
+                          isIntercity_trip:
+                            tripData.isIntercity_trip !== undefined &&
+                            tripData.isIntercity_trip !== null
+                              ? tripData.isIntercity_trip
+                              : false,
+                          region: tripData.pickup_location_infos.state
+                            .replace(/ Region/i, "")
+                            .trim()
+                            .toUpperCase(),
+                          city: tripData.pickup_location_infos.city
+                            .trim()
+                            .toUpperCase(),
+                          destination_infos: tripData.destinationData,
+                        };
+                        logger.info(snapshotTripInfos);
+                        //....
+                        if (
+                          snapshotTripInfos.isIntercity_trip === true ||
+                          snapshotTripInfos.isIntercity_trip === "true"
+                        ) {
+                          //? Intercity trip
+                          //? Check that the region and the city is within the driver's regional clearances.
+                          logger.info("Intercity trip detected");
+                          let driverRegionalClearances =
+                            driverData.regional_clearances !== undefined &&
+                            driverData.regional_clearances !== null
+                              ? driverData.regional_clearances
+                              : false;
+                          //...
+                          let driverCity =
+                            driverData.operational_state.last_location !==
+                              null &&
+                            driverData.operational_state.last_location !==
+                              undefined &&
+                            driverData.operational_state.last_location.city !==
+                              undefined &&
+                            driverData.operational_state.last_location.city !=
+                              null
+                              ? driverData.operational_state.last_location.city
+                              : false;
+                          //...
+                          if (
+                            driverRegionalClearances !== false &&
+                            driverCity !== false
+                          ) {
+                            //Has a regional clearance
+                            // logger.info(trip.origin_destination_infos.destination_infos);
                             if (
-                              /online/i.test(data.operational_state.status) &&
-                              data.driver_fingerprint.trim() !==
-                                bundleWorkingData.driver_fingerprint.trim()
+                              driverRegionalClearances[
+                                snapshotTripInfos.region
+                              ] !== undefined &&
+                              driverRegionalClearances[
+                                snapshotTripInfos.region
+                              ] !== null
                             ) {
-                              let driverData = data;
-                              let snapshotTripInfos = {
-                                isIntercity_trip:
-                                  tripData.isIntercity_trip !== undefined &&
-                                  tripData.isIntercity_trip !== null
-                                    ? tripData.isIntercity_trip
-                                    : false,
-                                region: tripData.pickup_location_infos.state
-                                  .replace(/ Region/i, "")
-                                  .trim()
-                                  .toUpperCase(),
-                                city: tripData.pickup_location_infos.city
-                                  .trim()
-                                  .toUpperCase(),
-                                destination_infos: tripData.destinationData,
-                              };
-                              logger.info(snapshotTripInfos);
-                              //....
-                              if (
-                                snapshotTripInfos.isIntercity_trip === true ||
-                                snapshotTripInfos.isIntercity_trip === "true"
-                              ) {
-                                //? Intercity trip
-                                //? Check that the region and the city is within the driver's regional clearances.
-                                logger.info("Intercity trip detected");
-                                let driverRegionalClearances =
-                                  driverData.regional_clearances !==
-                                    undefined &&
-                                  driverData.regional_clearances !== null
-                                    ? driverData.regional_clearances
-                                    : false;
-                                //...
-                                let driverCity =
-                                  driverData.operational_state.last_location !==
-                                    null &&
-                                  driverData.operational_state.last_location !==
-                                    undefined &&
-                                  driverData.operational_state.last_location
-                                    .city !== undefined &&
-                                  driverData.operational_state.last_location
-                                    .city != null
-                                    ? driverData.operational_state.last_location
-                                        .city
-                                    : false;
-                                //...
-                                if (
-                                  driverRegionalClearances !== false &&
-                                  driverCity !== false
-                                ) {
-                                  //Has a regional clearance
-                                  // logger.info(trip.origin_destination_infos.destination_infos);
-                                  if (
-                                    driverRegionalClearances[
-                                      snapshotTripInfos.region
-                                    ] !== undefined &&
-                                    driverRegionalClearances[
-                                      snapshotTripInfos.region
-                                    ] !== null
-                                  ) {
-                                    //! Sort the clearances array
-                                    driverRegionalClearances[
-                                      snapshotTripInfos.region
-                                    ].sort();
+                              //! Sort the clearances array
+                              driverRegionalClearances[
+                                snapshotTripInfos.region
+                              ].sort();
 
-                                    //? Found a valid clearance rule
-                                    //? 1. Check if the pickup AND destination towns is included in the clearances
-                                    let tripTowns_summary = [
-                                      snapshotTripInfos.city,
-                                      ...snapshotTripInfos.destination_infos.map(
-                                        (dest) => dest.city
-                                      ),
-                                    ];
-                                    // Normalize
-                                    tripTowns_summary = tripTowns_summary.map(
-                                      (el) => el.trim().toUpperCase()
-                                    );
-                                    // Sort
-                                    tripTowns_summary.sort();
-                                    if (
-                                      arrayEquals(
-                                        tripTowns_summary,
-                                        driverRegionalClearances[
-                                          snapshotTripInfos.region
-                                        ]
-                                      )
-                                    ) {
-                                      //TOWNS WITHIN THE CLEARANCES
-                                      //? 2. Check that the driver's current location (city) as equal to one of the towns allowed by his regional credentials.
-                                      driverCity = driverCity
-                                        .trim()
-                                        .toUpperCase();
-                                      //...
-                                      if (
-                                        driverRegionalClearances[
-                                          snapshotTripInfos.region
-                                        ].includes(driverCity)
-                                      ) {
-                                        //? Driver's current location is within the regional clearances
-                                        logger.info(
-                                          `Intercity trip allowed for driver's interaction -> ${driverData.driver_fingerprint.substring(
-                                            0,
-                                            15
-                                          )}`
-                                        );
-                                        return data.operational_state
-                                          .push_notification_token !== null &&
-                                          data.operational_state
-                                            .push_notification_token !==
-                                            undefined
-                                          ? data.operational_state
-                                              .push_notification_token.userId
-                                          : null;
-                                      } //! The driver's current location is not within the regional clearances
-                                      else {
-                                        logger.warn(
-                                          `The driver's current location is not within the regional clearances`
-                                        );
-                                        return null;
-                                      }
-                                    } //Towns for the trip not fitting in the driver's regional clearances
-                                    else {
-                                      logger.warn(
-                                        `Towns for the trip not fitting in the driver's regional clearances`
-                                      );
-                                      return null;
-                                    }
-                                  } //No valid rule found
-                                  else {
-                                    logger.warn(
-                                      "No valid regional clearance rule found."
-                                    );
-                                    return null;
-                                  }
-                                } //?No regional clearances
-                                else {
-                                  logger.warn(
-                                    "No regional clearances found for this driver."
-                                  );
-                                  return null;
-                                }
-                              } //? Not intercity trip - filter based on the drivers location
-                              else {
-                                logger.info("Normal innercity trip detected");
-                                let driverCity =
-                                  driverData.operational_state.last_location !==
-                                    null &&
-                                  driverData.operational_state.last_location !==
-                                    undefined &&
-                                  driverData.operational_state.last_location
-                                    .city !== undefined &&
-                                  driverData.operational_state.last_location
-                                    .city != null
-                                    ? driverData.operational_state.last_location
-                                        .city
-                                    : "MISSING";
+                              //? Found a valid clearance rule
+                              //? 1. Check if the pickup AND destination towns is included in the clearances
+                              let tripTowns_summary = [
+                                snapshotTripInfos.city,
+                                ...snapshotTripInfos.destination_infos.map(
+                                  (dest) => dest.city
+                                ),
+                              ];
+                              // Normalize
+                              tripTowns_summary = tripTowns_summary.map((el) =>
+                                el.trim().toUpperCase()
+                              );
+                              // Sort
+                              tripTowns_summary.sort();
+                              if (
+                                arrayEquals(
+                                  tripTowns_summary,
+                                  driverRegionalClearances[
+                                    snapshotTripInfos.region
+                                  ]
+                                )
+                              ) {
+                                //TOWNS WITHIN THE CLEARANCES
+                                //? 2. Check that the driver's current location (city) as equal to one of the towns allowed by his regional credentials.
+                                driverCity = driverCity.trim().toUpperCase();
                                 //...
                                 if (
-                                  snapshotTripInfos.city
-                                    .trim()
-                                    .toUpperCase() ===
-                                  driverCity.trim().toUpperCase()
+                                  driverRegionalClearances[
+                                    snapshotTripInfos.region
+                                  ].includes(driverCity)
                                 ) {
+                                  //? Driver's current location is within the regional clearances
+                                  logger.info(
+                                    `Intercity trip allowed for driver's interaction -> ${driverData.driver_fingerprint.substring(
+                                      0,
+                                      15
+                                    )}`
+                                  );
                                   return data.operational_state
                                     .push_notification_token !== null &&
                                     data.operational_state
@@ -3782,316 +3765,344 @@ function cancelRequest_driver(
                                     ? data.operational_state
                                         .push_notification_token.userId
                                     : null;
-                                } //not elligible driver
+                                } //! The driver's current location is not within the regional clearances
                                 else {
+                                  logger.warn(
+                                    `The driver's current location is not within the regional clearances`
+                                  );
                                   return null;
                                 }
-                              }
-                            } else {
-                              return null; //Only notify the drivers that are online.
-                            }
-                          }
-                        ); //Push notification token
-                        //....
-                        let message = {
-                          app_id: process.env.DRIVERS_APP_ID_ONESIGNAL,
-                          android_channel_id: /RIDE/i.test(result[0].ride_mode)
-                            ? process.env
-                                .DRIVERS_ONESIGNAL_CHANNEL_NEW_NOTIFICATION
-                            : process.env
-                                .DRIVERS_ONESIGNAL_CHANNEL_NEW_NOTIFICATION, //Ride or delivery channel
-                          priority: 10,
-                          contents: /RIDE/i.test(result[0].ride_mode)
-                            ? {
-                                en:
-                                  "You have a new ride request " +
-                                  (result[0].pickup_location_infos.suburb !==
-                                  false
-                                    ? "from " +
-                                        result[0].pickup_location_infos
-                                          .suburb !==
-                                        undefined &&
-                                      result[0].pickup_location_infos.suburb !==
-                                        false &&
-                                      result[0].pickup_location_infos.suburb !==
-                                        null
-                                      ? result[0].pickup_location_infos.suburb.toUpperCase()
-                                      : "near your location" +
-                                          " to " +
-                                          result[0].pickup_location_infos
-                                            .suburb !==
-                                          undefined &&
-                                        result[0].pickup_location_infos
-                                          .suburb !== false &&
-                                        result[0].pickup_location_infos
-                                          .suburb !== null
-                                      ? result[0].pickup_location_infos.suburb.toUpperCase()
-                                      : "near your location" +
-                                        ". Click here for more details."
-                                    : "near your location, click here for more details."),
-                              }
-                            : {
-                                en:
-                                  "You have a new delivery request " +
-                                  (result[0].pickup_location_infos.suburb !==
-                                  false
-                                    ? "from " +
-                                        result[0].pickup_location_infos
-                                          .suburb !==
-                                        undefined &&
-                                      result[0].pickup_location_infos.suburb !==
-                                        false &&
-                                      result[0].pickup_location_infos.suburb !==
-                                        null
-                                      ? result[0].pickup_location_infos.suburb.toUpperCase()
-                                      : "near your location" +
-                                          " to " +
-                                          result[0].pickup_location_infos
-                                            .suburb !==
-                                          undefined &&
-                                        result[0].pickup_location_infos
-                                          .suburb !== false &&
-                                        result[0].pickup_location_infos
-                                          .suburb !== null
-                                      ? result[0].pickup_location_infos.suburb.toUpperCase()
-                                      : "near your location" +
-                                        ". Click here for more details."
-                                    : "near your location, click here for more details."),
-                              },
-                          headings: /RIDE/i.test(result[0].ride_mode)
-                            ? { en: "New ride request, N$" + result[0].fare }
-                            : {
-                                en: "New delivery request, N$" + result[0].fare,
-                              },
-                          content_available: true,
-                          include_player_ids: driversPushNotif_token,
-                        };
-                        //Send
-                        sendPushUPNotification(message);
-                        resNotify(true);
-                      })
-                      .catch((error) => {
-                        logger.error(error);
-                      });
-                  })
-                    .then()
-                    .catch();
-
-                  //? Update the accepted rides brief list in the driver's profile
-                  new Promise((resUpdateDriverProfile) => {
-                    //! Get the driver's details - to fetch the car's fingerprint
-                    dynamo_find_query({
-                      table_name: "drivers_profiles",
-                      IndexName: "driver_fingerprint",
-                      KeyConditionExpression: "driver_fingerprint = :val1",
-                      ExpressionAttributeValues: {
-                        ":val1": bundleWorkingData.driver_fingerprint,
-                      },
-                    })
-                      .then((driverData) => {
-                        if (driverData.length > 0) {
-                          driverData = driverData[0];
-                          //Get request infos
-                          dynamo_find_query({
-                            table_name: "rides_deliveries_requests",
-                            IndexName: "request_fp",
-                            KeyConditionExpression: "request_fp = :val1",
-                            ExpressionAttributeValues: {
-                              ":val1": bundleWorkingData.request_fp,
-                            },
-                          })
-                            .then((requestPrevData) => {
-                              if (
-                                requestPrevData !== undefined &&
-                                requestPrevData.length > 0 &&
-                                requestPrevData[0].request_fp !== undefined &&
-                                requestPrevData[0].request_fp !== null
-                              ) {
-                                //?Get the previous data or initialize it if empty
-                                let prevAcceptedData =
-                                  driverData.accepted_requests_infos !==
-                                    undefined &&
-                                  driverData.accepted_requests_infos
-                                    .total_passengers_number !== undefined &&
-                                  driverData.accepted_requests_infos
-                                    .total_passengers_number !== null &&
-                                  driverData.accepted_requests_infos
-                                    .total_passengers_number !== undefined &&
-                                  driverData.accepted_requests_infos
-                                    .total_passengers_number !== null
-                                    ? driverData.accepted_requests_infos
-                                    : {
-                                        total_passengers_number: 0,
-                                        requests_fingerprints: [],
-                                      };
-                                //...
-                                //? Update with new request - remove current request data
-
-                                prevAcceptedData.total_passengers_number -=
-                                  parseInt(
-                                    driverData.accepted_requests_infos !==
-                                      undefined &&
-                                      driverData.accepted_requests_infos !==
-                                        null &&
-                                      driverData.accepted_requests_infos
-                                        .total_passengers_number !==
-                                        undefined &&
-                                      driverData.accepted_requests_infos
-                                        .total_passengers_number > 0
-                                      ? requestPrevData[0].passengers_number
-                                      : 0
-                                  ); //! DO not remove if the total number of passengers was zero already.
-                                prevAcceptedData.requests_fingerprints =
-                                  prevAcceptedData.requests_fingerprints
-                                    .length > 0
-                                    ? prevAcceptedData.requests_fingerprints.filter(
-                                        (fps) =>
-                                          fps !== bundleWorkingData.request_fp
-                                      )
-                                    : {}; //! Do not filter out the current request_fp if it was already empty.
-                                //...
-                                dynamo_update({
-                                  table_name: "drivers_profiles",
-                                  _idKey: {
-                                    driver_fingerprint:
-                                      bundleWorkingData.driver_fingerprint,
-                                  },
-                                  UpdateExpression:
-                                    "set #op.#acce = :val1, date_updated = :val2",
-                                  ExpressionAttributeNames: {
-                                    "#op": "operational_state",
-                                    "#acce": "accepted_requests_infos",
-                                  },
-                                  ExpressionAttributeValues: {
-                                    ":val1": prevAcceptedData,
-                                    ":val2": new Date(
-                                      chaineDateUTC
-                                    ).toISOString(),
-                                  },
-                                })
-                                  .then((result) => {
-                                    if (!result) resUpdateDriverProfile(false);
-
-                                    resUpdateDriverProfile(true);
-                                  })
-                                  .catch((error) => {
-                                    resUpdateDriverProfile(false);
-                                  });
-
-                                //?Notify the cllient
-                                //Send the push notifications - FOR Passengers
-                                new Promise((resSendNotif) => {
-                                  //? Get the rider's details
-                                  dynamo_find_query({
-                                    table_name: "passengers_profiles",
-                                    IndexName: "user_fingerprint",
-                                    KeyConditionExpression:
-                                      "user_fingerprint = :val1",
-                                    ExpressionAttributeValues: {
-                                      ":val1": requestPrevData[0].client_id,
-                                    },
-                                  })
-                                    .then((ridersDetails) => {
-                                      if (
-                                        ridersDetails.length > 0 &&
-                                        ridersDetails[0].user_fingerprint !==
-                                          undefined &&
-                                        ridersDetails[0].pushnotif_token !==
-                                          null &&
-                                        ridersDetails[0].pushnotif_token !==
-                                          undefined &&
-                                        ridersDetails[0].pushnotif_token
-                                          .userId !== undefined
-                                      ) {
-                                        let message = {
-                                          app_id:
-                                            process.env.RIDERS_APP_ID_ONESIGNAL,
-                                          android_channel_id:
-                                            process.env
-                                              .RIDERS_ONESIGNAL_CHANNEL_ACCEPTTEDD_REQUEST, //Ride or delivery channel
-                                          priority: 10,
-                                          contents: {
-                                            en: "Your previous driver has cancelled the trip, we're looking for a new one.",
-                                          },
-                                          headings: {
-                                            en: "Finding you a ride",
-                                          },
-                                          content_available: true,
-                                          include_player_ids: [
-                                            String(
-                                              ridersDetails[0].pushnotif_token
-                                                .userId
-                                            ),
-                                          ],
-                                        };
-                                        //Send
-                                        sendPushUPNotification(message);
-                                        resSendNotif(false);
-                                      } else {
-                                        resSendNotif(false);
-                                      }
-                                    })
-                                    .catch((error) => {
-                                      resSendNotif(false);
-                                    });
-                                }).then(
-                                  () => {},
-                                  () => {}
-                                );
-                              } //Strange - no request found
+                              } //Towns for the trip not fitting in the driver's regional clearances
                               else {
-                                resUpdateDriverProfile(true);
+                                logger.warn(
+                                  `Towns for the trip not fitting in the driver's regional clearances`
+                                );
+                                return null;
                               }
-                            })
-                            .catch((error) => {
-                              resUpdateDriverProfile(false);
-                            });
-                        } //No driver found
+                            } //No valid rule found
+                            else {
+                              logger.warn(
+                                "No valid regional clearance rule found."
+                              );
+                              return null;
+                            }
+                          } //?No regional clearances
+                          else {
+                            logger.warn(
+                              "No regional clearances found for this driver."
+                            );
+                            return null;
+                          }
+                        } //? Not intercity trip - filter based on the drivers location
                         else {
-                          resUpdateDriverProfile(false);
+                          logger.info("Normal innercity trip detected");
+                          let driverCity =
+                            driverData.operational_state.last_location !==
+                              null &&
+                            driverData.operational_state.last_location !==
+                              undefined &&
+                            driverData.operational_state.last_location.city !==
+                              undefined &&
+                            driverData.operational_state.last_location.city !=
+                              null
+                              ? driverData.operational_state.last_location.city
+                              : "MISSING";
+                          //...
+                          if (
+                            snapshotTripInfos.city.trim().toUpperCase() ===
+                            driverCity.trim().toUpperCase()
+                          ) {
+                            return data.operational_state
+                              .push_notification_token !== null &&
+                              data.operational_state.push_notification_token !==
+                                undefined
+                              ? data.operational_state.push_notification_token
+                                  .userId
+                              : null;
+                          } //not elligible driver
+                          else {
+                            return null;
+                          }
                         }
-                      })
-                      .catch((error) => {
-                        resUpdateDriverProfile(false);
-                      });
+                      } else {
+                        return null; //Only notify the drivers that are online.
+                      }
+                    }); //Push notification token
+                    //....
+                    let message = {
+                      app_id: process.env.DRIVERS_APP_ID_ONESIGNAL,
+                      android_channel_id: /RIDE/i.test(result[0].ride_mode)
+                        ? process.env.DRIVERS_ONESIGNAL_CHANNEL_NEW_NOTIFICATION
+                        : process.env
+                            .DRIVERS_ONESIGNAL_CHANNEL_NEW_NOTIFICATION, //Ride or delivery channel
+                      priority: 10,
+                      contents: /RIDE/i.test(result[0].ride_mode)
+                        ? {
+                            en:
+                              "You have a new ride request " +
+                              (result[0].pickup_location_infos.suburb !== false
+                                ? "from " +
+                                    result[0].pickup_location_infos.suburb !==
+                                    undefined &&
+                                  result[0].pickup_location_infos.suburb !==
+                                    false &&
+                                  result[0].pickup_location_infos.suburb !==
+                                    null
+                                  ? result[0].pickup_location_infos.suburb.toUpperCase()
+                                  : "near your location" +
+                                      " to " +
+                                      result[0].pickup_location_infos.suburb !==
+                                      undefined &&
+                                    result[0].pickup_location_infos.suburb !==
+                                      false &&
+                                    result[0].pickup_location_infos.suburb !==
+                                      null
+                                  ? result[0].pickup_location_infos.suburb.toUpperCase()
+                                  : "near your location" +
+                                    ". Click here for more details."
+                                : "near your location, click here for more details."),
+                          }
+                        : {
+                            en:
+                              "You have a new delivery request " +
+                              (result[0].pickup_location_infos.suburb !== false
+                                ? "from " +
+                                    result[0].pickup_location_infos.suburb !==
+                                    undefined &&
+                                  result[0].pickup_location_infos.suburb !==
+                                    false &&
+                                  result[0].pickup_location_infos.suburb !==
+                                    null
+                                  ? result[0].pickup_location_infos.suburb.toUpperCase()
+                                  : "near your location" +
+                                      " to " +
+                                      result[0].pickup_location_infos.suburb !==
+                                      undefined &&
+                                    result[0].pickup_location_infos.suburb !==
+                                      false &&
+                                    result[0].pickup_location_infos.suburb !==
+                                      null
+                                  ? result[0].pickup_location_infos.suburb.toUpperCase()
+                                  : "near your location" +
+                                    ". Click here for more details."
+                                : "near your location, click here for more details."),
+                          },
+                      headings: /RIDE/i.test(result[0].ride_mode)
+                        ? { en: "New ride request, N$" + result[0].fare }
+                        : {
+                            en: "New delivery request, N$" + result[0].fare,
+                          },
+                      content_available: true,
+                      include_player_ids: driversPushNotif_token,
+                    };
+                    //Send
+                    sendPushUPNotification(message);
+                    resNotify(true);
                   })
-                    .then(
-                      () => {},
-                      () => {}
-                    )
-                    .catch((error) => {
-                      //logger.info(error);
-                    });
-                  //DONE
-                  resolve({
-                    response: "successfully_cancelled",
-                    rider_fp: result[0].client_id,
+                  .catch((error) => {
+                    logger.error(error);
                   });
+              })
+                .then()
+                .catch();
+
+              //? Update the accepted rides brief list in the driver's profile
+              new Promise((resUpdateDriverProfile) => {
+                //! Get the driver's details - to fetch the car's fingerprint
+                dynamo_find_query({
+                  table_name: "drivers_profiles",
+                  IndexName: "driver_fingerprint",
+                  KeyConditionExpression: "driver_fingerprint = :val1",
+                  ExpressionAttributeValues: {
+                    ":val1": bundleWorkingData.driver_fingerprint,
+                  },
                 })
+                  .then((driverData) => {
+                    if (driverData.length > 0) {
+                      driverData = driverData[0];
+                      //Get request infos
+                      dynamo_find_query({
+                        table_name: "rides_deliveries_requests",
+                        IndexName: "request_fp",
+                        KeyConditionExpression: "request_fp = :val1",
+                        ExpressionAttributeValues: {
+                          ":val1": bundleWorkingData.request_fp,
+                        },
+                      })
+                        .then((requestPrevData) => {
+                          if (
+                            requestPrevData !== undefined &&
+                            requestPrevData.length > 0 &&
+                            requestPrevData[0].request_fp !== undefined &&
+                            requestPrevData[0].request_fp !== null
+                          ) {
+                            //?Get the previous data or initialize it if empty
+                            let prevAcceptedData =
+                              driverData.accepted_requests_infos !==
+                                undefined &&
+                              driverData.accepted_requests_infos
+                                .total_passengers_number !== undefined &&
+                              driverData.accepted_requests_infos
+                                .total_passengers_number !== null &&
+                              driverData.accepted_requests_infos
+                                .total_passengers_number !== undefined &&
+                              driverData.accepted_requests_infos
+                                .total_passengers_number !== null
+                                ? driverData.accepted_requests_infos
+                                : {
+                                    total_passengers_number: 0,
+                                    requests_fingerprints: [],
+                                  };
+                            //...
+                            //? Update with new request - remove current request data
+
+                            prevAcceptedData.total_passengers_number -=
+                              parseInt(
+                                driverData.accepted_requests_infos !==
+                                  undefined &&
+                                  driverData.accepted_requests_infos !== null &&
+                                  driverData.accepted_requests_infos
+                                    .total_passengers_number !== undefined &&
+                                  driverData.accepted_requests_infos
+                                    .total_passengers_number > 0
+                                  ? requestPrevData[0].passengers_number
+                                  : 0
+                              ); //! DO not remove if the total number of passengers was zero already.
+                            prevAcceptedData.requests_fingerprints =
+                              prevAcceptedData.requests_fingerprints.length > 0
+                                ? prevAcceptedData.requests_fingerprints.filter(
+                                    (fps) =>
+                                      fps !== bundleWorkingData.request_fp
+                                  )
+                                : {}; //! Do not filter out the current request_fp if it was already empty.
+                            //...
+                            dynamo_update({
+                              table_name: "drivers_profiles",
+                              _idKey: driverData[0]._id,
+                              UpdateExpression:
+                                "set #op.#acce = :val1, date_updated = :val2",
+                              ExpressionAttributeNames: {
+                                "#op": "operational_state",
+                                "#acce": "accepted_requests_infos",
+                              },
+                              ExpressionAttributeValues: {
+                                ":val1": prevAcceptedData,
+                                ":val2": new Date(chaineDateUTC).toISOString(),
+                              },
+                            })
+                              .then((result) => {
+                                if (!result) resUpdateDriverProfile(false);
+
+                                resUpdateDriverProfile(true);
+                              })
+                              .catch((error) => {
+                                resUpdateDriverProfile(false);
+                              });
+
+                            //?Notify the cllient
+                            //Send the push notifications - FOR Passengers
+                            new Promise((resSendNotif) => {
+                              //? Get the rider's details
+                              dynamo_find_query({
+                                table_name: "passengers_profiles",
+                                IndexName: "user_fingerprint",
+                                KeyConditionExpression:
+                                  "user_fingerprint = :val1",
+                                ExpressionAttributeValues: {
+                                  ":val1": requestPrevData[0].client_id,
+                                },
+                              })
+                                .then((ridersDetails) => {
+                                  if (
+                                    ridersDetails.length > 0 &&
+                                    ridersDetails[0].user_fingerprint !==
+                                      undefined &&
+                                    ridersDetails[0].pushnotif_token !== null &&
+                                    ridersDetails[0].pushnotif_token !==
+                                      undefined &&
+                                    ridersDetails[0].pushnotif_token.userId !==
+                                      undefined
+                                  ) {
+                                    let message = {
+                                      app_id:
+                                        process.env.RIDERS_APP_ID_ONESIGNAL,
+                                      android_channel_id:
+                                        process.env
+                                          .RIDERS_ONESIGNAL_CHANNEL_ACCEPTTEDD_REQUEST, //Ride or delivery channel
+                                      priority: 10,
+                                      contents: {
+                                        en: "Your previous driver has cancelled the trip, we're looking for a new one.",
+                                      },
+                                      headings: {
+                                        en: "Finding you a ride",
+                                      },
+                                      content_available: true,
+                                      include_player_ids: [
+                                        String(
+                                          ridersDetails[0].pushnotif_token
+                                            .userId
+                                        ),
+                                      ],
+                                    };
+                                    //Send
+                                    sendPushUPNotification(message);
+                                    resSendNotif(false);
+                                  } else {
+                                    resSendNotif(false);
+                                  }
+                                })
+                                .catch((error) => {
+                                  resSendNotif(false);
+                                });
+                            }).then(
+                              () => {},
+                              () => {}
+                            );
+                          } //Strange - no request found
+                          else {
+                            resUpdateDriverProfile(true);
+                          }
+                        })
+                        .catch((error) => {
+                          resUpdateDriverProfile(false);
+                        });
+                    } //No driver found
+                    else {
+                      resUpdateDriverProfile(false);
+                    }
+                  })
+                  .catch((error) => {
+                    resUpdateDriverProfile(false);
+                  });
+              })
+                .then(
+                  () => {},
+                  () => {}
+                )
                 .catch((error) => {
-                  resolve({ response: "unable_to_cancel_request_error" });
+                  //logger.info(error);
                 });
-            } //!Has exceeded the daily cancellation limit
-            else {
+              //DONE
               resolve({
-                response:
-                  "unable_to_cancel_request_error_daily_cancellation_limit_exceeded",
-                limit: process.env.MAXIMUM_CANCELLATION_DRIVER_REQUESTS_LIMIT,
+                response: "successfully_cancelled",
+                rider_fp: result[0].client_id,
               });
-            }
-          })
-          .catch((error) => {
-            logger.warn(error);
-            resolve({ response: "unable_to_cancel_request_error" });
-          });
-      } //abort the cancelling
-      else {
-        resolve({ response: "unable_to_cancel_request_not_owned" });
-      }
-    })
-    .catch((error) => {
-      resolve({ response: "unable_to_cancel_request_error" });
-    });
+            })
+            .catch((error) => {
+              resolve({ response: "unable_to_cancel_request_error" });
+            });
+        } //abort the cancelling
+        else {
+          resolve({ response: "unable_to_cancel_request_not_owned" });
+        }
+      })
+      .catch((error) => {
+        resolve({ response: "unable_to_cancel_request_error" });
+      });
+  } catch (error) {
+    logger.error(error.stack);
+    resolve({ response: "unable_to_cancel_request_error" });
+  }
 }
 
 /**
@@ -4117,19 +4128,17 @@ function confirmPickupRequest_driver(
       ? dynamo_find_query({
           table_name: "rides_deliveries_requests",
           IndexName: "request_fp",
-          KeyConditionExpression: "request_fp = :val1 AND taxi_id = :val2",
+          KeyConditionExpression: "request_fp = :val1",
           ExpressionAttributeValues: {
             ":val1": bundleWorkingData.request_fp,
-            ":val2": bundleWorkingData.driver_fingerprint,
           },
         })
       : dynamo_find_query({
           table_name: "rides_deliveries_requests",
           IndexName: "request_fp",
-          KeyConditionExpression: "request_fp = :val1 AND client_id = :val2",
+          KeyConditionExpression: "request_fp = :val1",
           ExpressionAttributeValues: {
             ":val1": bundleWorkingData.request_fp,
-            ":val2": bundleWorkingData.rider_fingerprint,
           },
         });
   //Only confirm pickup if not yet accepted by the driver
@@ -4163,7 +4172,7 @@ function confirmPickupRequest_driver(
         //Update the true request
         dynamo_update({
           table_name: "rides_deliveries_requests",
-          _idKey: { request_fp: requestGlobalData.request_fp },
+          _idKey: requestGlobalData._id,
           UpdateExpression:
             "set taxi_id = :val1, date_pickup = :val2, #r.#isAcc = :val3, #r.#inRideDest = :val4",
           ExpressionAttributeNames: {
@@ -4272,266 +4281,274 @@ function confirmPickupRequest_driver(
 /**
  * @func confirmDropoffRequest_driver
  * Responsible for confirming dropoff for any request from the driver app, If and only if the request was accepted by the driver who's requesting for the the dropoff confirmation.
- * @param collectionRidesDeliveryData: list of all the requests made.
- * @param collectionGlobalEvents: hold all the random events that happened somewhere.
  * @param bundleWorkingData: contains the driver_fp and the request_fp.
- * @param collectionPassengers_profiles: list of all the passengers.
- * @param collectionDrivers_profiles: the list of all the drivers.
  * @param resolve
  */
-function confirmDropoffRequest_driver(
-  bundleWorkingData,
-  collectionRidesDeliveryData,
-  collectionGlobalEvents,
-  collectionPassengers_profiles,
-  collectionDrivers_profiles,
-  resolve
-) {
+function confirmDropoffRequest_driver(bundleWorkingData, resolve) {
   resolveDate();
-  //Only confirm pickup if not yet accepted by the driver
-  dynamo_find_query({
-    table_name: "rides_deliveries_requests",
-    IndexName: "request_fp",
-    KeyConditionExpression: "request_fp = :val1 AND taxi_id = :val2",
-    ExpressionAttributeValues: {
-      ":val1": bundleWorkingData.request_fp,
-      ":val2": bundleWorkingData.driver_fingerprint,
-    },
-  })
-    .then((result) => {
-      if (result.length > 0) {
-        //The driver requesting for the confirm dropoff is the one who's currently associated to the request - proceed to the dropoff confirmation.
-        //Save the dropoff confirmation event
-        new Promise((res) => {
-          dynamo_insert("global_events", {
-            event_name: "driver_confirm_dropoff_request",
-            request_fp: bundleWorkingData.request_fp,
-            driver_fingerprint: bundleWorkingData.driver_fingerprint,
-            date: new Date(chaineDateUTC).toISOString(),
+  try {
+    //Only confirm pickup if not yet accepted by the driver
+    dynamo_find_query({
+      table_name: "rides_deliveries_requests",
+      IndexName: "request_fp",
+      KeyConditionExpression: "request_fp = :val1",
+      ExpressionAttributeValues: {
+        ":val1": bundleWorkingData.request_fp,
+      },
+    })
+      .then((tripData) => {
+        if (tripData.length > 0) {
+          //The driver requesting for the confirm dropoff is the one who's currently associated to the request - proceed to the dropoff confirmation.
+          //Save the dropoff confirmation event
+          new Promise((res) => {
+            dynamo_insert("global_events", {
+              event_name: "driver_confirm_dropoff_request",
+              request_fp: bundleWorkingData.request_fp,
+              driver_fingerprint: bundleWorkingData.driver_fingerprint,
+              date: new Date(chaineDateUTC).toISOString(),
+            })
+              .then((result) => {
+                logger.info(result);
+              })
+              .catch((error) => {
+                logger.error(error);
+              });
+
+            res(true);
+          })
+            .then(() => {})
+            .catch();
+          //Update the true request
+          let requestGlobalData = tripData[0];
+          dynamo_update({
+            table_name: "rides_deliveries_requests",
+            _idKey: tripData[0]._id,
+            UpdateExpression:
+              "set taxi_id = :val1, date_dropoff = :val2, #r.#isAcc = :val3, #r.#inRideDest = :val4, #r.#isRideComplDriver = :val5",
+            ExpressionAttributeNames: {
+              "#r": "ride_state_vars",
+              "#isAcc": "isAccepted",
+              "#inRideDest": "inRideToDestination",
+              "#isRideComplDriver": "isRideCompleted_driverSide",
+            },
+            ExpressionAttributeValues: {
+              ":val1": requestGlobalData.taxi_id,
+              ":val2": new Date(chaineDateUTC).toISOString(),
+              ":val3": true,
+              ":val4": true,
+              ":val5": true,
+            },
           })
             .then((result) => {
-              logger.info(result);
-            })
-            .catch((error) => {
-              logger.error(error);
-            });
-
-          res(true);
-        })
-          .then(() => {})
-          .catch();
-        //Update the true request
-        dynamo_update({
-          table_name: "rides_deliveries_requests",
-          _idKey: { request_fp: requestGlobalData.request_fp },
-          UpdateExpression:
-            "set taxi_id = :val1, date_dropoff = :val2, #r.#isAcc = :val3, #r.#inRideDest = :val4, #r.#isRideComplDriver = :val5",
-          ExpressionAttributeNames: {
-            "#r": "ride_state_vars",
-            "#isAcc": "isAccepted",
-            "#inRideDest": "inRideToDestination",
-            "#isRideComplDriver": "isRideCompleted_driverSide",
-          },
-          ExpressionAttributeValues: {
-            ":val1": requestGlobalData.taxi_id,
-            ":val2": new Date(chaineDateUTC).toISOString(),
-            ":val3": true,
-            ":val4": true,
-            ":val5": true,
-          },
-        })
-          .then((result) => {
-            if (!result)
-              resolve({ response: "unable_to_confirm_dropoff_request_error" });
-            //? Update the accepted rides brief list in the driver's profile
-            new Promise((resUpdateDriverProfile) => {
-              //! Get the driver's details - to fetch the car's fingerprint
-              dynamo_find_query({
-                table_name: "drivers_profiles",
-                IndexName: "driver_fingerprint",
-                KeyConditionExpression: "driver_fingerprint = :val1",
-                ExpressionAttributeValues: {
-                  ":val1": bundleWorkingData.driver_fingerprint,
-                },
-              })
-                .then((driverData) => {
-                  if (driverData.length > 0) {
-                    //Get request infos
-                    dynamo_find_query({
-                      table_name: "rides_deliveries_requests",
-                      IndexName: "request_fp",
-                      KeyConditionExpression: "request_fp = :val1",
-                      ExpressionAttributeValues: {
-                        ":val1": bundleWorkingData.request_fp,
-                      },
-                    })
-                      .then((requestPrevData) => {
-                        if (
-                          requestPrevData !== undefined &&
-                          requestPrevData.length > 0 &&
-                          requestPrevData[0].request_fp !== undefined &&
-                          requestPrevData[0].request_fp !== null
-                        ) {
-                          //?Get the previous data or initialize it if empty
-                          let prevAcceptedData =
-                            driverData.accepted_requests_infos !== undefined &&
-                            driverData.accepted_requests_infos
-                              .total_passengers_number !== undefined &&
-                            driverData.accepted_requests_infos
-                              .total_passengers_number !== null &&
-                            driverData.accepted_requests_infos
-                              .total_passengers_number !== undefined &&
-                            driverData.accepted_requests_infos
-                              .total_passengers_number !== null
-                              ? driverData.accepted_requests_infos
-                              : {
-                                  total_passengers_number: 0,
-                                  requests_fingerprints: [],
-                                };
-                          //...
-                          //? Update with new request - remove current request data
-                          prevAcceptedData.total_passengers_number -= parseInt(
-                            driverData.accepted_requests_infos !== undefined &&
-                              driverData.accepted_requests_infos !== null &&
+              if (!result)
+                resolve({
+                  response: "unable_to_confirm_dropoff_request_error",
+                });
+              //? Update the accepted rides brief list in the driver's profile
+              new Promise((resUpdateDriverProfile) => {
+                //! Get the driver's details - to fetch the car's fingerprint
+                dynamo_find_query({
+                  table_name: "drivers_profiles",
+                  IndexName: "driver_fingerprint",
+                  KeyConditionExpression: "driver_fingerprint = :val1",
+                  ExpressionAttributeValues: {
+                    ":val1": bundleWorkingData.driver_fingerprint,
+                  },
+                })
+                  .then((driverData) => {
+                    if (driverData.length > 0) {
+                      //Get request infos
+                      dynamo_find_query({
+                        table_name: "rides_deliveries_requests",
+                        IndexName: "request_fp",
+                        KeyConditionExpression: "request_fp = :val1",
+                        ExpressionAttributeValues: {
+                          ":val1": bundleWorkingData.request_fp,
+                        },
+                      })
+                        .then((requestPrevData) => {
+                          if (
+                            requestPrevData !== undefined &&
+                            requestPrevData.length > 0 &&
+                            requestPrevData[0].request_fp !== undefined &&
+                            requestPrevData[0].request_fp !== null
+                          ) {
+                            //?Get the previous data or initialize it if empty
+                            let prevAcceptedData =
+                              driverData.accepted_requests_infos !==
+                                undefined &&
                               driverData.accepted_requests_infos
                                 .total_passengers_number !== undefined &&
                               driverData.accepted_requests_infos
-                                .total_passengers_number > 0
-                              ? requestPrevData[0].passengers_number
-                              : 0
-                          ); //! DO not remove if the total number of passengers was zero already.
-                          prevAcceptedData.requests_fingerprints =
-                            prevAcceptedData.requests_fingerprints.length > 0
-                              ? prevAcceptedData.requests_fingerprints.filter(
-                                  (fps) => fps !== bundleWorkingData.request_fp
-                                )
-                              : {}; //! Do not filter out the current request_fp if it was already empty.
-                          //...
-                          dynamo_update({
-                            table_name: "drivers_profiles",
-                            _idKey: {
-                              driver_fingerprint:
-                                bundleWorkingData.driver_fingerprint,
-                            },
-                            UpdateExpression:
-                              "set #op.#acc = :val1, date_updated = :val2",
-                            ExpressionAttributeNames: {
-                              "#op": "operational_state",
-                              "#acc": "accepted_requests_infos",
-                            },
-                            ExpressionAttributeValues: {
-                              ":val1": prevAcceptedData,
-                              ":val2": new Date(chaineDateUTC).toISOString(),
-                            },
-                          })
-                            .then((result) => {
-                              if (!result) {
-                                resUpdateDriverProfile(false);
-                              }
-                              //...
-                              resUpdateDriverProfile(true);
-                            })
-                            .catch((error) => {
-                              logger.error(error);
-                              resUpdateDriverProfile(false);
-                            });
-
-                          //?Notify the cllient
-                          //Send the push notifications - FOR Passengers
-                          new Promise((resSendNotif) => {
-                            //? Get the rider's details
-                            dynamo_find_query({
-                              table_name: "passengers_profiles",
-                              IndexName: "user_fingerprint",
-                              KeyConditionExpression:
-                                "user_fingerprint = :val1",
+                                .total_passengers_number !== null &&
+                              driverData.accepted_requests_infos
+                                .total_passengers_number !== undefined &&
+                              driverData.accepted_requests_infos
+                                .total_passengers_number !== null
+                                ? driverData.accepted_requests_infos
+                                : {
+                                    total_passengers_number: 0,
+                                    requests_fingerprints: [],
+                                  };
+                            //...
+                            //? Update with new request - remove current request data
+                            prevAcceptedData.total_passengers_number -=
+                              parseInt(
+                                driverData.accepted_requests_infos !==
+                                  undefined &&
+                                  driverData.accepted_requests_infos !== null &&
+                                  driverData.accepted_requests_infos
+                                    .total_passengers_number !== undefined &&
+                                  driverData.accepted_requests_infos
+                                    .total_passengers_number > 0
+                                  ? requestPrevData[0].passengers_number
+                                  : 0
+                              ); //! DO not remove if the total number of passengers was zero already.
+                            prevAcceptedData.requests_fingerprints =
+                              prevAcceptedData.requests_fingerprints.length > 0
+                                ? prevAcceptedData.requests_fingerprints.filter(
+                                    (fps) =>
+                                      fps !== bundleWorkingData.request_fp
+                                  )
+                                : {}; //! Do not filter out the current request_fp if it was already empty.
+                            //...
+                            dynamo_update({
+                              table_name: "drivers_profiles",
+                              _idKey: {
+                                driver_fingerprint:
+                                  bundleWorkingData.driver_fingerprint,
+                              },
+                              UpdateExpression:
+                                "set #op.#acc = :val1, date_updated = :val2",
+                              ExpressionAttributeNames: {
+                                "#op": "operational_state",
+                                "#acc": "accepted_requests_infos",
+                              },
                               ExpressionAttributeValues: {
-                                ":val1": requestPrevData[0].client_id,
+                                ":val1": prevAcceptedData,
+                                ":val2": new Date(chaineDateUTC)
+                                  .toISOString()
+                                  .toISOString(),
                               },
                             })
-                              .then((ridersDetails) => {
-                                if (
-                                  ridersDetails.length > 0 &&
-                                  ridersDetails[0].user_fingerprint !==
-                                    undefined &&
-                                  ridersDetails[0].pushnotif_token !== null &&
-                                  ridersDetails[0].pushnotif_token !==
-                                    undefined &&
-                                  ridersDetails[0].pushnotif_token.userId !==
-                                    undefined
-                                ) {
-                                  let message = {
-                                    app_id: process.env.RIDERS_APP_ID_ONESIGNAL,
-                                    android_channel_id:
-                                      process.env
-                                        .RIDERS_ONESIGNAL_CHANNEL_ACCEPTTEDD_REQUEST, //Ride or delivery channel
-                                    priority: 10,
-                                    contents: {
-                                      en: "Don't forget to confirm your drop off and rate your driver. Click here to do so.",
-                                    },
-                                    headings: { en: "Your trip is completed" },
-                                    content_available: true,
-                                    include_player_ids: [
-                                      String(
-                                        ridersDetails[0].pushnotif_token.userId
-                                      ),
-                                    ],
-                                  };
-                                  //Send
-                                  sendPushUPNotification(message);
-                                  resSendNotif(false);
-                                } else {
-                                  resSendNotif(false);
+                              .then((result) => {
+                                if (!result) {
+                                  resUpdateDriverProfile(false);
                                 }
+                                //...
+                                resUpdateDriverProfile(true);
                               })
                               .catch((error) => {
-                                resSendNotif(false);
+                                logger.error(error);
+                                resUpdateDriverProfile(false);
                               });
-                          }).then(
-                            () => {},
-                            () => {}
-                          );
-                        } //Strange - no request found
-                        else {
-                          resUpdateDriverProfile(true);
-                        }
-                      })
-                      .catch((error) => {
-                        resUpdateDriverProfile(false);
-                      });
-                  } //No driver
-                  else {
+
+                            //?Notify the cllient
+                            //Send the push notifications - FOR Passengers
+                            new Promise((resSendNotif) => {
+                              //? Get the rider's details
+                              dynamo_find_query({
+                                table_name: "passengers_profiles",
+                                IndexName: "user_fingerprint",
+                                KeyConditionExpression:
+                                  "user_fingerprint = :val1",
+                                ExpressionAttributeValues: {
+                                  ":val1": requestPrevData[0].client_id,
+                                },
+                              })
+                                .then((ridersDetails) => {
+                                  if (
+                                    ridersDetails.length > 0 &&
+                                    ridersDetails[0].user_fingerprint !==
+                                      undefined &&
+                                    ridersDetails[0].pushnotif_token !== null &&
+                                    ridersDetails[0].pushnotif_token !==
+                                      undefined &&
+                                    ridersDetails[0].pushnotif_token.userId !==
+                                      undefined
+                                  ) {
+                                    let message = {
+                                      app_id:
+                                        process.env.RIDERS_APP_ID_ONESIGNAL,
+                                      android_channel_id:
+                                        process.env
+                                          .RIDERS_ONESIGNAL_CHANNEL_ACCEPTTEDD_REQUEST, //Ride or delivery channel
+                                      priority: 10,
+                                      contents: {
+                                        en: "Don't forget to confirm your drop off and rate your driver. Click here to do so.",
+                                      },
+                                      headings: {
+                                        en: "Your trip is completed",
+                                      },
+                                      content_available: true,
+                                      include_player_ids: [
+                                        String(
+                                          ridersDetails[0].pushnotif_token
+                                            .userId
+                                        ),
+                                      ],
+                                    };
+                                    //Send
+                                    sendPushUPNotification(message);
+                                    resSendNotif(false);
+                                  } else {
+                                    resSendNotif(false);
+                                  }
+                                })
+                                .catch((error) => {
+                                  resSendNotif(false);
+                                });
+                            }).then(
+                              () => {},
+                              () => {}
+                            );
+                          } //Strange - no request found
+                          else {
+                            resUpdateDriverProfile(true);
+                          }
+                        })
+                        .catch((error) => {
+                          resUpdateDriverProfile(false);
+                        });
+                    } //No driver
+                    else {
+                      resUpdateDriverProfile(false);
+                    }
+                  })
+                  .catch((error) => {
                     resUpdateDriverProfile(false);
-                  }
-                })
+                  });
+              })
+                .then(
+                  () => {},
+                  () => {}
+                )
                 .catch((error) => {
-                  resUpdateDriverProfile(false);
+                  //logger.info(error);
                 });
-            })
-              .then(
-                () => {},
-                () => {}
-              )
-              .catch((error) => {
-                //logger.info(error);
+              //DONE
+              resolve({
+                response: "successfully_confirmed_dropoff",
+                rider_fp: tripData[0].client_id,
               });
-            //DONE
-            resolve({
-              response: "successfully_confirmed_dropoff",
-              rider_fp: result[0].client_id,
+            })
+            .catch((error) => {
+              logger.error(error.stack);
+              resolve({ response: "unable_to_confirm_dropoff_request_error" });
             });
-          })
-          .catch((error) => {
-            resolve({ response: "unable_to_confirm_dropoff_request_error" });
-          });
-      } //abort the pickup confirmation
-      else {
-        resolve({ response: "unable_to_confirm_dropoff_request_not_owned" });
-      }
-    })
-    .catch((error) => {
-      resolve({ response: "unable_to_confirm_dropoff_request_error" });
-    });
+        } //abort the pickup confirmation
+        else {
+          resolve({ response: "unable_to_confirm_dropoff_request_not_owned" });
+        }
+      })
+      .catch((error) => {
+        logger.error(error.stack);
+        resolve({ response: "unable_to_confirm_dropoff_request_error" });
+      });
+  } catch (error) {
+    logger.error(error.stack);
+    resolve({ response: "unable_to_confirm_dropoff_request_error" });
+  }
 }
 
 /**
@@ -4784,7 +4801,7 @@ function getRequests_graphPreview_forDrivers(
               "#ct": "city",
             },
             ExpressionAttributeValues: {
-              ":val1": false,
+              ":val1": "false",
               ":val2":
                 driverData[0].operational_state.last_location !== null &&
                 driverData[0].operational_state.last_location.city &&
@@ -5025,7 +5042,8 @@ var collectionDedicatedServices_accounts = null;
  * MAIN
  */
 redisCluster.on("connect", function () {
-  //logger.info("[*] Redis connected");
+  logger.info("[*] Redis connected");
+
   requestAPI(
     /development/i.test(process.env.EVIRONMENT)
       ? `${process.env.AUTHENTICATOR_URL}get_API_CRED_DATA?environment=dev_local` //? Development localhost url
@@ -5041,6 +5059,8 @@ redisCluster.on("connect", function () {
       process.env.AWS_S3_SECRET = body.AWS_S3_SECRET;
       process.env.URL_MONGODB_DEV = body.URL_MONGODB_DEV;
       process.env.URL_MONGODB_PROD = body.URL_MONGODB_PROD;
+
+      logger.info("[*] Dispatch service up!");
 
       app
         .get("/", function (req, res) {
@@ -6006,16 +6026,10 @@ redisCluster.on("connect", function () {
         ) {
           //...
           new Promise((res0) => {
-            acceptRequest_driver(
-              req,
-              collectionRidesDeliveryData,
-              collectionGlobalEvents,
-              collectionDrivers_profiles,
-              collectionPassengers_profiles,
-              res0
-            );
+            acceptRequest_driver(req, res0);
           }).then(
             (result) => {
+              logger.error(result);
               //...
               res.send(result);
             },
@@ -6053,14 +6067,7 @@ redisCluster.on("connect", function () {
           //...
           // res.send({ response: "unable_to_cancel_request_error" });
           new Promise((res0) => {
-            cancelRequest_driver(
-              req,
-              collectionRidesDeliveryData,
-              collectionGlobalEvents,
-              collectionPassengers_profiles,
-              collectionDrivers_profiles,
-              res0
-            );
+            cancelRequest_driver(req, res0);
           }).then(
             (result) => {
               res.send(result);
@@ -6127,11 +6134,11 @@ redisCluster.on("connect", function () {
       app.post("/confirm_dropoff_request_driver", function (req, res) {
         //DEBUG
         /*req.body = {
-      driver_fingerprint:
-        "23c9d088e03653169b9c18193a0b8dd329ea1e43eb0626ef9f16b5b979694a429710561a3cb3ddae",
-      request_fp:
-        "999999f5c51c380ef9dee9680872a6538cc9708ef079a8e42de4d762bfa7d49efdcde41c6009cbdd9cdf6f0ae0544f74cb52caa84439cbcda40ce264f90825e8",
-    };*/
+        driver_fingerprint:
+          "23c9d088e03653169b9c18193a0b8dd329ea1e43eb0626ef9f16b5b979694a429710561a3cb3ddae",
+        request_fp:
+          "999999f5c51c380ef9dee9680872a6538cc9708ef079a8e42de4d762bfa7d49efdcde41c6009cbdd9cdf6f0ae0544f74cb52caa84439cbcda40ce264f90825e8",
+      };*/
         //...
         req = req.body;
         //logger.info(req);
@@ -6145,14 +6152,7 @@ redisCluster.on("connect", function () {
         ) {
           //...
           new Promise((res0) => {
-            confirmDropoffRequest_driver(
-              req,
-              collectionRidesDeliveryData,
-              collectionGlobalEvents,
-              collectionPassengers_profiles,
-              collectionDrivers_profiles,
-              res0
-            );
+            confirmDropoffRequest_driver(req, res0);
           }).then(
             (result) => {
               res.send(result);

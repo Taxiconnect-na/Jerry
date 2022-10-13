@@ -4,6 +4,7 @@ var express = require("express");
 const http = require("http");
 const path = require("path");
 var multer = require("multer");
+const morgan = require("morgan");
 
 const { logger } = require("./LogService");
 
@@ -50,6 +51,7 @@ function resolveDate() {
 resolveDate();
 
 //EVENT GATEWAY PORT
+app.use(morgan("dev"));
 
 app
   .get("/", function (req, res) {
